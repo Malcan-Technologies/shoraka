@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - DATABASE_URL=postgresql://postgres:password@db:5432/shoraka_dev
+    depends_on:
+      - db
+    networks:
+      - shoraka-network
+
+  landing:
+    build:
+      context: .
+      dockerfile: docker/landing.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    networks:
+      - shoraka-network
+
+  borrower:
+    build:
+      context: .
+      dockerfile: docker/portal-borrower.Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    networks:
+      - shoraka-network
+
+  investor:
+    build:
+      context: .
+      dockerfile: docker/portal-investor.Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    networks:
+      - shoraka-network
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/portal-admin.Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    networks:
+      - shoraka-network
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=shoraka_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shoraka-network
+
+volumes:
+  postgres_data:
+
+networks:
+  shoraka-network:
+    driver: bridge
+

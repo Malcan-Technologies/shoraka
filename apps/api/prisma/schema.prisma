@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  INVESTOR
+  BORROWER
+  ADMIN
+}
+
+enum LoanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  FUNDED
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password_hash String
+  role          UserRole
+  first_name    String
+  last_name     String
+  phone         String?
+  kyc_verified  Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  loans        Loan[]
+  investments  Investment[]
+  
+  @@map("users")
+}
+
+model Loan {
+  id                String     @id @default(cuid())
+  borrower_id       String
+  amount            Decimal    @db.Decimal(18, 6)
+  interest_rate     Decimal    @db.Decimal(5, 2)
+  duration_months   Int
+  purpose           String
+  status            LoanStatus @default(DRAFT)
+  funded_amount     Decimal    @default(0) @db.Decimal(18, 6)
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+  approved_at       DateTime?
+  funded_at         DateTime?
+  
+  borrower     User         @relation(fields: [borrower_id], references: [id])
+  investments  Investment[]
+  
+  @@map("loans")
+}
+
+model Investment {
+  id          String   @id @default(cuid())
+  investor_id String
+  loan_id     String
+  amount      Decimal  @db.Decimal(18, 6)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  
+  investor User @relation(fields: [investor_id], references: [id])
+  loan     Loan @relation(fields: [loan_id], references: [id])
+  
+  @@map("investments")
+}
+

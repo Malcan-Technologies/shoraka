@@ -1,0 +1,92 @@
+---
+alwaysApply: true
+---
+Scope
+
+Rules for the Node.js/Express API (apps/api) and shared backend code in packages/{types,config,testing}.
+
+Non‑negotiables
+- No TODOs or placeholder comments. Keep modules small and testable.
+- Every route validated with zod; errors normalized; logs structured.
+⸻
+1) Architecture
+apps/api/src/
+  app/              # express app bootstrap, middleware, router attach
+  modules/
+    auth/           # controller, service, repo, schemas
+    loan/
+    investment/
+    repayment/
+    payment/
+    kyc/
+    admin/
+  lib/              # http (errors, validation), auth (jwt), logger (pino)
+  routes.ts         # v1 route registration
+
+- Controllers (http) → Services (business) → Repos (Prisma). Controllers never call Prisma directly.
+- Export shared DTO types to packages/types where frontends need them.
+⸻
+2) API Style
+- REST, versioned under /v1. Response envelope:
+type ApiResponse<T> = { success: true; data: T; correlationId: string }
+type ApiError = { success: false; error: { code: string; message: string; details?: unknown }, correlationId: string }
+
+- Emit and return a correlationId per request (header or generated).
+⸻
+3) Auth & RBAC
+- JWT access (short‑lived) + refresh via HTTP‑Only cookies or Authorization Bearer.
+- Roles: INVESTOR | BORROWER | ADMIN. Middleware: requireAuth(), requireRole(role) and ownership checks on resource routes.
+⸻
+4) Security
+- CORS allow‑list from env (portals + admin domain).
+- Helmet, rate‑limit (IP+user), and WAF‑style reject for obvious probes.
+- File uploads → S3; optional virus scan at ingress; DB stores references + checksums.
+- Never log PII; mask sensitive identifiers.
+⸻
+5) Transactions & Workflows
+- Multi‑step business ops use Prisma transactions with retry/backoff.
+- Background jobs (emails, settlement polling) via a queue (SQS/SNS or BullMQ). Keep job payloads minimal; idempotent handlers.
+⸻
+6) OpenAPI & SDK
+- Generate OpenAPI from route schemas (zod → openapi). Publish a typed client SDK to packages/config that frontends must use.
+⸻
+7) Errors & Logging
+- Central handler maps domain errors → HTTP codes.
+- pino JSON logs: include correlationId, userId (if any), route, latency.
+- Production responses never include stack traces.
+⸻
+8) Testing
+- Unit: services with repo mocks.
+- Integration: supertest against in‑memory/real Express + test Postgres (Docker).
+- Contract tests produce example payloads and validate OpenAPI.
+⸻
+9) CI/CD (GitHub Actions → AWS)
+- Workflow (high level):
+    1. pnpm i --frozen-lockfile
+    2. Lint, typecheck, unit/integration tests
+    3. Build API
+    4. Dockerize, push to ECR
+    5. Deploy to ECS Fargate (or Beanstalk) with env from SSM/Secrets Manager
+    6. Run prisma migrate deploy (one‑shot migration job) before flipping traffic
+- Health checks and autoscaling configured per service.
+⸻
+10) Code Quality
+- Functions preferably < 50 LOC; pure services when possible.
+- No ad‑hoc utilities in controllers—move to lib/ or modules.
+- Strong typing across layers; avoid any and wide unknown without narrowing.
+_____
+11) Database
+Rules for PostgreSQL schema design, migrations, indexing, and Prisma usage across services.
+- Table/column names: snake_case. Prisma maps to camelCase.
+- Primary keys: id UUID (v7/cuid2 acceptable).
+- Timestamps: created_at, updated_at (default now(), trigger to update).
+- Soft deletes only when mandated; prefer strict FKs and status transitions.
+- All changes via prisma migrate. Never edit generated migrations; create new ones.
+- Monetary fields are numeric(18,6). No floats for money.
+- Single Prisma Client per service process; enable pooling (RDS Proxy on AWS recommended).
+- Use prisma.$transaction for multi‑row invariants; prefer interactive transactions for read‑modify‑write.
+- Select narrow columns; avoid large eager loads unless necessary.
+- Separate dev seed and test seed. Never seed prod.
+- Run prisma migrate deploy during deploy; if failure, block rollout.
+- Status transitions enforced by DB where possible (e.g., cannot insert investment unless loan.status = 'APPROVED').
+- Use advisory locks for funding/disbursement race conditions.

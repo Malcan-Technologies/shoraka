@@ -1,0 +1,17 @@
+{
+  "name": "@shoraka/styles",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./tailwind.config.ts",
+  "types": "./tailwind.config.ts",
+  "files": [
+    "globals.css",
+    "tailwind.config.ts"
+  ],
+  "dependencies": {
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+- No TODOs or placeholder comments. If something is deferred, do not leave a tag—create an issue in the tracker.
+- Code must be concise, refactored, and componentized. Duplicate logic is extracted to shared packages.
+- All portals reference the Brand Guide (branding.mdc) and the shared packages/styles tokens.
+- GitHub Actions blocks merges if lint, types, unit, integration, and Playwright don’t pass.
+- Secrets/config come from environment (AWS SSM/Secrets Manager). Never hardcode.
+- Use Context7 MCP to get latest documentation.

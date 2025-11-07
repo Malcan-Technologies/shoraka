@@ -1,0 +1,207 @@
+---
+alwaysApply: true
+---
+
+Scope
+
+Deployment rules for the monorepo containing:
+- Frontends: Next.js portals (apps/investor, apps/borrower, apps/admin) using shadcn/ui + Tailwind and the shared brand tokens from BRANDING.md.
+- Backend: Express/Node API at apps/api.
+- Database: PostgreSQL (AWS RDS) accessed via Prisma.
+- CI/CD: GitHub Actions → AWS (ECR + ECS Fargate). Images stored in ECR; services updated via ECS. Optional CloudFront + S3 for static assets.
+
+Non‑negotiables
+- Use GitHub OIDC to assume AWS roles; no long‑lived AWS keys in repo or secrets.
+- Every deploy runs: lint → typecheck → unit → integration → Playwright e2e. If any fail, cancel release.
+- No TODOs in workflow files. Use clear comments only where necessary.
+- Infra is managed via IaC (Terraform/CDK/CloudFormation). Application workflows never mutate infra shape; they only deploy app revisions and run migrations.
+⸻
+1) Target AWS Topology (high‑level)
+- VPC: 2+ AZs. Public subnets for ALB; private subnets for ECS tasks and RDS.
+- ALB: HTTP → redirect to HTTPS; listener rules route by hostnames to target groups:
+    - investor.<domain> → svc-portal-investor
+    - borrower.<domain> → svc-portal-borrower
+    - admin.<domain> → svc-portal-admin
+    - api.<domain> → svc-api
+- Certificates: ACM (us‑east‑1 if CloudFront is used; otherwise in region of ALB).
+- ECS Fargate Services:
+    - svc-portal-investor, svc-portal-borrower, svc-portal-admin — Next.js containers (output: 'standalone') serving SSR. Static assets can be uploaded to S3 and cached by CloudFront; SSR preserved via ALB.
+    - svc-api — Express/Node API container.
+- RDS PostgreSQL: in private subnets. Use RDS Proxy for connection pooling.
+- Secrets/Config: AWS SSM Parameter Store / Secrets Manager. App containers read env at runtime.
+- Logs/Monitoring: CloudWatch Logs for tasks; ALB access logs to S3; CloudWatch Alarms on 5XX, CPU/Memory, and RDS metrics.
+- Object Storage: S3 bucket for uploads and optionally Next.js static assets. Server‑side encryption enabled.
+⸻
+2) Container Build Conventions
+- Registry: ECR repositories per service (api, portal-investor, portal-borrower, portal-admin).
+- Next.js: set experimental.outputFileTracingIncludes as needed; use next build with output: 'standalone' to reduce image size. Run with node .next/standalone/server.js. Ensure NEXT_PUBLIC_* (build‑time) vs runtime env split is correct.
+- API: minimal Node base image (e.g., node:20-alpine). Health endpoint /healthz for ALB.
+- Labels: annotate images with commit SHA, build time, and app name for traceability.
+
+Example Dockerfile (Next.js portal extract)
+# 1) Builder
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm i --frozen-lockfile
+COPY . .
+RUN pnpm -w build  # workspace build triggers portal build with output=standalone
+
+# 2) Runner
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/apps/investor/.next/standalone ./
+COPY --from=builder /app/apps/investor/.next/static ./apps/investor/.next/static
+COPY --from=builder /app/apps/investor/public ./apps/investor/public
+EXPOSE 3000
+CMD ["node", "apps/investor/server.js"]
+
+⸻
+3) Runtime Environment & Secrets
+- All sensitive values live in SSM/Secrets Manager. The workflow passes only ARNs/paths; tasks read on boot via task role.
+- Use consistent env naming:
+    - NODE_ENV=production
+    - PORT=3000
+    - DATABASE_URL=... (RDS Proxy endpoint)
+    - NEXTAUTH_URL, JWT_SECRET, S3_BUCKET, AWS_REGION, ALLOWED_ORIGINS
+- Separate env paths by stage: /p2p/prod/... (and /p2p/staging/... if a staging env exists).
+⸻
+4) Database Migrations
+- Migrations are immutable and run as a discrete step using Prisma:
+    - Option A: One‑off migration task (ECS run‑task) before service rollout.
+    - Option B: Init container in svc-api that runs prisma migrate deploy with backoff; app starts only on success.
+- If migrations fail, fail the deployment. No partial rollouts.
+⸻
+5) GitHub Actions (Build → Test → Release)
+Pre‑req: Configure OIDC trust between GitHub and AWS and a deploy role per environment with minimal permissions (ECR push, ECS update service, run task, SSM/Secrets read).
+
+Workflow Skeleton
+name: deploy
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: <account>.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+  APP_NAME: p2p-platform
+
+jobs:
+  build-test-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm i --frozen-lockfile
+
+      - name: Typecheck & Lint
+        run: pnpm -w typecheck && pnpm -w lint
+
+      - name: Unit & Integration tests
+        run: pnpm -w test
+
+      - name: Playwright E2E
+        run: pnpm -w e2e
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<account>:role/github-actions-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push images
+        run: |
+          SERVICES=("api" "portal-investor" "portal-borrower" "portal-admin")
+          for SVC in "${SERVICES[@]}"; do
+            IMAGE="${ECR_REGISTRY}/${APP_NAME}-${SVC}:${GITHUB_SHA}"
+            docker build -f docker/${SVC}.Dockerfile -t "$IMAGE" .
+            docker push "$IMAGE"
+          done
+
+      - name: Run DB migrations (ECS run-task)
+        run: |
+          aws ecs run-task             --cluster p2p-prod             --launch-type FARGATE             --task-definition p2p-migrate:1             --network-configuration "awsvpcConfiguration={subnets=[subnet-1,subnet-2],securityGroups=[sg-xxx],assignPublicIp=DISABLED}"             --count 1
+        # Wait/poll for success in a subsequent step or wrap with a small script
+
+      - name: Deploy ECS services
+        run: |
+          # Update each service to new image tags (using task definition revision bump)
+          ./scripts/ecs-update.sh "${GITHUB_SHA}"
+
+
+Notes
+- Keep service‑specific Dockerfiles under docker/ to avoid multi‑context confusion.
+- The ecs-update.sh script should register new task definitions per service with the new image tag and then call aws ecs update-service --force-new-deployment.
+- Enable the deployment circuit breaker and a rolling strategy (e.g., minHealthyPercent 100, maxPercent 200).
+⸻
+6) Networking & Security Groups
+- ALB SG: inbound 443 from Internet → outbound to ECS SG.
+- ECS SG: inbound only from ALB SG (web) and from VPN/bastion for admin shells; outbound to RDS SG and S3 endpoints.
+- RDS SG: inbound only from ECS SG. No public access.
+- Prefer VPC endpoints for S3 and SSM to avoid public egress where possible.
+⸻
+7) Observability & Ops
+- CloudWatch Logs: one log group per service with retention policy.
+- Alarms: ALB 5XX rate, ECS task CPU/Memory, RDS free storage/CPU/Connections.
+- Tracing: optional X‑Ray/OpenTelemetry on API. Frontend emits server timings.
+- ALB access logs to S3 and lifecycle policy for retention.
+- S3 versioning and lifecycle for cold storage of uploads.
+⸻
+8) Rollbacks & DR
+- Keep the previous task definition revisions for immediate rollback.
+- Database: automated RDS snapshots; practice restore drills quarterly.
+- Store infra code in a separate repo or folder; releases are tagged and reproducible.
+⸻
+9) Domain & DNS
+- Route 53 hosted zone for the domain.
+- Records:
+    - investor.<domain>, borrower.<domain>, admin.<domain>, api.<domain> → ALB
+    - If CloudFront is used for static: assets.<domain> → CloudFront → S3
+- ACM certs validated prior to cutover.
+⸻
+10) Frontend Asset Strategy
+- SSR: served from the portal ECS services via ALB.
+- Static assets: uploaded to S3 during build or post‑build sync; optionally fronted by CloudFront for global caching.
+- Set long cache headers on static; short max‑age on SSR responses.
+⸻
+11) Release Checklist
+1. All tests green (lint/type/unit/integration/e2e).
+2. Images built and pushed to ECR (tag = commit SHA).
+3. Migration task completed successfully.
+4. ECS services updated and healthy (0 failing tasks).
+5. Alarms green; logs clean.
+6. Record the release in changelog with image tags and migration IDs.
+⸻
+12) Staging (Optional)
+- If a staging env is used:
+    - Separate AWS account or at least separate VPC and named resources (p2p-staging-*).
+    - Distinct Route 53 subdomain (*.staging.<domain>).
+    - Lower task sizes to save cost; same IaC shape as prod.
+    - GitHub Actions uses a different assume role ARN.
+⸻
+13) Brand, Security, and Compliance Notes
+- Frontends must continue to use shared brand tokens (BRANDING.md) after deploy; avoid runtime CSS overrides.
+- Ensure RDS logs and audit logs are retained per policy. Mask PII in app logs; never log secrets.
+- All uploads encrypted at rest in S3; HTTPS everywhere (ALB + CloudFront).

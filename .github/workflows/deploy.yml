@@ -1,0 +1,93 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  APP_NAME: shoraka-p2p
+
+jobs:
+  build-test-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Install Playwright
+        run: pnpm exec playwright install --with-deps
+
+      - name: Run E2E tests
+        run: pnpm e2e
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker images
+        run: |
+          SERVICES=("api" "portal-investor" "portal-borrower" "portal-admin")
+          for SVC in "${SERVICES[@]}"; do
+            IMAGE="${ECR_REGISTRY}/${APP_NAME}-${SVC}:${GITHUB_SHA}"
+            LATEST="${ECR_REGISTRY}/${APP_NAME}-${SVC}:latest"
+            docker build -f docker/${SVC}.Dockerfile -t "$IMAGE" -t "$LATEST" .
+            docker push "$IMAGE"
+            docker push "$LATEST"
+          done
+
+      - name: Run database migrations
+        run: |
+          echo "Running Prisma migrations via ECS task..."
+          aws ecs run-task \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --launch-type FARGATE \
+            --task-definition ${{ secrets.MIGRATE_TASK_DEFINITION }} \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNETS }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP }}],assignPublicIp=DISABLED}"
+
+      - name: Deploy to ECS
+        run: |
+          SERVICES=("api" "investor" "borrower" "admin")
+          for SVC in "${SERVICES[@]}"; do
+            aws ecs update-service \
+              --cluster ${{ secrets.ECS_CLUSTER }} \
+              --service "${APP_NAME}-${SVC}" \
+              --force-new-deployment
+          done
+

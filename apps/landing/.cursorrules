@@ -1,0 +1,68 @@
+---
+alwaysApply: true
+---
+Scope
+These rules apply to all Next.js frontend apps in the monorepo (apps/investor, apps/borrower, apps/admin) and any shared UI packages (packages/ui, packages/icons, packages/styles, packages/config).
+
+Architecture & Monorepo
+- Use pnpm workspaces. Structure:
+    - apps/{investor,borrower,admin,api}
+    - packages/{ui,styles,icons,config,types,testing}
+- Shared UI (shadcn components, tokens, primitives) lives in packages/ui. No copy-pasting between apps—import from packages.
+- Shared brand tokens and CSS variables live in packages/styles. Do not hardcode colors.
+
+Branding & Design System
+- Reference branding.mdc at the .cursor/rules for all brand guidance (tokens, color usage, typography, spacing).
+- shadcn/ui + Tailwind only; no external component libraries.
+- No arbitrary hex in app code. Use Tailwind tokens: bg-primary, text-foreground, border, accent, etc.
+- Typography: Body text-[17px] leading-7; headings as in brand guide. Avoid tiny text.
+- Use portal themes via theme-user, theme-investor, theme-admin CSS scopes at each portal layout root. Don’t override with inline styles.
+
+Routing & Layout (Next.js App Router)
+- File structure per portal:
+    - app/(routes)/... for pages
+    - app/(marketing), app/(auth), etc., if needed
+    - Common layout shells and nav in app/_components/
+- Server/Client components: default to Server Components. Use Client only when interaction/state is required.
+- Use react-hook-form + zod for forms and schema validation. Components for inputs in packages/ui.
+
+State & Data
+- Fetch via a typed API SDK from packages/config (generated or hand-written). No fetch scattered across components.
+- Global state minimal; prefer React Query (TanStack) if needed for caching, else local component state. Keep state colocated.
+
+Accessibility & Semantics
+- Prefer accessible selectors: getByRole, labels, aria-*.
+- Focus rings must be visible and theme-aware. No removing outlines.
+
+Components & Refactoring
+- Always extract repeated patterns into packages/ui or portal-local app/_components.
+- Keep components small, single-responsibility; lift logic to hooks (e.g., useKycStatus, useLoanFilter).
+- No TODOs in code/comments. Write only rationale comments when needed (the “why”).
+
+Error & Empty States
+- Provide explicit empty states with action CTAs.
+- Use consistent error surfaces: inline form errors, toast for global failures, and error pages.
+- Playwright (with MCP) — E2E/Smoke
+- Add stable selectors: prefer role/name. Use data-testid only when roles/labels are not feasible.
+- Each PR must run headless Playwright per portal with trace & video on failure.
+- Use ShadcnUI skeleton for data loading in frontend.
+
+Minimum suites:
+- Auth flow (login, logout, session restore)
+- Investor: browse loans, invest flow (mocked checkout), portfolio list
+- Borrower: create loan request, upload docs (mock), status view
+- Admin: review/approve loan, disbursement action (mock), role guard
+- Put shared e2e utils in packages/testing/playwright.
+- Fail fast on accessibility violations (axe/aria checks where feasible).
+
+Security & Auth UI
+- Enforce RBAC on nav and routes (hide inaccessible actions; redirects on guard failure).
+- Never display sensitive PII without masking; follow brand guide for warning/destructive colors.
+
+Performance
+- Use image optimization, route-level generateMetadata, and code-split large sections.
+- Avoid client-side heavy charts on initial paint; load lazily.
+
+CI
+- Lint, typecheck, unit tests, and Playwright e2e must pass before deploy.
+- Disallow console logs in production builds; tree-shake dead code.
