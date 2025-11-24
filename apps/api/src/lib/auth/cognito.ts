@@ -3,7 +3,6 @@ import { UserRole } from "@prisma/client";
 
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
 const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || "";
-const COGNITO_REGION = process.env.COGNITO_REGION || "ap-southeast-5";
 
 // Create verifier for ID tokens
 const idTokenVerifier = CognitoJwtVerifier.create({
@@ -76,7 +75,7 @@ export function extractCognitoPayload(payload: CognitoTokenPayload): {
     sub: payload.sub,
     email: payload.email || "",
     emailVerified: payload.email_verified || false,
-    username: payload.cognito_username || payload["cognito:username"] || payload.email || "",
+    username: payload.cognito_username || payload.email || "",
     roles: roles.length > 0 ? roles : [],
   };
 }

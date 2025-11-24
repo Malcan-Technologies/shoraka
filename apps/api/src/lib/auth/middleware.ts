@@ -17,7 +17,7 @@ declare global {
  * Middleware to require authentication via Cognito token
  * Validates token, fetches user from database, and attaches to req.user
  */
-export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
     
@@ -61,7 +61,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  * router.get('/investor-or-admin', requireAuth, requireRole(UserRole.INVESTOR, UserRole.ADMIN), handler);
  */
 export function requireRole(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
       return;
@@ -86,7 +86,7 @@ export function requireRole(...roles: UserRole[]) {
  * router.get('/investor-and-issuer', requireAuth, requireAllRoles(UserRole.INVESTOR, UserRole.ISSUER), handler);
  */
 export function requireAllRoles(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
       return;

@@ -36,7 +36,7 @@ export function createApp(): Application {
     })
   );
 
-  app.get("/healthz", (_req: Request, res: Response) => {
+  app.get("/healthz", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 

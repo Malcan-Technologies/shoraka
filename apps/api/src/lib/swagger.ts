@@ -127,5 +127,5 @@ const options: swaggerJsdoc.Options = {
   apis: ["./src/modules/**/*.ts", "./src/routes.ts"], // Files containing annotations
 };
 
-export const swaggerSpec = swaggerJsdoc(options);
+export const swaggerSpec = swaggerJsdoc.default(options);
 

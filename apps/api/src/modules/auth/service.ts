@@ -1,4 +1,4 @@
-import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminUpdateUserAttributesCommand, AttributeType } from "@aws-sdk/client-cognito-identity-provider";
+import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
