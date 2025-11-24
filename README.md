@@ -18,6 +18,19 @@ CashSouk connects borrowers (issuers) with investors through a secure, transpare
 - 👨‍💼 **Admin Dashboard** - Platform management and operations
 - 🔌 **REST API** - Backend services and business logic
 
+## 🚀 Quick Start
+
+### Deployment to AWS
+
+**First time?** Start here: **[AWS_SETUP_CHECKLIST.md](./AWS_SETUP_CHECKLIST.md)** - Configure AWS CLI and credentials
+
+**Ready to deploy?** Follow: **[DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md)** - Complete deployment guide
+
+**Want to understand authentication?** Read: **[docs/deployment/aws-authentication-explained.md](./docs/deployment/aws-authentication-explained.md)**
+
+### Local Development
+For local development setup, see **[docs/guides/getting-started.md](./docs/guides/getting-started.md)**.
+
 ## Tech Stack
 
 ### Frontend
