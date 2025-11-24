@@ -1,4 +1,4 @@
-import { sign, verify } from "jsonwebtoken";
+import { sign, verify, SignOptions } from "jsonwebtoken";
 import { UserRole } from "@prisma/client";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
@@ -11,7 +11,7 @@ export interface JwtPayload {
 }
 
 export function signToken(payload: JwtPayload): string {
-  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as SignOptions);
 }
 
 export function verifyToken(token: string): JwtPayload {
