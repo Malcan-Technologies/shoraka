@@ -33,16 +33,6 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Create environment file
-        run: |
-          echo "${{ secrets.LANDING_ENV_PROD }}" > apps/landing/.env.production
-
-      - name: Build landing page
-        run: pnpm --filter landing build
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -59,6 +49,9 @@ jobs:
           ECR_REPOSITORY: landing-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f docker/landing.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker build -f docker/landing.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
