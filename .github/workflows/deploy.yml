@@ -1,23 +1,25 @@
-name: Deploy to AWS ECS
+name: Deploy Landing Page to ECR
 
 on:
   push:
     branches: [main]
-  workflow_dispatch: # Allow manual trigger
+    paths:
+      - "apps/landing/**"
+      - "packages/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-southeast-5
-  ECR_REGISTRY_ALIAS: cashsouk
-  ECS_CLUSTER: cashsouk-prod
 
 permissions:
   id-token: write # Required for OIDC
   contents: read
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,14 +38,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm -w typecheck || true
+      - name: Create environment file
+        run: |
+          echo "${{ secrets.LANDING_ENV_PROD }}" > apps/landing/.env.production
 
-      - name: Lint
-        run: pnpm -w lint || true
-
-      - name: Run tests
-        run: pnpm -w test || true
+      - name: Build landing page
+        run: pnpm --filter landing build
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,180 +55,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set environment variables
-        id: vars
-        run: |
-          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
-
-      - name: Build and push API image
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          docker build -f docker/api.Dockerfile -t $ECR_REGISTRY/cashsouk-api:$IMAGE_TAG -t $ECR_REGISTRY/cashsouk-api:latest .
-          docker push $ECR_REGISTRY/cashsouk-api:$IMAGE_TAG
-          docker push $ECR_REGISTRY/cashsouk-api:latest
-
       - name: Build and push Landing image
         env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: landing-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f docker/landing.Dockerfile -t $ECR_REGISTRY/cashsouk-landing:$IMAGE_TAG -t $ECR_REGISTRY/cashsouk-landing:latest .
-          docker push $ECR_REGISTRY/cashsouk-landing:$IMAGE_TAG
-          docker push $ECR_REGISTRY/cashsouk-landing:latest
-
-      - name: Build and push Investor Portal image
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          docker build -f docker/portal-investor.Dockerfile -t $ECR_REGISTRY/cashsouk-investor:$IMAGE_TAG -t $ECR_REGISTRY/cashsouk-investor:latest .
-          docker push $ECR_REGISTRY/cashsouk-investor:$IMAGE_TAG
-          docker push $ECR_REGISTRY/cashsouk-investor:latest
-
-      - name: Build and push Issuer Portal image
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          docker build -f docker/portal-issuer.Dockerfile -t $ECR_REGISTRY/cashsouk-issuer:$IMAGE_TAG -t $ECR_REGISTRY/cashsouk-issuer:latest .
-          docker push $ECR_REGISTRY/cashsouk-issuer:$IMAGE_TAG
-          docker push $ECR_REGISTRY/cashsouk-issuer:latest
-
-      - name: Build and push Admin Portal image
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          docker build -f docker/portal-admin.Dockerfile -t $ECR_REGISTRY/cashsouk-admin:$IMAGE_TAG -t $ECR_REGISTRY/cashsouk-admin:latest .
-          docker push $ECR_REGISTRY/cashsouk-admin:$IMAGE_TAG
-          docker push $ECR_REGISTRY/cashsouk-admin:latest
-
-      - name: Run database migrations
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          echo "Running database migrations via ECS task..."
-          aws ecs run-task \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --launch-type FARGATE \
-            --task-definition cashsouk-migrations \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_1 }},${{ secrets.PRIVATE_SUBNET_2 }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP }}],assignPublicIp=DISABLED}" \
-            --count 1 \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Update ECS service - API
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          # Update task definition
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition cashsouk-api --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-api:$IMAGE_TAG" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          NEW_TASK_INFO=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          # Update service
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service cashsouk-api \
-            --task-definition cashsouk-api:$NEW_REVISION \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Update ECS service - Landing
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition cashsouk-landing --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-landing:$IMAGE_TAG" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          NEW_TASK_INFO=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service cashsouk-landing \
-            --task-definition cashsouk-landing:$NEW_REVISION \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Update ECS service - Investor Portal
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition cashsouk-investor --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-investor:$IMAGE_TAG" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          NEW_TASK_INFO=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service cashsouk-investor \
-            --task-definition cashsouk-investor:$NEW_REVISION \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Update ECS service - Issuer Portal
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition cashsouk-issuer --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-issuer:$IMAGE_TAG" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          NEW_TASK_INFO=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service cashsouk-issuer \
-            --task-definition cashsouk-issuer:$NEW_REVISION \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Update ECS service - Admin Portal
-        env:
-          ECR_REGISTRY: ${{ steps.vars.outputs.ECR_REGISTRY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
-        run: |
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition cashsouk-admin --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-admin:$IMAGE_TAG" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          NEW_TASK_INFO=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json "$NEW_TASK_DEF")
-          NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision')
-          
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service cashsouk-admin \
-            --task-definition cashsouk-admin:$NEW_REVISION \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Wait for services to stabilize
-        run: |
-          echo "Waiting for all services to reach steady state..."
-          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services cashsouk-api --region ${{ env.AWS_REGION }}
-          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services cashsouk-landing --region ${{ env.AWS_REGION }}
-          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services cashsouk-investor --region ${{ env.AWS_REGION }}
-          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services cashsouk-issuer --region ${{ env.AWS_REGION }}
-          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services cashsouk-admin --region ${{ env.AWS_REGION }}
-          echo "✅ All services deployed successfully!"
-
-      - name: Deployment summary
-        if: success()
-        run: |
-          echo "================================================"
-          echo "🎉 Deployment completed successfully!"
-          echo "================================================"
-          echo "Deployed images:"
-          echo "  API:      ${{ steps.vars.outputs.ECR_REGISTRY }}/cashsouk-api:${{ steps.vars.outputs.IMAGE_TAG }}"
-          echo "  Landing:  ${{ steps.vars.outputs.ECR_REGISTRY }}/cashsouk-landing:${{ steps.vars.outputs.IMAGE_TAG }}"
-          echo "  Investor: ${{ steps.vars.outputs.ECR_REGISTRY }}/cashsouk-investor:${{ steps.vars.outputs.IMAGE_TAG }}"
-          echo "  Issuer:   ${{ steps.vars.outputs.ECR_REGISTRY }}/cashsouk-issuer:${{ steps.vars.outputs.IMAGE_TAG }}"
-          echo "  Admin:    ${{ steps.vars.outputs.ECR_REGISTRY }}/cashsouk-admin:${{ steps.vars.outputs.IMAGE_TAG }}"
-          echo ""
-          echo "Git commit: ${{ steps.vars.outputs.SHORT_SHA }}"
+          docker build -f docker/landing.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest

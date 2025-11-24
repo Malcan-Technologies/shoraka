@@ -69,11 +69,13 @@ git push origin main
 ## ✅ Verify Success
 
 ### In GitHub Actions:
+
 - Green checkmark on workflow
 - No error messages
 - See: "✅ Successfully pushed images"
 
 ### In AWS ECR:
+
 1. Go to AWS Console → ECR → Repositories
 2. Click `landing-cashsouk`
 3. You should see:
@@ -86,6 +88,7 @@ git push origin main
 ## 🎉 Success!
 
 Your landing page is now:
+
 - ✅ Built automatically on every push to `main`
 - ✅ Stored in ECR as a Docker image
 - ✅ Tagged with commit SHA for versioning
@@ -120,6 +123,7 @@ Push to ECR
 ## 📝 What Gets Built Into the Image
 
 The Docker image contains:
+
 - Built Next.js app (optimized, minified)
 - Static assets
 - Node.js runtime
@@ -162,6 +166,7 @@ To change environment variables:
 **Problem:** IAM role trust policy doesn't allow your GitHub repo
 
 **Fix:**
+
 1. AWS Console → IAM → Roles → `GitHubActionsECRPushRole`
 2. Trust relationships → Edit
 3. Verify `sub` condition: `repo:YOUR_USERNAME/Shoraka:ref:refs/heads/main`
@@ -171,6 +176,7 @@ To change environment variables:
 **Problem:** IAM role lacks ECR permissions
 
 **Fix:**
+
 1. AWS Console → IAM → Roles → `GitHubActionsECRPushRole`
 2. Permissions → Add permissions
 3. Add `ecr:GetAuthorizationToken` and `ecr:PutImage`
@@ -180,6 +186,7 @@ To change environment variables:
 **Problem:** Missing dependency
 
 **Fix:** Run locally first:
+
 ```bash
 pnpm install
 pnpm --filter landing build
@@ -210,6 +217,7 @@ For now, celebrate! 🎉 Your CI/CD is working!
 ## 📊 Cost Estimate
 
 **ECR storage:** ~$0.10/GB/month
+
 - Landing image: ~0.2 GB
 - **Cost:** ~$0.02/month
 
@@ -231,4 +239,3 @@ For now, celebrate! 🎉 Your CI/CD is working!
 - [ ] Ready for next step (ECS deployment)
 
 **All checked?** You're ready to deploy to ECS! 🚀
-

@@ -31,6 +31,7 @@ Quick reference for adding secrets to GitHub for the landing page deployment.
 - **Value:** Copy the **ENTIRE contents** of `env-templates/landing.env.prod`
 
 **How to copy:**
+
 1. Open `env-templates/landing.env.prod` in your editor
 2. Select ALL (Cmd+A or Ctrl+A)
 3. Copy (Cmd+C or Ctrl+C)
@@ -39,6 +40,7 @@ Quick reference for adding secrets to GitHub for the landing page deployment.
 **Why:** This file contains all environment variables for the landing page build. The workflow will create `.env.production` from this secret.
 
 **What it contains:**
+
 - `NODE_ENV=production`
 - `NEXT_PUBLIC_API_URL=https://api.cashsouk.com`
 - Commented-out Cognito, analytics, and other optional configs
@@ -52,18 +54,22 @@ Quick reference for adding secrets to GitHub for the landing page deployment.
 **Skip these for now** - add them later when you need them:
 
 ### Cognito Secrets (when you set up authentication)
+
 - `NEXT_PUBLIC_COGNITO_DOMAIN`
 - `NEXT_PUBLIC_COGNITO_CLIENT_ID`
 - `NEXT_PUBLIC_COGNITO_REGION`
 
 ### CloudFront CDN (when you set up CloudFront)
+
 - `NEXT_PUBLIC_CLOUDFRONT_URL`
 
 ### Analytics (when you set up tracking)
+
 - `NEXT_PUBLIC_GA_TRACKING_ID`
 - `NEXT_PUBLIC_HOTJAR_ID`
 
 ### Error Tracking (when you set up Sentry)
+
 - `NEXT_PUBLIC_SENTRY_DSN`
 - `SENTRY_AUTH_TOKEN`
 
@@ -83,14 +89,17 @@ The deployment will work with just these two secrets.
 ## 📸 Step-by-Step Screenshots Guide
 
 ### Step 1: Navigate to Secrets
+
 ![](https://docs.github.com/assets/cb-32501/images/help/repository/repo-actions-settings.png)
 
 ### Step 2: Click "New repository secret"
+
 ![](https://docs.github.com/assets/cb-29287/images/help/settings/actions-secrets-new-secret.png)
 
 ### Step 3: Add First Secret (AWS Role)
 
 **Secret 1:**
+
 ```
 Name:  AWS_DEPLOY_ROLE_ARN
 Value: arn:aws:iam::652821469470:role/GitHubActionsECRPushRole
@@ -103,12 +112,14 @@ Click **"Add secret"**
 Click **"New repository secret"** again
 
 **Secret 2:**
+
 ```
 Name:  LANDING_ENV_PROD
 Value: [Copy entire contents of env-templates/landing.env.prod]
 ```
 
 **To get the value:**
+
 1. Open `env-templates/landing.env.prod`
 2. Select ALL (Cmd+A / Ctrl+A)
 3. Copy (Cmd+C / Ctrl+C)
@@ -143,6 +154,7 @@ git push origin main
 Go to GitHub → Actions tab to watch it deploy! 🎉
 
 **What happens:**
+
 1. Workflow checks out code
 2. Installs dependencies
 3. Creates `.env.production` from `LANDING_ENV_PROD` secret
@@ -204,7 +216,7 @@ Before pushing to trigger deployment:
 
 ## 🎓 Understanding Build-Time vs Runtime
 
-### Build-Time Variables (NEXT_PUBLIC_*)
+### Build-Time Variables (NEXT*PUBLIC*\*)
 
 These are **baked into the JavaScript bundle** during Docker build:
 
@@ -235,6 +247,7 @@ These are **read when the container starts**:
 As you add features, you'll add more secrets:
 
 **When you add Cognito authentication:**
+
 ```bash
 NEXT_PUBLIC_COGNITO_DOMAIN=https://cashsouk-prod.auth.ap-southeast-5.amazoncognito.com
 NEXT_PUBLIC_COGNITO_CLIENT_ID=<your-client-id>
@@ -242,14 +255,15 @@ NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
 ```
 
 **When you add analytics:**
+
 ```bash
 NEXT_PUBLIC_GA_TRACKING_ID=G-XXXXXXXXXX
 ```
 
 **When you add error tracking:**
+
 ```bash
 NEXT_PUBLIC_SENTRY_DSN=https://xxx@sentry.io/xxx
 ```
 
 Just add them as new secrets and the next deployment will include them!
-
