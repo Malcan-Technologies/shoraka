@@ -1,9 +1,33 @@
-name: Deploy All Services to ECR
+name: Deploy Selected Services
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_api:
+        description: "Deploy API"
+        required: true
+        type: boolean
+        default: true
+      deploy_landing:
+        description: "Deploy Landing"
+        required: true
+        type: boolean
+        default: true
+      deploy_investor:
+        description: "Deploy Investor Portal"
+        required: true
+        type: boolean
+        default: true
+      deploy_issuer:
+        description: "Deploy Issuer Portal"
+        required: true
+        type: boolean
+        default: true
+      deploy_admin:
+        description: "Deploy Admin Portal"
+        required: true
+        type: boolean
+        default: true
 
 env:
   AWS_REGION: ap-southeast-5
@@ -19,17 +43,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check for changes
-        id: changes
-        run: |
-          echo "api=$(git diff --name-only HEAD^ HEAD | grep -E '^apps/api/|^packages/(types|config)/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "landing=$(git diff --name-only HEAD^ HEAD | grep -E '^apps/landing/|^packages/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "investor=$(git diff --name-only HEAD^ HEAD | grep -E '^apps/investor/|^packages/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "issuer=$(git diff --name-only HEAD^ HEAD | grep -E '^apps/issuer/|^packages/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "admin=$(git diff --name-only HEAD^ HEAD | grep -E '^apps/admin/|^packages/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -50,7 +63,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push API image
-        if: steps.changes.outputs.api == 'true'
+        if: ${{ inputs.deploy_api }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: api-cashsouk
@@ -61,7 +74,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Build and push Landing image
-        if: steps.changes.outputs.landing == 'true'
+        if: ${{ inputs.deploy_landing }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: landing-cashsouk
@@ -73,7 +86,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Build and push Investor image
-        if: steps.changes.outputs.investor == 'true'
+        if: ${{ inputs.deploy_investor }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: investor-cashsouk
@@ -84,7 +97,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Build and push Issuer image
-        if: steps.changes.outputs.issuer == 'true'
+        if: ${{ inputs.deploy_issuer }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: issuer-cashsouk
@@ -95,7 +108,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Build and push Admin image
-        if: steps.changes.outputs.admin == 'true'
+        if: ${{ inputs.deploy_admin }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: admin-cashsouk
@@ -104,3 +117,15 @@ jobs:
           docker build -f docker/portal-admin.Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployment completed"
+          echo "Image tag: ${{ github.sha }}"
+          echo ""
+          echo "Services deployed:"
+          ${{ inputs.deploy_api }} && echo "  - API" || true
+          ${{ inputs.deploy_landing }} && echo "  - Landing" || true
+          ${{ inputs.deploy_investor }} && echo "  - Investor Portal" || true
+          ${{ inputs.deploy_issuer }} && echo "  - Issuer Portal" || true
+          ${{ inputs.deploy_admin }} && echo "  - Admin Portal" || true
