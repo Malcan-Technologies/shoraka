@@ -10,6 +10,8 @@ import {
   completeOnboardingSchema,
   switchRoleSchema,
   createAdminUserSchema,
+  type SyncUserInput,
+  type CreateAdminUserInput,
 } from "./schemas";
 
 const router = Router();
@@ -71,7 +73,7 @@ const authService = new AuthService();
  */
 router.post("/sync-user", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const validated = syncUserSchema.parse(req.body);
+    const validated = syncUserSchema.parse(req.body) as SyncUserInput;
     const result = await authService.syncUser(req, validated);
     
     res.json({
@@ -319,7 +321,7 @@ router.post("/switch-role", requireAuth, async (req: Request, res: Response, nex
  */
 router.post("/admin/create-user", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const validated = createAdminUserSchema.parse(req.body);
+    const validated = createAdminUserSchema.parse(req.body) as CreateAdminUserInput;
     const result = await authService.createAdminUser(validated);
     
     res.status(201).json({

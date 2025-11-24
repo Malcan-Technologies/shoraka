@@ -42,12 +42,12 @@ export async function verifyCognitoToken(token: string): Promise<CognitoTokenPay
   try {
     // Try as ID token first (contains user info like email)
     const payload = await idTokenVerifier.verify(token);
-    return payload as CognitoTokenPayload;
+    return payload as unknown as CognitoTokenPayload;
   } catch (idError) {
     try {
       // Fall back to access token verification
       const payload = await accessTokenVerifier.verify(token);
-      return payload as CognitoTokenPayload;
+      return payload as unknown as CognitoTokenPayload;
     } catch (accessError) {
       throw new Error("Invalid or expired Cognito token");
     }

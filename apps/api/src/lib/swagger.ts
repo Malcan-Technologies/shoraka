@@ -1,4 +1,4 @@
-import swaggerJsdoc from "swagger-jsdoc";
+import * as swaggerJsdoc from "swagger-jsdoc";
 import { UserRole } from "@prisma/client";
 
 const options: swaggerJsdoc.Options = {

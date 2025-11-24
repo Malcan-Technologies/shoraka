@@ -1,5 +1,5 @@
 import { Application, Router } from "express";
-import swaggerUi from "swagger-ui-express";
+import * as swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./lib/swagger";
 import { authRouter } from "./modules/auth/controller";
 

@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import * as jwt from "jsonwebtoken";
 import { UserRole } from "@prisma/client";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
