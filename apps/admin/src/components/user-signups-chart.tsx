@@ -14,7 +14,7 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@shoraka/ui";
+} from "@cashsouk/ui";
 
 const chartData = [
   { month: "January", investors: 186, borrowers: 80 },

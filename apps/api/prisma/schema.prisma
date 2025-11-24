@@ -9,7 +9,7 @@ datasource db {
 
 enum UserRole {
   INVESTOR
-  BORROWER
+  ISSUER
   ADMIN
 }
 
@@ -25,20 +25,27 @@ enum LoanStatus {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password_hash String
-  role          UserRole
-  first_name    String
-  last_name     String
-  phone         String?
-  kyc_verified  Boolean   @default(false)
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  id                              String     @id @default(cuid())
+  email                           String     @unique
+  cognito_sub                     String     @unique @db.VarChar(255)
+  cognito_username                String     @db.VarChar(255)
+  roles                           UserRole[]
+  first_name                      String
+  last_name                       String
+  phone                           String?
+  email_verified                  Boolean    @default(false)
+  kyc_verified                    Boolean    @default(false)
+  investor_onboarding_completed   Boolean    @default(false)
+  issuer_onboarding_completed     Boolean    @default(false)
+  created_at                      DateTime   @default(now())
+  updated_at                      DateTime   @updatedAt
 
   loans        Loan[]
   investments  Investment[]
+  access_logs  AccessLog[]
+  sessions     UserSession[]
   
+  @@index([cognito_sub])
   @@map("users")
 }
 
@@ -74,5 +81,47 @@ model Investment {
   loan     Loan @relation(fields: [loan_id], references: [id])
   
   @@map("investments")
+}
+
+model AccessLog {
+  id             String   @id @default(cuid())
+  user_id        String
+  event_type     String   // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED
+  ip_address     String?
+  user_agent     String?  @db.Text
+  device_info    String?
+  cognito_event  Json?
+  success        Boolean  @default(true)
+  metadata       Json?    // Stores active_role, auth_method, etc.
+  created_at     DateTime @default(now())
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("access_logs")
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  user_id          String
+  cognito_session  String    @unique @db.VarChar(512)
+  ip_address       String?
+  device_info      String?
+  active_role      UserRole?
+  last_activity    DateTime  @default(now())
+  expires_at       DateTime
+  revoked_at       DateTime?
+  created_at       DateTime  @default(now())
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([cognito_session])
+  @@index([expires_at])
+  @@index([user_id, active_role])
+  @@map("user_sessions")
 }
 

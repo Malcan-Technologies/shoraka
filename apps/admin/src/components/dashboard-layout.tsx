@@ -5,7 +5,7 @@ import { Sidebar } from "./sidebar";
 import { MobileSidebar } from "./mobile-sidebar";
 import { Header } from "./header";
 import { PageTitleProvider, usePageTitle } from "./page-title-provider";
-import { cn } from "@shoraka/ui";
+import { cn } from "@cashsouk/ui";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

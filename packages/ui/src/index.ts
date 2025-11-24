@@ -1,5 +1,12 @@
 export { Button } from "./components/button";
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./components/card";
+export {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "./components/card";
 export { Logo } from "./components/logo";
 export { Skeleton } from "./components/skeleton";
 export { Avatar, AvatarImage, AvatarFallback } from "./components/avatar";
@@ -36,6 +43,14 @@ export {
   DropdownMenuRadioGroup,
 } from "./components/dropdown-menu";
 export { Input } from "./components/input";
+export { Label } from "./components/label";
+export {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+  FieldSeparator,
+} from "./components/field";
 export {
   ChartContainer,
   ChartTooltip,
@@ -46,4 +61,4 @@ export {
 } from "./components/chart";
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
-
+export { NotFound } from "./components/not-found";

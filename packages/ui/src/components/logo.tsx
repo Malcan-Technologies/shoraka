@@ -5,7 +5,7 @@ export interface LogoProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 }
 
 export const Logo = React.forwardRef<HTMLImageElement, LogoProps>(
-  ({ size = 48, className, alt = "Shoraka Logo", ...props }, ref) => {
+  ({ size = 48, className, alt = "CashSouk Logo", ...props }, ref) => {
     return (
       <img
         ref={ref}

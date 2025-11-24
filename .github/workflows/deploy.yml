@@ -3,91 +3,245 @@ name: Deploy to AWS ECS
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
 env:
-  AWS_REGION: ap-southeast-1
-  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-  APP_NAME: shoraka-p2p
+  AWS_REGION: ap-southeast-5
+  ECR_REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-5.amazonaws.com
+  ECS_CLUSTER: cashsouk-prod
 
 jobs:
-  build-test-release:
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PNPM
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Type check
+        run: pnpm -w typecheck
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm -w lint
 
-      - name: Run tests
-        run: pnpm test
-
-      - name: Install Playwright
-        run: pnpm exec playwright install --with-deps
+      - name: Run unit tests
+        run: pnpm -w test
 
       - name: Run E2E tests
-        run: pnpm e2e
+        run: pnpm -w e2e
         env:
-          BASE_URL: http://localhost:3000
+          CI: true
 
-      - name: Configure AWS credentials (OIDC)
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      landing-changed: ${{ steps.filter.outputs.landing }}
+      investor-changed: ${{ steps.filter.outputs.investor }}
+      issuer-changed: ${{ steps.filter.outputs.issuer }}
+      admin-changed: ${{ steps.filter.outputs.admin }}
+      api-changed: ${{ steps.filter.outputs.api }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check changed files
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            landing:
+              - 'apps/landing/**'
+              - 'packages/**'
+              - 'docker/landing.Dockerfile'
+            investor:
+              - 'apps/investor/**'
+              - 'packages/**'
+              - 'docker/portal-investor.Dockerfile'
+            issuer:
+              - 'apps/issuer/**'
+              - 'packages/**'
+              - 'docker/portal-issuer.Dockerfile'
+            admin:
+              - 'apps/admin/**'
+              - 'packages/**'
+              - 'docker/portal-admin.Dockerfile'
+            api:
+              - 'apps/api/**'
+              - 'packages/types/**'
+              - 'packages/config/**'
+              - 'docker/api.Dockerfile'
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deployer
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker images
+      - name: Build and push landing
+        if: steps.filter.outputs.landing == 'true'
         run: |
-          SERVICES=("api" "portal-investor" "portal-borrower" "portal-admin")
-          for SVC in "${SERVICES[@]}"; do
-            IMAGE="${ECR_REGISTRY}/${APP_NAME}-${SVC}:${GITHUB_SHA}"
-            LATEST="${ECR_REGISTRY}/${APP_NAME}-${SVC}:latest"
-            docker build -f docker/${SVC}.Dockerfile -t "$IMAGE" -t "$LATEST" .
-            docker push "$IMAGE"
-            docker push "$LATEST"
-          done
+          docker build -f docker/landing.Dockerfile -t ${{ env.ECR_REGISTRY_URL }}/cashsouk-landing:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY_URL }}/cashsouk-landing:${{ github.sha }} ${{ env.ECR_REGISTRY_URL }}/cashsouk-landing:latest
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-landing:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-landing:latest
 
-      - name: Run database migrations
+      - name: Build and push investor
+        if: steps.filter.outputs.investor == 'true'
         run: |
-          echo "Running Prisma migrations via ECS task..."
-          aws ecs run-task \
-            --cluster ${{ secrets.ECS_CLUSTER }} \
+          docker build -f docker/portal-investor.Dockerfile -t ${{ env.ECR_REGISTRY_URL }}/cashsouk-investor:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY_URL }}/cashsouk-investor:${{ github.sha }} ${{ env.ECR_REGISTRY_URL }}/cashsouk-investor:latest
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-investor:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-investor:latest
+
+      - name: Build and push issuer
+        if: steps.filter.outputs.issuer == 'true'
+        run: |
+          docker build -f docker/portal-issuer.Dockerfile -t ${{ env.ECR_REGISTRY_URL }}/cashsouk-issuer:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY_URL }}/cashsouk-issuer:${{ github.sha }} ${{ env.ECR_REGISTRY_URL }}/cashsouk-issuer:latest
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-issuer:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-issuer:latest
+
+      - name: Build and push admin
+        if: steps.filter.outputs.admin == 'true'
+        run: |
+          docker build -f docker/portal-admin.Dockerfile -t ${{ env.ECR_REGISTRY_URL }}/cashsouk-admin:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY_URL }}/cashsouk-admin:${{ github.sha }} ${{ env.ECR_REGISTRY_URL }}/cashsouk-admin:latest
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-admin:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-admin:latest
+
+      - name: Build and push API
+        if: steps.filter.outputs.api == 'true'
+        run: |
+          docker build -f docker/api.Dockerfile -t ${{ env.ECR_REGISTRY_URL }}/cashsouk-api:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY_URL }}/cashsouk-api:${{ github.sha }} ${{ env.ECR_REGISTRY_URL }}/cashsouk-api:latest
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-api:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY_URL }}/cashsouk-api:latest
+
+  migrate:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: needs.build-and-push.outputs.api-changed == 'true'
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deployer
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run migrations task
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition cashsouk-migrations \
             --launch-type FARGATE \
-            --task-definition ${{ secrets.MIGRATE_TASK_DEFINITION }} \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNETS }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP }}],assignPublicIp=DISABLED}"
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP }}],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"migrations","environment":[{"name":"DATABASE_URL","value":"${{ secrets.DATABASE_URL }}"}]}]}' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          
+          echo "Migration task ARN: $TASK_ARN"
+          
+          aws ecs wait tasks-stopped --cluster ${{ env.ECS_CLUSTER }} --tasks $TASK_ARN
+          
+          EXIT_CODE=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks $TASK_ARN --query 'tasks[0].containers[0].exitCode' --output text)
+          
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+          
+          echo "Migrations completed successfully"
 
-      - name: Deploy to ECS
+  deploy:
+    name: Deploy Services
+    runs-on: ubuntu-latest
+    needs: [build-and-push, migrate]
+    if: always() && needs.build-and-push.result == 'success' && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deployer
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy landing service
+        if: needs.build-and-push.outputs.landing-changed == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-def-landing.json
+          service: cashsouk-landing
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Deploy investor service
+        if: needs.build-and-push.outputs.investor-changed == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-def-investor.json
+          service: cashsouk-investor
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Deploy issuer service
+        if: needs.build-and-push.outputs.issuer-changed == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-def-issuer.json
+          service: cashsouk-issuer
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Deploy admin service
+        if: needs.build-and-push.outputs.admin-changed == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-def-admin.json
+          service: cashsouk-admin
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Deploy API service
+        if: needs.build-and-push.outputs.api-changed == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-def-api.json
+          service: cashsouk-api
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Deployment summary
         run: |
-          SERVICES=("api" "investor" "borrower" "admin")
-          for SVC in "${SERVICES[@]}"; do
-            aws ecs update-service \
-              --cluster ${{ secrets.ECS_CLUSTER }} \
-              --service "${APP_NAME}-${SVC}" \
-              --force-new-deployment
-          done
-
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Landing: ${{ needs.build-and-push.outputs.landing-changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Investor: ${{ needs.build-and-push.outputs.investor-changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Issuer: ${{ needs.build-and-push.outputs.issuer-changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Admin: ${{ needs.build-and-push.outputs.admin-changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- API: ${{ needs.build-and-push.outputs.api-changed }}" >> $GITHUB_STEP_SUMMARY

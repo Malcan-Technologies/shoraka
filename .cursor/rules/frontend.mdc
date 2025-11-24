@@ -10,7 +10,7 @@ Architecture & Monorepo
 - Use pnpm workspaces. Structure:
   - apps/{investor,borrower,admin,api}
   - packages/{ui,styles,icons,config,types,testing}
-- Shared UI (shadcn components, tokens, primitives) lives in packages/ui. No copy-pasting between apps—import from packages.
+- Shared UI (shadcn components, tokens, primitives) lives in packages/ui. No copy-pasting between apps—import from packages. Query the ShadcnUI MCP when neccessary.
 - Shared brand tokens and CSS variables live in packages/styles. Do not hardcode colors.
 
 Branding & Design System

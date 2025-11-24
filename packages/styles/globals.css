@@ -11,7 +11,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 47.4% 11.2%;
     
-    /* Shoraka Brand Colors */
+    /* CashSouk Brand Colors */
     --primary: 359.6 95.7% 27.6%;
     --primary-foreground: 0 0% 100%;
     --secondary: 30.6 25.4% 63.7%;
@@ -104,7 +104,7 @@
   }
 }
 
-/* Shoraka Portal Themes */
+/* CashSouk Portal Themes */
 .theme-user {
   --primary: 359.6 95.7% 27.6%;
   --accent: 2.4 71.7% 47.1%;

@@ -22,7 +22,7 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-RUN pnpm --filter @shoraka/landing build
+RUN pnpm --filter @cashsouk/landing build
 
 FROM node:20-alpine AS runner
 

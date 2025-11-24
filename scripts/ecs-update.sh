@@ -3,26 +3,22 @@
 set -e
 
 COMMIT_SHA=$1
-CLUSTER=${ECS_CLUSTER:-"shoraka-prod"}
+CLUSTER=${ECS_CLUSTER:-"cashsouk-prod"}
 REGISTRY=${ECR_REGISTRY}
-APP_NAME="shoraka-p2p"
+APP_NAME="cashsouk-p2p"
 
 if [ -z "$COMMIT_SHA" ]; then
   echo "Usage: $0 <commit-sha>"
   exit 1
 fi
 
-SERVICES=("api" "investor" "borrower" "admin")
+SERVICES=("api" "landing" "investor" "issuer" "admin")
 
 for SERVICE in "${SERVICES[@]}"; do
   echo "Updating service: ${SERVICE}"
   
-  TASK_FAMILY="${APP_NAME}-${SERVICE}"
-  IMAGE="${REGISTRY}/${APP_NAME}-portal-${SERVICE}:${COMMIT_SHA}"
-  
-  if [ "$SERVICE" = "api" ]; then
-    IMAGE="${REGISTRY}/${APP_NAME}-${SERVICE}:${COMMIT_SHA}"
-  fi
+  TASK_FAMILY="cashsouk-${SERVICE}"
+  IMAGE="${REGISTRY}/cashsouk-${SERVICE}:${COMMIT_SHA}"
   
   TASK_DEF=$(aws ecs describe-task-definition --task-definition "${TASK_FAMILY}" --query 'taskDefinition')
   
@@ -37,7 +33,7 @@ for SERVICE in "${SERVICES[@]}"; do
   
   aws ecs update-service \
     --cluster "${CLUSTER}" \
-    --service "${APP_NAME}-${SERVICE}" \
+    --service "cashsouk-${SERVICE}" \
     --task-definition "${TASK_FAMILY}:${NEW_REVISION}" \
     --force-new-deployment \
     --output json > /dev/null

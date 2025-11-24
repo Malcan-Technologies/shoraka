@@ -10,7 +10,7 @@ import {
   SheetTitle,
   cn,
   Logo,
-} from "@shoraka/ui";
+} from "@cashsouk/ui";
 import {
   HomeIcon as Home,
   DocumentTextIcon as FileText,

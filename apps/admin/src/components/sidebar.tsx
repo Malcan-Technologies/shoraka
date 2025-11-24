@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn, Logo } from "@shoraka/ui";
+import { cn, Logo } from "@cashsouk/ui";
 import {
   HomeIcon as Home,
   DocumentTextIcon as FileText,

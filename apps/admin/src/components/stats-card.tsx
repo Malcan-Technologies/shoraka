@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@shoraka/ui";
+import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@cashsouk/ui";
 import { LucideIcon } from "lucide-react";
 
 interface StatsCardProps {

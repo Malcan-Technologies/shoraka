@@ -17,7 +17,7 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 
 RUN cd apps/api && pnpm prisma generate
-RUN pnpm --filter @shoraka/api build
+RUN pnpm --filter @cashsouk/api build
 
 FROM node:20-alpine AS runner
 

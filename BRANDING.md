@@ -1,9 +1,9 @@
-# Shoraka Web Platform — Brand & UI Implementation Guide (Cursor Prompt)
+# CashSouk Web Platform — Brand & UI Implementation Guide (Cursor Prompt)
 
 ---
 
 ## 0) Context & Goals
-- Brand: **Shoraka** (use only the logo palette provided by the client as brand colors).
+- Brand: **CashSouk** (use only the logo palette provided by the client as brand colors).
 - Frontends: **User Portal**, **Investor Portal**, **Admin Portal** — same codebase, themed by CSS variables.
 - Feel: **modern, premium, highly readable**. Typography slightly larger than default (but not oversized). Strong contrast, clean spacing, rounded corners.
 - Tech: Next.js + Tailwind + **shadcn/ui**.
@@ -291,7 +291,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             {/* Logo */}
             <div className="size-9 rounded-md bg-primary/90" />
-            <span className="text-lg font-bold">Shoraka</span>
+            <span className="text-lg font-bold">CashSouk</span>
           </div>
           <nav className="flex items-center gap-6">
             <a className="text-[15px] hover:text-primary">Dashboard</a>

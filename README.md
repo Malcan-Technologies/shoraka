@@ -1,111 +1,293 @@
-# Shoraka P2P Lending Platform
+# CashSouk P2P Lending Platform
 
-A modern peer-to-peer lending platform built with Next.js, Express, PostgreSQL, and Prisma ORM.
+Modern peer-to-peer lending platform built with Next.js, Express, and AWS.
 
-## Architecture
+![Architecture](https://img.shields.io/badge/AWS-ECS_Fargate-orange)
+![Stack](https://img.shields.io/badge/Stack-Next.js_|_Express-blue)
+![Database](https://img.shields.io/badge/Database-PostgreSQL-blue)
+![Auth](https://img.shields.io/badge/Auth-AWS_Cognito-orange)
 
-This is a monorepo containing:
+## Overview
 
-- **Frontend Apps** (Next.js 14+):
-  - `apps/landing` - Marketing landing page (port 3000)
-  - `apps/borrower` - Borrower portal (port 3001)
-  - `apps/investor` - Investor portal (port 3002)
-  - `apps/admin` - Admin dashboard (port 3003)
-  
-- **Backend API** (Express + Node.js):
-  - `apps/api` - REST API with Prisma ORM (port 4000)
+CashSouk connects borrowers (issuers) with investors through a secure, transparent platform for peer-to-peer lending in Malaysia (MYR).
 
-- **Shared Packages**:
-  - `packages/ui` - Shared UI components (shadcn/ui)
-  - `packages/styles` - Brand tokens and Tailwind config
-  - `packages/types` - Shared TypeScript types
-  - `packages/config` - API SDK and shared configuration
-  - `packages/icons` - Shared icon library
-  - `packages/testing` - Shared testing utilities
+**Platform Components:**
+- 🏠 **Landing Page** - Public-facing website
+- 💰 **Investor Portal** - Browse and invest in loan opportunities
+- 🏢 **Issuer Portal** - Apply for loans and manage applications
+- 👨‍💼 **Admin Dashboard** - Platform management and operations
+- 🔌 **REST API** - Backend services and business logic
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, shadcn/ui
-- **Backend**: Node.js 20+, Express, Prisma ORM
-- **Database**: PostgreSQL
-- **Build**: Turborepo, pnpm
-- **Deployment**: AWS (ECS Fargate, RDS, S3, CloudFront)
+### Frontend
+- **Framework**: Next.js 14 (App Router)
+- **UI**: shadcn/ui + Tailwind CSS
+- **State**: React Query (TanStack Query)
+- **Forms**: React Hook Form + Zod
+- **Icons**: Heroicons
 
-## Prerequisites
+### Backend
+- **Runtime**: Node.js 20
+- **Framework**: Express 4
+- **Database**: PostgreSQL 15 + Prisma ORM
+- **Auth**: AWS Cognito + JWT
+- **Logging**: Pino
+- **Validation**: Zod
 
+### Infrastructure
+- **Cloud**: AWS (ap-southeast-5 Malaysia)
+- **Compute**: ECS Fargate
+- **Database**: RDS PostgreSQL
+- **CDN**: CloudFront
+- **Storage**: S3
+- **Auth**: Cognito
+- **CI/CD**: GitHub Actions
+
+### Development
+- **Package Manager**: pnpm 9
+- **Build System**: Turborepo
+- **Testing**: Playwright (E2E)
+- **Containerization**: Docker
+
+## Quick Start
+
+### Prerequisites
 - Node.js 20+
 - pnpm 9+
-- PostgreSQL 15+
+- Docker (for PostgreSQL)
 
-## Getting Started
+### Installation
 
-1. Install dependencies:
 ```bash
+# Clone repository
+git clone <repository-url>
+cd Shoraka
+
+# Install dependencies
 pnpm install
-```
 
-2. Set up environment variables:
-```bash
-cp apps/api/.env.example apps/api/.env
-cp apps/investor/.env.example apps/investor/.env
-cp apps/borrower/.env.example apps/borrower/.env
-cp apps/admin/.env.example apps/admin/.env
-```
+# Setup environment files
+make setup-env
 
-3. Run database migrations:
-```bash
+# Start PostgreSQL
+docker run -d \
+  --name cashsouk-postgres \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=cashsouk_dev \
+  -p 5432:5432 \
+  postgres:15-alpine
+
+# Run migrations
 cd apps/api
-pnpm prisma migrate dev
+DATABASE_URL="postgresql://postgres:password@localhost:5432/cashsouk_dev" \
+  npx prisma migrate dev --name init
+
+# Start development servers (5 terminals)
+pnpm --filter @cashsouk/api dev        # Port 4000
+pnpm --filter @cashsouk/landing dev    # Port 3000
+pnpm --filter @cashsouk/investor dev   # Port 3002
+pnpm --filter @cashsouk/issuer dev     # Port 3001
+pnpm --filter @cashsouk/admin dev      # Port 3003
 ```
 
-4. Start development servers:
-```bash
-pnpm dev
-```
-
-## Available Scripts
-
-- `pnpm dev` - Start all apps in development mode
-- `pnpm build` - Build all apps for production
-- `pnpm lint` - Lint all packages
-- `pnpm typecheck` - Type-check all packages
-- `pnpm test` - Run unit tests
-- `pnpm e2e` - Run end-to-end tests
+**Access:**
+- Landing: http://localhost:3000
+- Investor: http://localhost:3002
+- Issuer: http://localhost:3001
+- Admin: http://localhost:3003
+- API: http://localhost:4000
 
 ## Project Structure
 
 ```
-.
-├── apps/
-│   ├── landing/        # Marketing landing page (port 3000)
-│   ├── borrower/       # Borrower portal (port 3001)
-│   ├── investor/       # Investor portal (port 3002)
-│   ├── admin/          # Admin dashboard (port 3003)
-│   └── api/            # Backend API (port 4000)
-├── packages/
-│   ├── ui/             # Shared UI components
-│   ├── styles/         # Brand tokens & Tailwind config
-│   ├── types/          # Shared TypeScript types
-│   ├── config/         # API SDK & config
-│   ├── icons/          # Icon library
-│   └── testing/        # Testing utilities
-├── docker/             # Dockerfiles for deployment
-└── .cursor/            # Project rules and guidelines
+Shoraka/
+├── apps/                      # Applications
+│   ├── api/                   # Express API (port 4000)
+│   ├── landing/               # Landing page (port 3000)
+│   ├── investor/              # Investor portal (port 3002)
+│   ├── issuer/                # Issuer portal (port 3001)
+│   └── admin/                 # Admin dashboard (port 3003)
+├── packages/                  # Shared code
+│   ├── ui/                    # shadcn components
+│   ├── styles/                # Tailwind + CSS
+│   ├── types/                 # TypeScript types
+│   ├── config/                # Utilities & API client
+│   ├── icons/                 # Icon library
+│   └── testing/               # Test utilities
+├── docs/                      # Documentation
+│   ├── guides/                # How-to guides
+│   ├── deployment/            # Deployment docs
+│   └── architecture/          # Architecture docs
+├── infra/                     # Infrastructure as Code
+│   └── ecs/                   # ECS task definitions
+├── scripts/                   # Helper scripts
+├── docker/                    # Dockerfiles
+└── env-templates/             # Environment templates
 ```
+
+## Documentation
+
+### Getting Started
+- 📖 [Getting Started Guide](./docs/guides/getting-started.md) - Setup and installation
+- 💻 [Development Guide](./docs/guides/development.md) - Local development workflow
+- 🔐 [Authentication Guide](./docs/guides/authentication.md) - Auth implementation
+- ⚙️ [Environment Variables](./docs/guides/environment-variables.md) - Configuration
+
+### Architecture
+- 🏗️ [Project Structure](./docs/architecture/project-structure.md) - Codebase organization
+- ☁️ [AWS Infrastructure](./docs/architecture/aws-infrastructure.md) - Cloud architecture
+
+### Deployment
+- 🚀 [Deployment Guide](./docs/deployment/deployment.md) - AWS deployment
+- 📁 [Infrastructure Setup](./infra/README.md) - AWS resource creation
+
+### Design
+- 🎨 [Brand Guidelines](./BRANDING.md) - Design system and UI standards
 
 ## Development
 
-Refer to the project rules in `.cursor/rules/` for detailed guidelines on:
-- Backend architecture and patterns
-- Frontend development standards
-- Deployment procedures
-- General coding standards
+### Local Development
+Uses **pnpm** (not Docker) for applications to enable hot reload and faster iteration:
+
+```bash
+# Database only runs in Docker
+docker run -d --name cashsouk-postgres ...
+
+# Apps run with pnpm
+pnpm --filter @cashsouk/api dev      # Backend
+pnpm --filter @cashsouk/landing dev  # Frontends
+```
+
+**Benefits:**
+- ⚡ ~5 second startup (vs ~2 min with Docker)
+- 🔥 Hot reload on save
+- 🐛 Easy debugging with source maps
+- 💾 Lower memory usage (~500MB vs ~2GB)
+
+See [Development Guide](./docs/guides/development.md) for details.
+
+### Production
+All services run in **Docker containers** on AWS ECS Fargate:
+
+```bash
+# Build production images
+docker-compose -f docker-compose.prod.yml up --build
+
+# Or deploy to AWS (automated via GitHub Actions)
+git push origin main
+```
+
+See [Deployment Guide](./docs/deployment/deployment.md) for details.
+
+## Scripts
+
+Common development commands:
+
+```bash
+make setup-env      # Copy environment templates
+make db-up          # Start PostgreSQL
+make db-migrate     # Run database migrations
+make build-images   # Build all Docker images
+make clean          # Clean up containers
+
+pnpm install        # Install dependencies
+pnpm build          # Build all packages
+pnpm typecheck      # Type checking
+pnpm lint           # Lint code
+pnpm test           # Run tests
+```
 
 ## Deployment
 
-Deployment is handled via GitHub Actions to AWS ECS Fargate. See `.cursor/rules/deployment.mdc` for details.
+### Automated CI/CD
+
+Pushing to `main` triggers automated deployment to AWS:
+
+1. ✅ Run tests (lint, typecheck, build)
+2. 🐳 Build Docker images
+3. 📦 Push to ECR
+4. 🗄️ Run migrations
+5. 🚀 Deploy to ECS Fargate
+
+**Services deployed:**
+- Landing (cashsouk.com)
+- Investor (investor.cashsouk.com)
+- Issuer (issuer.cashsouk.com)
+- Admin (admin.cashsouk.com)
+- API (api.cashsouk.com)
+
+See [Deployment Guide](./docs/deployment/deployment.md) and [Infrastructure Setup](./infra/README.md).
+
+## Key Features
+
+### Security
+- ✅ AWS Cognito authentication
+- ✅ JWT-based API authorization
+- ✅ Role-based access control (RBAC)
+- ✅ HTTPS everywhere (ACM certificates)
+- ✅ WAF protection
+- ✅ Encrypted database (RDS)
+- ✅ Secrets management (AWS Secrets Manager)
+
+### Scalability
+- ✅ ECS Fargate auto-scaling
+- ✅ RDS Proxy connection pooling
+- ✅ CloudFront CDN
+- ✅ Horizontal scaling ready
+
+### Developer Experience
+- ✅ TypeScript everywhere
+- ✅ Hot reload in development
+- ✅ Shared component library
+- ✅ Automated testing
+- ✅ CI/CD pipeline
+- ✅ Comprehensive documentation
+
+## Environment Variables
+
+Local development uses `.env.local` files (templates in `env-templates/`):
+
+```bash
+# API
+DATABASE_URL=postgresql://postgres:password@localhost:5432/cashsouk_dev
+JWT_SECRET=dev-secret-change-in-prod
+
+# Frontends
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
+
+Production uses AWS SSM Parameter Store and Secrets Manager.
+
+See [Environment Variables Guide](./docs/guides/environment-variables.md) for complete reference.
+
+## Contributing
+
+1. Create feature branch: `git checkout -b feature/your-feature`
+2. Make changes and test locally
+3. Run quality checks: `pnpm typecheck && pnpm lint`
+4. Commit: `git commit -m "feat: add your feature"`
+5. Push and create PR: `git push origin feature/your-feature`
+
+### Commit Convention
+```
+feat: new feature
+fix: bug fix
+docs: documentation
+style: formatting
+refactor: code refactoring
+test: tests
+chore: maintenance
+```
 
 ## License
 
-Proprietary
+Private - All rights reserved
 
+## Support
+
+For questions or issues, please contact the development team.
+
+---
+
+**Built with ❤️ by the CashSouk Team**

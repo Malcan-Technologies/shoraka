@@ -29,7 +29,7 @@ export default function ComingSoonPage() {
                 Coming Soon
               </h1>
               <p className="text-[17px] leading-7 text-muted-foreground max-w-[70ch] mx-auto">
-                We're building something amazing. Shoraka is a modern peer-to-peer lending platform
+                We're building something amazing. CashSouk is a modern peer-to-peer lending platform
                 that connects borrowers with investors securely and transparently.
               </p>
             </div>
@@ -57,7 +57,7 @@ export default function ComingSoonPage() {
               </a>
             </div>
             <p className="text-sm text-muted-foreground mt-6">
-              © 2025 Shoraka. All rights reserved.
+              © 2025 CashSouk. All rights reserved.
             </p>
           </div>
         </div>

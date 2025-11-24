@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Button, Logo } from "@shoraka/ui";
+import { Button, Logo } from "@cashsouk/ui";
 
 export function Navbar() {
   return (
@@ -13,29 +13,22 @@ export function Navbar() {
             <Logo />
           </Link>
 
-          <div className="flex items-center gap-2">
-            <Link href="http://localhost:3001" target="_blank" rel="noopener noreferrer">
-              <Button variant="ghost" className="text-[17px]">
-                For Borrowers
+          <div className="flex items-center gap-3">
+            <Link href="/login/investor">
+              <Button variant="ghost" className="text-[15px]">
+                Investor Login
               </Button>
             </Link>
-            <Link href="http://localhost:3002" target="_blank" rel="noopener noreferrer">
-              <Button variant="ghost" className="text-[17px]">
-                For Investors
+            <Link href="/login/borrower">
+              <Button variant="ghost" className="text-[15px]">
+                Borrower Login
               </Button>
             </Link>
-            <div className="ml-2 flex gap-2">
-              <Link href="http://localhost:3002" target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="text-[17px]">
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="http://localhost:3001" target="_blank" rel="noopener noreferrer">
-                <Button className="bg-primary text-primary-foreground shadow-brand hover:opacity-95 text-[17px]">
-                  Get Started
-                </Button>
-              </Link>
-            </div>
+            <Link href="/get-started">
+              <Button className="bg-primary text-primary-foreground shadow-brand hover:opacity-95 text-[15px]">
+                Get Started
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

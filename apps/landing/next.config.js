@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@shoraka/ui', '@shoraka/styles', '@shoraka/types', '@shoraka/config', '@shoraka/icons'],
+  transpilePackages: ['@cashsouk/ui', '@cashsouk/styles', '@cashsouk/types', '@cashsouk/config', '@cashsouk/icons'],
   experimental: {
-    optimizePackageImports: ['@shoraka/ui'],
+    optimizePackageImports: ['@cashsouk/ui'],
   },
 };
 

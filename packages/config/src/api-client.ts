@@ -1,4 +1,4 @@
-import type { ApiResponse, ApiError } from "@shoraka/types";
+import type { ApiResponse, ApiError } from "@cashsouk/types";
 
 export class ApiClient {
   private baseUrl: string;
@@ -21,7 +21,7 @@ export class ApiClient {
       },
     });
 
-    return response.json();
+    return response.json() as Promise<ApiResponse<T> | ApiError>;
   }
 
   async get<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T> | ApiError> {

@@ -21,7 +21,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "pnpm --filter @shoraka/investor dev",
+      command: "pnpm --filter @cashsouk/investor dev",
       url: "http://localhost:3002",
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

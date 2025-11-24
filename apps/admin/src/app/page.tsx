@@ -5,7 +5,7 @@ import { StatsCard } from "../components/stats-card";
 import { RecentLoans } from "../components/recent-loans";
 import { UserSignupsChart } from "../components/user-signups-chart";
 import { usePageTitle } from "../components/page-title-provider";
-import { formatCurrency, formatNumber } from "@shoraka/config";
+import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
   CurrencyDollarIcon as DollarSign,
   UsersIcon as Users,

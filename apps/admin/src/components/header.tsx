@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   cn,
-} from "@shoraka/ui";
+} from "@cashsouk/ui";
 import {
   Bars3Icon as Menu,
   UserIcon as User,

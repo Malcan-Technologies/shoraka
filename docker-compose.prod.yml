@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  landing:
+    build:
+      context: .
+      dockerfile: docker/landing.Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - apps/landing/.env.prod
+    depends_on:
+      - api
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+
+  issuer:
+    build:
+      context: .
+      dockerfile: docker/portal-issuer.Dockerfile
+    ports:
+      - "3001:3000"
+    env_file:
+      - apps/issuer/.env.prod
+    depends_on:
+      - api
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+
+  investor:
+    build:
+      context: .
+      dockerfile: docker/portal-investor.Dockerfile
+    ports:
+      - "3002:3000"
+    env_file:
+      - apps/investor/.env.prod
+    depends_on:
+      - api
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/portal-admin.Dockerfile
+    ports:
+      - "3003:3000"
+    env_file:
+      - apps/admin/.env.prod
+    depends_on:
+      - api
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "4000:3000"
+    env_file:
+      - apps/api/.env.prod
+    depends_on:
+      - db
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cashsouk_prod
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - cashsouk-network
+    restart: unless-stopped
+
+volumes:
+  postgres_prod_data:
+
+networks:
+  cashsouk-network:
+    driver: bridge
+

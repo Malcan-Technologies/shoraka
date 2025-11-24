@@ -5,8 +5,8 @@ import {
   CardTitle,
   Badge,
   Skeleton,
-} from "@shoraka/ui";
-import { formatCurrency } from "@shoraka/config";
+} from "@cashsouk/ui";
+import { formatCurrency } from "@cashsouk/config";
 
 interface Loan {
   id: string;

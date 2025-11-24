@@ -1,15 +1,15 @@
-# @shoraka/config
+# @cashsouk/config
 
-Shared configuration, utilities, and API clients for the Shoraka platform.
+Shared configuration, utilities, and API clients for the CashSouk platform.
 
 ## Contents
 
 ### API Client
 
-Typed API client for making requests to the Shoraka backend.
+Typed API client for making requests to the CashSouk backend.
 
 ```typescript
-import { apiClient } from "@shoraka/config";
+import { apiClient } from "@cashsouk/config";
 ```
 
 ### Currency Utilities
@@ -17,7 +17,7 @@ import { apiClient } from "@shoraka/config";
 Consistent Malaysian Ringgit (MYR) formatting across the platform.
 
 ```typescript
-import { formatCurrency, formatNumber, parseCurrency } from "@shoraka/config";
+import { formatCurrency, formatNumber, parseCurrency } from "@cashsouk/config";
 
 // Format with currency symbol (default)
 formatCurrency(1000);           // "RM 1,000.00"
@@ -67,7 +67,7 @@ interface CurrencyFormatOptions {
 1. **Always use MYR**: The platform is Malaysian Ringgit only
 2. **Use commas**: Large numbers should always have thousand separators (e.g., `1,000`)
 3. **Decimal places**: Use 2 decimal places for precise amounts, 0 for whole numbers
-4. **Consistency**: Import from `@shoraka/config` to ensure formatting is consistent across all portals
+4. **Consistency**: Import from `@cashsouk/config` to ensure formatting is consistent across all portals
 
 #### Examples
 

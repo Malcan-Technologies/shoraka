@@ -1,5 +1,5 @@
 {
-  "name": "@shoraka/landing",
+  "name": "@cashsouk/landing",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -20,10 +20,10 @@
     "@hookform/resolvers": "^3.3.3",
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.2.0",
-    "@shoraka/ui": "workspace:*",
-    "@shoraka/styles": "workspace:*",
-    "@shoraka/types": "workspace:*",
-    "@shoraka/config": "workspace:*",
+    "@cashsouk/ui": "workspace:*",
+    "@cashsouk/styles": "workspace:*",
+    "@cashsouk/types": "workspace:*",
+    "@cashsouk/config": "workspace:*",
     "@heroicons/react": "^2.1.1"
   },
   "devDependencies": {
