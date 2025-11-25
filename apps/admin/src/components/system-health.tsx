@@ -33,6 +33,13 @@ export function SystemHealth() {
           ? "http://localhost:4000" // Local development
           : process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+      // Debug logging
+      console.log("🔍 Health check debug:", {
+        hostname: typeof window !== "undefined" ? window.location.hostname : "SSR",
+        apiUrl,
+        envVar: process.env.NEXT_PUBLIC_API_URL,
+      });
+
       const response = await fetch(`${apiUrl}/healthz`, {
         cache: "no-store",
         // Add timeout to prevent hanging
