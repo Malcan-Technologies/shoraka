@@ -85,7 +85,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing migration image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
       - name: Run Database Migrations
         if: ${{ inputs.deploy_api && steps.migration_check.outputs.migrations_changed == 'true' }}
@@ -175,7 +175,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "📦 Pushing API image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cashsouk-api --region ${{ env.AWS_REGION }})
@@ -207,7 +207,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Landing image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cashsouk-landing --region ${{ env.AWS_REGION }} 2>/dev/null || echo "{}")
@@ -239,7 +239,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Investor image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cashsouk-investor --region ${{ env.AWS_REGION }} 2>/dev/null || echo "{}")
@@ -271,7 +271,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Issuer image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cashsouk-issuer --region ${{ env.AWS_REGION }} 2>/dev/null || echo "{}")
@@ -303,7 +303,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || echo "{}")
