@@ -6,6 +6,9 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Debug: Print the API URL during build
+RUN echo "🔍 Building with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
+
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./

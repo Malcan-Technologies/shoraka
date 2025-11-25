@@ -319,7 +319,9 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Admin image..."
+          echo "🔍 NEXT_PUBLIC_API_URL is set to: ${{ secrets.NEXT_PUBLIC_API_URL }}"
           docker build -f docker/portal-admin.Dockerfile \
+            --no-cache \
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
