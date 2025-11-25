@@ -27,7 +27,10 @@ ARG NEXT_PUBLIC_API_URL
 RUN rm -rf apps/admin/.next && \
     if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
-    pnpm --filter @cashsouk/admin build
+    echo "📝 Created .env.production with API URL" && \
+    pnpm --filter @cashsouk/admin build && \
+    echo "🔍 Checking build output..." && \
+    (grep -r "localhost:4000" apps/admin/.next/static apps/admin/.next/server 2>/dev/null && echo "⚠️ WARNING: localhost found!") || echo "✅ No localhost in build"
 
 FROM node:20-alpine AS runner
 
