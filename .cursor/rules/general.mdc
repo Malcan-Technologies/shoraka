@@ -8,3 +8,6 @@ alwaysApply: true
 - GitHub Actions blocks merges if lint, types, unit, integration, and Playwright don’t pass.
 - Secrets/config come from environment (AWS SSM/Secrets Manager). Never hardcode.
 - Use Context7 MCP to get latest documentation.
+- Do not write excessive documentation. Documentation should be treated as guides for developers to use major features.
+- Use the docs folder in root to consolidate documentation instead of putting it into root. Organize according to folders.
+- Update documentation in existing files wherever possible. Let's keep documentation concise.

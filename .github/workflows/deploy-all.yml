@@ -118,14 +118,113 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+      - name: Run Database Migrations
+        if: ${{ inputs.deploy_api }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "🔨 Building migration image..."
+          docker build -f docker/migrate.Dockerfile -t migrate:${{ github.sha }} .
+
+          echo "📦 Running migrations via ECS task..."
+
+          # Get VPC config from existing API service
+          VPC_CONFIG=$(aws ecs describe-services \
+            --cluster default \
+            --services api-cashsouk-09ff \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration' \
+            --output json)
+
+          SUBNETS=$(echo $VPC_CONFIG | jq -r '.subnets | join(",")')
+          SECURITY_GROUPS=$(echo $VPC_CONFIG | jq -r '.securityGroups | join(",")')
+
+          # Run migration as one-off ECS task
+          TASK_ARN=$(aws ecs run-task \
+            --cluster default \
+            --launch-type FARGATE \
+            --task-definition cashsouk-migrate \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=DISABLED}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "⏳ Waiting for migrations to complete (Task: $TASK_ARN)..."
+
+          # Wait for task to complete
+          aws ecs wait tasks-stopped \
+            --cluster default \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }}
+
+          # Check exit code
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster default \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ Migrations failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+          echo "✅ Migrations completed successfully"
+
+      - name: Deploy API to ECS
+        if: ${{ inputs.deploy_api }}
+        run: |
+          aws ecs update-service \
+            --cluster default \
+            --service api-cashsouk-09ff \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Landing to ECS
+        if: ${{ inputs.deploy_landing }}
+        run: |
+          aws ecs update-service \
+            --cluster default \
+            --service landing-cashsouk-1156 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Investor to ECS
+        if: ${{ inputs.deploy_investor }}
+        run: |
+          aws ecs update-service \
+            --cluster default \
+            --service investor-cashsouk-50e5 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Issuer to ECS
+        if: ${{ inputs.deploy_issuer }}
+        run: |
+          aws ecs update-service \
+            --cluster default \
+            --service issuer-cashsouk-ff47 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Admin to ECS
+        if: ${{ inputs.deploy_admin }}
+        run: |
+          aws ecs update-service \
+            --cluster default \
+            --service admin-cashsouk-7cd8 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
       - name: Deployment summary
         run: |
           echo "✅ Deployment completed"
           echo "Image tag: ${{ github.sha }}"
           echo ""
           echo "Services deployed:"
-          ${{ inputs.deploy_api }} && echo "  - API" || true
-          ${{ inputs.deploy_landing }} && echo "  - Landing" || true
-          ${{ inputs.deploy_investor }} && echo "  - Investor Portal" || true
-          ${{ inputs.deploy_issuer }} && echo "  - Issuer Portal" || true
-          ${{ inputs.deploy_admin }} && echo "  - Admin Portal" || true
+          if [ "${{ inputs.deploy_api }}" == "true" ]; then echo "  - API"; fi
+          if [ "${{ inputs.deploy_landing }}" == "true" ]; then echo "  - Landing"; fi
+          if [ "${{ inputs.deploy_investor }}" == "true" ]; then echo "  - Investor Portal"; fi
+          if [ "${{ inputs.deploy_issuer }}" == "true" ]; then echo "  - Issuer Portal"; fi
+          if [ "${{ inputs.deploy_admin }}" == "true" ]; then echo "  - Admin Portal"; fi

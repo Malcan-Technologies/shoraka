@@ -20,11 +20,31 @@ CashSouk connects borrowers (issuers) with investors through a secure, transpare
 
 ## 🚀 Quick Start
 
+### Local Development
+
+```bash
+# 1. Setup local database
+./scripts/dev-db-setup.sh
+
+# 2. Start API
+cd apps/api && pnpm dev
+
+# 3. Start portals (in separate terminals)
+cd apps/investor && pnpm dev  # Port 3002
+cd apps/issuer && pnpm dev    # Port 3001
+cd apps/admin && pnpm dev     # Port 3003
+cd apps/landing && pnpm dev   # Port 3000
+```
+
+**Database Workflow:** **[docs/guides/database-workflow.md](./docs/guides/database-workflow.md)** - Complete database development guide
+
 ### Deployment to AWS
 
 **First time?** Start here: **[AWS_SETUP_CHECKLIST.md](./AWS_SETUP_CHECKLIST.md)** - Configure AWS CLI and credentials
 
 **Ready to deploy?** Follow: **[DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md)** - Complete deployment guide
+
+**Database Setup:** **[RDS_SETUP_GUIDE.md](./RDS_SETUP_GUIDE.md)** - PostgreSQL RDS configuration
 
 **Want to understand authentication?** Read: **[docs/deployment/aws-authentication-explained.md](./docs/deployment/aws-authentication-explained.md)**
 

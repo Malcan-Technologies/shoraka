@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyCognitoAndExtract } from "./cognito";
+// COGNITO TEMPORARILY DISABLED - Will be re-enabled when implementing authentication
+// import { verifyCognitoAndExtract } from "./cognito";
 import { AppError } from "../http/error-handler";
 import { User, UserRole } from "@prisma/client";
-import { prisma } from "../prisma";
+// import { prisma } from "../prisma";
 
 declare global {
   namespace Express {
@@ -16,40 +17,45 @@ declare global {
 /**
  * Middleware to require authentication via Cognito token
  * Validates token, fetches user from database, and attaches to req.user
+ * 
+ * TEMPORARILY DISABLED - Will be re-enabled when implementing authentication
  */
-export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader?.startsWith("Bearer ")) {
-      throw new AppError(401, "UNAUTHORIZED", "Missing or invalid authorization header");
-    }
+export async function requireAuth(_req: Request, _res: Response, next: NextFunction): Promise<void> {
+  // Authentication is not yet enabled - allow all requests through
+  next(new AppError(501, "NOT_IMPLEMENTED", "Authentication is not yet enabled"));
+  
+  // try {
+  //   const authHeader = req.headers.authorization;
+  //   
+  //   if (!authHeader?.startsWith("Bearer ")) {
+  //     throw new AppError(401, "UNAUTHORIZED", "Missing or invalid authorization header");
+  //   }
 
-    const token = authHeader.substring(7);
-    
-    // Verify Cognito token
-    const cognitoPayload = await verifyCognitoAndExtract(token);
-    req.cognitoSub = cognitoPayload.sub;
-    
-    // Fetch user from database using Cognito sub
-    const user = await prisma.user.findUnique({
-      where: { cognito_sub: cognitoPayload.sub },
-    });
-    
-    if (!user) {
-      throw new AppError(401, "UNAUTHORIZED", "User not found in database. Please complete signup.");
-    }
-    
-    // Attach user to request
-    req.user = user;
-    next();
-  } catch (error) {
-    if (error instanceof AppError) {
-      next(error);
-    } else {
-      next(new AppError(401, "UNAUTHORIZED", "Invalid or expired token"));
-    }
-  }
+  //   const token = authHeader.substring(7);
+  //   
+  //   // Verify Cognito token
+  //   const cognitoPayload = await verifyCognitoAndExtract(token);
+  //   req.cognitoSub = cognitoPayload.sub;
+  //   
+  //   // Fetch user from database using Cognito sub
+  //   const user = await prisma.user.findUnique({
+  //     where: { cognito_sub: cognitoPayload.sub },
+  //   });
+  //   
+  //   if (!user) {
+  //     throw new AppError(401, "UNAUTHORIZED", "User not found in database. Please complete signup.");
+  //   }
+  //   
+  //   // Attach user to request
+  //   req.user = user;
+  //   next();
+  // } catch (error) {
+  //   if (error instanceof AppError) {
+  //     next(error);
+  //   } else {
+  //     next(new AppError(401, "UNAUTHORIZED", "Invalid or expired token"));
+  //   }
+  // }
 }
 
 /**

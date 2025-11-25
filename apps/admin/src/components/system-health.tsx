@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cashsouk/ui/card";
-import { Badge } from "@cashsouk/ui/badge";
-import { Skeleton } from "@cashsouk/ui/skeleton";
-import { 
-  CheckCircleIcon, 
-  XCircleIcon, 
+import { Badge, Skeleton } from "@cashsouk/ui";
+import {
+  CheckCircleIcon,
+  XCircleIcon,
   ClockIcon,
   ServerIcon,
-  CircleStackIcon 
+  CircleStackIcon,
 } from "@heroicons/react/24/outline";
 
 interface HealthCheckResponse {
@@ -27,12 +26,24 @@ export function SystemHealth() {
   const checkHealth = React.useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+      // Use environment variable or default to localhost for development
+      const apiUrl =
+        typeof window !== "undefined" && window.location.hostname === "localhost"
+          ? "http://localhost:4000" // Local development
+          : process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
       const response = await fetch(`${apiUrl}/healthz`, {
-        cache: 'no-store',
+        cache: "no-store",
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(5000),
       });
-      
-      const data = await response.json() as HealthCheckResponse;
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as HealthCheckResponse;
       setHealth(data);
       setLastChecked(new Date());
     } catch (error) {
@@ -50,7 +61,7 @@ export function SystemHealth() {
 
   React.useEffect(() => {
     checkHealth();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
@@ -105,11 +116,13 @@ export function SystemHealth() {
         {/* API Status */}
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div className="flex items-center gap-3">
-            <div className={`rounded-full p-2 ${
-              health?.status === "ok" 
-                ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400" 
-                : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400"
-            }`}>
+            <div
+              className={`rounded-full p-2 ${
+                health?.status === "ok"
+                  ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400"
+                  : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400"
+              }`}
+            >
               <ServerIcon className="h-5 w-5" />
             </div>
             <div>
@@ -122,9 +135,13 @@ export function SystemHealth() {
           {loading ? (
             <Skeleton className="h-6 w-16" />
           ) : (
-            <span className={`text-sm font-medium ${
-              health?.status === "ok" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-            }`}>
+            <span
+              className={`text-sm font-medium ${
+                health?.status === "ok"
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
+            >
               {health?.status === "ok" ? "Online" : "Offline"}
             </span>
           )}
@@ -133,11 +150,13 @@ export function SystemHealth() {
         {/* Database Status */}
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div className="flex items-center gap-3">
-            <div className={`rounded-full p-2 ${
-              health?.database === "connected" 
-                ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400" 
-                : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400"
-            }`}>
+            <div
+              className={`rounded-full p-2 ${
+                health?.database === "connected"
+                  ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400"
+                  : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400"
+              }`}
+            >
               <CircleStackIcon className="h-5 w-5" />
             </div>
             <div>
@@ -150,9 +169,13 @@ export function SystemHealth() {
           {loading ? (
             <Skeleton className="h-6 w-20" />
           ) : (
-            <span className={`text-sm font-medium ${
-              health?.database === "connected" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-            }`}>
+            <span
+              className={`text-sm font-medium ${
+                health?.database === "connected"
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
+            >
               {health?.database === "connected" ? "Connected" : "Disconnected"}
             </span>
           )}
@@ -191,4 +214,3 @@ export function SystemHealth() {
     </Card>
   );
 }
-

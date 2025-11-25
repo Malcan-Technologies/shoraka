@@ -1,22 +1,23 @@
-import { CognitoJwtVerifier } from "aws-jwt-verify";
+// COGNITO TEMPORARILY DISABLED - Will be re-enabled when implementing authentication
+// import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { UserRole } from "@prisma/client";
 
-const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
-const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || "";
+// const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
+// const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || "";
 
-// Create verifier for ID tokens
-const idTokenVerifier = CognitoJwtVerifier.create({
-  userPoolId: COGNITO_USER_POOL_ID,
-  tokenUse: "id",
-  clientId: COGNITO_CLIENT_ID,
-});
+// // Create verifier for ID tokens
+// const idTokenVerifier = CognitoJwtVerifier.create({
+//   userPoolId: COGNITO_USER_POOL_ID,
+//   tokenUse: "id",
+//   clientId: COGNITO_CLIENT_ID,
+// });
 
-// Create verifier for access tokens
-const accessTokenVerifier = CognitoJwtVerifier.create({
-  userPoolId: COGNITO_USER_POOL_ID,
-  tokenUse: "access",
-  clientId: COGNITO_CLIENT_ID,
-});
+// // Create verifier for access tokens
+// const accessTokenVerifier = CognitoJwtVerifier.create({
+//   userPoolId: COGNITO_USER_POOL_ID,
+//   tokenUse: "access",
+//   clientId: COGNITO_CLIENT_ID,
+// });
 
 export interface CognitoTokenPayload {
   sub: string; // Cognito user UUID
@@ -36,21 +37,24 @@ export interface CognitoTokenPayload {
 /**
  * Verify Cognito ID token and extract payload
  * Validates token signature, expiration, issuer, and audience
+ * 
+ * TEMPORARILY DISABLED - Will be re-enabled when implementing authentication
  */
-export async function verifyCognitoToken(token: string): Promise<CognitoTokenPayload> {
-  try {
-    // Try as ID token first (contains user info like email)
-    const payload = await idTokenVerifier.verify(token);
-    return payload as unknown as CognitoTokenPayload;
-  } catch (idError) {
-    try {
-      // Fall back to access token verification
-      const payload = await accessTokenVerifier.verify(token);
-      return payload as unknown as CognitoTokenPayload;
-    } catch (accessError) {
-      throw new Error("Invalid or expired Cognito token");
-    }
-  }
+export async function verifyCognitoToken(_token: string): Promise<CognitoTokenPayload> {
+  throw new Error("Cognito authentication is not yet enabled");
+  // try {
+  //   // Try as ID token first (contains user info like email)
+  //   const payload = await idTokenVerifier.verify(token);
+  //   return payload as unknown as CognitoTokenPayload;
+  // } catch (idError) {
+  //   try {
+  //     // Fall back to access token verification
+  //     const payload = await accessTokenVerifier.verify(token);
+  //     return payload as unknown as CognitoTokenPayload;
+  //   } catch (accessError) {
+  //     throw new Error("Invalid or expired Cognito token");
+  //   }
+  // }
 }
 
 /**

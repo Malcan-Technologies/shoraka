@@ -1,0 +1,48 @@
+{
+  "family": "cashsouk-migrate",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::652821469470:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::652821469470:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "migrate",
+      "image": "652821469470.dkr.ecr.ap-southeast-5.amazonaws.com/cashsouk-migrate:latest",
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cashsouk-migrate",
+          "awslogs-region": "ap-southeast-5",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [],
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:host::"
+        },
+        {
+          "name": "DB_PORT",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:port::"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182:username::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182:password::"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:dbname::"
+        }
+      ]
+    }
+  ]
+}
+
