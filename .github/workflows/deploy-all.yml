@@ -321,6 +321,7 @@ jobs:
         run: |
           echo "🔨 Building Admin image..."
           docker build -f docker/portal-admin.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
