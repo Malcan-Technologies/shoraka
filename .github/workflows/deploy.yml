@@ -152,7 +152,7 @@ jobs:
             --cluster default \
             --launch-type FARGATE \
             --task-definition cashsouk-migrate \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' \
             --output text)
@@ -178,13 +178,44 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
 
-          if [ "$EXIT_CODE" != "0" ]; then
+          if [ "$EXIT_CODE" != "0" ] && [ "$EXIT_CODE" != "None" ]; then
             echo "❌ Migrations failed with exit code $EXIT_CODE"
             
-            # Get logs for debugging
-            echo "📋 Migration logs:"
-            aws logs tail /ecs/cashsouk-migrate --since 10m --region ${{ env.AWS_REGION }} || true
+            # Get task details for debugging
+            echo "📋 Task details:"
+            aws ecs describe-tasks \
+              --cluster default \
+              --tasks $TASK_ARN \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0].containers[0]' || true
             
+            # Try to get logs using the task ID
+            TASK_ID=$(echo $TASK_ARN | awk -F'/' '{print $NF}')
+            echo "📋 Migration logs (Task ID: $TASK_ID):"
+            
+            # List log streams first to see what's available
+            echo "Available log streams:"
+            aws logs describe-log-streams \
+              --log-group-name /ecs/cashsouk-migrate \
+              --region ${{ env.AWS_REGION }} \
+              --max-items 5 \
+              --order-by LastEventTime \
+              --descending || echo "Could not list log streams"
+            
+            # Try to tail logs
+            aws logs tail /ecs/cashsouk-migrate \
+              --since 15m \
+              --format short \
+              --region ${{ env.AWS_REGION }} || echo "Could not retrieve logs"
+            
+            exit 1
+          elif [ "$EXIT_CODE" = "None" ]; then
+            echo "⚠️ Task stopped but exit code is None - checking task status..."
+            aws ecs describe-tasks \
+              --cluster default \
+              --tasks $TASK_ARN \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0]' || true
             exit 1
           fi
 
