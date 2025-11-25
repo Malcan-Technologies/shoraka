@@ -194,6 +194,9 @@ jobs:
           echo "📦 Pushing API image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group --log-group-name /ecs/cashsouk-api --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
+
           echo "📝 Updating task definition..."
           # Get the base template with all environment variables
           TEMPLATE=$(cat infra/ecs-task-definition-api.json)
@@ -230,6 +233,9 @@ jobs:
           echo "📦 Pushing Landing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group --log-group-name /ecs/cashsouk-landing --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
+
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-landing.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
@@ -261,6 +267,9 @@ jobs:
 
           echo "📦 Pushing Investor image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
+
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group --log-group-name /ecs/cashsouk-investor --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-investor.json)
@@ -294,6 +303,9 @@ jobs:
           echo "📦 Pushing Issuer image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group --log-group-name /ecs/cashsouk-issuer --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
+
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-issuer.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
@@ -325,6 +337,9 @@ jobs:
 
           echo "📦 Pushing Admin image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
+
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
