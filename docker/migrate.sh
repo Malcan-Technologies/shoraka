@@ -1,23 +1,42 @@
 #!/bin/sh
 set -e
 
-echo "🔍 Checking database connection..."
+echo "🔍 Checking DATABASE_URL..."
 
-# Wait for database to be ready
-until pg_isready -h "${DB_HOST}" -p "${DB_PORT:-5432}" -U "${DB_USER}" 2>/dev/null; do
-  echo "⏳ Waiting for database to be ready..."
+if [ -z "$DATABASE_URL" ]; then
+  echo "❌ DATABASE_URL is not set"
+  exit 1
+fi
+
+echo "✅ DATABASE_URL is set"
+
+# Extract host from DATABASE_URL for pg_isready check
+# Example: postgresql://user:pass@host:5432/dbname?schema=public
+DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|postgresql://[^@]+@([^:/]+).*|\1|')
+DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
+
+echo "🔍 Checking database connection to ${DB_HOST}:${DB_PORT}..."
+
+# Wait for database to be ready (max 60 seconds)
+RETRY_COUNT=0
+MAX_RETRIES=30
+
+until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" 2>/dev/null; do
+  RETRY_COUNT=$((RETRY_COUNT + 1))
+  if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    echo "❌ Database connection timeout after ${MAX_RETRIES} attempts"
+    echo "Host: ${DB_HOST}"
+    echo "Port: ${DB_PORT}"
+    exit 1
+  fi
+  echo "⏳ Waiting for database to be ready... (attempt ${RETRY_COUNT}/${MAX_RETRIES})"
   sleep 2
 done
 
 echo "✅ Database is ready"
 
-# Construct DATABASE_URL for Prisma (with schema parameter)
-if [ -z "$DATABASE_URL" ]; then
-  export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}?schema=public"
-fi
-
 # Construct PSQL_URL for psql commands (without schema parameter)
-PSQL_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}"
+PSQL_URL=$(echo "$DATABASE_URL" | sed 's/\?schema=public//')
 
 echo "🔒 Acquiring migration lock..."
 
