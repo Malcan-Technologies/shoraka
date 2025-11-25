@@ -30,7 +30,15 @@ export function SystemHealth() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
       if (!apiUrl) {
-        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+        setHealth({
+          status: "error",
+          database: "disconnected",
+          timestamp: new Date().toISOString(),
+          error: "NEXT_PUBLIC_API_URL is not configured - check build configuration",
+        });
+        setLastChecked(new Date());
+        setLoading(false);
+        return;
       }
 
       const response = await fetch(`${apiUrl}/healthz`, {
