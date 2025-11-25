@@ -1,5 +1,5 @@
 {
-  "family": "default-investor-cashsouk-50e5",
+  "family": "cashsouk-investor",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",

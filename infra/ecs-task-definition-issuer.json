@@ -1,5 +1,5 @@
 {
-  "family": "default-issuer-cashsouk-ff47",
+  "family": "cashsouk-issuer",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",

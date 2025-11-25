@@ -1,5 +1,5 @@
 {
-  "family": "default-api-cashsouk-09ff",
+  "family": "cashsouk-api",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
