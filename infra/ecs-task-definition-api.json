@@ -41,24 +41,8 @@
       ],
       "secrets": [
         {
-          "name": "DB_HOST",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:host::"
-        },
-        {
-          "name": "DB_PORT",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:port::"
-        },
-        {
-          "name": "DB_USERNAME",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:username::"
-        },
-        {
-          "name": "DB_PASSWORD",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:password::"
-        },
-        {
-          "name": "DB_NAME",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:dbname::"
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url"
         }
       ],
       "healthCheck": {

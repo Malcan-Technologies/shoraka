@@ -98,34 +98,15 @@ jobs:
             --log-group-name /ecs/cashsouk-migrate \
             --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
-          echo "📦 Registering migration task definition..."
-
-          # Check if task definition exists, if not create it from template
-          if ! aws ecs describe-task-definition \
-            --task-definition cashsouk-migrate \
-            --region ${{ env.AWS_REGION }} &>/dev/null; then
-            echo "Creating new task definition from template..."
-            TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
-              '.containerDefinitions[0].image = $IMAGE')
-            aws ecs register-task-definition \
-              --cli-input-json "$TASK_DEF" \
-              --region ${{ env.AWS_REGION }}
-          else
-            echo "Updating existing task definition..."
-            # Get the current task definition
-            TASK_DEF=$(aws ecs describe-task-definition \
-              --task-definition cashsouk-migrate \
-              --region ${{ env.AWS_REGION }})
-            
-            # Update the image tag in the task definition
-            NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
-              '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-            
-            # Register new task definition revision
-            aws ecs register-task-definition \
-              --cli-input-json "$NEW_TASK_DEF" \
-              --region ${{ env.AWS_REGION }} > /dev/null
-          fi
+          echo "📦 Registering migration task definition from template..."
+          
+          # Always use the template file to ensure latest configuration (secrets, roles, etc.)
+          TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
+          
+          aws ecs register-task-definition \
+            --cli-input-json "$TASK_DEF" \
+            --region ${{ env.AWS_REGION }}
 
           echo "📦 Running migrations via ECS task..."
 
