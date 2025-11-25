@@ -66,8 +66,18 @@ jobs:
           docker build -f docker/api.Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
-      - name: Build and push migration image
+      - name: Check for migration changes
+        id: migration_check
         if: ${{ inputs.deploy_api }}
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -qE '^apps/api/prisma/(schema\.prisma|migrations/)'; then
+            echo "migrations_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "migrations_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push migration image
+        if: ${{ inputs.deploy_api && steps.migration_check.outputs.migrations_changed == 'true' }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: cashsouk-migrate
@@ -76,33 +86,45 @@ jobs:
           echo "🔨 Building migration image..."
           docker build -f docker/migrate.Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
+          
           echo "📦 Pushing migration image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Run Database Migrations
-        if: ${{ inputs.deploy_api }}
+        if: ${{ inputs.deploy_api && steps.migration_check.outputs.migrations_changed == 'true' }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "📦 Updating migration task definition with new image..."
-
-          # Get the current task definition
-          TASK_DEF=$(aws ecs describe-task-definition \
+          echo "📦 Registering migration task definition..."
+          
+          # Check if task definition exists, if not create it from template
+          if ! aws ecs describe-task-definition \
             --task-definition cashsouk-migrate \
-            --region ${{ env.AWS_REGION }})
-
-          # Update the image tag in the task definition
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-
-          # Register new task definition revision
-          NEW_TASK_ARN=$(echo $NEW_TASK_DEF | jq -r '.family + ":" + (.revision|tostring)')
-          aws ecs register-task-definition \
-            --cli-input-json "$NEW_TASK_DEF" \
-            --region ${{ env.AWS_REGION }} > /dev/null
-
+            --region ${{ env.AWS_REGION }} &>/dev/null; then
+            echo "Creating new task definition from template..."
+            TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
+              '.containerDefinitions[0].image = $IMAGE')
+            aws ecs register-task-definition \
+              --cli-input-json "$TASK_DEF" \
+              --region ${{ env.AWS_REGION }}
+          else
+            echo "Updating existing task definition..."
+            # Get the current task definition
+            TASK_DEF=$(aws ecs describe-task-definition \
+              --task-definition cashsouk-migrate \
+              --region ${{ env.AWS_REGION }})
+            
+            # Update the image tag in the task definition
+            NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
+              '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+            
+            # Register new task definition revision
+            aws ecs register-task-definition \
+              --cli-input-json "$NEW_TASK_DEF" \
+              --region ${{ env.AWS_REGION }} > /dev/null
+          fi
+          
           echo "📦 Running migrations via ECS task..."
 
           # Run migration as one-off ECS task

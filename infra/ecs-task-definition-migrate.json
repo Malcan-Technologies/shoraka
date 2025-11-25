@@ -16,33 +16,38 @@
         "options": {
           "awslogs-group": "/ecs/cashsouk-migrate",
           "awslogs-region": "ap-southeast-5",
-          "awslogs-stream-prefix": "ecs"
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
         }
       },
-      "environment": [],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
       "secrets": [
         {
           "name": "DB_HOST",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:host::"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:host::"
         },
         {
           "name": "DB_PORT",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:port::"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:port::"
         },
         {
           "name": "DB_USER",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182:username::"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:username::"
         },
         {
           "name": "DB_PASSWORD",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182:password::"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:password::"
         },
         {
           "name": "DB_NAME",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/cashsouk/db:dbname::"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182-ggp48I:dbname::"
         }
       ]
     }
   ]
 }
-
