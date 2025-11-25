@@ -1,5 +1,5 @@
 {
-  "family": "cashsouk-landing",
+  "family": "default-landing-cashsouk-1156",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
