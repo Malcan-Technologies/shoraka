@@ -13,9 +13,25 @@ export function createApp(): Application {
 
   app.use(helmet());
   
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"];
+  
   app.use(
     cors({
-      origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        
+        if (origin.endsWith(".ecs.ap-southeast-5.on.aws")) {
+          logger.info({ origin }, "Allowing ECS origin");
+          return callback(null, true);
+        }
+        
+        logger.warn({ origin, allowedOrigins }, "Origin not allowed");
+        callback(new Error("Not allowed by CORS"));
+      },
       credentials: true,
     })
   );
