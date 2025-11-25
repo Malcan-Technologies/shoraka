@@ -214,16 +214,12 @@ jobs:
 
           echo "📝 Registering API task definition..."
 
-          # Use the Express mode task definition name
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition default-api-cashsouk-09ff --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_ARN "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url" '
-            .taskDefinition | 
-            .containerDefinitions[0].image = $IMAGE | 
-            .containerDefinitions[0].secrets = [{
-              "name": "DATABASE_URL",
-              "valueFrom": $SECRET_ARN
-            }] |
-            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          # Use the base template with all environment variables
+          TEMPLATE=$(cat infra/ecs-task-definition-api.json)
+          
+          # Update only the image tag
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
+            .containerDefinitions[0].image = $IMAGE
           ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
@@ -254,9 +250,9 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
           echo "📝 Updating task definition..."
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition default-landing-cashsouk-1156 --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          TEMPLATE=$(cat infra/ecs-task-definition-landing.json)
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Landing to ECS..."
@@ -285,9 +281,9 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
           echo "📝 Updating task definition..."
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition default-investor-cashsouk-50e5 --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          TEMPLATE=$(cat infra/ecs-task-definition-investor.json)
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Investor to ECS..."
@@ -316,9 +312,9 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
           echo "📝 Updating task definition..."
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition default-issuer-cashsouk-ff47 --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          TEMPLATE=$(cat infra/ecs-task-definition-issuer.json)
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Issuer to ECS..."
@@ -348,9 +344,9 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
           echo "📝 Updating task definition..."
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition default-admin-cashsouk-7cd8 --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Admin to ECS..."
