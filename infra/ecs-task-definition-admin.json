@@ -8,7 +8,7 @@
   "taskRoleArn": "arn:aws:iam::652821469470:role/ecsTaskRole",
   "containerDefinitions": [
     {
-      "name": "admin",
+      "name": "Main",
       "image": "ACCOUNT_ID.dkr.ecr.ap-southeast-5.amazonaws.com/cashsouk-admin:latest",
       "essential": true,
       "portMappings": [
