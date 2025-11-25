@@ -44,15 +44,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -62,92 +54,55 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push API image
+      # API: Build → Migrate → Push → Deploy (immediately)
+      - name: Build API image
         if: ${{ inputs.deploy_api }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: api-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "🔨 Building API image..."
           docker build -f docker/api.Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Build and push Landing image
-        if: ${{ inputs.deploy_landing }}
+      - name: Build and push migration image
+        if: ${{ inputs.deploy_api }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: landing-cashsouk
+          ECR_REPOSITORY: cashsouk-migrate
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f docker/landing.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+          echo "🔨 Building migration image..."
+          docker build -f docker/migrate.Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Build and push Investor image
-        if: ${{ inputs.deploy_investor }}
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: investor-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -f docker/portal-investor.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Build and push Issuer image
-        if: ${{ inputs.deploy_issuer }}
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: issuer-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -f docker/portal-issuer.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Build and push Admin image
-        if: ${{ inputs.deploy_admin }}
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: admin-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -f docker/portal-admin.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          echo "📦 Pushing migration image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Run Database Migrations
         if: ${{ inputs.deploy_api }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "🔨 Building migration image..."
-          docker build -f docker/migrate.Dockerfile -t migrate:${{ github.sha }} .
-
           echo "📦 Running migrations via ECS task..."
-
-          # Get VPC config from existing API service
-          VPC_CONFIG=$(aws ecs describe-services \
-            --cluster default \
-            --services api-cashsouk-09ff \
-            --region ${{ env.AWS_REGION }} \
-            --query 'services[0].networkConfiguration.awsvpcConfiguration' \
-            --output json)
-
-          SUBNETS=$(echo $VPC_CONFIG | jq -r '.subnets | join(",")')
-          SECURITY_GROUPS=$(echo $VPC_CONFIG | jq -r '.securityGroups | join(",")')
 
           # Run migration as one-off ECS task
           TASK_ARN=$(aws ecs run-task \
             --cluster default \
             --launch-type FARGATE \
             --task-definition cashsouk-migrate \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=DISABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"migrate\",\"image\":\"${{ steps.login-ecr.outputs.registry }}/cashsouk-migrate:$IMAGE_TAG\"}]}" \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-0a1b2c3d4e5f6a7b8,subnet-0c9b8a7d6e5f4a3b2],securityGroups=[sg-0123456789abcdef0],assignPublicIp=DISABLED}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' \
             --output text)
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "❌ Failed to start migration task"
+            exit 1
+          fi
 
           echo "⏳ Waiting for migrations to complete (Task: $TASK_ARN)..."
 
@@ -167,55 +122,131 @@ jobs:
 
           if [ "$EXIT_CODE" != "0" ]; then
             echo "❌ Migrations failed with exit code $EXIT_CODE"
+            
+            # Get logs for debugging
+            echo "📋 Migration logs:"
+            aws logs tail /ecs/cashsouk-migrate --since 10m --region ${{ env.AWS_REGION }} || true
+            
             exit 1
           fi
 
           echo "✅ Migrations completed successfully"
 
-      - name: Deploy API to ECS
+      - name: Push and deploy API
         if: ${{ inputs.deploy_api }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: api-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "📦 Pushing API image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🚀 Deploying API to ECS..."
           aws ecs update-service \
             --cluster default \
             --service api-cashsouk-09ff \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ API deployed successfully"
 
-      - name: Deploy Landing to ECS
+      # Landing: Build → Push → Deploy (immediately)
+      - name: Build push and deploy Landing
         if: ${{ inputs.deploy_landing }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: landing-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "🔨 Building Landing image..."
+          docker build -f docker/landing.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          echo "📦 Pushing Landing image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🚀 Deploying Landing to ECS..."
           aws ecs update-service \
             --cluster default \
             --service landing-cashsouk-1156 \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Landing deployed successfully"
 
-      - name: Deploy Investor to ECS
+      # Investor: Build → Push → Deploy (immediately)
+      - name: Build push and deploy Investor
         if: ${{ inputs.deploy_investor }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: investor-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "🔨 Building Investor image..."
+          docker build -f docker/portal-investor.Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          echo "📦 Pushing Investor image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🚀 Deploying Investor to ECS..."
           aws ecs update-service \
             --cluster default \
             --service investor-cashsouk-50e5 \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Investor deployed successfully"
 
-      - name: Deploy Issuer to ECS
+      # Issuer: Build → Push → Deploy (immediately)
+      - name: Build push and deploy Issuer
         if: ${{ inputs.deploy_issuer }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: issuer-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "🔨 Building Issuer image..."
+          docker build -f docker/portal-issuer.Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          echo "📦 Pushing Issuer image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🚀 Deploying Issuer to ECS..."
           aws ecs update-service \
             --cluster default \
             --service issuer-cashsouk-ff47 \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Issuer deployed successfully"
 
-      - name: Deploy Admin to ECS
+      # Admin: Build → Push → Deploy (immediately)
+      - name: Build push and deploy Admin
         if: ${{ inputs.deploy_admin }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: admin-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "🔨 Building Admin image..."
+          docker build -f docker/portal-admin.Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          echo "📦 Pushing Admin image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🚀 Deploying Admin to ECS..."
           aws ecs update-service \
             --cluster default \
             --service admin-cashsouk-7cd8 \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Admin deployed successfully"
 
       - name: Deployment summary
         run: |

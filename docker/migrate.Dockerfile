@@ -30,8 +30,8 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
-# Install PostgreSQL client for health checks
-RUN apk add --no-cache postgresql-client
+# Install PostgreSQL client and OpenSSL for Prisma
+RUN apk add --no-cache postgresql-client openssl
 
 # Copy workspace files
 COPY --from=builder /app/package.json ./package.json
