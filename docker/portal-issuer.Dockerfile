@@ -26,7 +26,7 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-RUN pnpm --filter @cashsouk/issuer build
+RUN NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL pnpm --filter @cashsouk/issuer build
 
 FROM node:20-alpine AS runner
 

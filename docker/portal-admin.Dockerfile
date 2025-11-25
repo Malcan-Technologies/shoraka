@@ -29,9 +29,9 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-# Build with explicit environment variable
+# Build with explicit environment variable passed to the build command
 RUN echo "🚀 Starting Next.js build with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" && \
-    pnpm --filter @cashsouk/admin build && \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL pnpm --filter @cashsouk/admin build && \
     echo "✅ Build complete" && \
     echo "🔍 Checking if API URL is in built files..." && \
     grep -r "localhost:4000" apps/admin/.next/ && echo "⚠️ WARNING: localhost:4000 found in build!" || echo "✅ No localhost:4000 in build"
