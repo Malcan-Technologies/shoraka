@@ -36,7 +36,7 @@
         },
         {
           "name": "ALLOWED_ORIGINS",
-          "value": "https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com,https://ad-62c14ba78bc54d79bf2eee3382459c94.ecs.ap-southeast-5.on.aws,https://ld-46c0e9f84cfb4b76b14a60ef1db3cfde.ecs.ap-southeast-5.on.aws,https://iv-bf62aa9e95ee46d4938aaf3b4d1b2dc8.ecs.ap-southeast-5.on.aws,https://is-6b8aad76e5a0423cbf1c21c450a11bc0.ecs.ap-southeast-5.on.aws"
+          "value": "https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com,https://ad-62c14ba78bc54d79bf2eee3382459c94.ecs.ap-southeast-5.on.aws"
         }
       ],
       "secrets": [
@@ -46,7 +46,10 @@
         }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""],
+        "command": [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""
+        ],
         "interval": 30,
         "timeout": 5,
         "retries": 3,
@@ -55,4 +58,3 @@
     }
   ]
 }
-
