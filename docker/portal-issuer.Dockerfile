@@ -22,11 +22,11 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-# Accept build argument right before using it
 ARG NEXT_PUBLIC_API_URL
 
-# Build with explicit environment variable
-RUN export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" && \
+RUN rm -rf apps/issuer/.next && \
+    if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
+    echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/issuer/.env.production && \
     pnpm --filter @cashsouk/issuer build
 
 FROM node:20-alpine AS runner

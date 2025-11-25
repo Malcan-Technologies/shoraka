@@ -194,21 +194,19 @@ jobs:
           echo "📦 Pushing API image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
-          echo "📝 Updating task definition..."
-          # Get the base template with all environment variables
+          echo "📝 Registering new API task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-api.json)
-
-          # Update only the image tag
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
             .containerDefinitions[0].image = $IMAGE
           ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "📋 Registered: $TASK_DEF_ARN"
 
-          echo "🚀 Deploying API to ECS..."
+          echo "🚀 Deploying API to ECS with new task definition..."
           aws ecs update-service \
             --cluster default \
             --service api-cashsouk-09ff \
-            --task-definition default-api-cashsouk-09ff \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
@@ -230,17 +228,18 @@ jobs:
           echo "📦 Pushing Landing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
-          echo "📝 Updating task definition..."
+          echo "📝 Registering new Landing task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-landing.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "📋 Registered: $TASK_DEF_ARN"
 
           echo "🚀 Deploying Landing to ECS..."
           aws ecs update-service \
             --cluster default \
             --service landing-cashsouk-1156 \
-            --task-definition default-landing-cashsouk-1156 \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
@@ -262,17 +261,18 @@ jobs:
           echo "📦 Pushing Investor image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
-          echo "📝 Updating task definition..."
+          echo "📝 Registering new Investor task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-investor.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "📋 Registered: $TASK_DEF_ARN"
 
           echo "🚀 Deploying Investor to ECS..."
           aws ecs update-service \
             --cluster default \
             --service investor-cashsouk-50e5 \
-            --task-definition default-investor-cashsouk-50e5 \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
@@ -294,17 +294,18 @@ jobs:
           echo "📦 Pushing Issuer image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
-          echo "📝 Updating task definition..."
+          echo "📝 Registering new Issuer task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-issuer.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "📋 Registered: $TASK_DEF_ARN"
 
           echo "🚀 Deploying Issuer to ECS..."
           aws ecs update-service \
             --cluster default \
             --service issuer-cashsouk-ff47 \
-            --task-definition default-issuer-cashsouk-ff47 \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
@@ -319,30 +320,46 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Admin image..."
-          echo "🔍 NEXT_PUBLIC_API_URL is set to: ${{ secrets.NEXT_PUBLIC_API_URL }}"
           docker build -f docker/portal-admin.Dockerfile \
-            --no-cache \
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
-          echo "📝 Updating task definition..."
+          echo "📝 Registering new task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "📋 Registered task definition: $TASK_DEF_ARN"
 
-          echo "🚀 Deploying Admin to ECS..."
+          echo "🚀 Deploying Admin to ECS with new task definition..."
           aws ecs update-service \
             --cluster default \
             --service admin-cashsouk-7cd8 \
-            --task-definition default-admin-cashsouk-7cd8 \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
-          echo "✅ Admin deployed successfully"
+          echo "✅ Admin deployed - waiting for tasks to stabilize..."
+          aws ecs wait services-stable \
+            --cluster default \
+            --services admin-cashsouk-7cd8 \
+            --region ${{ env.AWS_REGION }} || echo "⚠️ Wait timed out, but service may still be deploying"
+
+          echo "🔍 Verifying deployment..."
+          TASK_DEF_ARN=$(aws ecs describe-services --cluster default --services admin-cashsouk-7cd8 --region ${{ env.AWS_REGION }} --query 'services[0].taskDefinition' --output text)
+          RUNNING_IMAGE=$(aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region ${{ env.AWS_REGION }} --query 'taskDefinition.containerDefinitions[0].image' --output text)
+          echo "📦 Service is using task definition: $TASK_DEF_ARN"
+          echo "📦 Task definition uses image: $RUNNING_IMAGE"
+          echo "📦 Expected image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+          if [[ "$RUNNING_IMAGE" == *"$IMAGE_TAG"* ]]; then
+            echo "✅ Correct image is deployed!"
+          else
+            echo "⚠️ WARNING: Service is not using the expected image!"
+          fi
 
       - name: Deployment summary
         run: |

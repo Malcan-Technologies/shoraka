@@ -22,23 +22,12 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-# Accept build argument right before using it
 ARG NEXT_PUBLIC_API_URL
 
-# Clean Next.js cache and build with explicit environment variable
-RUN echo "🧹 Cleaning Next.js cache..." && \
-    rm -rf apps/admin/.next && \
-    echo "🚀 Building with NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" && \
-    echo "🔍 Verifying ARG is set: ${NEXT_PUBLIC_API_URL:-NOT_SET}" && \
+RUN rm -rf apps/admin/.next && \
     if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
-    echo "📝 Creating .env.production file..." && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
-    cat apps/admin/.env.production && \
-    echo "🔨 Running build..." && \
-    pnpm --filter @cashsouk/admin build && \
-    echo "✅ Build complete" && \
-    echo "🔍 Checking built files for localhost..." && \
-    (grep -r "localhost:4000" apps/admin/.next/static apps/admin/.next/server 2>/dev/null && echo "⚠️ WARNING: localhost:4000 found!") || echo "✅ No localhost:4000 in build"
+    pnpm --filter @cashsouk/admin build
 
 FROM node:20-alpine AS runner
 

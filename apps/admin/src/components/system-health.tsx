@@ -27,15 +27,7 @@ export function SystemHealth() {
     try {
       setLoading(true);
 
-      // Use environment variable
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-      // Debug logging
-      console.log("🔍 Health check debug:", {
-        hostname: typeof window !== "undefined" ? window.location.hostname : "SSR",
-        apiUrl,
-        envVar: process.env.NEXT_PUBLIC_API_URL,
-      });
 
       if (!apiUrl) {
         throw new Error("NEXT_PUBLIC_API_URL is not configured");

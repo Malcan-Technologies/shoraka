@@ -4,33 +4,40 @@ Complete documentation for the CashSouk P2P Lending Platform.
 
 ## Quick Links
 
-- 📖 **[Getting Started](./guides/getting-started.md)** - Setup and first steps
-- 🚀 **[Deployment](./deployment/deployment.md)** - Deploy to AWS
+- 🚀 **[Local Development Setup](./guides/local-development-setup.md)** - Start coding in 5 minutes
+- 📦 **[Deployment Guide](./deployment/deployment-guide.md)** - Push to deploy
 - 🎨 **[Brand Guidelines](../BRANDING.md)** - Design system
 
 ## Documentation Structure
 
-### 📚 Guides
+### 📚 Guides (For Developers)
+
 Step-by-step guides for common tasks:
 
-- **[Getting Started](./guides/getting-started.md)** - Installation and setup
-- **[Development](./guides/development.md)** - Local development workflow
-- **[Authentication](./guides/authentication.md)** - Auth implementation details
+- **[Local Development Setup](./guides/local-development-setup.md)** - ⭐ Start here
+- **[Development Workflow](./guides/development.md)** - Day-to-day tasks
+- **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
+- **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
 
 ### 🏗️ Architecture
+
 Understanding the codebase and infrastructure:
 
 - **[Project Structure](./architecture/project-structure.md)** - Monorepo organization
 - **[AWS Infrastructure](./architecture/aws-infrastructure.md)** - Cloud architecture
 
-### 🚀 Deployment
+### 🚀 Deployment (For Developers & DevOps)
+
 Production deployment and operations:
 
-- **[Deployment Guide](./deployment/deployment.md)** - AWS deployment process
-- **[Infrastructure Setup](../infra/README.md)** - Creating AWS resources
+- **[Deployment Guide](./deployment/deployment-guide.md)** - ⭐ Push to deploy (Developer-focused)
+- **[GitHub Actions Setup](./deployment/github-actions-setup.md)** - CI/CD configuration (DevOps)
+- **[AWS Infrastructure](./deployment/manual-aws-console-setup.md)** - AWS setup (DevOps)
+- **[Optimization Guide](./deployment/deployment-optimization.md)** - Speed improvements
 
 ### 🎨 Design
+
 UI and branding guidelines:
 
 - **[Brand Guidelines](../BRANDING.md)** - Design system and standards
@@ -38,18 +45,23 @@ UI and branding guidelines:
 ## Getting Help
 
 ### For Developers
-1. Start with [Getting Started](./guides/getting-started.md)
-2. Read [Development Guide](./guides/development.md)
-3. Check [Project Structure](./architecture/project-structure.md)
+
+1. **Start coding:** [Local Development Setup](./guides/local-development-setup.md)
+2. **Deploy your code:** [Deployment Guide](./deployment/deployment-guide.md)
+3. **Understand the codebase:** [Project Structure](./architecture/project-structure.md)
+4. **Database changes:** [Database Workflow](./guides/database-workflow.md)
 
 ### For DevOps
-1. Review [AWS Infrastructure](./architecture/aws-infrastructure.md)
-2. Follow [Deployment Guide](./deployment/deployment.md)
-3. See [Infrastructure Setup](../infra/README.md)
+
+1. **AWS setup:** [Manual AWS Console Setup](./deployment/manual-aws-console-setup.md)
+2. **CI/CD setup:** [GitHub Actions Setup](./deployment/github-actions-setup.md)
+3. **Architecture:** [AWS Infrastructure](./architecture/aws-infrastructure.md)
+4. **Optimization:** [Deployment Optimization](./deployment/deployment-optimization.md)
 
 ### For Designers
-1. Read [Brand Guidelines](../BRANDING.md)
-2. Review shared UI components in `packages/ui`
+
+1. **Design system:** [Brand Guidelines](../BRANDING.md)
+2. **UI components:** `packages/ui` - shadcn/ui based components
 
 ## Documentation Principles
 
@@ -64,6 +76,7 @@ This documentation follows these principles:
 ## Contributing to Docs
 
 When adding features:
+
 1. Update relevant guides (don't create new files unnecessarily)
 2. Keep examples working and tested
 3. Update this index if adding new sections
@@ -74,4 +87,3 @@ When adding features:
 - Platform rebranded from Shoraka to CashSouk
 - Comprehensive AWS deployment setup
 - Development workflow established
-
