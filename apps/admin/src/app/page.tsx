@@ -4,6 +4,7 @@ import * as React from "react";
 import { StatsCard } from "../components/stats-card";
 import { RecentLoans } from "../components/recent-loans";
 import { UserSignupsChart } from "../components/user-signups-chart";
+import { SystemHealth } from "../components/system-health";
 import { usePageTitle } from "../components/page-title-provider";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
@@ -63,7 +64,8 @@ export default function AdminHomePage() {
         <div className="lg:col-span-4">
           <UserSignupsChart />
         </div>
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
+          <SystemHealth />
           <RecentLoans loading={loading} />
         </div>
       </div>
