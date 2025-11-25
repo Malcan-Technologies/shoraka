@@ -111,6 +111,11 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group \
+            --log-group-name /ecs/cashsouk-migrate \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
+
           echo "📦 Registering migration task definition..."
 
           # Check if task definition exists, if not create it from template
