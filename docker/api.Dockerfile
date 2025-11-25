@@ -4,6 +4,10 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
+# Create .npmrc to enable hoisting
+RUN echo "shamefully-hoist=true" > .npmrc
+RUN echo "public-hoist-pattern[]=*" >> .npmrc
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY turbo.json ./
 COPY apps/api/package.json ./apps/api/
@@ -26,13 +30,25 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
 
+# Copy workspace structure
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+# Copy all node_modules from builder (already contains all dependencies + Prisma client)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy built API code
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+
+# Copy workspace packages (for TypeScript resolution)
+COPY --from=builder /app/packages ./packages
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 apiuser
 
-COPY --from=builder --chown=apiuser:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=apiuser:nodejs /app/apps/api/package.json ./package.json
-COPY --from=builder --chown=apiuser:nodejs /app/apps/api/prisma ./prisma
+RUN chown -R apiuser:nodejs /app
 
 USER apiuser
 
@@ -41,5 +57,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "apps/api/dist/index.js"]
 

@@ -36,8 +36,28 @@ export function createApp(): Application {
     })
   );
 
-  app.get("/healthz", (_, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  app.get("/healthz", async (_, res) => {
+    try {
+      // Test database connection
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+      await prisma.$queryRaw`SELECT 1 as health_check`;
+      await prisma.$disconnect();
+      
+      res.json({ 
+        status: "ok", 
+        database: "connected",
+        timestamp: new Date().toISOString() 
+      });
+    } catch (error) {
+      logger.error({ error }, "Health check failed");
+      res.status(503).json({ 
+        status: "error", 
+        database: "disconnected",
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString() 
+      });
+    }
   });
 
   registerRoutes(app);
