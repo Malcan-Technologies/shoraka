@@ -39,8 +39,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-RUN apk add --no-cache curl
-
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
@@ -51,9 +49,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/admin/public ./apps/admin/pu
 USER nextjs
 
 EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
 
 CMD ["node", "apps/admin/server.js"]
 
