@@ -13,7 +13,7 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/config/package.json ./packages/config/
 COPY packages/icons/package.json ./packages/icons/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 COPY apps/admin ./apps/admin
 COPY packages/ui ./packages/ui
