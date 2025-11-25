@@ -36,6 +36,7 @@ ENV PORT=4000
 # Copy workspace structure
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder /app/.npmrc ./.npmrc
 
 # Copy all node_modules from builder (already contains all dependencies + Prisma client)
 COPY --from=builder /app/node_modules ./node_modules
