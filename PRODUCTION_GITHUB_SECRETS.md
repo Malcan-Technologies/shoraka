@@ -93,38 +93,42 @@ https://api.cashsouk.com
 
 The following are configured in AWS, not GitHub:
 
-### In AWS Secrets Manager / SSM Parameter Store:
+### ✅ Already Configured (No Action Needed):
 
-1. **Database Connection**
-   - `DATABASE_URL` - PostgreSQL connection string
-   - Or individual secrets: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+1. **Database Connection** - Already configured in `infra/ecs-task-definition-api.json`
+   - Individual secrets pulled from RDS master secret: `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME`
+   - API automatically constructs `DATABASE_URL` from these at runtime
 
-2. **CORS Configuration**
+### ✅ Already Configured (No Action Needed):
+
+2. **CORS Configuration** - Already added to `infra/ecs-task-definition-api.json`
    - `ALLOWED_ORIGINS` - `https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com`
 
-3. **JWT Secrets** (When implementing custom auth)
+### 📝 Add Later (When Implementing Features):
+
+1. **JWT Secrets** (When implementing custom auth)
    - `JWT_SECRET` - Strong random secret
    - `JWT_EXPIRES_IN` - `15m`
    - `JWT_REFRESH_EXPIRES_IN` - `7d`
 
-4. **AWS Services**
+2. **AWS Services**
    - `AWS_REGION` - `ap-southeast-5`
    - `S3_BUCKET` - Your S3 bucket name
    - `S3_PREFIX` - `uploads/`
 
-5. **Cognito** (When implementing auth)
+3. **Cognito** (When implementing auth)
    - `COGNITO_USER_POOL_ID`
    - `COGNITO_CLIENT_ID`
    - `COGNITO_REGION`
 
-6. **Email (SES)**
+4. **Email (SES)**
    - `SMTP_HOST`
    - `SMTP_PORT`
    - `SMTP_USER`
    - `SMTP_PASSWORD`
    - `EMAIL_FROM`
 
-7. **Payment Gateway** (When integrating payments)
+5. **Payment Gateway** (When integrating payments)
    - `PAYMENT_GATEWAY_API_KEY`
    - `PAYMENT_GATEWAY_SECRET`
    - `PAYMENT_GATEWAY_WEBHOOK_SECRET`
@@ -138,10 +142,10 @@ To deploy all services to production, you need **2 GitHub secrets**:
 1. ✅ `AWS_DEPLOY_ROLE_ARN` - For AWS authentication
 2. ✅ `NEXT_PUBLIC_API_URL` - For frontend API calls
 
-**Plus** configure the following in **AWS Secrets Manager**:
+**Backend configuration is already done!** ✅
 
-3. ✅ Database credentials (master secret already exists: `rds!db-71798d0b...`)
-4. ✅ `ALLOWED_ORIGINS` - CORS configuration for API
+- Database credentials automatically pulled from RDS master secret
+- `ALLOWED_ORIGINS` already configured in ECS task definition
 
 ---
 
@@ -149,13 +153,13 @@ To deploy all services to production, you need **2 GitHub secrets**:
 
 ### GitHub Secrets (Add in GitHub Settings → Secrets)
 
-- [ ] `AWS_DEPLOY_ROLE_ARN` = `arn:aws:iam::652821469470:role/GitHubActionsECRPushRole`
-- [ ] `NEXT_PUBLIC_API_URL` = `https://api.cashsouk.com`
+- [ ] `AWS_DEPLOY_ROLE_ARN` = `arn:aws:iam::652821469470:role/GitHubActionsECRPushRole` (Already added ✅)
+- [ ] `NEXT_PUBLIC_API_URL` = `https://api.cashsouk.com` (Need to add)
 
-### AWS Secrets Manager (Configure in AWS Console)
+### AWS Configuration (Already Configured ✅)
 
-- [ ] Database connection (already exists via RDS master secret)
-- [ ] API `ALLOWED_ORIGINS` environment variable in ECS Task Definition
+- [x] Database connection (configured in `infra/ecs-task-definition-api.json`)
+- [x] API `ALLOWED_ORIGINS` (configured in `infra/ecs-task-definition-api.json`)
 
 ### Later (When Implementing Features)
 

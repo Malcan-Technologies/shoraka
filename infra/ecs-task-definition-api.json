@@ -33,6 +33,10 @@
         {
           "name": "PORT",
           "value": "4000"
+        },
+        {
+          "name": "ALLOWED_ORIGINS",
+          "value": "https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com,https://ad-62c14ba78bc54d79bf2eee3382459c94.ecs.ap-southeast-5.on.aws"
         }
       ],
       "secrets": [
