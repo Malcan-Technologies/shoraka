@@ -29,7 +29,12 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-RUN pnpm --filter @cashsouk/admin build
+# Build with explicit environment variable
+RUN echo "🚀 Starting Next.js build with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" && \
+    pnpm --filter @cashsouk/admin build && \
+    echo "✅ Build complete" && \
+    echo "🔍 Checking if API URL is in built files..." && \
+    grep -r "localhost:4000" apps/admin/.next/ && echo "⚠️ WARNING: localhost:4000 found in build!" || echo "✅ No localhost:4000 in build"
 
 FROM node:20-alpine AS runner
 
