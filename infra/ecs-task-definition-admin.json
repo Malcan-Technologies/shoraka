@@ -1,5 +1,5 @@
 {
-  "family": "cashsouk-admin",
+  "family": "default-admin-cashsouk-7cd8",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
