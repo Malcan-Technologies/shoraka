@@ -99,11 +99,11 @@ jobs:
             --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📦 Registering migration task definition from template..."
-          
+
           # Always use the template file to ensure latest configuration (secrets, roles, etc.)
           TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE')
-          
+
           aws ecs register-task-definition \
             --cli-input-json "$TASK_DEF" \
             --region ${{ env.AWS_REGION }}
@@ -196,8 +196,15 @@ jobs:
 
           echo "📝 Updating task definition..."
           TASK_DEF=$(aws ecs describe-task-definition --task-definition default-api-cashsouk-09ff --region ${{ env.AWS_REGION }})
-          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_ARN "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url" '
+            .taskDefinition | 
+            .containerDefinitions[0].image = $IMAGE | 
+            .containerDefinitions[0].secrets = [{
+              "name": "DATABASE_URL",
+              "valueFrom": $SECRET_ARN
+            }] |
+            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying API to ECS..."
