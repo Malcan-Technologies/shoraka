@@ -27,11 +27,8 @@ export function SystemHealth() {
     try {
       setLoading(true);
 
-      // Use environment variable or default to localhost for development
-      const apiUrl =
-        typeof window !== "undefined" && window.location.hostname === "localhost"
-          ? "http://localhost:4000" // Local development
-          : process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      // Use environment variable
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
       // Debug logging
       console.log("🔍 Health check debug:", {
@@ -39,6 +36,10 @@ export function SystemHealth() {
         apiUrl,
         envVar: process.env.NEXT_PUBLIC_API_URL,
       });
+
+      if (!apiUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+      }
 
       const response = await fetch(`${apiUrl}/healthz`, {
         cache: "no-store",
