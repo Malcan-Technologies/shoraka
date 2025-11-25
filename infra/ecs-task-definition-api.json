@@ -8,7 +8,7 @@
   "taskRoleArn": "arn:aws:iam::652821469470:role/ecsTaskRole",
   "containerDefinitions": [
     {
-      "name": "api",
+      "name": "Main",
       "image": "652821469470.dkr.ecr.ap-southeast-5.amazonaws.com/api-cashsouk:latest",
       "essential": true,
       "portMappings": [
