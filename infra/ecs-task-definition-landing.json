@@ -1,0 +1,70 @@
+{
+  "family": "cashsouk-landing",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/cashsoukTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "landing",
+      "image": "ACCOUNT_ID.dkr.ecr.ap-southeast-5.amazonaws.com/cashsouk-landing:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXT_PUBLIC_API_URL",
+          "valueFrom": "/cashsouk/prod/api-url"
+        },
+        {
+          "name": "NEXT_PUBLIC_COGNITO_DOMAIN",
+          "valueFrom": "/cashsouk/prod/cognito/domain"
+        },
+        {
+          "name": "NEXT_PUBLIC_COGNITO_CLIENT_ID",
+          "valueFrom": "/cashsouk/prod/cognito/client-id"
+        },
+        {
+          "name": "NEXT_PUBLIC_COGNITO_REGION",
+          "valueFrom": "/cashsouk/prod/cognito/region"
+        },
+        {
+          "name": "NEXT_PUBLIC_CLOUDFRONT_URL",
+          "valueFrom": "/cashsouk/prod/cloudfront/url"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cashsouk-landing",
+          "awslogs-region": "ap-southeast-5",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode < 500 ? 0 : 1))\""],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+
