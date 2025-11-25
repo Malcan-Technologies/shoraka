@@ -201,9 +201,10 @@ jobs:
           # Get the base template with all environment variables
           TEMPLATE=$(cat infra/ecs-task-definition-api.json)
 
-          # Update only the image tag
+          # Update only the image tag and clear secrets
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].secrets = []
           ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
@@ -238,8 +239,10 @@ jobs:
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-landing.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].secrets = []
+          ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Landing to ECS..."
@@ -273,8 +276,10 @@ jobs:
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-investor.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].secrets = []
+          ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Investor to ECS..."
@@ -308,8 +313,10 @@ jobs:
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-issuer.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].secrets = []
+          ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Issuer to ECS..."
@@ -343,8 +350,10 @@ jobs:
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].secrets = []
+          ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Admin to ECS..."
