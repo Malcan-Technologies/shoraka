@@ -97,6 +97,23 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "📦 Updating migration task definition with new image..."
+
+          # Get the current task definition
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition cashsouk-migrate \
+            --region ${{ env.AWS_REGION }})
+
+          # Update the image tag in the task definition
+          NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
+            '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          # Register new task definition revision
+          NEW_TASK_ARN=$(echo $NEW_TASK_DEF | jq -r '.family + ":" + (.revision|tostring)')
+          aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --region ${{ env.AWS_REGION }} > /dev/null
+
           echo "📦 Running migrations via ECS task..."
 
           # Run migration as one-off ECS task
@@ -104,7 +121,6 @@ jobs:
             --cluster default \
             --launch-type FARGATE \
             --task-definition cashsouk-migrate \
-            --overrides "{\"containerOverrides\":[{\"name\":\"migrate\",\"image\":\"${{ steps.login-ecr.outputs.registry }}/cashsouk-migrate:$IMAGE_TAG\"}]}" \
             --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=DISABLED}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' \
