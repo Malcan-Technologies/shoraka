@@ -27,28 +27,6 @@
           "value": "3000"
         }
       ],
-      "secrets": [
-        {
-          "name": "NEXT_PUBLIC_API_URL",
-          "valueFrom": "/cashsouk/prod/api-url"
-        },
-        {
-          "name": "NEXT_PUBLIC_COGNITO_DOMAIN",
-          "valueFrom": "/cashsouk/prod/cognito/domain"
-        },
-        {
-          "name": "NEXT_PUBLIC_COGNITO_CLIENT_ID",
-          "valueFrom": "/cashsouk/prod/cognito/client-id"
-        },
-        {
-          "name": "NEXT_PUBLIC_COGNITO_REGION",
-          "valueFrom": "/cashsouk/prod/cognito/region"
-        },
-        {
-          "name": "NEXT_PUBLIC_CLOUDFRONT_URL",
-          "valueFrom": "/cashsouk/prod/cloudfront/url"
-        }
-      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
