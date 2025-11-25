@@ -2,10 +2,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Accept build argument
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
@@ -26,7 +22,12 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-RUN NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL pnpm --filter @cashsouk/investor build
+# Accept build argument right before using it
+ARG NEXT_PUBLIC_API_URL
+
+# Build with explicit environment variable
+RUN export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" && \
+    pnpm --filter @cashsouk/investor build
 
 FROM node:20-alpine AS runner
 

@@ -2,13 +2,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Accept build argument
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-
-# Debug: Print the API URL during build
-RUN echo "🔍 Building with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
-
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
@@ -29,12 +22,19 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-# Build with explicit environment variable passed to the build command
-RUN echo "🚀 Starting Next.js build with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" && \
-    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL pnpm --filter @cashsouk/admin build && \
+# Accept build argument right before using it
+ARG NEXT_PUBLIC_API_URL
+
+# Clean Next.js cache and build with explicit environment variable
+RUN echo "🧹 Cleaning Next.js cache..." && \
+    rm -rf apps/admin/.next && \
+    echo "🚀 Building with NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" && \
+    echo "🔍 Verifying ARG is set: ${NEXT_PUBLIC_API_URL:-NOT_SET}" && \
+    if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
+    NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" pnpm --filter @cashsouk/admin build && \
     echo "✅ Build complete" && \
-    echo "🔍 Checking if API URL is in built files..." && \
-    grep -r "localhost:4000" apps/admin/.next/ && echo "⚠️ WARNING: localhost:4000 found in build!" || echo "✅ No localhost:4000 in build"
+    echo "🔍 Checking built files for localhost..." && \
+    (grep -r "localhost:4000" apps/admin/.next/static apps/admin/.next/server 2>/dev/null && echo "⚠️ WARNING: localhost:4000 found!") || echo "✅ No localhost:4000 in build"
 
 FROM node:20-alpine AS runner
 
