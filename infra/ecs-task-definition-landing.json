@@ -4,8 +4,8 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/cashsoukTaskRole",
+  "executionRoleArn": "arn:aws:iam::652821469470:role/service-role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::652821469470:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "landing",
