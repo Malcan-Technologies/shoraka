@@ -36,8 +36,8 @@ done
 echo "✅ Database is ready"
 
 # Construct PSQL_URL for psql commands (without schema parameter)
-# Use parameter expansion to remove the query string
-PSQL_URL="${DATABASE_URL%%\?*}"
+# Remove only the schema parameter at the end (not the ? in password!)
+PSQL_URL="${DATABASE_URL%\?schema=public}"
 
 echo "🔒 Acquiring migration lock..."
 
