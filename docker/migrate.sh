@@ -36,7 +36,8 @@ done
 echo "✅ Database is ready"
 
 # Construct PSQL_URL for psql commands (without schema parameter)
-PSQL_URL=$(echo "$DATABASE_URL" | sed 's/\?schema=public//')
+# Use parameter expansion to remove the query string
+PSQL_URL="${DATABASE_URL%%\?*}"
 
 echo "🔒 Acquiring migration lock..."
 
