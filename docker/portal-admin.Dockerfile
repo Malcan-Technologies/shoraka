@@ -31,7 +31,11 @@ RUN echo "🧹 Cleaning Next.js cache..." && \
     echo "🚀 Building with NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" && \
     echo "🔍 Verifying ARG is set: ${NEXT_PUBLIC_API_URL:-NOT_SET}" && \
     if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
-    NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" pnpm --filter @cashsouk/admin build && \
+    echo "📝 Creating .env.production file..." && \
+    echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
+    cat apps/admin/.env.production && \
+    echo "🔨 Running build..." && \
+    pnpm --filter @cashsouk/admin build && \
     echo "✅ Build complete" && \
     echo "🔍 Checking built files for localhost..." && \
     (grep -r "localhost:4000" apps/admin/.next/static apps/admin/.next/server 2>/dev/null && echo "⚠️ WARNING: localhost:4000 found!") || echo "✅ No localhost:4000 in build"
