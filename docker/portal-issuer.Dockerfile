@@ -2,6 +2,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Accept build argument
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./

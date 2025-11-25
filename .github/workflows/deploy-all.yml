@@ -256,6 +256,7 @@ jobs:
         run: |
           echo "🔨 Building Investor image..."
           docker build -f docker/portal-investor.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Investor image to ECR..."
@@ -287,6 +288,7 @@ jobs:
         run: |
           echo "🔨 Building Issuer image..."
           docker build -f docker/portal-issuer.Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Issuer image to ECR..."
