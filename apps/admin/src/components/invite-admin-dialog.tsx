@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -33,12 +31,9 @@ import { toast } from "sonner";
 
 const inviteAdminSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
-  role: z.enum(
-    ["SUPER_ADMIN", "COMPLIANCE_OFFICER", "OPERATIONS_OFFICER", "FINANCE_OFFICER"],
-    {
-      required_error: "Please select a role",
-    }
-  ),
+  role: z.enum(["SUPER_ADMIN", "COMPLIANCE_OFFICER", "OPERATIONS_OFFICER", "FINANCE_OFFICER"], {
+    required_error: "Please select a role",
+  }),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   message: z.string().optional(),
@@ -70,8 +65,6 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
   });
 
   const onSubmit = (data: InviteAdminFormValues) => {
-    console.log("Inviting admin:", data);
-    
     toast.success("Invitation sent!", {
       description: `An invitation has been sent to ${data.email}`,
     });
@@ -206,4 +199,3 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
     </Dialog>
   );
 }
-

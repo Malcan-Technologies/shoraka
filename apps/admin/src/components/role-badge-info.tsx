@@ -1,9 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { CheckIcon } from "@heroicons/react/24/outline";
 
 interface RoleBadgeInfoProps {
@@ -39,15 +34,11 @@ export function RoleBadgeInfo({ role }: RoleBadgeInfoProps) {
             </div>
             <div className="flex-1">
               <h4 className="font-semibold text-sm mb-1">{role.name}</h4>
-              <p className="text-[13px] leading-6 text-muted-foreground">
-                {role.description}
-              </p>
+              <p className="text-[13px] leading-6 text-muted-foreground">{role.description}</p>
             </div>
           </div>
           <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2">
-              Key Permissions
-            </p>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Key Permissions</p>
             <ul className="space-y-1.5">
               {role.permissions.map((permission, index) => (
                 <li key={index} className="flex items-start gap-2 text-[13px]">
@@ -62,4 +53,3 @@ export function RoleBadgeInfo({ role }: RoleBadgeInfoProps) {
     </HoverCard>
   );
 }
-

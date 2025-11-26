@@ -1,5 +1,3 @@
-"use client";
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,53 +78,41 @@ export function AccessLogsToolbar({
             )}
           </Button>
         </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Event Type</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={eventTypeFilter}
-              onValueChange={onEventTypeFilterChange}
-            >
-              <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="LOGIN">Login</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="LOGOUT">Logout</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="SIGNUP">Signup</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="ROLE_ADDED">Role Added</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="ROLE_SWITCHED">
-                Role Switched
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="ONBOARDING_COMPLETED">
-                Onboarding Completed
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Event Type</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
+            <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="LOGIN">Login</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="LOGOUT">Logout</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="SIGNUP">Signup</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ROLE_ADDED">Role Added</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ROLE_SWITCHED">Role Switched</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ONBOARDING_COMPLETED">
+              Onboarding Completed
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Status</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
+            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={dateRangeFilter}
-              onValueChange={onDateRangeFilterChange}
-            >
-              <DropdownMenuRadioItem value="all">All Time</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="24h">Last 24 Hours</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="7d">Last 7 Days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="30d">Last 30 Days</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Date Range</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={onDateRangeFilterChange}>
+            <DropdownMenuRadioItem value="all">All Time</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="24h">Last 24 Hours</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="7d">Last 7 Days</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="30d">Last 30 Days</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {hasFilters && (
-        <Button
-          variant="ghost"
-          onClick={onClearFilters}
-          className="gap-2 h-11 rounded-xl"
-        >
+        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
           <XMarkIcon className="h-4 w-4" />
           Clear
         </Button>
@@ -139,4 +125,3 @@ export function AccessLogsToolbar({
     </div>
   );
 }
-

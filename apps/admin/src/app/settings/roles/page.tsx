@@ -5,6 +5,7 @@ import Link from "next/link";
 import { subDays } from "date-fns";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
+import { SystemHealthIndicator } from "../../../components/system-health-indicator";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -266,6 +267,9 @@ export default function RolesPage() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
+        <div className="ml-auto">
+          <SystemHealthIndicator />
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

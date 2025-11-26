@@ -1,5 +1,3 @@
-"use client";
-
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,9 +67,7 @@ export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}
       </TableCell>
-      <TableCell className="text-[15px] text-muted-foreground">
-        {log.device_info || "—"}
-      </TableCell>
+      <TableCell className="text-[15px] text-muted-foreground">{log.device_info || "—"}</TableCell>
       <TableCell>
         {log.success ? (
           <div className="flex items-center gap-1.5 text-green-600">
@@ -94,4 +90,3 @@ export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps
     </TableRow>
   );
 }
-

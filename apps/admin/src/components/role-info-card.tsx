@@ -1,6 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckIcon } from "@heroicons/react/24/outline";
-import type { LucideIcon } from "lucide-react";
 
 interface RoleInfoCardProps {
   title: string;
@@ -46,4 +45,3 @@ export function RoleInfoCard({
     </Card>
   );
 }
-

@@ -1,5 +1,3 @@
-"use client";
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,53 +84,49 @@ export function UsersTableToolbar({
             )}
           </Button>
         </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Role</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={roleFilter} onValueChange={onRoleFilterChange}>
-              <DropdownMenuRadioItem value="all">All Roles</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Role</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={roleFilter} onValueChange={onRoleFilterChange}>
+            <DropdownMenuRadioItem value="all">All Roles</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>KYC Status</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={kycFilter} onValueChange={onKycFilterChange}>
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="verified">Verified</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="not_verified">Not Verified</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>KYC Status</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={kycFilter} onValueChange={onKycFilterChange}>
+            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="verified">Verified</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="not_verified">Not Verified</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Investor Onboarded</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={investorOnboardedFilter}
-              onValueChange={onInvestorOnboardedFilterChange}
-            >
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Investor Onboarded</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={investorOnboardedFilter}
+            onValueChange={onInvestorOnboardedFilterChange}
+          >
+            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Issuer Onboarded</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={issuerOnboardedFilter}
-              onValueChange={onIssuerOnboardedFilterChange}
-            >
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Issuer Onboarded</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={issuerOnboardedFilter}
+            onValueChange={onIssuerOnboardedFilterChange}
+          >
+            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {hasFilters && (
-        <Button
-          variant="ghost"
-          onClick={onClearFilters}
-          className="gap-2 h-11 rounded-xl"
-        >
+        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
           <XMarkIcon className="h-4 w-4" />
           Clear
         </Button>
@@ -145,4 +139,3 @@ export function UsersTableToolbar({
     </div>
   );
 }
-

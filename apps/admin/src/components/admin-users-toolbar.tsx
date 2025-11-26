@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,11 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
-type AdminRole =
-  | "SUPER_ADMIN"
-  | "COMPLIANCE_OFFICER"
-  | "OPERATIONS_OFFICER"
-  | "FINANCE_OFFICER";
+type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
 interface AdminUsersToolbarProps {
   searchQuery: string;
@@ -54,12 +48,9 @@ export function AdminUsersToolbar({
   onClearFilters,
 }: AdminUsersToolbarProps) {
   const hasActiveFilters =
-    searchQuery.length > 0 ||
-    selectedRoles.length > 0 ||
-    selectedStatuses.length > 0;
+    searchQuery.length > 0 || selectedRoles.length > 0 || selectedStatuses.length > 0;
 
-  const activeFilterCount =
-    selectedRoles.length + selectedStatuses.length + (searchQuery ? 1 : 0);
+  const activeFilterCount = selectedRoles.length + selectedStatuses.length + (searchQuery ? 1 : 0);
 
   const handleRoleToggle = (role: AdminRole) => {
     if (selectedRoles.includes(role)) {
@@ -130,11 +121,7 @@ export function AdminUsersToolbar({
       </DropdownMenu>
 
       {hasActiveFilters && (
-        <Button
-          variant="ghost"
-          onClick={onClearFilters}
-          className="gap-2 h-11 rounded-xl"
-        >
+        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
           <XMarkIcon className="h-4 w-4" />
           Clear
         </Button>
@@ -146,4 +133,3 @@ export function AdminUsersToolbar({
     </div>
   );
 }
-

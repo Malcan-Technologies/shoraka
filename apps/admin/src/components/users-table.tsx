@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import {
   Table,
@@ -205,12 +203,9 @@ export function UsersTable({
       <EditUserDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        userName={
-          editingUser ? `${editingUser.first_name} ${editingUser.last_name}` : "this user"
-        }
+        userName={editingUser ? `${editingUser.first_name} ${editingUser.last_name}` : "this user"}
         onConfirm={handleConfirm}
       />
     </>
   );
 }
-

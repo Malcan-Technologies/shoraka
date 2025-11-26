@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import { pinoHttp } from "pino-http";
+import { PrismaClient } from "@prisma/client";
 import { logger } from "../lib/logger";
 import { errorHandler } from "../lib/http/error-handler";
 import { notFoundHandler } from "../lib/http/not-found";
@@ -21,11 +22,6 @@ export function createApp(): Application {
         if (!origin) return callback(null, true);
 
         if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-
-        if (origin.endsWith(".ecs.ap-southeast-5.on.aws")) {
-          logger.info({ origin }, "Allowing ECS origin (temporary - will use custom domains)");
           return callback(null, true);
         }
 
@@ -55,7 +51,6 @@ export function createApp(): Application {
   app.get("/healthz", async (_, res) => {
     try {
       // Test database connection
-      const { PrismaClient } = await import("@prisma/client");
       const prisma = new PrismaClient();
       await prisma.$queryRaw`SELECT 1 as health_check`;
       await prisma.$disconnect();

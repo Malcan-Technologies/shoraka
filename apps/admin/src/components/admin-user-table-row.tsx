@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +12,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-type AdminRole =
-  | "SUPER_ADMIN"
-  | "COMPLIANCE_OFFICER"
-  | "OPERATIONS_OFFICER"
-  | "FINANCE_OFFICER";
+type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
 interface AdminUser {
   id: string;
@@ -36,10 +30,7 @@ interface AdminUserTableRowProps {
   onUpdate: (userId: string, updates: Partial<AdminUser>) => void;
 }
 
-const roleConfig: Record<
-  AdminRole,
-  { label: string; color: string; bgColor: string }
-> = {
+const roleConfig: Record<AdminRole, { label: string; color: string; bgColor: string }> = {
   SUPER_ADMIN: {
     label: "Super Admin",
     color: "text-red-600",
@@ -77,12 +68,9 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
   const handleToggleStatus = () => {
     const newStatus = user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     onUpdate(user.id, { status: newStatus });
-    toast.success(
-      newStatus === "ACTIVE" ? "Admin activated" : "Admin deactivated",
-      {
-        description: `${user.first_name} ${user.last_name} is now ${newStatus.toLowerCase()}`,
-      }
-    );
+    toast.success(newStatus === "ACTIVE" ? "Admin activated" : "Admin deactivated", {
+      description: `${user.first_name} ${user.last_name} is now ${newStatus.toLowerCase()}`,
+    });
   };
 
   return (
@@ -135,21 +123,13 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         </Badge>
       </TableCell>
       <TableCell className="text-[15px] text-muted-foreground">
-        {user.last_login
-          ? format(user.last_login, "MMM d, yyyy h:mm a")
-          : "Never"}
+        {user.last_login ? format(user.last_login, "MMM d, yyyy h:mm a") : "Never"}
       </TableCell>
       <TableCell>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleToggleStatus}
-          className="text-[13px]"
-        >
+        <Button variant="ghost" size="sm" onClick={handleToggleStatus} className="text-[13px]">
           {user.status === "ACTIVE" ? "Deactivate" : "Activate"}
         </Button>
       </TableCell>
     </TableRow>
   );
 }
-

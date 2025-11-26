@@ -3,6 +3,7 @@
 import * as React from "react";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
+import { SystemHealthIndicator } from "../../../components/system-health-indicator";
 import { AccessLogsTable } from "../../../components/access-logs-table";
 import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
 import { subDays, subHours, isAfter } from "date-fns";
@@ -463,6 +464,9 @@ export default function AccessLogsPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Access Logs</h1>
+        <div className="ml-auto">
+          <SystemHealthIndicator />
+        </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">

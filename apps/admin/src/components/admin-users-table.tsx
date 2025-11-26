@@ -1,23 +1,10 @@
-"use client";
-
 import * as React from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminUserTableRow } from "./admin-user-table-row";
 import { Button } from "@/components/ui/button";
 
-type AdminRole =
-  | "SUPER_ADMIN"
-  | "COMPLIANCE_OFFICER"
-  | "OPERATIONS_OFFICER"
-  | "FINANCE_OFFICER";
+type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
 interface AdminUser {
   id: string;
@@ -85,11 +72,7 @@ export function AdminUsersTable({
           </TableHeader>
           <TableBody>
             {users.map((user) => (
-              <AdminUserTableRow
-                key={user.id}
-                user={user}
-                onUpdate={onUpdateUser}
-              />
+              <AdminUserTableRow key={user.id} user={user} onUpdate={onUpdateUser} />
             ))}
           </TableBody>
         </Table>
@@ -124,4 +107,3 @@ export function AdminUsersTable({
     </div>
   );
 }
-
