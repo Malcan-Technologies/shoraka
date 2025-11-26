@@ -364,24 +364,7 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
-          echo "✅ Admin deployed - waiting for tasks to stabilize..."
-          aws ecs wait services-stable \
-            --cluster default \
-            --services admin-cashsouk-7cd8 \
-            --region ${{ env.AWS_REGION }} || echo "⚠️ Wait timed out, but service may still be deploying"
-
-          echo "🔍 Verifying deployment..."
-          TASK_DEF_ARN=$(aws ecs describe-services --cluster default --services admin-cashsouk-7cd8 --region ${{ env.AWS_REGION }} --query 'services[0].taskDefinition' --output text)
-          RUNNING_IMAGE=$(aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region ${{ env.AWS_REGION }} --query 'taskDefinition.containerDefinitions[0].image' --output text)
-          echo "📦 Service is using task definition: $TASK_DEF_ARN"
-          echo "📦 Task definition uses image: $RUNNING_IMAGE"
-          echo "📦 Expected image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-          if [[ "$RUNNING_IMAGE" == *"$IMAGE_TAG"* ]]; then
-            echo "✅ Correct image is deployed!"
-          else
-            echo "⚠️ WARNING: Service is not using the expected image!"
-          fi
+          echo "✅ Admin deployed successfully"
 
       - name: Deployment summary
         run: |

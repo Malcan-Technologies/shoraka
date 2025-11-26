@@ -211,6 +211,10 @@ jobs:
         run: |
           echo "📦 Pushing API image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🏷️ Tagging and pushing as :latest..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "📝 Ensuring CloudWatch log group exists..."
           aws logs create-log-group --log-group-name /ecs/cashsouk-api --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
@@ -235,7 +239,7 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
-          echo "✅ API deployed successfully"
+          echo "✅ API deployment triggered - new tasks will pull latest image"
 
       # Landing: Build → Push → Deploy (immediately)
       - name: Build push and deploy Landing
@@ -252,6 +256,10 @@ jobs:
 
           echo "📦 Pushing Landing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🏷️ Tagging and pushing as :latest..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "📝 Ensuring CloudWatch log group exists..."
           aws logs create-log-group --log-group-name /ecs/cashsouk-landing --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
@@ -289,6 +297,10 @@ jobs:
 
           echo "📦 Pushing Investor image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🏷️ Tagging and pushing as :latest..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "📝 Ensuring CloudWatch log group exists..."
           aws logs create-log-group --log-group-name /ecs/cashsouk-investor --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
@@ -326,6 +338,10 @@ jobs:
 
           echo "📦 Pushing Issuer image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🏷️ Tagging and pushing as :latest..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "📝 Ensuring CloudWatch log group exists..."
           aws logs create-log-group --log-group-name /ecs/cashsouk-issuer --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
@@ -363,6 +379,10 @@ jobs:
 
           echo "📦 Pushing Admin image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "🏷️ Tagging and pushing as :latest..."
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "📝 Ensuring CloudWatch log group exists..."
           aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
