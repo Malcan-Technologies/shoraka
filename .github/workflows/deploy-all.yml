@@ -198,13 +198,12 @@ jobs:
           aws logs create-log-group --log-group-name /ecs/cashsouk-api --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📝 Updating task definition..."
-          # Get the base template with all environment variables
+          # Get the base template with all environment variables and secrets
           TEMPLATE=$(cat infra/ecs-task-definition-api.json)
 
-          # Update only the image tag and clear secrets
+          # Update only the image tag, keep secrets
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE |
-            .containerDefinitions[0].secrets = []
+            .containerDefinitions[0].image = $IMAGE
           ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
@@ -356,6 +355,7 @@ jobs:
           aws ecs update-service \
             --cluster default \
             --service admin-cashsouk-544e \
+            --task-definition default-admin-cashsouk-544e \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
