@@ -4,6 +4,7 @@ import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
+import { Toaster } from "../components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </SidebarInset>
         </SidebarProvider>
+        <Toaster />
       </body>
     </html>
   );

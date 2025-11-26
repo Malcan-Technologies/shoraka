@@ -32,47 +32,47 @@ export default function AdminHomePage() {
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-6 p-2 md:p-4">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <StatsCard
-              title="Total Loans"
-              value={formatNumber(124, 0)}
-              icon={FileText}
-              trend="+12% from last month"
-              loading={loading}
-            />
-            <StatsCard
-              title="Active Users"
-              value={formatNumber(1832, 0)}
-              icon={Users}
-              trend="+18% from last month"
-              loading={loading}
-            />
-            <StatsCard
-              title="Total Investments"
-              value={formatCurrency(284500, { decimals: 0 })}
-              icon={TrendingUp}
-              trend="+24% from last month"
-              loading={loading}
-            />
-            <StatsCard
-              title="Platform Revenue"
-              value={formatCurrency(12420, { decimals: 0 })}
-              icon={DollarSign}
-              trend="+8% from last month"
-              loading={loading}
-            />
-          </div>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="Total Loans"
+          value={formatNumber(124, 0)}
+          icon={FileText}
+          trend="+12% from last month"
+          loading={loading}
+        />
+        <StatsCard
+          title="Active Users"
+          value={formatNumber(1832, 0)}
+          icon={Users}
+          trend="+18% from last month"
+          loading={loading}
+        />
+        <StatsCard
+          title="Total Investments"
+          value={formatCurrency(284500, { decimals: 0 })}
+          icon={TrendingUp}
+          trend="+24% from last month"
+          loading={loading}
+        />
+        <StatsCard
+          title="Platform Revenue"
+          value={formatCurrency(12420, { decimals: 0 })}
+          icon={DollarSign}
+          trend="+8% from last month"
+          loading={loading}
+        />
+      </div>
 
-          <div className="grid gap-6 lg:grid-cols-7">
-            <div className="lg:col-span-4">
-              <UserSignupsChart />
-            </div>
-            <div className="lg:col-span-3 space-y-6">
-              <SystemHealth />
-              <RecentLoans loading={loading} />
-            </div>
-          </div>
+      <div className="grid gap-6 lg:grid-cols-7">
+        <div className="lg:col-span-4">
+          <UserSignupsChart />
         </div>
+        <div className="lg:col-span-3 space-y-6">
+          <SystemHealth />
+          <RecentLoans loading={loading} />
+        </div>
+      </div>
+    </div>
       </div>
     </>
   );
