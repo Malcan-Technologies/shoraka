@@ -9,7 +9,7 @@
   "containerDefinitions": [
     {
       "name": "Main",
-      "image": "652821469470.dkr.ecr.ap-southeast-5.amazonaws.com/cashsouk-admin:latest",
+      "image": "652821469470.dkr.ecr.ap-southeast-5.amazonaws.com/admin-cashsouk:latest",
       "essential": true,
       "portMappings": [
         {

@@ -4,7 +4,7 @@ import * as React from "react";
 import { StatsCard } from "../components/stats-card";
 import { RecentLoans } from "../components/recent-loans";
 import { UserSignupsChart } from "../components/user-signups-chart";
-import { SystemHealth } from "../components/system-health";
+import { SystemHealthIndicator } from "../components/system-health-indicator";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
   CurrencyDollarIcon as DollarSign,
@@ -29,6 +29,9 @@ export default function AdminHomePage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Dashboard</h1>
+        <div className="ml-auto">
+          <SystemHealthIndicator />
+        </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-6 p-2 md:p-4">
@@ -67,8 +70,7 @@ export default function AdminHomePage() {
         <div className="lg:col-span-4">
           <UserSignupsChart />
         </div>
-        <div className="lg:col-span-3 space-y-6">
-          <SystemHealth />
+        <div className="lg:col-span-3">
           <RecentLoans loading={loading} />
         </div>
       </div>

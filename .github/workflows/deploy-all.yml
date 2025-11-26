@@ -228,7 +228,6 @@ jobs:
         run: |
           echo "🔨 Building Landing image..."
           docker build -f docker/landing.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Landing image to ECR..."
@@ -265,7 +264,6 @@ jobs:
         run: |
           echo "🔨 Building Investor image..."
           docker build -f docker/portal-investor.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Investor image to ECR..."
@@ -302,7 +300,6 @@ jobs:
         run: |
           echo "🔨 Building Issuer image..."
           docker build -f docker/portal-issuer.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Issuer image to ECR..."
@@ -339,7 +336,6 @@ jobs:
         run: |
           echo "🔨 Building Admin image..."
           docker build -f docker/portal-admin.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
@@ -349,18 +345,17 @@ jobs:
           aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📝 Updating task definition..."
-          TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE |
-            .containerDefinitions[0].secrets = []
+          TEMPLATE=$(cat infra/ecs/task-def-admin.json)
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/admin-cashsouk:$IMAGE_TAG" '
+            .family = "default-admin-cashsouk-544e" |
+            .containerDefinitions[0].image = $IMAGE
           ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
 
           echo "🚀 Deploying Admin to ECS..."
           aws ecs update-service \
             --cluster default \
-            --service admin-cashsouk-7cd8 \
-            --task-definition default-admin-cashsouk-7cd8 \
+            --service admin-cashsouk-544e \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 

@@ -351,7 +351,7 @@ jobs:
         if: steps.changes.outputs.admin == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: cashsouk-admin
+          ECR_REPOSITORY: admin-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Admin image..."
@@ -366,7 +366,7 @@ jobs:
 
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs/task-def-admin.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-admin:$IMAGE_TAG" '
+          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/admin-cashsouk:$IMAGE_TAG" '
             .family = "default-admin-cashsouk-544e" |
             .containerDefinitions[0].image = $IMAGE
           ')
