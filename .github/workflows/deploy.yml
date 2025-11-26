@@ -367,6 +367,7 @@ jobs:
           echo "📝 Updating task definition..."
           TEMPLATE=$(cat infra/ecs/task-def-admin.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-admin:$IMAGE_TAG" '
+            .family = "default-admin-cashsouk-544e" |
             .containerDefinitions[0].image = $IMAGE
           ')
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
