@@ -284,7 +284,6 @@ jobs:
         run: |
           echo "🔨 Building Investor image..."
           docker build -f docker/portal-investor.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Investor image to ECR..."
@@ -321,7 +320,6 @@ jobs:
         run: |
           echo "🔨 Building Issuer image..."
           docker build -f docker/portal-issuer.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Issuer image to ECR..."
@@ -358,7 +356,6 @@ jobs:
         run: |
           echo "🔨 Building Admin image..."
           docker build -f docker/portal-admin.Dockerfile \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
@@ -377,7 +374,7 @@ jobs:
           echo "🚀 Deploying Admin to ECS..."
           aws ecs update-service \
             --cluster default \
-            --service cashsouk-admin \
+            --service admin-cashsouk-544e \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 

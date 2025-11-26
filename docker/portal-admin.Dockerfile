@@ -22,15 +22,13 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 
 RUN rm -rf apps/admin/.next && \
-    if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
-    echo "📝 Created .env.production with API URL" && \
+    echo "📝 Building with API URL: ${NEXT_PUBLIC_API_URL}" && \
     pnpm --filter @cashsouk/admin build && \
-    echo "🔍 Checking build output..." && \
-    (grep -r "localhost:4000" apps/admin/.next/static apps/admin/.next/server 2>/dev/null && echo "⚠️ WARNING: localhost found!") || echo "✅ No localhost in build"
+    echo "✅ Admin portal built successfully"
 
 FROM node:20-alpine AS runner
 

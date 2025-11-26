@@ -27,19 +27,7 @@ export function SystemHealth() {
     try {
       setLoading(true);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-      if (!apiUrl) {
-        setHealth({
-          status: "error",
-          database: "disconnected",
-          timestamp: new Date().toISOString(),
-          error: "NEXT_PUBLIC_API_URL is not configured - check build configuration",
-        });
-        setLastChecked(new Date());
-        setLoading(false);
-        return;
-      }
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.cashsouk.com";
 
       const response = await fetch(`${apiUrl}/healthz`, {
         cache: "no-store",

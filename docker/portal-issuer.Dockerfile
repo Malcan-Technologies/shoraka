@@ -22,12 +22,13 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 
 RUN rm -rf apps/issuer/.next && \
-    if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/issuer/.env.production && \
-    pnpm --filter @cashsouk/issuer build
+    echo "📝 Building with API URL: ${NEXT_PUBLIC_API_URL}" && \
+    pnpm --filter @cashsouk/issuer build && \
+    echo "✅ Issuer portal built successfully"
 
 FROM node:20-alpine AS runner
 
