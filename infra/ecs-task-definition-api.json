@@ -42,7 +42,7 @@
       "secrets": [
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url-rsKFxD"
         }
       ],
       "healthCheck": {
