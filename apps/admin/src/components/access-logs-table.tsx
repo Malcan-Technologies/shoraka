@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@cashsouk/ui";
 import { AccessLogTableRow } from "./access-log-table-row";
 import { AccessLogDetailsDialog } from "./access-log-details-dialog";
 import { Button } from "@/components/ui/button";

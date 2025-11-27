@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@cashsouk/ui";
 import { AdminUserTableRow } from "./admin-user-table-row";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +26,35 @@ interface AdminUsersTableProps {
   onUpdateUser: (userId: string, updates: Partial<AdminUser>) => void;
 }
 
+function TableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <TableRow key={i}>
+          <TableCell>
+            <Skeleton className="h-5 w-32" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-48" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-6 w-36 rounded-full" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-16 rounded-md" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-40" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-8 w-20" />
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 export function AdminUsersTable({
   users,
   isLoading = false,
@@ -34,48 +63,40 @@ export function AdminUsersTable({
   onPageChange,
   onUpdateUser,
 }: AdminUsersTableProps) {
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4">
-            <Skeleton className="h-12 flex-1" />
-          </div>
-        ))}
-      </div>
-    );
-  }
 
-  if (users.length === 0) {
-    return (
-      <div className="rounded-2xl border bg-muted/20 p-12 text-center">
-        <p className="text-[15px] text-muted-foreground">
-          No admin users found matching your filters.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="font-semibold">Name</TableHead>
-              <TableHead className="font-semibold">Email</TableHead>
-              <TableHead className="font-semibold">Role</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="font-semibold">Last Login</TableHead>
-              <TableHead className="font-semibold">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((user) => (
-              <AdminUserTableRow key={user.id} user={user} onUpdate={onUpdateUser} />
-            ))}
-          </TableBody>
-        </Table>
+      <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-sm font-semibold">Name</TableHead>
+                <TableHead className="text-sm font-semibold">Email</TableHead>
+                <TableHead className="text-sm font-semibold">Role</TableHead>
+                <TableHead className="text-sm font-semibold">Status</TableHead>
+                <TableHead className="text-sm font-semibold">Last Login</TableHead>
+                <TableHead className="text-sm font-semibold">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeleton />
+              ) : users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    No admin users found matching your filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                users.map((user) => (
+                  <AdminUserTableRow key={user.id} user={user} onUpdate={onUpdateUser} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}

@@ -26,11 +26,7 @@ import {
   BanknotesIcon,
 } from "@heroicons/react/24/outline";
 
-type AdminRole =
-  | "SUPER_ADMIN"
-  | "COMPLIANCE_OFFICER"
-  | "OPERATIONS_OFFICER"
-  | "FINANCE_OFFICER";
+type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
 interface AdminUser {
   id: string;
@@ -109,100 +105,102 @@ const roles = [
   },
 ];
 
-// Mock admin users data
-const mockAdminUsers: AdminUser[] = [
-  {
-    id: "admin_1",
-    first_name: "Ahmad",
-    last_name: "Rahman",
-    email: "ahmad.rahman@cashsouk.com",
-    role: "SUPER_ADMIN",
-    status: "ACTIVE",
-    last_login: new Date(),
-    created_at: subDays(new Date(), 180),
-  },
-  {
-    id: "admin_2",
-    first_name: "Sarah",
-    last_name: "Lee",
-    email: "sarah.lee@cashsouk.com",
-    role: "COMPLIANCE_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 2),
-    created_at: subDays(new Date(), 120),
-  },
-  {
-    id: "admin_3",
-    first_name: "Mohamed",
-    last_name: "Ibrahim",
-    email: "mohamed.ibrahim@cashsouk.com",
-    role: "OPERATIONS_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 1),
-    created_at: subDays(new Date(), 90),
-  },
-  {
-    id: "admin_4",
-    first_name: "Priya",
-    last_name: "Sharma",
-    email: "priya.sharma@cashsouk.com",
-    role: "FINANCE_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 3),
-    created_at: subDays(new Date(), 75),
-  },
-  {
-    id: "admin_5",
-    first_name: "David",
-    last_name: "Tan",
-    email: "david.tan@cashsouk.com",
-    role: "COMPLIANCE_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 5),
-    created_at: subDays(new Date(), 60),
-  },
-  {
-    id: "admin_6",
-    first_name: "Nurul",
-    last_name: "Hasan",
-    email: "nurul.hasan@cashsouk.com",
-    role: "OPERATIONS_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 4),
-    created_at: subDays(new Date(), 45),
-  },
-  {
-    id: "admin_7",
-    first_name: "Wei",
-    last_name: "Chen",
-    email: "wei.chen@cashsouk.com",
-    role: "FINANCE_OFFICER",
-    status: "INACTIVE",
-    last_login: subDays(new Date(), 30),
-    created_at: subDays(new Date(), 90),
-  },
-  {
-    id: "admin_8",
-    first_name: "Aisha",
-    last_name: "Malik",
-    email: "aisha.malik@cashsouk.com",
-    role: "COMPLIANCE_OFFICER",
-    status: "ACTIVE",
-    last_login: subDays(new Date(), 1),
-    created_at: subDays(new Date(), 30),
-  },
-];
+// Mock admin users data - using static dates to avoid hydration errors
+const getMockAdminUsers = (): AdminUser[] => {
+  const now = new Date();
+  return [
+    {
+      id: "admin_1",
+      first_name: "Ahmad",
+      last_name: "Rahman",
+      email: "ahmad.rahman@cashsouk.com",
+      role: "SUPER_ADMIN",
+      status: "ACTIVE",
+      last_login: now,
+      created_at: subDays(now, 180),
+    },
+    {
+      id: "admin_2",
+      first_name: "Sarah",
+      last_name: "Lee",
+      email: "sarah.lee@cashsouk.com",
+      role: "COMPLIANCE_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 2),
+      created_at: subDays(now, 120),
+    },
+    {
+      id: "admin_3",
+      first_name: "Mohamed",
+      last_name: "Ibrahim",
+      email: "mohamed.ibrahim@cashsouk.com",
+      role: "OPERATIONS_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 1),
+      created_at: subDays(now, 90),
+    },
+    {
+      id: "admin_4",
+      first_name: "Priya",
+      last_name: "Sharma",
+      email: "priya.sharma@cashsouk.com",
+      role: "FINANCE_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 3),
+      created_at: subDays(now, 75),
+    },
+    {
+      id: "admin_5",
+      first_name: "David",
+      last_name: "Tan",
+      email: "david.tan@cashsouk.com",
+      role: "COMPLIANCE_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 5),
+      created_at: subDays(now, 60),
+    },
+    {
+      id: "admin_6",
+      first_name: "Nurul",
+      last_name: "Hasan",
+      email: "nurul.hasan@cashsouk.com",
+      role: "OPERATIONS_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 4),
+      created_at: subDays(now, 45),
+    },
+    {
+      id: "admin_7",
+      first_name: "Wei",
+      last_name: "Chen",
+      email: "wei.chen@cashsouk.com",
+      role: "FINANCE_OFFICER",
+      status: "INACTIVE",
+      last_login: subDays(now, 30),
+      created_at: subDays(now, 90),
+    },
+    {
+      id: "admin_8",
+      first_name: "Aisha",
+      last_name: "Malik",
+      email: "aisha.malik@cashsouk.com",
+      role: "COMPLIANCE_OFFICER",
+      status: "ACTIVE",
+      last_login: subDays(now, 1),
+      created_at: subDays(now, 30),
+    },
+  ];
+};
 
 const ITEMS_PER_PAGE = 10;
 
 export default function RolesPage() {
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
-  const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>(mockAdminUsers);
+  const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRoles, setSelectedRoles] = React.useState<AdminRole[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = React.useState<
-    ("ACTIVE" | "INACTIVE")[]
-  >([]);
+  const [selectedStatuses, setSelectedStatuses] = React.useState<("ACTIVE" | "INACTIVE")[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
 
   // Filter users
@@ -214,11 +212,9 @@ export default function RolesPage() {
         user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesRole =
-        selectedRoles.length === 0 || selectedRoles.includes(user.role);
+      const matchesRole = selectedRoles.length === 0 || selectedRoles.includes(user.role);
 
-      const matchesStatus =
-        selectedStatuses.length === 0 || selectedStatuses.includes(user.status);
+      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(user.status);
 
       return matchesSearch && matchesRole && matchesStatus;
     });
@@ -244,6 +240,16 @@ export default function RolesPage() {
     setCurrentPage(1);
   };
 
+  // Initialize mock data on client side to avoid hydration errors
+  React.useEffect(() => {
+    // Simulate loading delay
+    const timer = setTimeout(() => {
+      setAdminUsers(getMockAdminUsers());
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Reset to page 1 when filters change
   React.useEffect(() => {
     setCurrentPage(1);
@@ -257,9 +263,7 @@ export default function RolesPage() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="/settings">Settings</Link>
-              </BreadcrumbLink>
+              <BreadcrumbPage>Settings</BreadcrumbPage>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
@@ -277,27 +281,22 @@ export default function RolesPage() {
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                Admin Roles & Users
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Admin Roles & Users</h1>
               <p className="text-[15px] leading-7 text-muted-foreground mt-1">
                 Manage admin user roles, permissions, and access levels.
               </p>
             </div>
-            <Button
-              onClick={() => setInviteDialogOpen(true)}
-              className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-            >
+            <Button variant="action" onClick={() => setInviteDialogOpen(true)}>
               Invite Admin User
             </Button>
           </div>
 
           {/* Compact Role Reference Section */}
-          <div className="p-6 bg-muted/30 rounded-2xl">
-            <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+          <div className="px-4 py-3 bg-muted/20 rounded-lg border border-border">
+            <p className="text-xs text-muted-foreground mb-2">
               Role Definitions (hover for details)
-            </h2>
-            <div className="flex flex-wrap gap-3">
+            </p>
+            <div className="flex flex-wrap gap-2">
               {roles.map((role) => (
                 <RoleBadgeInfo key={role.name} role={role} />
               ))}
@@ -319,6 +318,7 @@ export default function RolesPage() {
             />
             <AdminUsersTable
               users={paginatedUsers}
+              isLoading={loading}
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}

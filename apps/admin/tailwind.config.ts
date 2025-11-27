@@ -16,6 +16,9 @@ const config: Config = {
     			md: 'calc(var(--radius) - 2px)',
     			sm: 'calc(var(--radius) - 4px)'
     		},
+    		boxShadow: {
+    			brand: '0 10px 20px -10px rgba(138, 3, 4, 0.35)'
+    		},
     		colors: {
     			background: 'hsl(var(--background))',
     			foreground: 'hsl(var(--foreground))',

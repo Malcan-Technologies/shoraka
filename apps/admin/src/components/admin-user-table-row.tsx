@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { PencilIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
 
 type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
@@ -57,12 +58,19 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
   const [isEditingRole, setIsEditingRole] = React.useState(false);
   const [selectedRole, setSelectedRole] = React.useState<AdminRole>(user.role);
 
-  const handleRoleChange = (newRole: AdminRole) => {
-    onUpdate(user.id, { role: newRole });
+  const handleRoleChange = () => {
+    if (selectedRole !== user.role) {
+      onUpdate(user.id, { role: selectedRole });
+      toast.success("Role updated", {
+        description: `${user.first_name} ${user.last_name} is now ${roleConfig[selectedRole].label}`,
+      });
+    }
     setIsEditingRole(false);
-    toast.success("Role updated", {
-      description: `${user.first_name} ${user.last_name} is now ${roleConfig[newRole].label}`,
-    });
+  };
+
+  const handleCancelEdit = () => {
+    setSelectedRole(user.role);
+    setIsEditingRole(false);
   };
 
   const handleToggleStatus = () => {
@@ -81,32 +89,50 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
       <TableCell className="text-[15px]">{user.email}</TableCell>
       <TableCell>
         {isEditingRole ? (
-          <Select
-            value={selectedRole}
-            onValueChange={(value) => {
-              setSelectedRole(value as AdminRole);
-              handleRoleChange(value as AdminRole);
-            }}
-          >
-            <SelectTrigger className="w-[200px] h-9 rounded-lg">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(roleConfig).map(([key, config]) => (
-                <SelectItem key={key} value={key}>
-                  {config.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedRole}
+              onValueChange={(value) => setSelectedRole(value as AdminRole)}
+            >
+              <SelectTrigger className="w-[180px] h-9 rounded-lg">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(roleConfig).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleRoleChange}
+              title="Save changes"
+            >
+              <CheckIcon className="h-4 w-4 text-green-600" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleCancelEdit}
+              title="Cancel"
+            >
+              <XMarkIcon className="h-4 w-4 text-gray-500" />
+            </Button>
+          </div>
         ) : (
           <button
             onClick={() => setIsEditingRole(true)}
-            className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-medium ${
+            className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${
               roleConfig[user.role].bgColor
             } ${roleConfig[user.role].color} hover:shadow-sm transition-shadow`}
           >
             {roleConfig[user.role].label}
+            <PencilIcon className="h-3 w-3 opacity-0 group-hover:opacity-70 transition-opacity" />
           </button>
         )}
       </TableCell>
@@ -126,7 +152,12 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         {user.last_login ? format(user.last_login, "MMM d, yyyy h:mm a") : "Never"}
       </TableCell>
       <TableCell>
-        <Button variant="ghost" size="sm" onClick={handleToggleStatus} className="text-[13px]">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleStatus}
+          className={`text-[13px] ${user.status === "ACTIVE" ? "text-red-600 hover:text-red-100" : ""}`}
+        >
           {user.status === "ACTIVE" ? "Deactivate" : "Activate"}
         </Button>
       </TableCell>

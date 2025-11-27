@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@cashsouk/ui";
 import { UserTableRow } from "./user-table-row";
 import { EditUserDialog } from "./edit-user-dialog";
 import { Button } from "@/components/ui/button";

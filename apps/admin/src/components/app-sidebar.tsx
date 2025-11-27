@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
+import { APP_VERSION } from "@cashsouk/config";
 import {
   HomeIcon,
   DocumentTextIcon,
@@ -15,6 +16,7 @@ import {
 
 import { NavUser } from "@/components/nav-user";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -185,6 +187,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={userData} />
+        <div className="group-data-[collapsible=icon]:hidden">
+          <Separator className="my-2" />
+          <div className="flex px-3 justify-start py-2 text-xs text-sidebar-foreground/70">
+            {APP_VERSION}
+          </div>
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
