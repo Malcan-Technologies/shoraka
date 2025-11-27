@@ -364,7 +364,7 @@ jobs:
           aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
 
           echo "📝 Updating task definition..."
-          TEMPLATE=$(cat infra/ecs/task-def-admin.json)
+          TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/admin-cashsouk:$IMAGE_TAG" '
             .family = "default-admin-cashsouk-544e" |
             .containerDefinitions[0].image = $IMAGE

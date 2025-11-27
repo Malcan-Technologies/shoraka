@@ -48,6 +48,49 @@ export function createApp(): Application {
     })
   );
 
+  /**
+   * @swagger
+   * /healthz:
+   *   get:
+   *     summary: Health check endpoint
+   *     description: Check API and database connectivity status
+   *     tags: [Health]
+   *     responses:
+   *       200:
+   *         description: Service is healthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                   example: ok
+   *                 database:
+   *                   type: string
+   *                   example: connected
+   *                 timestamp:
+   *                   type: string
+   *                   format: date-time
+   *       503:
+   *         description: Service is unhealthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                   example: error
+   *                 database:
+   *                   type: string
+   *                   example: disconnected
+   *                 error:
+   *                   type: string
+   *                 timestamp:
+   *                   type: string
+   *                   format: date-time
+   */
   app.get("/healthz", async (_, res) => {
     try {
       // Test database connection

@@ -4,11 +4,17 @@ import { swaggerSpec } from "./lib/swagger";
 import { authRouter } from "./modules/auth/controller";
 
 export function registerRoutes(app: Application): void {
-  // Swagger API documentation
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: "CashSouk API Documentation",
-    customCss: '.swagger-ui .topbar { display: none }',
-  }));
+  // Swagger API documentation (only in development)
+  if (process.env.NODE_ENV !== "production") {
+    app.use(
+      "/api-docs",
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        customSiteTitle: "CashSouk API Documentation",
+        customCss: ".swagger-ui .topbar { display: none }",
+      })
+    );
+  }
 
   const v1Router = Router();
 
@@ -43,4 +49,3 @@ export function registerRoutes(app: Application): void {
 
   app.use("/v1", v1Router);
 }
-
