@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { subDays } from "date-fns";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
@@ -9,7 +8,6 @@ import { SystemHealthIndicator } from "../../../components/system-health-indicat
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
