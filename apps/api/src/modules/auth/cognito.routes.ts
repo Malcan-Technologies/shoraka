@@ -14,6 +14,7 @@ import {
   CognitoIdentityProviderClient,
   AdminUserGlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
+import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
 
 const router = Router();
 
@@ -50,64 +51,60 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
     // Prepare OAuth security tokens
     const client = getOpenIdClient();
     const nonce = generators.nonce(); // Nonce is a random string used to prevent replay attacks
-    const state = generators.state(); // State is a random string used to prevent CSRF attacks
+    const oauthState = generators.state(); // State is a random string used to prevent CSRF attacks
+    const signupParam = req.query.signup === "true";
 
-    // Store the requested role in the session
-    const session = req.session as typeof req.session & {
-      requestedRole?: string;
-      signup?: boolean;
-    };
-    session.nonce = nonce;
-    session.state = state;
-    // Store as uppercase string to ensure consistency
-    const roleToStore = requestedRole.toString().toUpperCase();
-    session.requestedRole = roleToStore;
+    // Instead of storing in session (Safari ITP blocks cookies), encrypt state and embed in URL
+    // This is Safari-proof and more secure for cross-domain OAuth flows
+    // createOAuthState adds a unique stateId for replay attack prevention
+    const stateData = encryptOAuthState(
+      createOAuthState({
+        nonce,
+        state: oauthState,
+        requestedRole: requestedRole.toString().toUpperCase(),
+        signup: signupParam,
+        timestamp: Date.now(),
+      })
+    );
 
     logger.info(
       {
         correlationId,
-        requestedRoleBeforeStore: requestedRole,
-        storedRequestedRole: session.requestedRole,
-        roleToStore,
-        sessionId: req.sessionID,
+        requestedRole: requestedRole.toString().toUpperCase(),
+        isSignup: signupParam,
+        method: "encrypted-state",
       },
-      "Stored requested role in session"
+      "Prepared OAuth state (encrypted, no cookies)"
     );
 
-    const signupParam = req.query.signup === "true";
-    if (signupParam) {
-      session.signup = true;
+    try {
+      let authUrl = client.authorizationUrl({
+        scope: "openid email",
+        state: stateData, // Use encrypted state instead of raw state
+        nonce: nonce,
+      });
+
+      // For signup flow, redirect to Cognito's /signup endpoint instead of /login
+      if (signupParam) {
+        // Replace /oauth2/authorize or /login with /signup
+        authUrl = authUrl.replace(/\/oauth2\/authorize|\/login/, "/signup");
+      }
+
+      logger.info(
+        {
+          correlationId,
+          requestedRole: requestedRole.toString().toUpperCase(),
+          isSignup: signupParam,
+          authUrl,
+          stateMethod: "encrypted-in-url",
+        },
+        "Redirecting to Cognito authorization"
+      );
+      res.redirect(authUrl);
+    } catch (error) {
+      logger.error({ correlationId, error }, "Failed to generate authorization URL");
+      return next(error);
     }
-
-    req.session.save((err) => {
-      if (err) {
-        logger.error({ correlationId, error: err }, "Failed to save session");
-        return next(err);
-      }
-
-      try {
-        let authUrl = client.authorizationUrl({
-          scope: "openid email",
-          state: state,
-          nonce: nonce,
-        });
-
-        // For signup flow, redirect to Cognito's /signup endpoint instead of /login
-        if (signupParam) {
-          // Replace /oauth2/authorize or /login with /signup
-          authUrl = authUrl.replace(/\/oauth2\/authorize|\/login/, "/signup");
-        }
-
-        logger.info(
-          { correlationId, requestedRole: session.requestedRole, isSignup: signupParam, authUrl },
-          "Redirecting to Cognito authorization"
-        );
-        res.redirect(authUrl);
-      } catch (error) {
-        logger.error({ correlationId, error }, "Failed to generate authorization URL");
-        return next(error);
-      }
-    });
   } catch (error) {
     logger.error({ correlationId, error }, "Failed to generate authorization URL");
     return next(error);
@@ -118,34 +115,53 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
   const correlationId = generateCorrelationId();
 
   try {
+    // Decrypt the state parameter to get nonce, state, role, etc.
+    // This is Safari-proof - no cookies needed!
+    const client = getOpenIdClient();
+    const params = client.callbackParams(req);
+    const encryptedState = params.state;
+
+    if (!encryptedState) {
+      throw new AppError(400, "MISSING_STATE", "OAuth state parameter is missing");
+    }
+
+    let stateData;
+    try {
+      stateData = decryptOAuthState(encryptedState);
+    } catch (error) {
+      logger.error(
+        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        "Failed to decrypt OAuth state"
+      );
+      throw new AppError(400, "INVALID_STATE", "Invalid or expired OAuth state");
+    }
+
     logger.info(
       {
         correlationId,
-        hasSession: !!req.session,
-        nonce: !!req.session?.nonce,
-        state: !!req.session?.state,
+        hasNonce: !!stateData.nonce,
+        hasState: !!stateData.state,
+        requestedRole: stateData.requestedRole,
+        isSignup: stateData.signup,
+        stateAge: Date.now() - stateData.timestamp,
+        method: "encrypted-state",
       },
-      "OAuth callback received"
+      "OAuth callback received - state decrypted"
     );
 
     // Check for Cognito error responses
     if (req.query.error) {
       const error = req.query.error as string;
       const errorDescription = req.query.error_description as string | undefined;
-      const session = req.session as typeof req.session & {
-        requestedRole?: string;
-        signup?: boolean;
-      };
-      const isSignup = session?.signup === true;
 
       logger.error(
-        { correlationId, error, errorDescription, query: req.query, isSignup },
+        { correlationId, error, errorDescription, query: req.query, isSignup: stateData.signup },
         "Cognito returned an error"
       );
 
       // If it's a signup flow and user already exists, redirect to login instead
       if (
-        isSignup &&
+        stateData.signup &&
         (errorDescription?.toLowerCase().includes("already exists") ||
           errorDescription?.toLowerCase().includes("user already exists"))
       ) {
@@ -170,33 +186,7 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       );
     }
 
-    const client = getOpenIdClient();
     const config = getCognitoConfig();
-    const params = client.callbackParams(req);
-
-    const stateFromQuery = params.state;
-    if (req.session?.state) {
-      if (stateFromQuery !== req.session.state) {
-        logger.error(
-          { correlationId, sessionState: req.session.state, queryState: stateFromQuery },
-          "State mismatch"
-        );
-        throw new AppError(400, "INVALID_STATE", "State mismatch - possible CSRF attack");
-      }
-    } else {
-      logger.warn(
-        { correlationId },
-        "Session state not found, proceeding without state validation"
-      );
-    }
-
-    const callbackOptions: { nonce?: string; state?: string } = {};
-    if (req.session?.nonce) {
-      callbackOptions.nonce = req.session.nonce;
-    }
-    if (req.session?.state) {
-      callbackOptions.state = req.session.state;
-    }
 
     logger.info(
       {
@@ -204,17 +194,18 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
         redirectUri: config.redirectUri,
         hasCode: !!params.code,
         hasState: !!params.state,
-        hasSessionNonce: !!req.session?.nonce,
-        hasSessionState: !!req.session?.state,
+        hasNonce: !!stateData.nonce,
       },
       "Exchanging code for tokens"
     );
 
     let tokenSet;
     try {
-      // Always pass callbackOptions as an object, never undefined
-      // When session is missing, openid-client will skip CSRF checks
-      tokenSet = await client.callback(config.redirectUri, params, callbackOptions);
+      // Use the decrypted nonce and state for verification
+      tokenSet = await client.callback(config.redirectUri, params, {
+        nonce: stateData.nonce,
+        state: stateData.state,
+      });
 
       logger.info(
         { correlationId, hasAccessToken: !!tokenSet.access_token, hasIdToken: !!tokenSet.id_token },
@@ -270,22 +261,18 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
 
     logger.info({ correlationId, cognitoId, email }, "User info retrieved from Cognito");
 
-    const session = req.session as typeof req.session & {
-      requestedRole?: string;
-      signup?: boolean;
-    };
-    // Ensure requestedRole is a valid UserRole enum value
-    const requestedRoleStr = session?.requestedRole;
+    // Get requested role from decrypted state data (not session)
+    const requestedRoleStr = stateData.requestedRole;
     let requestedRole: UserRole = UserRole.INVESTOR; // Default fallback
 
     logger.info(
       {
         correlationId,
-        requestedRoleStrFromSession: requestedRoleStr,
-        sessionKeys: session ? Object.keys(session) : [],
-        fullSession: JSON.stringify(session),
+        requestedRoleStr,
+        isSignup: stateData.signup,
+        source: "encrypted-state",
       },
-      "Retrieving requested role from session"
+      "Retrieving requested role from state"
     );
 
     if (requestedRoleStr) {
@@ -300,17 +287,14 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       } else {
         logger.warn(
           { correlationId, requestedRoleStr, upperRole },
-          "Invalid requestedRole in session, defaulting to INVESTOR"
+          "Invalid requestedRole in state, defaulting to INVESTOR"
         );
       }
     } else {
-      logger.warn(
-        { correlationId, sessionKeys: session ? Object.keys(session) : [] },
-        "No requestedRole in session, defaulting to INVESTOR"
-      );
+      logger.warn({ correlationId }, "No requestedRole in state, defaulting to INVESTOR");
     }
 
-    const isSignup = session?.signup === true;
+    const isSignup = stateData.signup === true;
 
     logger.info(
       {
@@ -319,7 +303,6 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
         requestedRole,
         requestedRoleString: requestedRole.toString(),
         isSignup,
-        sessionKeys: session ? Object.keys(session) : [],
       },
       "Processing callback with requested role"
     );
