@@ -3,7 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const LANDING_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+// In development, use localhost. In production, use the deployed landing page.
+const LANDING_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:3000"
+    : "https://www.cashsouk.com";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
@@ -11,7 +15,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  */
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  
+
   // Check query params first (for direct redirects)
   const urlParams = new URLSearchParams(window.location.search);
   const tokenFromQuery = urlParams.get("token");
@@ -20,7 +24,7 @@ export function getAuthToken(): string | null {
     localStorage.setItem("auth_token", tokenFromQuery);
     return tokenFromQuery;
   }
-  
+
   // Fallback to localStorage
   return localStorage.getItem("auth_token");
 }
@@ -34,7 +38,7 @@ export async function verifyToken(_token?: string | null): Promise<boolean> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
     const apiClient = createApiClient(API_URL);
-    
+
     const result = await apiClient.get("/v1/auth/me");
     return result.success === true;
   } catch {
@@ -64,10 +68,10 @@ export function useAuth() {
       // Try to verify auth - API client will use cookies if available
       // or localStorage token if cookies aren't available (dev mode)
       const authToken = getAuthToken();
-      
+
       // Even if no token in localStorage, try to verify (cookies might work)
       const isValid = await verifyToken(authToken);
-      
+
       if (!isValid) {
         // Token is invalid and refresh failed, clear it and redirect
         if (authToken) {
@@ -89,4 +93,3 @@ export function useAuth() {
 
   return { isAuthenticated, token };
 }
-
