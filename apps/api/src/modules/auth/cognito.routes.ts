@@ -659,6 +659,25 @@ router.get("/logout", async (req: Request, res: Response) => {
   let cognitoSub: string | undefined;
   let portal: string | undefined;
   let userId: string | undefined;
+  
+  // Try to detect portal from referer/origin if token doesn't have it
+  // This helps when logout is called without a valid token
+  const referer = req.get("referer") || req.get("origin");
+  if (referer && !portal) {
+    try {
+      const url = new URL(referer);
+      const hostname = url.hostname.toLowerCase();
+      if (hostname.includes("admin")) {
+        portal = "admin";
+      } else if (hostname.includes("investor")) {
+        portal = "investor";
+      } else if (hostname.includes("issuer")) {
+        portal = "issuer";
+      }
+    } catch (error) {
+      // Ignore URL parsing errors
+    }
+  }
 
   if (token) {
     try {
@@ -770,7 +789,7 @@ router.get("/logout", async (req: Request, res: Response) => {
     }
   });
 
-  // Redirect directly to landing page
+  // Redirect to appropriate page based on portal
   // We've already completed all logout steps:
   // 1. Revoked all refresh tokens in database
   // 2. Cleared HTTP-Only cookies (access_token, refresh_token)
@@ -782,13 +801,31 @@ router.get("/logout", async (req: Request, res: Response) => {
   // Cognito User Pool > App integration > App client > Sign out URL(s)
   // Otherwise, Cognito will show "Invalid request" error when redirecting through /logout
   const env = getEnv();
-  const landingUrl = env.FRONTEND_URL;
+  
+  // Determine redirect URL based on portal
+  // Admin users should be redirected to admin portal (auth hook will redirect to login if needed)
+  // Other users go to landing page
+  let redirectUrl: string;
+  if (portal === "admin" && env.ADMIN_URL) {
+    // Redirect admin users to admin portal root
+    // The admin portal's auth hook will detect no auth and redirect to login
+    redirectUrl = env.ADMIN_URL;
+  } else if (portal === "investor" && env.INVESTOR_URL) {
+    // Redirect investor users to landing page (they can choose portal from there)
+    redirectUrl = env.FRONTEND_URL;
+  } else if (portal === "issuer" && env.ISSUER_URL) {
+    // Redirect issuer users to landing page (they can choose portal from there)
+    redirectUrl = env.FRONTEND_URL;
+  } else {
+    // Default to landing page
+    redirectUrl = env.FRONTEND_URL;
+  }
   
   logger.info(
-    { correlationId, landingUrl, userId, portal },
-    "Redirecting to landing page after successful logout"
+    { correlationId, redirectUrl, userId, portal },
+    "Redirecting after successful logout"
   );
-  res.redirect(landingUrl);
+  res.redirect(redirectUrl);
 });
 
 export default router;

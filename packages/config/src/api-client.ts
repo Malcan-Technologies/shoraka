@@ -109,18 +109,12 @@ export class ApiClient {
           // Response might not be JSON, that's okay - cookies are set automatically
         }
       } else {
-        // Refresh failed (401 or 403) - clear tokens and redirect to login
-        // Only redirect in production (not in development mode for testing)
-        if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+        // Refresh failed (401 or 403) - clear tokens
+        // Don't redirect here - let the portal's auth logic handle redirects
+        // This allows each portal (admin, investor, issuer) to redirect to their own login page
+        if (typeof window !== "undefined") {
           localStorage.removeItem("auth_token");
           localStorage.removeItem("refresh_token");
-          
-          // Only redirect if we're not already on the landing/login page
-          const currentPath = window.location.pathname;
-          if (!currentPath.includes("/welcome") && !currentPath.includes("/login")) {
-            const landingUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
-            window.location.href = landingUrl;
-          }
         }
       }
 
