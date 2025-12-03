@@ -502,35 +502,22 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
 
     const redirectUrl = new URL("/callback", frontendUrl);
 
-    // In development, cookies won't work across different origins (localhost:4000 vs localhost:3000)
-    // So we pass token in URL for dev, but use cookies only in production
-    const isDevelopment = env.NODE_ENV === "development";
+    // IMPORTANT: Since we use encrypted state (no cookies during OAuth flow),
+    // we MUST pass tokens in URL for the callback page to work
+    // The landing /callback page will then store tokens in localStorage
+    // and redirect to the appropriate portal with the token
+    redirectUrl.searchParams.set("token", tokens.accessToken);
+    redirectUrl.searchParams.set("refresh_token", tokens.refreshToken);
 
-    if (isDevelopment || !env.COOKIE_DOMAIN) {
-      // Development: Pass tokens in URL (necessary for cross-origin)
-      // This is less secure but required when API and frontend are on different ports
-      redirectUrl.searchParams.set("token", tokens.accessToken);
-      redirectUrl.searchParams.set("refresh_token", tokens.refreshToken); // Also pass refresh token for dev mode
-      logger.info(
-        {
-          correlationId,
-          redirectUrl: redirectUrl.toString(),
-          reason: "Development mode - tokens in URL",
-        },
-        "Redirecting to callback with tokens in URL (dev mode)"
-      );
-    } else {
-      // Production: Token in HTTP-Only cookies only (more secure)
-      // Frontend callback should verify cookie exists via API call
-      logger.info(
-        {
-          correlationId,
-          redirectUrl: redirectUrl.toString(),
-          reason: "Production mode - token in cookies",
-        },
-        "Redirecting to callback with token in cookies (prod mode)"
-      );
-    }
+    logger.info(
+      {
+        correlationId,
+        redirectUrl: redirectUrl.toString(),
+        tokenLength: tokens.accessToken.length,
+        method: "token-in-url",
+      },
+      "Redirecting to callback with tokens in URL"
+    );
 
     // Always include the role in the redirect URL so the callback page knows which portal to redirect to
     redirectUrl.searchParams.set("role", activeRole.toString());
