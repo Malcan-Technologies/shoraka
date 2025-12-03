@@ -25,25 +25,26 @@ function getPgPool(): Pool {
 
   const env = getEnv();
 
-  // AWS RDS CA certificate configuration for production
+  // AWS RDS requires SSL with CA certificate for secure connections
   let sslConfig: TLSSocketOptions | boolean | undefined = undefined;
 
   if (env.NODE_ENV === "production") {
-    const rdsCertPath = "/app/global-bundle.pem";
+    const rdsCertPath = "/app/rds-ca-cert.pem";
 
     if (fs.existsSync(rdsCertPath)) {
-      // Use RDS CA certificate for proper SSL verification
+      // Load AWS RDS CA certificate for proper SSL verification
+      const caCert = fs.readFileSync(rdsCertPath, "utf8");
       sslConfig = {
-        rejectUnauthorized: true,
-        ca: fs.readFileSync(rdsCertPath).toString(),
+        ca: caCert,
+        rejectUnauthorized: true, // Verify the server certificate
       };
-      logger.info("Using AWS RDS CA certificate for SSL connection");
+      logger.info("AWS RDS CA certificate loaded for SSL connection");
     } else {
-      // Fallback to accepting any certificate (less secure)
+      // Fallback: Force SSL but skip cert verification
+      logger.warn("RDS CA certificate not found at /app/rds-ca-cert.pem - using insecure SSL");
       sslConfig = {
         rejectUnauthorized: false,
       };
-      logger.warn("RDS CA certificate not found, using insecure SSL mode");
     }
   }
 
