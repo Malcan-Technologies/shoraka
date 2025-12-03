@@ -31,7 +31,7 @@ function getPgPool(): Pool {
     connectionTimeoutMillis: 2000, // Timeout connection attempts after 2 seconds
     // SSL configuration for AWS RDS
     ssl: env.NODE_ENV === "production" ? {
-      rejectUnauthorized: false // AWS RDS uses self-signed certificates
+      rejectUnauthorized: true // Require SSL for RDS connections
     } : false,
   });
 
