@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { getCognitoLogoutUrl, getCognitoConfig } from "../../config/aws";
+import { getCognitoConfig } from "../../config/aws";
 import { getOpenIdClient, generators } from "../../lib/openid-client";
 import { verifyToken, generateTokenPair } from "../../lib/auth/jwt";
 import { prisma } from "../../lib/prisma";
@@ -770,17 +770,25 @@ router.get("/logout", async (req: Request, res: Response) => {
     }
   });
 
-  // Redirect to Cognito's /logout endpoint
-  // According to AWS docs, this endpoint requires client_id and logout_uri parameters
-  // It will sign out the user from the hosted UI and redirect them back
-  // Always use default logout URL (landing page) which is already configured in Cognito
-  const logoutUrl = getCognitoLogoutUrl();
+  // Redirect directly to landing page
+  // We've already completed all logout steps:
+  // 1. Revoked all refresh tokens in database
+  // 2. Cleared HTTP-Only cookies (access_token, refresh_token)
+  // 3. Attempted AdminUserGlobalSignOut to invalidate Cognito session (if IAM permissions allow)
+  // 4. Destroyed Express session
+  //
+  // Note: If you want to use Cognito's /logout endpoint for additional session cleanup,
+  // ensure FRONTEND_URL is added to "Sign out URL(s)" in Cognito User Pool settings:
+  // Cognito User Pool > App integration > App client > Sign out URL(s)
+  // Otherwise, Cognito will show "Invalid request" error when redirecting through /logout
+  const env = getEnv();
+  const landingUrl = env.FRONTEND_URL;
   
   logger.info(
-    { correlationId, logoutUrl, userId, portal },
-    "Redirecting to Cognito logout endpoint"
+    { correlationId, landingUrl, userId, portal },
+    "Redirecting to landing page after successful logout"
   );
-  res.redirect(logoutUrl);
+  res.redirect(landingUrl);
 });
 
 export default router;

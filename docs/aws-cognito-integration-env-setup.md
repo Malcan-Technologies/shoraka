@@ -103,5 +103,10 @@ This will install:
    - Configure OAuth scopes: `openid`, `email`, `profile`
    - Add callback URL: `http://localhost:4000/api/auth/callback` (dev) and `https://api.cashsouk.com/api/auth/callback` (prod)
    - Configure social identity providers (Google, Apple, Meta) if needed
-4. Test the authentication flow
+   - **Optional:** Add `FRONTEND_URL` to "Sign out URL(s)" if you want to use Cognito's logout endpoint with redirect
+4. **IAM Permissions (Production):**
+   - Grant the ECS task role permission for `cognito-idp:AdminUserGlobalSignOut` on the Cognito User Pool
+   - This allows the API to invalidate Cognito sessions server-side during logout
+   - If not granted, logout will still work but only clears local tokens/cookies
+5. Test the authentication flow
 

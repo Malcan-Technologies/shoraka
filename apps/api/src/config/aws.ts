@@ -33,13 +33,20 @@ export function getCognitoTokenUrl(): string {
   return `${config.domain}/oauth2/token`;
 }
 
-export function getCognitoLogoutUrl(): string {
+export function getCognitoLogoutUrl(includeLogoutUri: boolean = true): string {
   const config = getCognitoConfig();
-  const env = getEnv();
   const params = new URLSearchParams({
     client_id: config.clientId,
-    logout_uri: env.FRONTEND_URL,
   });
+
+  // logout_uri is optional in Cognito
+  // If provided, it must be in the allowed logout URLs list in Cognito app client settings
+  // If not in the allowed list, Cognito will show "Invalid request" error
+  // We make it optional so logout can still work even if logout_uri isn't configured
+  if (includeLogoutUri) {
+    const env = getEnv();
+    params.append("logout_uri", env.FRONTEND_URL);
+  }
 
   return `${config.domain}/logout?${params.toString()}`;
 }

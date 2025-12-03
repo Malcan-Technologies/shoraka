@@ -497,6 +497,12 @@ Before first deployment, manually create:
    - Deployment role
    - Task execution roles
    - Task roles
+   - **API Task Role Permissions:**
+     - `cognito-idp:AdminUserGlobalSignOut` (optional, for server-side logout)
+     - RDS access (via RDS Proxy)
+     - S3 read/write (for file uploads)
+     - Secrets Manager read (for environment variables)
+     - **Note:** If `AdminUserGlobalSignOut` permission is not granted, logout will still work but will only clear local tokens/cookies. The Cognito session will remain active until it expires naturally.
 
 10. **SSM/Secrets:**
     - Parameter paths
