@@ -49,7 +49,7 @@ echo "✅ Database is ready"
 # Construct PSQL_URL for psql commands (strip all query parameters)
 # psql doesn't understand ?schema=public or other query params
 # We need to remove everything after and including the ?
-PSQL_URL=$(echo "$DATABASE_URL" | sed 's/\?.*$//')
+PSQL_URL=$(echo "$DATABASE_URL" | awk -F'?' '{print $1}')
 
 echo "🔒 Acquiring migration lock..."
 
