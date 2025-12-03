@@ -88,10 +88,15 @@ export async function createSessionMiddleware() {
     name: "cashsouk.sid",
     cookie: {
       httpOnly: true,
+      // Must use HTTPS in production, but development can use HTTP
       secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      // sameSite "none" required for OAuth redirects through Cognito (both dev and prod)
+      // This allows cookies to be sent on cross-site redirects from amazoncognito.com
+      sameSite: "none",
       maxAge: 15 * 60 * 1000, // 15 minutes (matching Cognito token expiry)
-      domain: env.COOKIE_DOMAIN, // e.g., ".cashsouk.com" for cross-subdomain
+      // Domain allows cookie sharing across subdomains (production only)
+      // In dev, undefined means cookie only works on localhost (no subdomain)
+      domain: env.NODE_ENV === "production" ? env.COOKIE_DOMAIN : undefined,
     },
   };
 
