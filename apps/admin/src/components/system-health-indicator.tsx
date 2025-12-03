@@ -49,7 +49,7 @@ export function SystemHealthIndicator() {
 
   React.useEffect(() => {
     checkHealth();
-    const interval = setInterval(checkHealth, 60000); // 60 seconds
+    const interval = setInterval(checkHealth, 60 * 5 * 1000); // 5 minutes
     return () => clearInterval(interval);
   }, [checkHealth]);
 
@@ -117,11 +117,8 @@ export function SystemHealthIndicator() {
         className="h-8 w-8 p-0"
         title="Refresh health status"
       >
-        <ArrowPathIcon
-          className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-        />
+        <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
     </div>
   );
 }
-

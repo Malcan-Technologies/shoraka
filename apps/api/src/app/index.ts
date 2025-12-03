@@ -3,8 +3,8 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
-import { PrismaClient } from "@prisma/client";
 import { logger } from "../lib/logger";
+import { prisma } from "../lib/prisma";
 import { errorHandler } from "../lib/http/error-handler";
 import { notFoundHandler } from "../lib/http/not-found";
 import { correlationIdMiddleware } from "./middleware/cors";
@@ -84,10 +84,8 @@ export async function createApp(): Promise<Application> {
    */
   app.get("/healthz", async (_, res) => {
     try {
-      // Test database connection
-      const prisma = new PrismaClient();
+      // Test database connection using shared Prisma client
       await prisma.$queryRaw`SELECT 1 as health_check`;
-      await prisma.$disconnect();
 
       res.json({
         status: "ok",

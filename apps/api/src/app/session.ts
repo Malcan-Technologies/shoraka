@@ -22,17 +22,21 @@ function getPgPool(): Pool {
   }
 
   const env = getEnv();
-  
+
   pgPool = new Pool({
-    connectionString: env.DATABASE_URL,
+    connectionString: env.DATABASE_URL, // Includes sslmode=require in production
     // Optimize for session operations
     max: 10, // Maximum pool size (sessions don't need many connections)
     idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
     connectionTimeoutMillis: 2000, // Timeout connection attempts after 2 seconds
     // SSL configuration for AWS RDS
-    ssl: env.NODE_ENV === "production" ? {
-      rejectUnauthorized: true // Require SSL for RDS connections
-    } : false,
+    // Must set rejectUnauthorized: false because RDS cert isn't in container trust store
+    ssl:
+      env.NODE_ENV === "production"
+        ? {
+            rejectUnauthorized: false, // Accept RDS certificate without validation
+          }
+        : false,
   });
 
   pgPool.on("error", (err: Error) => {
@@ -76,4 +80,3 @@ export async function createSessionMiddleware() {
   logger.info("Session store configured with PostgreSQL");
   return session(sessionConfig);
 }
-
