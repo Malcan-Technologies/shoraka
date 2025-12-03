@@ -8,8 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PencilIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
-
-type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
+import {
+  useUpdateUserRoles,
+  useUpdateUserKyc,
+  useUpdateUserOnboarding,
+} from "../hooks/use-admin-users";
+import type { UserRole } from "@cashsouk/types";
 
 interface User {
   id: string;
@@ -36,7 +40,7 @@ interface UserTableRowProps {
   onCancel: () => void;
 }
 
-const roleColors: Record<UserRole, string> = {
+const roleColors: Record<string, string> = {
   INVESTOR: "bg-blue-100 text-blue-800 border-blue-200",
   ISSUER: "bg-purple-100 text-purple-800 border-purple-200",
   ADMIN: "bg-red-100 text-red-800 border-red-200",
@@ -44,6 +48,9 @@ const roleColors: Record<UserRole, string> = {
 
 export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: UserTableRowProps) {
   const [editedUser, setEditedUser] = React.useState<Partial<User>>(user);
+  const updateRoles = useUpdateUserRoles();
+  const updateKyc = useUpdateUserKyc();
+  const updateOnboarding = useUpdateUserOnboarding();
 
   React.useEffect(() => {
     if (isEditing) {
@@ -51,8 +58,41 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     }
   }, [isEditing, user]);
 
-  const handleSave = () => {
-    onSave(editedUser);
+  const handleSave = async () => {
+    try {
+      // Update roles if changed
+      const rolesChanged = JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
+      if (rolesChanged && editedUser.roles) {
+        await updateRoles.mutateAsync({ id: user.id, roles: { roles: editedUser.roles as UserRole[] } });
+      }
+
+      // Update KYC if changed
+      if (editedUser.kyc_verified !== undefined && editedUser.kyc_verified !== user.kyc_verified) {
+        await updateKyc.mutateAsync({ id: user.id, kycVerified: editedUser.kyc_verified });
+      }
+
+      // Update onboarding if changed
+      const investorChanged =
+        editedUser.investor_onboarding_completed !== undefined &&
+        editedUser.investor_onboarding_completed !== user.investor_onboarding_completed;
+      const issuerChanged =
+        editedUser.issuer_onboarding_completed !== undefined &&
+        editedUser.issuer_onboarding_completed !== user.issuer_onboarding_completed;
+
+      if (investorChanged || issuerChanged) {
+        await updateOnboarding.mutateAsync({
+          id: user.id,
+          onboarding: {
+            investorOnboarded: editedUser.investor_onboarding_completed,
+            issuerOnboarded: editedUser.issuer_onboarding_completed,
+          },
+        });
+      }
+
+      onSave(editedUser);
+    } catch (error) {
+      // Error handling is done in the mutation hooks via toast
+    }
   };
 
   const toggleRole = (role: UserRole) => {
@@ -62,6 +102,8 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
       : [...currentRoles, role];
     setEditedUser({ ...editedUser, roles: newRoles });
   };
+
+  const isSaving = updateRoles.isPending || updateKyc.isPending || updateOnboarding.isPending;
 
   if (isEditing) {
     return (
@@ -142,11 +184,11 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         </TableCell>
         <TableCell>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} className="h-8">
+            <Button size="sm" onClick={handleSave} className="h-8" disabled={isSaving}>
               <CheckIcon className="h-4 w-4 mr-1" />
-              Save
+              {isSaving ? "Saving..." : "Save"}
             </Button>
-            <Button size="sm" variant="outline" onClick={onCancel} className="h-8">
+            <Button size="sm" variant="outline" onClick={onCancel} className="h-8" disabled={isSaving}>
               <XMarkIcon className="h-4 w-4 mr-1" />
               Cancel
             </Button>

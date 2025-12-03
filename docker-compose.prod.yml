@@ -1,100 +1,242 @@
-version: '3.8'
-
 services:
   landing:
     build:
       context: .
       dockerfile: docker/landing.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3000:3000"
-    env_file:
-      - apps/landing/.env.prod
+    environment:
+      - NODE_ENV=production
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   issuer:
     build:
       context: .
       dockerfile: docker/portal-issuer.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3001:3000"
-    env_file:
-      - apps/issuer/.env.prod
+    environment:
+      - NODE_ENV=production
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   investor:
     build:
       context: .
       dockerfile: docker/portal-investor.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3002:3000"
-    env_file:
-      - apps/investor/.env.prod
+    environment:
+      - NODE_ENV=production
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   admin:
     build:
       context: .
       dockerfile: docker/portal-admin.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3003:3000"
-    env_file:
-      - apps/admin/.env.prod
+    environment:
+      - NODE_ENV=production
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   api:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
     ports:
-      - "4000:3000"
-    env_file:
-      - apps/api/.env.prod
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USERNAME=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - DB_NAME=${POSTGRES_DB:-cashsouk_prod}
+      - JWT_SECRET=${JWT_SECRET:-changeme_min32chars_jwt_secret_12345}
+      - SESSION_SECRET=${SESSION_SECRET:-changeme_min32chars_session_secret1}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID:-ap-southeast-5_Ugz3vHRnm}
+      - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID:-4es0361hj0r66iv7da3hhm8ftk}
+      - COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET:-1vkj665jmq0m0ahlocfetb9mdm2gau3qns5cf3kcbg999bm1qcs2}
+      - COGNITO_DOMAIN=${COGNITO_DOMAIN:-https://ap-southeast-5ugz3vhrnm.auth.ap-southeast-5.amazoncognito.com}
+      - COGNITO_REGION=${COGNITO_REGION:-ap-southeast-5}
+      - REDIRECT_URI=${REDIRECT_URI:-http://localhost:4000/api/auth/callback}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - INVESTOR_URL=${INVESTOR_URL:-http://localhost:3002}
+      - ISSUER_URL=${ISSUER_URL:-http://localhost:3001}
+      - ADMIN_URL=${ADMIN_URL:-http://localhost:3003}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
   db:
     image: postgres:15-alpine
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=cashsouk_prod
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-cashsouk_prod}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
     networks:
       - cashsouk-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cashsouk_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "effective_cache_size=1536MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
 
 volumes:
   postgres_prod_data:
+    driver: local
+  postgres_backups:
+    driver: local
 
 networks:
   cashsouk-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
 

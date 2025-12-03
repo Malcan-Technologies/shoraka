@@ -1,11 +1,24 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cashsouk/ui";
-import { UserIcon, BuildingLibraryIcon } from "@heroicons/react/24/outline";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button } from "@cashsouk/ui";
+import { UserIcon, BuildingLibraryIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import { RoleSelectionModal } from "../../../components/role-selection-modal";
 
-export default function GetStartedPage() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function GetStartedPageContent() {
+  const searchParams = useSearchParams();
+  const [showSignInModal, setShowSignInModal] = React.useState(false);
+  const error = searchParams.get("error");
+  const errorMessage = searchParams.get("message");
+
+  const handleRoleSelect = (role: "INVESTOR" | "ISSUER") => {
+    window.location.href = `${API_URL}/api/auth/login?role=${role}&signup=true`;
+  };
+
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="text-center space-y-2">
@@ -13,8 +26,31 @@ export default function GetStartedPage() {
         <p className="text-[15px] text-muted-foreground">Choose how you'd like to join CashSouk</p>
       </div>
 
+      {error === "user_exists" && errorMessage && (
+        <div className="w-full max-w-xl rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3">
+            <ExclamationCircleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-destructive mb-1">Account Already Exists</p>
+              <p className="text-sm text-muted-foreground">{errorMessage}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSignInModal(true)}
+                className="mt-3"
+              >
+                Sign In Instead
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-xl grid gap-4">
-        <Link href="/signup/investor" className="block">
+        <button
+          onClick={() => handleRoleSelect("INVESTOR")}
+          className="block text-left"
+        >
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -35,9 +71,12 @@ export default function GetStartedPage() {
               </p>
             </CardContent>
           </Card>
-        </Link>
+        </button>
 
-        <Link href="/signup/borrower" className="block">
+        <button
+          onClick={() => handleRoleSelect("ISSUER")}
+          className="block text-left"
+        >
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -45,7 +84,7 @@ export default function GetStartedPage() {
                   <UserIcon className="h-6 w-6 text-secondary-foreground" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">I'm a Borrower</CardTitle>
+                  <CardTitle className="text-lg">I'm an Issuer</CardTitle>
                   <CardDescription className="text-sm">Get funding for your needs</CardDescription>
                 </div>
               </div>
@@ -56,15 +95,42 @@ export default function GetStartedPage() {
               </p>
             </CardContent>
           </Card>
-        </Link>
+        </button>
       </div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/login/investor" className="text-primary hover:underline">
-          Sign in
-        </Link>
-      </p>
+      <div className="text-center space-y-2">
+        <p className="text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <button
+            onClick={() => setShowSignInModal(true)}
+            className="text-primary hover:underline font-medium"
+          >
+            Sign in
+          </button>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          If you see an error saying "User already exists" during signup, please use the Sign in option above.
+        </p>
+      </div>
+
+      <RoleSelectionModal open={showSignInModal} onOpenChange={setShowSignInModal} />
     </div>
+  );
+}
+
+export default function GetStartedPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <GetStartedPageContent />
+    </Suspense>
   );
 }

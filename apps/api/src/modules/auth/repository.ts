@@ -71,11 +71,12 @@ export class AuthRepository {
       return user; // Role already exists
     }
     
+    // Prisma doesn't support push for arrays - need to use set with full array
     return prisma.user.update({
       where: { id: userId },
       data: {
         roles: {
-          push: role,
+          set: [...user.roles, role],
         },
       },
     });
@@ -91,6 +92,14 @@ export class AuthRepository {
       updateData.investor_onboarding_completed = completed;
     } else if (role === UserRole.ISSUER) {
       updateData.issuer_onboarding_completed = completed;
+    } else if (role === UserRole.ADMIN) {
+      // ADMIN doesn't require onboarding, but we'll still log it
+      // No database field to update for ADMIN
+      return prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    }
+    
+    if (Object.keys(updateData).length === 0) {
+      throw new Error(`Invalid role for onboarding update: ${role}`);
     }
     
     return prisma.user.update({
@@ -105,9 +114,11 @@ export class AuthRepository {
   async createAccessLog(data: {
     userId: string;
     eventType: string;
+    portal?: string;
     ipAddress?: string;
     userAgent?: string;
     deviceInfo?: string;
+    deviceType?: string;
     cognitoEvent?: object;
     success?: boolean;
     metadata?: object;
@@ -116,9 +127,11 @@ export class AuthRepository {
       data: {
         user_id: data.userId,
         event_type: data.eventType,
+        portal: data.portal,
         ip_address: data.ipAddress,
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
+        device_type: data.deviceType,
         cognito_event: data.cognitoEvent as any,
         success: data.success ?? true,
         metadata: data.metadata as any,

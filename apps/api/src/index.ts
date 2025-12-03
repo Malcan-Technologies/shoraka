@@ -12,10 +12,25 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST) {
   logger.info(`🔌 Connecting to: ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
 }
 
-const app = createApp();
-
-app.listen(PORT, () => {
-  logger.info(`🚀 API server running on http://localhost:${PORT}`);
-  logger.info(`📊 Health check: http://localhost:${PORT}/healthz`);
+createApp().then((app) => {
+  app.listen(PORT, () => {
+    logger.info(`🚀 API server running on http://localhost:${PORT}`);
+    logger.info(`📊 Health check: http://localhost:${PORT}/healthz`);
+    
+    // Log auth bypass status
+    if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
+      logger.warn("🔓 DEVELOPMENT MODE: Authentication bypass is ENABLED for admin routes");
+      logger.warn("⚠️  This should NEVER be enabled in production!");
+    } else {
+      logger.info("🔒 Authentication is REQUIRED for admin routes");
+    }
+  });
+}).catch((error) => {
+  logger.error({ 
+    error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined
+  }, "Failed to start server");
+  console.error("Error details:", error);
+  process.exit(1);
 });
 

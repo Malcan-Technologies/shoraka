@@ -1,0 +1,82 @@
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../prisma";
+import { UserRole } from "@prisma/client";
+
+/**
+ * Development-only middleware that bypasses authentication
+ * Sets a mock admin user from the database for testing
+ * Only works when DISABLE_AUTH=true is set in environment
+ */
+export async function devAuthBypass(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  // Only work in non-production environments
+  if (process.env.NODE_ENV === "production") {
+    return next();
+  }
+
+  // Only work if DISABLE_AUTH is explicitly set to "true"
+  if (process.env.DISABLE_AUTH !== "true") {
+    return next();
+  }
+
+  try {
+    // Try to find an admin user in the database
+    // If none exists, create a mock user object
+    let adminUser = await prisma.user.findFirst({
+      where: {
+        roles: {
+          has: UserRole.ADMIN,
+        },
+      },
+    });
+
+    // If no admin user exists, create a mock one (won't persist, just for req.user)
+    if (!adminUser) {
+      adminUser = {
+        id: "dev-admin-user",
+        email: "admin@cashsouk.com",
+        cognito_sub: "dev-admin-sub",
+        cognito_username: "dev-admin",
+        roles: [UserRole.ADMIN],
+        first_name: "Dev",
+        last_name: "Admin",
+        phone: null,
+        email_verified: true,
+        kyc_verified: true,
+        investor_onboarding_completed: false,
+        issuer_onboarding_completed: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any;
+    }
+
+    // Ensure adminUser is not null (convert null to undefined for req.user type)
+    // After the if check above, adminUser is guaranteed to be non-null
+    req.user = adminUser ?? undefined;
+    req.cognitoSub = adminUser!.cognito_sub;
+    req.activeRole = UserRole.ADMIN;
+
+    next();
+  } catch (error) {
+    // If database query fails, still allow through with mock user
+    req.user = {
+      id: "dev-admin-user",
+      email: "admin@cashsouk.com",
+      cognito_sub: "dev-admin-sub",
+      cognito_username: "dev-admin",
+      roles: [UserRole.ADMIN],
+      first_name: "Dev",
+      last_name: "Admin",
+      phone: null,
+      email_verified: true,
+      kyc_verified: true,
+      investor_onboarding_completed: false,
+      issuer_onboarding_completed: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as any;
+    req.cognitoSub = "dev-admin-sub";
+    req.activeRole = UserRole.ADMIN;
+    next();
+  }
+}
+

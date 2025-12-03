@@ -10,7 +10,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface UsersTableToolbarProps {
   searchQuery: string;
@@ -26,6 +26,8 @@ interface UsersTableToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
+  onReload?: () => void;
+  isLoading?: boolean;
 }
 
 export function UsersTableToolbar({
@@ -42,6 +44,8 @@ export function UsersTableToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
+  onReload,
+  isLoading = false,
 }: UsersTableToolbarProps) {
   const hasFilters =
     searchQuery !== "" ||
@@ -129,6 +133,18 @@ export function UsersTableToolbar({
         <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
           <XMarkIcon className="h-4 w-4" />
           Clear
+        </Button>
+      )}
+
+      {onReload && (
+        <Button
+          variant="outline"
+          onClick={onReload}
+          disabled={isLoading}
+          className="gap-2 h-11 rounded-xl"
+        >
+          <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          Reload
         </Button>
       )}
 

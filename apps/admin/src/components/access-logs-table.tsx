@@ -14,31 +14,9 @@ import { AccessLogTableRow } from "./access-log-table-row";
 import { AccessLogDetailsDialog } from "./access-log-details-dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import type { AccessLogResponse } from "@cashsouk/types";
 
-type EventType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "SIGNUP"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "ONBOARDING_COMPLETED";
-
-interface AccessLog {
-  id: string;
-  user_id: string;
-  user: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    roles: string[];
-  };
-  event_type: EventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  cognito_event: Record<string, unknown> | null;
-  success: boolean;
-  metadata: Record<string, unknown> | null;
+interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
 }
 

@@ -6,27 +6,10 @@ import { Separator } from "../../components/ui/separator";
 import { SystemHealthIndicator } from "../../components/system-health-indicator";
 import { UsersTable } from "../../components/users-table";
 import { UsersTableToolbar } from "../../components/users-table-toolbar";
+import { useUsers } from "../../hooks/use-admin-users";
+import type { GetUsersParams, UserRole } from "@cashsouk/types";
 
-type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
-
-interface User {
-  id: string;
-  email: string;
-  cognito_sub: string;
-  cognito_username: string;
-  roles: UserRole[];
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  email_verified: boolean;
-  kyc_verified: boolean;
-  investor_onboarding_completed: boolean;
-  issuer_onboarding_completed: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
-
-const mockUsers: User[] = [
+/*const mockUsers: User[] = [
   {
     id: "user_1",
     email: "sarah.johnson@example.com",
@@ -155,11 +138,9 @@ const mockUsers: User[] = [
     created_at: new Date("2023-11-15"),
     updated_at: new Date("2024-01-30"),
   },
-];
+];*/
 
 export default function UsersPage() {
-  const [loading, setLoading] = React.useState(true);
-  const [users, setUsers] = React.useState<User[]>(mockUsers);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
   const [kycFilter, setKycFilter] = React.useState("all");
@@ -168,59 +149,48 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+  // Build API params from filters
+  const apiParams = React.useMemo(() => {
+    const params: GetUsersParams = {
+      page: currentPage,
+      pageSize,
+    };
 
-  const filteredUsers = React.useMemo(() => {
-    return users.filter((user) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+    if (searchQuery) {
+      params.search = searchQuery;
+    }
 
-      const matchesRole = roleFilter === "all" || user.roles.includes(roleFilter as UserRole);
+    if (roleFilter !== "all") {
+      params.role = roleFilter as UserRole | undefined;
+    }
 
-      const matchesKyc =
-        kycFilter === "all" ||
-        (kycFilter === "verified" && user.kyc_verified) ||
-        (kycFilter === "not_verified" && !user.kyc_verified);
+    if (kycFilter === "verified") {
+      params.kycVerified = true;
+    } else if (kycFilter === "not_verified") {
+      params.kycVerified = false;
+    }
 
-      const matchesInvestorOnboarded =
-        investorOnboardedFilter === "all" ||
-        (investorOnboardedFilter === "completed" && user.investor_onboarding_completed) ||
-        (investorOnboardedFilter === "not_completed" && !user.investor_onboarding_completed);
+    if (investorOnboardedFilter === "completed") {
+      params.investorOnboarded = true;
+    } else if (investorOnboardedFilter === "not_completed") {
+      params.investorOnboarded = false;
+    }
 
-      const matchesIssuerOnboarded =
-        issuerOnboardedFilter === "all" ||
-        (issuerOnboardedFilter === "completed" && user.issuer_onboarding_completed) ||
-        (issuerOnboardedFilter === "not_completed" && !user.issuer_onboarding_completed);
+    if (issuerOnboardedFilter === "completed") {
+      params.issuerOnboarded = true;
+    } else if (issuerOnboardedFilter === "not_completed") {
+      params.issuerOnboarded = false;
+    }
 
-      return (
-        matchesSearch &&
-        matchesRole &&
-        matchesKyc &&
-        matchesInvestorOnboarded &&
-        matchesIssuerOnboarded
-      );
-    });
-  }, [users, searchQuery, roleFilter, kycFilter, investorOnboardedFilter, issuerOnboardedFilter]);
+    return params;
+  }, [currentPage, pageSize, searchQuery, roleFilter, kycFilter, investorOnboardedFilter, issuerOnboardedFilter]);
 
-  const paginatedUsers = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredUsers.slice(startIndex, startIndex + pageSize);
-  }, [filteredUsers, currentPage, pageSize]);
+  const { data, isLoading, error, refetch } = useUsers(apiParams);
 
-  const handleUserUpdate = (userId: string, updatedUser: Partial<User>) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userId
-          ? { ...user, ...updatedUser, updated_at: new Date() }
-          : user
-      )
-    );
+  const handleUserUpdate = () => {
+    // User updates are handled by mutations in the edit dialog
+    // This function is kept for compatibility but doesn't need to do anything
+    // as React Query will automatically refetch
   };
 
   const handleClearFilters = () => {
@@ -235,6 +205,10 @@ export default function UsersPage() {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, roleFilter, kycFilter, investorOnboardedFilter, issuerOnboardedFilter]);
+
+  const users = data?.users || [];
+  const totalUsers = data?.pagination.totalCount || 0;
+  const loading = isLoading;
 
   return (
     <>
@@ -259,17 +233,29 @@ export default function UsersPage() {
             onInvestorOnboardedFilterChange={setInvestorOnboardedFilter}
             issuerOnboardedFilter={issuerOnboardedFilter}
             onIssuerOnboardedFilterChange={setIssuerOnboardedFilter}
-            totalCount={users.length}
-            filteredCount={filteredUsers.length}
+            totalCount={totalUsers}
+            filteredCount={totalUsers}
             onClearFilters={handleClearFilters}
+            onReload={() => refetch()}
+            isLoading={isLoading}
           />
 
+          {error && (
+            <div className="text-center py-8 text-destructive">
+              Error loading users: {error instanceof Error ? error.message : "Unknown error"}
+            </div>
+          )}
+
           <UsersTable
-            users={paginatedUsers}
+            users={users.map((u) => ({
+              ...u,
+              created_at: new Date(u.created_at),
+              updated_at: new Date(u.updated_at),
+            }))}
             loading={loading}
             currentPage={currentPage}
             pageSize={pageSize}
-            totalUsers={filteredUsers.length}
+            totalUsers={totalUsers}
             onPageChange={setCurrentPage}
             onUserUpdate={handleUserUpdate}
           />

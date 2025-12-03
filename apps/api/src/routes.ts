@@ -2,6 +2,12 @@ import { Application, Router } from "express";
 import * as swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./lib/swagger";
 import { authRouter } from "./modules/auth/controller";
+import cognitoAuthRouter from "./modules/auth/cognito.routes";
+import { adminRouter } from "./modules/admin/controller";
+import { requireAuth, requireRole } from "./lib/auth/middleware";
+import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
+import { UserRole } from "@prisma/client";
+import { logger } from "./lib/logger";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -15,6 +21,9 @@ export function registerRoutes(app: Application): void {
       })
     );
   }
+
+  // Cognito OAuth routes (not versioned)
+  app.use("/api/auth", cognitoAuthRouter);
 
   const v1Router = Router();
 
@@ -46,6 +55,14 @@ export function registerRoutes(app: Application): void {
 
   // Register module routes
   v1Router.use("/auth", authRouter);
+  
+  // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
+  if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
+    logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
+    v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
+  } else {
+    v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
+  }
 
   app.use("/v1", v1Router);
 }

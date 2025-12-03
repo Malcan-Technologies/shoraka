@@ -10,6 +10,7 @@ import {
   completeOnboardingSchema,
   switchRoleSchema,
   createAdminUserSchema,
+  startOnboardingSchema,
   type SyncUserInput,
   type CreateAdminUserInput,
 } from "./schemas";
@@ -165,6 +166,42 @@ router.post("/check-onboarding", requireAuth, async (req: Request, res: Response
 
 /**
  * @swagger
+ * /v1/auth/start-onboarding:
+ *   post:
+ *     summary: Log when user starts onboarding
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 $ref: '#/components/schemas/UserRole'
+ *     responses:
+ *       200:
+ *         description: Onboarding start logged
+ */
+router.post("/start-onboarding", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+	  const validated = startOnboardingSchema.parse(req.body);
+	  const result = await authService.startOnboarding(req, req.user!.id, validated.role);
+	  
+	  res.json({
+		success: true,
+		data: result,
+		correlationId: res.locals.correlationId,
+	  });
+	} catch (error) {
+	  next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+	}
+  });
+
+/**
+ * @swagger
  * /v1/auth/complete-onboarding:
  *   post:
  *     summary: Mark onboarding as completed for a role
@@ -215,6 +252,52 @@ router.post("/complete-onboarding", requireAuth, async (req: Request, res: Respo
 router.post("/logout", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await authService.logout(req, req.user!.id);
+    
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/auth/refresh:
+ *   post:
+ *     summary: Refresh access token using refresh token
+ *     tags: [Authentication]
+ *     description: |
+ *       Exchanges a valid refresh token for a new access token and refresh token.
+ *       Implements token rotation and reuse detection for security.
+ *       The refresh token must be sent in the HTTP-Only cookie named 'refresh_token'.
+ *     responses:
+ *       200:
+ *         description: Tokens refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Tokens refreshed successfully
+ *       401:
+ *         description: No refresh token provided
+ *       403:
+ *         description: Invalid or reused refresh token (all user tokens revoked)
+ */
+router.post("/refresh", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await authService.refreshTokens(req, res);
     
     res.json({
       success: true,

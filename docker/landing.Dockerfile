@@ -7,6 +7,7 @@ RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY turbo.json ./
 COPY apps/landing/package.json ./apps/landing/
+COPY apps/api/package.json ./apps/api/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/styles/package.json ./packages/styles/
 COPY packages/types/package.json ./packages/types/
@@ -16,11 +17,14 @@ COPY packages/icons/package.json ./packages/icons/
 RUN pnpm install --frozen-lockfile
 
 COPY apps/landing ./apps/landing
+COPY apps/api/prisma ./apps/api/prisma
 COPY packages/ui ./packages/ui
 COPY packages/styles ./packages/styles
 COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
+
+RUN pnpm --filter @cashsouk/api prisma generate
 
 ARG NEXT_PUBLIC_API_URL
 

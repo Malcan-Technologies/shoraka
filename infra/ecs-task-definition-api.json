@@ -43,6 +43,70 @@
         {
           "name": "DATABASE_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url-rsKFxD"
+        },
+        {
+          "name": "COGNITO_USER_POOL_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COGNITO_USER_POOL_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COGNITO_CLIENT_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COGNITO_CLIENT_SECRET::"
+        },
+        {
+          "name": "COGNITO_DOMAIN",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COGNITO_DOMAIN::"
+        },
+        {
+          "name": "COGNITO_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COGNITO_REGION::"
+        },
+        {
+          "name": "REDIRECT_URI",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REDIRECT_URI::"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_SECRET::"
+        },
+        {
+          "name": "JWT_EXPIRES_IN",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_EXPIRES_IN::"
+        },
+        {
+          "name": "JWT_REFRESH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_REFRESH_SECRET::"
+        },
+        {
+          "name": "REFRESH_TOKEN_EXPIRES_IN",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REFRESH_TOKEN_EXPIRES_IN::"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SESSION_SECRET::"
+        },
+        {
+          "name": "FRONTEND_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:FRONTEND_URL::"
+        },
+        {
+          "name": "INVESTOR_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:INVESTOR_URL::"
+        },
+        {
+          "name": "ISSUER_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:ISSUER_URL::"
+        },
+        {
+          "name": "ADMIN_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:ADMIN_URL::"
+        },
+        {
+          "name": "COOKIE_DOMAIN",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COOKIE_DOMAIN::"
         }
       ],
       "healthCheck": {

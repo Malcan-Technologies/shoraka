@@ -6,36 +6,10 @@ import { Separator } from "../../../components/ui/separator";
 import { SystemHealthIndicator } from "../../../components/system-health-indicator";
 import { AccessLogsTable } from "../../../components/access-logs-table";
 import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
-import { subDays, subHours, isAfter } from "date-fns";
+import { useAccessLogs } from "../../../hooks/use-access-logs";
+import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
-type EventType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "SIGNUP"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "ONBOARDING_COMPLETED";
-
-interface AccessLog {
-  id: string;
-  user_id: string;
-  user: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    roles: string[];
-  };
-  event_type: EventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  cognito_event: Record<string, unknown> | null;
-  success: boolean;
-  metadata: Record<string, unknown> | null;
-  created_at: Date;
-}
-
-const mockAccessLogs: AccessLog[] = [
+/*const mockAccessLogs: AccessLog[] = [
   {
     id: "log_1",
     user_id: "user_1",
@@ -378,11 +352,9 @@ const mockAccessLogs: AccessLog[] = [
     metadata: { signup_method: "email", company_verified: true },
     created_at: subDays(new Date(), 45),
   },
-];
+];*/
 
 export default function AccessLogsPage() {
-  const [loading, setLoading] = React.useState(true);
-  const [logs] = React.useState<AccessLog[]>(mockAccessLogs);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -390,61 +362,30 @@ export default function AccessLogsPage() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 15;
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const filteredLogs = React.useMemo(() => {
-    let filtered = logs;
+  // Build API params from filters
+  const apiParams = React.useMemo(() => {
+    const params: GetAccessLogsParams = {
+      page: currentPage,
+      pageSize,
+      dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
+    };
 
     if (searchQuery) {
-      filtered = filtered.filter(
-        (log) =>
-          log.user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      params.search = searchQuery;
     }
 
     if (eventTypeFilter !== "all") {
-      filtered = filtered.filter((log) => log.event_type === eventTypeFilter);
+      params.eventType = eventTypeFilter as EventType;
     }
 
     if (statusFilter !== "all") {
-      filtered = filtered.filter((log) =>
-        statusFilter === "success" ? log.success : !log.success
-      );
+      params.status = statusFilter as "success" | "failed";
     }
 
-    if (dateRangeFilter !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
+    return params;
+  }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
 
-      switch (dateRangeFilter) {
-        case "24h":
-          cutoffDate = subHours(now, 24);
-          break;
-        case "7d":
-          cutoffDate = subDays(now, 7);
-          break;
-        case "30d":
-          cutoffDate = subDays(now, 30);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      filtered = filtered.filter((log) => isAfter(log.created_at, cutoffDate));
-    }
-
-    return filtered;
-  }, [logs, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
-
-  const paginatedLogs = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredLogs.slice(startIndex, startIndex + pageSize);
-  }, [filteredLogs, currentPage, pageSize]);
+  const { data, isLoading, error, refetch } = useAccessLogs(apiParams);
 
   const handleClearFilters = () => {
     setSearchQuery("");
@@ -457,6 +398,10 @@ export default function AccessLogsPage() {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+
+  const logs = data?.logs || [];
+  const totalLogs = data?.pagination.totalCount || 0;
+  const loading = isLoading;
 
   return (
     <>
@@ -479,17 +424,34 @@ export default function AccessLogsPage() {
             onStatusFilterChange={setStatusFilter}
             dateRangeFilter={dateRangeFilter}
             onDateRangeFilterChange={setDateRangeFilter}
-            totalCount={logs.length}
-            filteredCount={filteredLogs.length}
+            totalCount={totalLogs}
+            filteredCount={totalLogs}
             onClearFilters={handleClearFilters}
+            onReload={() => refetch()}
+            isLoading={isLoading}
+            exportFilters={{
+              search: searchQuery || undefined,
+              eventType: eventTypeFilter !== "all" ? (eventTypeFilter as EventType) : undefined,
+              status: statusFilter !== "all" ? (statusFilter as "success" | "failed") : undefined,
+              dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
+            }}
           />
 
+          {error && (
+            <div className="text-center py-8 text-destructive">
+              Error loading access logs: {error instanceof Error ? error.message : "Unknown error"}
+            </div>
+          )}
+
           <AccessLogsTable
-            logs={paginatedLogs}
+            logs={logs.map((log) => ({
+              ...log,
+              created_at: new Date(log.created_at),
+            }))}
             loading={loading}
             currentPage={currentPage}
             pageSize={pageSize}
-            totalLogs={filteredLogs.length}
+            totalLogs={totalLogs}
             onPageChange={setCurrentPage}
           />
         </div>

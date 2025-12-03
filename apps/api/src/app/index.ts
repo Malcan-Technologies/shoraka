@@ -1,6 +1,7 @@
 import express, { Application } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { PrismaClient } from "@prisma/client";
 import { logger } from "../lib/logger";
@@ -8,8 +9,10 @@ import { errorHandler } from "../lib/http/error-handler";
 import { notFoundHandler } from "../lib/http/not-found";
 import { correlationIdMiddleware } from "./middleware/cors";
 import { registerRoutes } from "../routes";
+import { createSessionMiddleware } from "./session";
+import { initializeOpenIdClient } from "../lib/openid-client";
 
-export function createApp(): Application {
+export async function createApp(): Promise<Application> {
   const app = express();
 
   app.use(helmet());
@@ -34,8 +37,13 @@ export function createApp(): Application {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cookieParser()); // Parse HTTP-Only cookies
+
+  app.use(createSessionMiddleware());
 
   app.use(correlationIdMiddleware);
+
+  await initializeOpenIdClient();
 
   app.use(
     pinoHttp({

@@ -41,10 +41,11 @@ model User {
   created_at                      DateTime   @default(now())
   updated_at                      DateTime   @updatedAt
 
-  loans        Loan[]
-  investments  Investment[]
-  access_logs  AccessLog[]
-  sessions     UserSession[]
+  loans          Loan[]
+  investments    Investment[]
+  access_logs    AccessLog[]
+  sessions       UserSession[]
+  refresh_tokens RefreshToken[]
   
   @@index([cognito_sub])
   @@map("users")
@@ -87,10 +88,12 @@ model Investment {
 model AccessLog {
   id             String   @id @default(cuid())
   user_id        String
-  event_type     String   // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED
+  event_type     String   // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED, ONBOARDING
+  portal         String?  // "investor", "issuer", "admin"
   ip_address     String?
   user_agent     String?  @db.Text
-  device_info    String?
+  device_info    String?  // Detailed device info (e.g., "Chrome 120 on Windows 10")
+  device_type    String?  // Simplified device type (e.g., "Windows Desktop", "iPhone")
   cognito_event  Json?
   success        Boolean  @default(true)
   metadata       Json?    // Stores active_role, auth_method, etc.
@@ -100,6 +103,7 @@ model AccessLog {
   
   @@index([user_id])
   @@index([event_type])
+  @@index([portal])
   @@index([created_at])
   @@index([user_id, created_at])
   @@map("access_logs")
@@ -125,4 +129,33 @@ model UserSession {
   @@index([user_id, active_role])
   @@map("user_sessions")
 }
+
+model RefreshToken {
+  id                 String    @id @default(cuid())
+  token              String    @unique @db.VarChar(512)
+  user_id            String
+  
+  // Security tracking
+  device_fingerprint String?   @db.VarChar(255)
+  ip_address         String?   @db.VarChar(45) // IPv6 max length
+  user_agent         String?   @db.Text
+  
+  // Token lifecycle
+  created_at         DateTime  @default(now())
+  expires_at         DateTime
+  used_at            DateTime? // When token was used for refresh
+  used               Boolean   @default(false)
+  revoked            Boolean   @default(false)
+  revoked_at         DateTime?
+  revoked_reason     String?   @db.VarChar(255)
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([token])
+  @@index([user_id, revoked])
+  @@index([expires_at])
+  @@map("refresh_tokens")
+}
+
 

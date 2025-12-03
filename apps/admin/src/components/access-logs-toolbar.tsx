@@ -10,7 +10,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { AccessLogsExportButton } from "./access-logs-export-button";
+import type { ExportAccessLogsParams } from "@cashsouk/types";
 
 interface AccessLogsToolbarProps {
   searchQuery: string;
@@ -24,6 +26,9 @@ interface AccessLogsToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
+  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  onReload?: () => void;
+  isLoading?: boolean;
 }
 
 export function AccessLogsToolbar({
@@ -38,6 +43,9 @@ export function AccessLogsToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
+  exportFilters,
+  onReload,
+  isLoading = false,
 }: AccessLogsToolbarProps) {
   const hasFilters =
     searchQuery !== "" ||
@@ -117,6 +125,20 @@ export function AccessLogsToolbar({
           Clear
         </Button>
       )}
+
+      {onReload && (
+        <Button
+          variant="outline"
+          onClick={onReload}
+          disabled={isLoading}
+          className="gap-2 h-11 rounded-xl"
+        >
+          <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          Reload
+        </Button>
+      )}
+
+      {exportFilters && <AccessLogsExportButton filters={exportFilters} />}
 
       <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
         {filteredCount} {filteredCount === 1 ? "log" : "logs"}

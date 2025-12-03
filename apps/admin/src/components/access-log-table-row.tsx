@@ -3,31 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
+import type { EventType, AccessLogResponse } from "@cashsouk/types";
 
-type EventType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "SIGNUP"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "ONBOARDING_COMPLETED";
-
-interface AccessLog {
-  id: string;
-  user_id: string;
-  user: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    roles: string[];
-  };
-  event_type: EventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  cognito_event: Record<string, unknown> | null;
-  success: boolean;
-  metadata: Record<string, unknown> | null;
+interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
 }
 
@@ -36,13 +14,15 @@ interface AccessLogTableRowProps {
   onViewDetails: () => void;
 }
 
-const eventTypeColors: Record<EventType, string> = {
+const eventTypeColors: Partial<Record<EventType, string>> = {
   LOGIN: "bg-blue-100 text-blue-800 border-blue-200",
   LOGOUT: "bg-gray-100 text-gray-800 border-gray-200",
   SIGNUP: "bg-green-100 text-green-800 border-green-200",
   ROLE_ADDED: "bg-purple-100 text-purple-800 border-purple-200",
   ROLE_SWITCHED: "bg-orange-100 text-orange-800 border-orange-200",
   ONBOARDING_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
+  KYC_STATUS_UPDATED: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  ONBOARDING_STATUS_UPDATED: "bg-indigo-100 text-indigo-800 border-indigo-200",
 };
 
 export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps) {

@@ -67,3 +67,13 @@ export const createAdminUserSchema = z.object({
 
 export type CreateAdminUserInput = z.infer<typeof createAdminUserSchema>;
 
+/**
+ * Schema for start-onboarding endpoint
+ * Logs when user lands on onboarding page
+ */
+export const startOnboardingSchema = z.object({
+	role: z.nativeEnum(UserRole).optional(),
+});
+
+export type StartOnboardingInput = z.infer<typeof startOnboardingSchema>;
+

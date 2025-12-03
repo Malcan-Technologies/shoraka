@@ -1,4 +1,4 @@
-export type UserRole = "INVESTOR" | "BORROWER" | "ADMIN";
+export type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
 
 export type LoanStatus =
   | "DRAFT"
@@ -61,4 +61,6 @@ export interface Investment {
   createdAt: string;
   updatedAt: string;
 }
+
+export * from "./admin";
 
