@@ -219,7 +219,7 @@ jobs:
 
           # Use the base template with all environment variables and secrets
           TEMPLATE=$(cat infra/ecs-task-definition-api.json)
-          
+
           # Update only the image tag, keep secrets
           NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
             .containerDefinitions[0].image = $IMAGE
