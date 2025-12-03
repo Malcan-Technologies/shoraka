@@ -746,8 +746,26 @@ router.get("/logout", async (req: Request, res: Response) => {
   }
 
   // Clear HTTP-Only cookies
-  res.clearCookie("access_token", { path: "/" });
-  res.clearCookie("refresh_token", { path: "/api/auth/refresh" });
+  // IMPORTANT: Must use the SAME options as when cookies were set (domain, path, secure, sameSite)
+  // Otherwise cookies won't be properly cleared
+  const envForCookies = getEnv();
+  
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    secure: envForCookies.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    domain: envForCookies.COOKIE_DOMAIN,
+  });
+  
+  // refresh_token uses same path "/" (not /api/auth/refresh)
+  res.clearCookie("refresh_token", {
+    httpOnly: true,
+    secure: envForCookies.NODE_ENV === "production",
+    sameSite: envForCookies.NODE_ENV === "production" ? "strict" : "lax",
+    path: "/",
+    domain: envForCookies.COOKIE_DOMAIN,
+  });
 
   // Sign out from Cognito using AdminUserGlobalSignOut
   // This revokes all tokens and signs out the user from all devices
