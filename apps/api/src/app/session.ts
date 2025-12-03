@@ -85,7 +85,9 @@ export async function createSessionMiddleware() {
     secret: env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    name: "cashsouk.sid",
+    // Use __Host- prefix to indicate this is a security cookie (helps with Safari ITP)
+    // __Host- requires: secure=true, path=/, no domain attribute
+    name: env.NODE_ENV === "production" ? "__Host-cashsouk.sid" : "cashsouk.sid",
     cookie: {
       httpOnly: true,
       // Must use HTTPS in production, but development can use HTTP
@@ -94,9 +96,10 @@ export async function createSessionMiddleware() {
       // Safari blocks "none" in OAuth flows, but "lax" allows cookies on top-level navigations
       sameSite: "lax",
       maxAge: 15 * 60 * 1000, // 15 minutes (matching Cognito token expiry)
-      // Don't set domain - use exact host matching for better Safari compatibility
+      // __Host- prefix REQUIRES domain to be undefined (exact host matching)
+      // This actually improves Safari ITP compatibility
       domain: undefined,
-      // Path must be / for session to work across all routes
+      // Path must be / for session to work across all routes (also required by __Host-)
       path: "/",
     },
   };

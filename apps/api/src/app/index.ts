@@ -15,22 +15,12 @@ import { initializeOpenIdClient } from "../lib/openid-client";
 export async function createApp(): Promise<Application> {
   const app = express();
 
-  // Helmet with relaxed CSP for OAuth redirects
+  // Helmet security headers
+  // Disable CSP for API server - CSP is for HTML pages, not JSON APIs
+  // The frontends have their own CSP configurations
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for OAuth redirects
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'"],
-          fontSrc: ["'self'", "data:"],
-          objectSrc: ["'none'"],
-          mediaSrc: ["'self'"],
-          frameSrc: ["'none'"],
-        },
-      },
+      contentSecurityPolicy: false, // API doesn't serve HTML, CSP not needed
     })
   );
 
