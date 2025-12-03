@@ -90,12 +90,11 @@ export async function createSessionMiddleware() {
       httpOnly: true,
       // Must use HTTPS in production, but development can use HTTP
       secure: env.NODE_ENV === "production",
-      // sameSite "none" required for OAuth redirects through Cognito (both dev and prod)
-      // This allows cookies to be sent on cross-site redirects from amazoncognito.com
-      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      // sameSite "lax" works for OAuth because the callback is a top-level navigation
+      // Safari blocks "none" in OAuth flows, but "lax" allows cookies on top-level navigations
+      sameSite: "lax",
       maxAge: 15 * 60 * 1000, // 15 minutes (matching Cognito token expiry)
-      // In production, don't set domain - use exact host matching for better Safari compatibility
-      // Setting domain would require __Host- prefix which has strict requirements
+      // Don't set domain - use exact host matching for better Safari compatibility
       domain: undefined,
       // Path must be / for session to work across all routes
       path: "/",
