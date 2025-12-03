@@ -3,8 +3,6 @@ services:
     build:
       context: .
       dockerfile: docker/landing.Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3000:3000"
     environment:
@@ -34,8 +32,6 @@ services:
     build:
       context: .
       dockerfile: docker/portal-issuer.Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3001:3000"
     environment:
@@ -65,8 +61,6 @@ services:
     build:
       context: .
       dockerfile: docker/portal-investor.Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3002:3000"
     environment:
@@ -96,8 +90,6 @@ services:
     build:
       context: .
       dockerfile: docker/portal-admin.Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.cashsouk.com}
     ports:
       - "3003:3000"
     environment:

@@ -26,12 +26,13 @@ COPY packages/icons ./packages/icons
 
 RUN pnpm --filter @cashsouk/api prisma generate
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 
 RUN rm -rf apps/landing/.next && \
-    if [ -z "${NEXT_PUBLIC_API_URL}" ]; then echo "❌ ERROR: NEXT_PUBLIC_API_URL is empty!" && exit 1; fi && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/landing/.env.production && \
-    pnpm --filter @cashsouk/landing build
+    echo "📝 Building with API URL: ${NEXT_PUBLIC_API_URL}" && \
+    pnpm --filter @cashsouk/landing build && \
+    echo "✅ Landing portal built successfully"
 
 FROM node:20-alpine AS runner
 
