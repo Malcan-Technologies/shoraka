@@ -18,7 +18,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.amazoncognito.com https://api.cashsouk.com",
+              "connect-src 'self' https://*.amazoncognito.com https://api.cashsouk.com http://localhost:4000 http://localhost:3000",
               "frame-src 'self' https://*.amazoncognito.com",
             ].join('; '),
           },

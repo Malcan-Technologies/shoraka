@@ -14,6 +14,7 @@ import {
   useUpdateUserOnboarding,
 } from "../hooks/use-admin-users";
 import type { UserRole } from "@cashsouk/types";
+import { EditUserDialog } from "./edit-user-dialog";
 
 interface User {
   id: string;
@@ -48,6 +49,8 @@ const roleColors: Record<string, string> = {
 
 export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: UserTableRowProps) {
   const [editedUser, setEditedUser] = React.useState<Partial<User>>(user);
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [isConfirming, setIsConfirming] = React.useState(false);
   const updateRoles = useUpdateUserRoles();
   const updateKyc = useUpdateUserKyc();
   const updateOnboarding = useUpdateUserOnboarding();
@@ -55,10 +58,26 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   React.useEffect(() => {
     if (isEditing) {
       setEditedUser(user);
+      // Reset dialog state when entering edit mode
+      setShowConfirmDialog(false);
+      setIsConfirming(false);
     }
   }, [isEditing, user]);
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
+  const handleCancel = () => {
+    // Reset dialog state when canceling
+    setShowConfirmDialog(false);
+    setIsConfirming(false);
+    onCancel();
+  };
+
+  const handleConfirmSave = async () => {
+    setIsConfirming(true);
     try {
       // Update roles if changed
       const rolesChanged = JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
@@ -71,27 +90,63 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         await updateKyc.mutateAsync({ id: user.id, kycVerified: editedUser.kyc_verified });
       }
 
-      // Update onboarding if changed
+      // Update onboarding if changed - only send changed fields
+      // Normalize null/undefined to false for comparison (switches use ?? false)
+      const normalizeBoolean = (val: boolean | null | undefined) => val ?? false;
+      
       const investorChanged =
         editedUser.investor_onboarding_completed !== undefined &&
-        editedUser.investor_onboarding_completed !== user.investor_onboarding_completed;
+        normalizeBoolean(editedUser.investor_onboarding_completed) !== normalizeBoolean(user.investor_onboarding_completed);
       const issuerChanged =
         editedUser.issuer_onboarding_completed !== undefined &&
-        editedUser.issuer_onboarding_completed !== user.issuer_onboarding_completed;
+        normalizeBoolean(editedUser.issuer_onboarding_completed) !== normalizeBoolean(user.issuer_onboarding_completed);
 
       if (investorChanged || issuerChanged) {
+        const onboarding: { investorOnboarded?: boolean; issuerOnboarded?: boolean } = {};
+        
+        // Only include fields that actually changed
+        if (investorChanged) {
+          onboarding.investorOnboarded = editedUser.investor_onboarding_completed;
+        }
+        if (issuerChanged) {
+          onboarding.issuerOnboarded = editedUser.issuer_onboarding_completed;
+        }
+        
         await updateOnboarding.mutateAsync({
           id: user.id,
-          onboarding: {
-            investorOnboarded: editedUser.investor_onboarding_completed,
-            issuerOnboarded: editedUser.issuer_onboarding_completed,
-          },
+          onboarding,
         });
+
+        // Backend auto-adds/removes roles based on onboarding status
+        // Update local state to reflect these changes
+        let updatedRoles = [...(editedUser.roles || user.roles)];
+        
+        if (onboarding.investorOnboarded === true && !updatedRoles.includes("INVESTOR" as UserRole)) {
+          updatedRoles.push("INVESTOR" as UserRole);
+        }
+        if (onboarding.investorOnboarded === false && updatedRoles.includes("INVESTOR" as UserRole)) {
+          updatedRoles = updatedRoles.filter((r) => r !== "INVESTOR");
+        }
+        
+        if (onboarding.issuerOnboarded === true && !updatedRoles.includes("ISSUER" as UserRole)) {
+          updatedRoles.push("ISSUER" as UserRole);
+        }
+        if (onboarding.issuerOnboarded === false && updatedRoles.includes("ISSUER" as UserRole)) {
+          updatedRoles = updatedRoles.filter((r) => r !== "ISSUER");
+        }
+        
+        // Update editedUser with the new roles
+        setEditedUser({ ...editedUser, roles: updatedRoles });
       }
 
+      // Close dialog and save only after all updates succeed
+      setShowConfirmDialog(false);
       onSave(editedUser);
     } catch (error) {
       // Error handling is done in the mutation hooks via toast
+      // Don't close dialog on error so user can try again
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -105,9 +160,14 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
 
   const isSaving = updateRoles.isPending || updateKyc.isPending || updateOnboarding.isPending;
 
+  const userName = user.first_name && user.last_name 
+    ? `${user.first_name} ${user.last_name}`
+    : user.email;
+
   if (isEditing) {
     return (
-      <TableRow className="bg-muted/30">
+      <>
+        <TableRow className="bg-muted/30">
         <TableCell>
           <div className="flex gap-2">
             <Input
@@ -184,22 +244,35 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         </TableCell>
         <TableCell>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} className="h-8" disabled={isSaving}>
+            <Button size="sm" onClick={handleSaveClick} className="h-8" disabled={isSaving}>
               <CheckIcon className="h-4 w-4 mr-1" />
               {isSaving ? "Saving..." : "Save"}
             </Button>
-            <Button size="sm" variant="outline" onClick={onCancel} className="h-8" disabled={isSaving}>
+            <Button size="sm" variant="outline" onClick={handleCancel} className="h-8" disabled={isSaving}>
               <XMarkIcon className="h-4 w-4 mr-1" />
               Cancel
             </Button>
           </div>
         </TableCell>
       </TableRow>
+      <EditUserDialog
+        open={showConfirmDialog}
+        onOpenChange={(open) => {
+          // Only allow closing if not currently saving or confirming
+          if (!isSaving && !isConfirming) {
+            setShowConfirmDialog(open);
+          }
+        }}
+        userName={userName}
+        onConfirm={handleConfirmSave}
+      />
+      </>
     );
   }
 
   return (
-    <TableRow className="hover:bg-muted/50">
+    <>
+      <TableRow className="hover:bg-muted/50">
       <TableCell className="font-medium text-[15px]">
         {user.first_name} {user.last_name}
       </TableCell>
@@ -244,7 +317,8 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           Edit
         </Button>
       </TableCell>
-    </TableRow>
+      </TableRow>
+    </>
   );
 }
 

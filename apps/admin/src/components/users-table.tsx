@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
 import { UserTableRow } from "./user-table-row";
-import { EditUserDialog } from "./edit-user-dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
@@ -93,28 +92,16 @@ export function UsersTable({
   onUserUpdate,
 }: UsersTableProps) {
   const [editingUserId, setEditingUserId] = React.useState<string | null>(null);
-  const [pendingUpdate, setPendingUpdate] = React.useState<{
-    userId: string;
-    data: Partial<User>;
-  } | null>(null);
-  const [dialogOpen, setDialogOpen] = React.useState(false);
 
   const handleEdit = (userId: string) => {
     setEditingUserId(userId);
   };
 
   const handleSave = (userId: string, updatedUser: Partial<User>) => {
-    setPendingUpdate({ userId, data: updatedUser });
-    setDialogOpen(true);
-  };
-
-  const handleConfirm = () => {
-    if (pendingUpdate) {
-      onUserUpdate(pendingUpdate.userId, pendingUpdate.data);
-      setEditingUserId(null);
-      setPendingUpdate(null);
-    }
-    setDialogOpen(false);
+    // Row component handles its own confirmation dialog
+    // Just update the user data directly
+    onUserUpdate(userId, updatedUser);
+    setEditingUserId(null);
   };
 
   const handleCancel = () => {
@@ -124,8 +111,6 @@ export function UsersTable({
   const totalPages = Math.ceil(totalUsers / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalUsers);
-
-  const editingUser = users.find((u) => u.id === editingUserId);
 
   return (
     <>
@@ -199,13 +184,6 @@ export function UsersTable({
           </div>
         )}
       </div>
-
-      <EditUserDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        userName={editingUser ? `${editingUser.first_name} ${editingUser.last_name}` : "this user"}
-        onConfirm={handleConfirm}
-      />
     </>
   );
 }

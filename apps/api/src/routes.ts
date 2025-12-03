@@ -22,7 +22,7 @@ export function registerRoutes(app: Application): void {
     );
   }
 
-  // Cognito OAuth routes (not versioned)
+  // Cognito OAuth routes - also available at /api/auth for backward compatibility
   app.use("/api/auth", cognitoAuthRouter);
 
   const v1Router = Router();
@@ -55,6 +55,9 @@ export function registerRoutes(app: Application): void {
 
   // Register module routes
   v1Router.use("/auth", authRouter);
+  
+  // Cognito OAuth routes under v1 (for consistency with versioned API)
+  v1Router.use("/auth/cognito", cognitoAuthRouter);
   
   // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

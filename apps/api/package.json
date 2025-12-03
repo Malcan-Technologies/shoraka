@@ -15,6 +15,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
+	"create-admin": "tsx scripts/create-admin.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {

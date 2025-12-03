@@ -48,11 +48,28 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
       "Login redirect requested"
     );
 
+    // CRITICAL: Admin portal is sign-in only - never allow sign-up
+    const signupParam = req.query.signup === "true";
+    if (requestedRole === UserRole.ADMIN && signupParam) {
+      logger.warn(
+        {
+          correlationId,
+          requestedRole,
+          attemptedSignup: signupParam,
+        },
+        "Sign-up attempt blocked for admin role - admin portal is sign-in only"
+      );
+      
+      // Redirect back to admin login without signup parameter
+      const adminLoginUrl = new URL(req.originalUrl.split("?")[0], `${req.protocol}://${req.get("host")}`);
+      adminLoginUrl.searchParams.set("role", "ADMIN");
+      return res.redirect(adminLoginUrl.toString());
+    }
+
     // Prepare OAuth security tokens
     const client = getOpenIdClient();
     const nonce = generators.nonce(); // Nonce is a random string used to prevent replay attacks
     const oauthState = generators.state(); // State is a random string used to prevent CSRF attacks
-    const signupParam = req.query.signup === "true";
 
     // Instead of storing in session (Safari ITP blocks cookies), encrypt state and embed in URL
     // This is Safari-proof and more secure for cross-domain OAuth flows
@@ -403,10 +420,60 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       logger.info({ correlationId, userId: user.id, email }, "User found in database");
     }
 
+    // Extract request metadata early (needed for both success and error cases)
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+
     // Determine active role:
     // Always use the requestedRole (from the login button clicked)
     // This ensures users go to the portal they requested, even if they don't have that role yet
+    // EXCEPTION: ADMIN role requires explicit ADMIN role in database - no signup allowed
     const activeRole: UserRole = requestedRole;
+
+    // CRITICAL: Admin portal is sign-in only - users must have ADMIN role in database
+    if (requestedRole === UserRole.ADMIN && !user.roles.includes(UserRole.ADMIN)) {
+      logger.warn(
+        {
+          correlationId,
+          userId: user.id,
+          email: user.email,
+          requestedRole,
+          userRoles: user.roles,
+        },
+        "User attempted to access admin portal without ADMIN role"
+      );
+
+      // Log failed admin access attempt
+      await prisma.accessLog.create({
+        data: {
+          user_id: user.id,
+          event_type: "LOGIN",
+          portal: "admin",
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          device_info: deviceInfo,
+          device_type: deviceType,
+          success: false,
+          metadata: {
+            requestedRole,
+            userRoles: user.roles,
+            reason: "User does not have ADMIN role",
+          },
+        },
+      });
+
+      // Logout user from Cognito and redirect to landing page
+      // This breaks the infinite loop where Cognito auto-authenticates the same user
+      // User will need to manually navigate to admin portal again with correct credentials
+      const apiBaseUrl = `${req.protocol}://${req.get("host")}`;
+      const logoutUrl = new URL(`${apiBaseUrl}/v1/auth/cognito/logout`);
+      
+      logger.info(
+        { correlationId, userId: user.id, redirectUrl: logoutUrl.toString() },
+        "Logging out non-admin user from Cognito - will redirect to landing page"
+      );
+      
+      return res.redirect(logoutUrl.toString());
+    }
 
     logger.info(
       {
@@ -423,7 +490,6 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
     // Generate token pair (access + refresh)
     const tokens = generateTokenPair(user.id, user.email, user.roles, activeRole);
 
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const deviceFingerprint = getDeviceFingerprint(req);
     const portal = getPortalFromRole(activeRole);
 
@@ -498,14 +564,28 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       "Authentication successful - tokens set in HTTP-Only cookies"
     );
 
-    const frontendUrl = env.FRONTEND_URL;
-
-    const redirectUrl = new URL("/callback", frontendUrl);
-
     // IMPORTANT: Since we use encrypted state (no cookies during OAuth flow),
     // we MUST pass tokens in URL for the callback page to work
-    // The landing /callback page will then store tokens in localStorage
-    // and redirect to the appropriate portal with the token
+    // Each portal has its own callback handler
+    
+    // Determine which portal callback to redirect to
+    let callbackUrl: string;
+    
+    if (activeRole === UserRole.ADMIN && env.ADMIN_URL) {
+      // Admin users go directly to admin callback
+      callbackUrl = `${env.ADMIN_URL}/callback`;
+    } else if (activeRole === UserRole.INVESTOR && env.INVESTOR_URL) {
+      // Investor users go to investor callback (if exists) or landing callback
+      callbackUrl = env.FRONTEND_URL + "/callback";
+    } else if (activeRole === UserRole.ISSUER && env.ISSUER_URL) {
+      // Issuer users go to issuer callback (if exists) or landing callback
+      callbackUrl = env.FRONTEND_URL + "/callback";
+    } else {
+      // Default to landing callback
+      callbackUrl = `${env.FRONTEND_URL}/callback`;
+    }
+
+    const redirectUrl = new URL(callbackUrl);
     redirectUrl.searchParams.set("token", tokens.accessToken);
     redirectUrl.searchParams.set("refresh_token", tokens.refreshToken);
 
@@ -514,9 +594,11 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
         correlationId,
         redirectUrl: redirectUrl.toString(),
         tokenLength: tokens.accessToken.length,
+        activeRole: activeRole.toString(),
+        callbackUrl,
         method: "token-in-url",
       },
-      "Redirecting to callback with tokens in URL"
+      "Redirecting to portal callback with tokens in URL"
     );
 
     // Always include the role in the redirect URL so the callback page knows which portal to redirect to
@@ -691,7 +773,9 @@ router.get("/logout", async (req: Request, res: Response) => {
   // Redirect to Cognito's /logout endpoint
   // According to AWS docs, this endpoint requires client_id and logout_uri parameters
   // It will sign out the user from the hosted UI and redirect them back
+  // Always use default logout URL (landing page) which is already configured in Cognito
   const logoutUrl = getCognitoLogoutUrl();
+  
   logger.info(
     { correlationId, logoutUrl, userId, portal },
     "Redirecting to Cognito logout endpoint"

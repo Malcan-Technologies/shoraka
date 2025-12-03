@@ -6,6 +6,7 @@ import { AppSidebar } from "../components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
+import { AuthGuard } from "../components/auth-guard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,13 +23,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="theme-admin">
       <body className={inter.className}>
         <Providers>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              {children}
-            </SidebarInset>
-          </SidebarProvider>
-          <Toaster />
+          <AuthGuard>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                {children}
+              </SidebarInset>
+            </SidebarProvider>
+            <Toaster />
+          </AuthGuard>
         </Providers>
       </body>
     </html>

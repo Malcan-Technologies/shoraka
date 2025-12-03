@@ -154,26 +154,28 @@ export class AdminService {
       throw new Error("User not found");
     }
 
-    // Validate role requirements
-    if (data.investorOnboarded && !user.roles.includes(UserRole.INVESTOR)) {
-      throw new Error("User must have INVESTOR role to complete investor onboarding");
+    // Manage roles based on onboarding status
+    let updatedRoles = [...user.roles];
+
+    // When setting onboarding to true, automatically add the role if not present
+    if (data.investorOnboarded === true && !updatedRoles.includes(UserRole.INVESTOR)) {
+      updatedRoles.push(UserRole.INVESTOR);
     }
 
-    if (data.issuerOnboarded && !user.roles.includes(UserRole.ISSUER)) {
-      throw new Error("User must have ISSUER role to complete issuer onboarding");
+    if (data.issuerOnboarded === true && !updatedRoles.includes(UserRole.ISSUER)) {
+      updatedRoles.push(UserRole.ISSUER);
     }
 
-	let updatedRoles = [...user.roles];
+    // When setting onboarding to false, remove the role
+    if (data.investorOnboarded === false && updatedRoles.includes(UserRole.INVESTOR)) {
+      updatedRoles = updatedRoles.filter(role => role !== UserRole.INVESTOR);
+    }
 
-	if (data.investorOnboarded == false && updatedRoles.includes(UserRole.INVESTOR)) {
-		updatedRoles = updatedRoles.filter(role => role !== UserRole.INVESTOR);
-	}
+    if (data.issuerOnboarded === false && updatedRoles.includes(UserRole.ISSUER)) {
+      updatedRoles = updatedRoles.filter(role => role !== UserRole.ISSUER);
+    }
 
-	if (data.issuerOnboarded == false && updatedRoles.includes(UserRole.ISSUER)) {
-		updatedRoles = updatedRoles.filter(role => role !== UserRole.ISSUER);
-	}
-
-	const rolesChanged = JSON.stringify(updatedRoles.sort()) !== JSON.stringify(user.roles.sort());
+    const rolesChanged = JSON.stringify(updatedRoles.sort()) !== JSON.stringify(user.roles.sort());
 
     const updatedUser = await this.repository.updateUserOnboarding(
 		userId,
