@@ -1,4 +1,8 @@
-import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
+import {
+  CognitoIdentityProviderClient,
+  AdminCreateUserCommand,
+  AdminUpdateUserAttributesCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
@@ -88,12 +92,7 @@ export class AuthService {
    * Add a role to an existing user
    * Updates both Cognito custom attribute and database
    */
-  async addRole(
-    req: Request,
-    userId: string,
-    cognitoSub: string,
-    role: UserRole
-  ): Promise<User> {
+  async addRole(req: Request, userId: string, cognitoSub: string, role: UserRole): Promise<User> {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
     // Add role in database
@@ -101,7 +100,7 @@ export class AuthService {
 
     // Update Cognito custom:roles attribute
     const rolesString = formatRolesForCognito(updatedUser.roles);
-    
+
     const command = new AdminUpdateUserAttributesCommand({
       UserPoolId: COGNITO_USER_POOL_ID,
       Username: cognitoSub,
@@ -138,12 +137,15 @@ export class AuthService {
   /**
    * Check if onboarding is completed for a specific role
    */
-  async checkOnboarding(userId: string, role: UserRole): Promise<{
+  async checkOnboarding(
+    userId: string,
+    role: UserRole
+  ): Promise<{
     completed: boolean;
     redirectTo?: string;
   }> {
     const user = await this.repository.findUserByCognitoSub(userId);
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -166,56 +168,56 @@ export class AuthService {
    * Log when user starts onboarding(lands on onboarding page)
    */
   async startOnboarding(
-	req: Request,
-	userId: string,
-	role?: UserRole
+    req: Request,
+    userId: string,
+    role?: UserRole
   ): Promise<{ success: boolean }> {
-	const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
-	// Get user to determine role if not provided
-	const user = await prisma.user.findUnique({
-		where: { id: userId },
-	});
+    // Get user to determine role if not provided
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-	if (!user) {
-		throw new Error("User not found");
-	}
+    if (!user) {
+      throw new Error("User not found");
+    }
 
-	let onboardingRole = role;
-	if (!onboardingRole) {
-		const authHeader = req.headers.authorization;
-		if (authHeader?.startsWith("Bearer ")) {
-			try {
-				const token = authHeader.substring(7);
-				const payload = verifyToken(token);
-				onboardingRole = payload.activeRole;
-			} catch (error) {
-				onboardingRole = user.roles[0] || UserRole.INVESTOR;
-			}
-		} else {
-			onboardingRole = user.roles[0] || UserRole.INVESTOR;
-		}
-	}
+    let onboardingRole = role;
+    if (!onboardingRole) {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith("Bearer ")) {
+        try {
+          const token = authHeader.substring(7);
+          const payload = verifyToken(token);
+          onboardingRole = payload.activeRole;
+        } catch (error) {
+          onboardingRole = user.roles[0] || UserRole.INVESTOR;
+        }
+      } else {
+        onboardingRole = user.roles[0] || UserRole.INVESTOR;
+      }
+    }
 
-	const portal = getPortalFromRole(onboardingRole);
+    const portal = getPortalFromRole(onboardingRole);
 
-	// Create access log
-	await this.repository.createAccessLog({
-		userId: user.id,
-		eventType: "ONBOARDING",
-		portal,
-		ipAddress,
-		userAgent,
-		deviceInfo,
-		deviceType,
-		success: true,
-		metadata: {
-		  role: onboardingRole,
-		  roles: user.roles,
-		},
-	  });
-	
-	  return { success: true };
+    // Create access log
+    await this.repository.createAccessLog({
+      userId: user.id,
+      eventType: "ONBOARDING",
+      portal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        role: onboardingRole,
+        roles: user.roles,
+      },
+    });
+
+    return { success: true };
   }
 
   /**
@@ -234,7 +236,7 @@ export class AuthService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -256,13 +258,13 @@ export class AuthService {
       console.log("Adding role to user:", role);
       updatedUser = await this.repository.addRoleToUser(user.id, role);
       console.log("Role added. Updated roles:", updatedUser.roles);
-      
+
       // Update Cognito custom:roles attribute if not ADMIN
       // This is optional - if AWS credentials aren't configured (e.g., local dev), we'll skip it
       if (role !== UserRole.ADMIN) {
         try {
           const rolesString = formatRolesForCognito(updatedUser.roles);
-          
+
           const command = new AdminUpdateUserAttributesCommand({
             UserPoolId: COGNITO_USER_POOL_ID,
             Username: user.cognito_sub,
@@ -278,7 +280,10 @@ export class AuthService {
         } catch (error) {
           // Log warning but don't fail - Cognito sync is optional in local dev
           // In production, AWS credentials should be configured
-          console.warn("Failed to update Cognito custom:roles attribute:", error instanceof Error ? error.message : String(error));
+          console.warn(
+            "Failed to update Cognito custom:roles attribute:",
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     } else {
@@ -329,11 +334,11 @@ export class AuthService {
 
     // Find active session
     const session = await this.repository.findActiveSession(userId);
-    
+
     // Use activeRole from parameter, session, or default to first role
     const roleForPortal = activeRole || session?.active_role || null;
     const portal = roleForPortal ? getPortalFromRole(roleForPortal) : undefined;
-    
+
     if (session) {
       await this.repository.revokeSession(session.id);
     }
@@ -352,7 +357,8 @@ export class AuthService {
     });
 
     // Return Cognito logout URL
-    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${process.env.COGNITO_CLIENT_ID}&logout_uri=${encodeURIComponent("https://cashsouk.com")}`;
+    const env = await import("../../config/env").then((m) => m.getEnv());
+    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${process.env.COGNITO_CLIENT_ID}&logout_uri=${encodeURIComponent(env.FRONTEND_URL)}`;
 
     return {
       success: true,
@@ -371,7 +377,7 @@ export class AuthService {
     };
   }> {
     const user = await this.repository.findUserByCognitoSub(userId);
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -402,7 +408,7 @@ export class AuthService {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const portal = getPortalFromRole(role);
     const user = await this.repository.findUserByCognitoSub(userId);
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -414,7 +420,7 @@ export class AuthService {
 
     // Update active session
     const session = await this.repository.findActiveSession(user.id);
-    
+
     if (session) {
       await this.repository.updateSessionActiveRole(session.id, role);
     }
@@ -450,11 +456,11 @@ export class AuthService {
   ): Promise<{ message: string; accessToken?: string; refreshToken?: string }> {
     const env = getEnv();
     const { ipAddress, userAgent } = extractRequestMetadata(req);
-    
+
     // Get refresh token from HTTP-Only cookie (production) or request body/header (development)
     // In development, cookies don't work across different ports (localhost:4000 vs localhost:3002)
     let refreshToken = req.cookies?.refresh_token;
-    
+
     // Fallback for development: Check Authorization header
     if (!refreshToken) {
       const authHeader = req.headers.authorization;
@@ -465,20 +471,23 @@ export class AuthService {
           const decoded = verifyRefreshToken(token);
           if (decoded.tokenType === "refresh") {
             refreshToken = token;
-            logger.info({ source: "authorization_header" }, "Using refresh token from Authorization header (dev mode)");
+            logger.info(
+              { source: "authorization_header" },
+              "Using refresh token from Authorization header (dev mode)"
+            );
           }
         } catch {
           // Not a refresh token, ignore
         }
       }
     }
-    
+
     // Fallback: Check request body for development mode
     if (!refreshToken && req.body?.refreshToken) {
       refreshToken = req.body.refreshToken;
       logger.info({ source: "request_body" }, "Using refresh token from request body (dev mode)");
     }
-    
+
     if (!refreshToken) {
       logger.warn(
         {
@@ -495,7 +504,7 @@ export class AuthService {
     try {
       // Verify refresh token signature and expiration
       verifyRefreshToken(refreshToken);
-      
+
       // Find token in database
       const storedToken = await prisma.refreshToken.findUnique({
         where: { token: refreshToken },
@@ -636,7 +645,7 @@ export class AuthService {
       // Return success with message
       // In development, also return tokens in response body (cookies don't work across ports)
       const isDevelopment = env.NODE_ENV === "development";
-      
+
       if (isDevelopment || !env.COOKIE_DOMAIN) {
         // Dev mode: Return tokens in response so frontend can store in localStorage
         return {
@@ -707,4 +716,3 @@ export class AuthService {
     };
   }
 }
-

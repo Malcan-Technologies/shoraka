@@ -3,11 +3,10 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// In development, use localhost. In production, use the deployed landing page.
 const LANDING_URL =
-  typeof window !== "undefined" && window.location.hostname === "localhost"
+  process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
-    : "https://www.cashsouk.com";
+    : process.env.NEXT_PUBLIC_LANDING_URL || "https://www.cashsouk.com";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**

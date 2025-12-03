@@ -27,10 +27,12 @@ COPY packages/icons ./packages/icons
 RUN pnpm --filter @cashsouk/api prisma generate
 
 ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
+ARG NEXT_PUBLIC_LANDING_URL=https://www.cashsouk.com
 
 RUN rm -rf apps/admin/.next && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
-    echo "📝 Building with API URL: ${NEXT_PUBLIC_API_URL}" && \
+    echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}" >> apps/admin/.env.production && \
+    echo "📝 Building admin portal..." && \
     pnpm --filter @cashsouk/admin build && \
     echo "✅ Admin portal built successfully"
 
