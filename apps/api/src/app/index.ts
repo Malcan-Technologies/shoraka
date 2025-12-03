@@ -39,23 +39,6 @@ export async function createApp(): Promise<Application> {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser()); // Parse HTTP-Only cookies
 
-  app.use(await createSessionMiddleware());
-
-  app.use(correlationIdMiddleware);
-
-  await initializeOpenIdClient();
-
-  app.use(
-    pinoHttp({
-      logger,
-      customLogLevel: (_req, res, err) => {
-        if (res.statusCode >= 500 || err) return "error";
-        if (res.statusCode >= 400) return "warn";
-        return "info";
-      },
-    })
-  );
-
   /**
    * @swagger
    * /healthz:
@@ -121,6 +104,24 @@ export async function createApp(): Promise<Application> {
       });
     }
   });
+
+  // Session middleware comes AFTER healthz so health checks are independent
+  app.use(await createSessionMiddleware());
+
+  app.use(correlationIdMiddleware);
+
+  await initializeOpenIdClient();
+
+  app.use(
+    pinoHttp({
+      logger,
+      customLogLevel: (_req, res, err) => {
+        if (res.statusCode >= 500 || err) return "error";
+        if (res.statusCode >= 400) return "warn";
+        return "info";
+      },
+    })
+  );
 
   registerRoutes(app);
 
