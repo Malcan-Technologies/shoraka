@@ -73,6 +73,11 @@ For production, update the URLs to:
 - `INVESTOR_URL=https://www.investor.cashsouk.com`
 - `ISSUER_URL=https://www.issuer.cashsouk.com`
 - `ADMIN_URL=https://www.admin.cashsouk.com`
+- `COOKIE_DOMAIN=.cashsouk.com` (for cross-subdomain cookie sharing)
+
+## Session Storage
+
+Sessions are stored in PostgreSQL using the existing `DATABASE_URL`. A `session` table will be automatically created on first run.
 - `ALLOWED_ORIGINS=https://www.cashsouk.com,https://www.investor.cashsouk.com,https://www.issuer.cashsouk.com,https://www.admin.cashsouk.com`
 
 ## Required Dependencies

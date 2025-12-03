@@ -29,6 +29,10 @@ function getPgPool(): Pool {
     max: 10, // Maximum pool size (sessions don't need many connections)
     idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
     connectionTimeoutMillis: 2000, // Timeout connection attempts after 2 seconds
+    // SSL configuration for AWS RDS
+    ssl: env.NODE_ENV === "production" ? {
+      rejectUnauthorized: false // AWS RDS uses self-signed certificates
+    } : false,
   });
 
   pgPool.on("error", (err: Error) => {
