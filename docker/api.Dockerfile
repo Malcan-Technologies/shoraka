@@ -27,8 +27,11 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
+# Install OpenSSL for Prisma and curl for downloading RDS certificate
+RUN apk add --no-cache openssl curl
+
+# Download AWS RDS CA certificate bundle
+RUN curl -o /app/global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 
 ENV NODE_ENV=production
 ENV PORT=4000
