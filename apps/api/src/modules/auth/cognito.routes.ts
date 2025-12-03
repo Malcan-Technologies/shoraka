@@ -195,14 +195,23 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
         hasCode: !!params.code,
         hasState: !!params.state,
         hasNonce: !!stateData.nonce,
+        originalState: stateData.state,
+        encryptedState: params.state,
       },
       "Exchanging code for tokens"
     );
 
     let tokenSet;
     try {
+      // IMPORTANT: Replace the encrypted state in params with the original state
+      // The openid-client library expects the raw OAuth state, not our encrypted version
+      const callbackParams = {
+        ...params,
+        state: stateData.state, // Use the decrypted original state
+      };
+
       // Use the decrypted nonce and state for verification
-      tokenSet = await client.callback(config.redirectUri, params, {
+      tokenSet = await client.callback(config.redirectUri, callbackParams, {
         nonce: stateData.nonce,
         state: stateData.state,
       });
