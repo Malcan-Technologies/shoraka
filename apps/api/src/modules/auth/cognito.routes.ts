@@ -169,16 +169,25 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
     }
 
     logger.info(
-      { correlationId, redirectUri: config.redirectUri, hasCode: !!params.code, hasState: !!params.state },
+      { 
+        correlationId, 
+        redirectUri: config.redirectUri, 
+        hasCode: !!params.code, 
+        hasState: !!params.state,
+        hasSessionNonce: !!req.session?.nonce,
+        hasSessionState: !!req.session?.state
+      },
       "Exchanging code for tokens"
     );
 
     let tokenSet;
     try {
+      // Always pass callbackOptions as an object, never undefined
+      // When session is missing, openid-client will skip CSRF checks
       tokenSet = await client.callback(
         config.redirectUri,
         params,
-        Object.keys(callbackOptions).length > 0 ? callbackOptions : undefined
+        callbackOptions
       );
 
       logger.info({ correlationId, hasAccessToken: !!tokenSet.access_token, hasIdToken: !!tokenSet.id_token }, "Token exchange successful");

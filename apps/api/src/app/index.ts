@@ -39,7 +39,7 @@ export async function createApp(): Promise<Application> {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser()); // Parse HTTP-Only cookies
 
-  app.use(createSessionMiddleware());
+  app.use(await createSessionMiddleware());
 
   app.use(correlationIdMiddleware);
 

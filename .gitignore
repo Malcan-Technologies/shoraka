@@ -30,6 +30,8 @@ pnpm-debug.log*
 .env*.local
 !.env.local
 !.env.prod
+.env.prod
+.env.local
 
 # Vercel
 .vercel
