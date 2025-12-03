@@ -26,9 +26,10 @@ COPY packages/icons ./packages/icons
 
 RUN pnpm --filter @cashsouk/api prisma generate
 
+# Build-time environment variables for portal URLs
 ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 ARG NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com
-ARG NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com  
+ARG NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com
 ARG NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com
 
 RUN rm -rf apps/landing/.next && \

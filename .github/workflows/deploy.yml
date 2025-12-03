@@ -45,25 +45,25 @@ jobs:
             echo "migrations=false" >> $GITHUB_OUTPUT
           fi
 
-          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/landing/|^packages/'; then
+          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/landing/|^packages/|^docker/landing\.Dockerfile'; then
             echo "landing=true" >> $GITHUB_OUTPUT
           else
             echo "landing=false" >> $GITHUB_OUTPUT
           fi
 
-          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/investor/|^packages/'; then
+          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/investor/|^packages/|^docker/portal-investor\.Dockerfile'; then
             echo "investor=true" >> $GITHUB_OUTPUT
           else
             echo "investor=false" >> $GITHUB_OUTPUT
           fi
 
-          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/issuer/|^packages/'; then
+          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/issuer/|^packages/|^docker/portal-issuer\.Dockerfile'; then
             echo "issuer=true" >> $GITHUB_OUTPUT
           else
             echo "issuer=false" >> $GITHUB_OUTPUT
           fi
 
-          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/admin/|^packages/'; then
+          if git diff --name-only $COMPARE HEAD | grep -qE '^apps/admin/|^packages/|^docker/portal-admin\.Dockerfile'; then
             echo "admin=true" >> $GITHUB_OUTPUT
           else
             echo "admin=false" >> $GITHUB_OUTPUT
