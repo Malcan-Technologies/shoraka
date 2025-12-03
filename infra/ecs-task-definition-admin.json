@@ -25,6 +25,10 @@
         {
           "name": "PORT",
           "value": "3000"
+        },
+        {
+          "name": "NEXT_PUBLIC_COGNITO_REGION",
+          "value": "ap-southeast-5"
         }
       ],
       "logConfiguration": {
