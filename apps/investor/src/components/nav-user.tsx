@@ -1,18 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  BadgeCheck,
-  ChevronsUpDown,
-  LogOut,
-  ArrowLeftRight,
-} from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, LogOut, ArrowLeftRight } from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -156,8 +147,8 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={handleLogout} 
+            <DropdownMenuItem
+              onClick={handleLogout}
               disabled={isLoggingOut}
               className="cursor-pointer"
             >
@@ -170,4 +161,3 @@ export function NavUser() {
     </SidebarMenu>
   );
 }
-

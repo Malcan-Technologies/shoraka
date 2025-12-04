@@ -28,10 +28,12 @@ RUN pnpm --filter @cashsouk/api prisma generate
 
 ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 ARG NEXT_PUBLIC_LANDING_URL=https://www.cashsouk.com
+ARG NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com
 
 RUN rm -rf apps/investor/.next && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/investor/.env.production && \
     echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_ISSUER_URL=${NEXT_PUBLIC_ISSUER_URL}" >> apps/investor/.env.production && \
     echo "📝 Building investor portal..." && \
     pnpm --filter @cashsouk/investor build && \
     echo "✅ Investor portal built successfully"

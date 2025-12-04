@@ -90,7 +90,7 @@ function IssuerDashboardContent() {
           {/* Welcome Section */}
           <section>
             <h2 className="text-2xl font-bold mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h2>
-            <p className="text-[17px] leading-7 text-muted-foreground">
+        <p className="text-[17px] leading-7 text-muted-foreground">
               Manage your financing requests and track your applications from your dashboard.
             </p>
           </section>
