@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   BadgeCheck,
   ChevronsUpDown,
   LogOut,
 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 
 import {
   Avatar,
@@ -27,23 +29,61 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { Skeleton } from "@cashsouk/ui"
 import { logout } from "../lib/auth"
+import { createApiClient } from "@cashsouk/config"
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
-}) {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+const apiClient = createApiClient(API_URL)
+
+interface ApiUserData {
+  first_name: string | null
+  last_name: string | null
+  email: string
+}
+
+export function NavUser() {
   const { isMobile } = useSidebar()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const { data: userData, isLoading } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me")
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+      return result.data.user
+    },
+  })
+
+  const user = {
+    name: userData 
+      ? [userData.first_name, userData.last_name].filter(Boolean).join(" ") || "Admin"
+      : "Admin",
+    email: userData?.email || "",
+    avatar: "",
+  }
 
   const handleLogout = () => {
     setIsLoggingOut(true)
     logout()
+  }
+
+  if (isLoading) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" className="cursor-default">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <div className="grid flex-1 gap-1">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (
@@ -98,9 +138,11 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem className="cursor-pointer">
-                <BadgeCheck />
-                Account
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/profile">
+                  <BadgeCheck />
+                  Account
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

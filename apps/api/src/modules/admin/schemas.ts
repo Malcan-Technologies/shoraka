@@ -34,6 +34,14 @@ export const updateUserOnboardingSchema = z.object({
 
 export type UpdateUserOnboardingInput = z.infer<typeof updateUserOnboardingSchema>;
 
+export const updateUserProfileSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phone: z.string().max(20).optional().nullable(),
+});
+
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+
 // Access logs query schema
 export const getAccessLogsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

@@ -77,3 +77,15 @@ export const startOnboardingSchema = z.object({
 
 export type StartOnboardingInput = z.infer<typeof startOnboardingSchema>;
 
+/**
+ * Schema for update-profile endpoint
+ * Allows users to update their own profile information
+ */
+export const updateProfileSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phone: z.string().max(20).optional().nullable(),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+

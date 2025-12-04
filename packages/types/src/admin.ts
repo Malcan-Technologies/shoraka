@@ -55,6 +55,12 @@ export interface UpdateUserOnboardingInput {
   issuerOnboarded?: boolean;
 }
 
+export interface UpdateUserProfileInput {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+}
+
 export type EventType =
   | "LOGIN"
   | "LOGOUT"
@@ -63,7 +69,8 @@ export type EventType =
   | "ROLE_SWITCHED"
   | "ONBOARDING_COMPLETED"
   | "KYC_STATUS_UPDATED"
-  | "ONBOARDING_STATUS_UPDATED";
+  | "ONBOARDING_STATUS_UPDATED"
+  | "PROFILE_UPDATED";
 
 export interface AccessLogUser {
   first_name: string;

@@ -715,4 +715,49 @@ export class AuthService {
       tempPassword: data.tempPassword,
     };
   }
+
+  /**
+   * Update current user's profile (name, phone)
+   * Any authenticated user can update their own profile
+   */
+  async updateProfile(
+    req: Request,
+    userId: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string | null;
+    }
+  ): Promise<User> {
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+
+    // Verify user exists before proceeding
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!currentUser) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser = await this.repository.updateUserProfile(userId, data);
+
+    // Create access log
+    await this.repository.createAccessLog({
+      userId,
+      eventType: "PROFILE_UPDATED",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        updatedFields: Object.keys(data).filter((k) => data[k as keyof typeof data] !== undefined),
+        previousValues: {
+          firstName: currentUser.first_name,
+          lastName: currentUser.last_name,
+          phone: currentUser.phone,
+        },
+      },
+    });
+
+    return updatedUser;
+  }
 }

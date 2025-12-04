@@ -7,6 +7,7 @@ import type {
   UpdateUserRolesInput,
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
+  UpdateUserProfileInput,
   GetAccessLogsParams,
   AccessLogsResponse,
   AccessLogResponse,
@@ -305,6 +306,15 @@ export class ApiClient {
 
   async updateUserOnboarding(id: string, onboarding: UpdateUserOnboardingInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/onboarding`, onboarding);
+  }
+
+  async updateUserProfile(id: string, profile: UpdateUserProfileInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+    return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/profile`, profile);
+  }
+
+  // Self-service profile update (any authenticated user)
+  async updateMyProfile(profile: UpdateUserProfileInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+    return this.patch<{ user: UserResponse }>(`/v1/auth/profile`, profile);
   }
 
   // Admin - Dashboard Statistics

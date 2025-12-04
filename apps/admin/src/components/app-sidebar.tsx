@@ -68,12 +68,6 @@ const navAudit = [
   { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
 ];
 
-const userData = {
-  name: "Admin User",
-  email: "admin@cashsouk.com",
-  avatar: "/avatars/admin.jpg",
-};
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
 
@@ -186,7 +180,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={userData} />
+        <NavUser />
         <div className="group-data-[collapsible=icon]:hidden">
           <Separator className="my-2" />
           <div className="flex px-3 justify-start py-2 text-xs text-sidebar-foreground/70">

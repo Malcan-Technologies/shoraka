@@ -109,6 +109,31 @@ export class AuthRepository {
   }
 
   /**
+   * Update user profile (name, phone)
+   */
+  async updateUserProfile(
+    userId: string,
+    data: { firstName?: string; lastName?: string; phone?: string | null }
+  ): Promise<User> {
+    const updateData: Record<string, string | null> = {};
+
+    if (data.firstName !== undefined) {
+      updateData.first_name = data.firstName;
+    }
+    if (data.lastName !== undefined) {
+      updateData.last_name = data.lastName;
+    }
+    if (data.phone !== undefined) {
+      updateData.phone = data.phone;
+    }
+
+    return prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+  }
+
+  /**
    * Create access log entry
    */
   async createAccessLog(data: {

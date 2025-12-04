@@ -8,6 +8,7 @@ import type {
   UpdateUserRolesInput,
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
+  UpdateUserProfileInput,
 } from "./schemas";
 
 export class AdminService {
@@ -203,6 +204,48 @@ export class AdminService {
         previousIssuerOnboarded: user.issuer_onboarding_completed,
 		rolesRemoved: rolesChanged ? user.roles.filter(r => !updatedRoles.includes(r)) : [],
 		newRoles: rolesChanged ? updatedRoles : user.roles,
+      },
+    });
+
+    return updatedUser;
+  }
+
+  /**
+   * Update user profile (name, phone)
+   */
+  async updateUserProfile(
+    req: Request,
+    userId: string,
+    data: UpdateUserProfileInput,
+    adminUserId: string
+  ): Promise<User> {
+    const user = await this.repository.getUserById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser = await this.repository.updateUserProfile(userId, data);
+
+    // Create access log for admin action
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await this.repository.createAccessLog({
+      userId: adminUserId,
+      eventType: "PROFILE_UPDATED",
+      portal: "admin",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        targetUserId: userId,
+        targetUserEmail: user.email,
+        updatedFields: Object.keys(data).filter(k => data[k as keyof UpdateUserProfileInput] !== undefined),
+        previousValues: {
+          firstName: user.first_name,
+          lastName: user.last_name,
+          phone: user.phone,
+        },
       },
     });
 

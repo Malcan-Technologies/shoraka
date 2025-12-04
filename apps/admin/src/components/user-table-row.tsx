@@ -12,6 +12,7 @@ import {
   useUpdateUserRoles,
   useUpdateUserKyc,
   useUpdateUserOnboarding,
+  useUpdateUserProfile,
 } from "../hooks/use-admin-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
@@ -54,6 +55,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   const updateRoles = useUpdateUserRoles();
   const updateKyc = useUpdateUserKyc();
   const updateOnboarding = useUpdateUserOnboarding();
+  const updateProfile = useUpdateUserProfile();
 
   React.useEffect(() => {
     if (isEditing) {
@@ -79,6 +81,25 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   const handleConfirmSave = async () => {
     setIsConfirming(true);
     try {
+      // Update profile (name, phone) if changed
+      const firstNameChanged = editedUser.first_name !== undefined && editedUser.first_name !== user.first_name;
+      const lastNameChanged = editedUser.last_name !== undefined && editedUser.last_name !== user.last_name;
+      const phoneChanged = editedUser.phone !== user.phone;
+
+      if (firstNameChanged || lastNameChanged || phoneChanged) {
+        const profileUpdate: { firstName?: string; lastName?: string; phone?: string | null } = {};
+        if (firstNameChanged) {
+          profileUpdate.firstName = editedUser.first_name;
+        }
+        if (lastNameChanged) {
+          profileUpdate.lastName = editedUser.last_name;
+        }
+        if (phoneChanged) {
+          profileUpdate.phone = editedUser.phone || null;
+        }
+        await updateProfile.mutateAsync({ id: user.id, profile: profileUpdate });
+      }
+
       // Update roles if changed
       const rolesChanged = JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
       if (rolesChanged && editedUser.roles) {
@@ -158,7 +179,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     setEditedUser({ ...editedUser, roles: newRoles });
   };
 
-  const isSaving = updateRoles.isPending || updateKyc.isPending || updateOnboarding.isPending;
+  const isSaving = updateRoles.isPending || updateKyc.isPending || updateOnboarding.isPending || updateProfile.isPending;
 
   const userName = user.first_name && user.last_name 
     ? `${user.first_name} ${user.last_name}`
@@ -243,13 +264,13 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           {formatDistanceToNow(user.created_at, { addSuffix: true })}
         </TableCell>
         <TableCell>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleSaveClick} className="h-8" disabled={isSaving}>
-              <CheckIcon className="h-4 w-4 mr-1" />
+          <div className="flex flex-col gap-1">
+            <Button size="sm" onClick={handleSaveClick} className="h-7 text-xs" disabled={isSaving}>
+              <CheckIcon className="h-3.5 w-3.5 mr-1" />
               {isSaving ? "Saving..." : "Save"}
             </Button>
-            <Button size="sm" variant="outline" onClick={handleCancel} className="h-8" disabled={isSaving}>
-              <XMarkIcon className="h-4 w-4 mr-1" />
+            <Button size="sm" variant="outline" onClick={handleCancel} className="h-7 text-xs" disabled={isSaving}>
+              <XMarkIcon className="h-3.5 w-3.5 mr-1" />
               Cancel
             </Button>
           </div>

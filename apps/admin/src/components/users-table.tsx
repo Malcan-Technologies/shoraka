@@ -124,8 +124,8 @@ export function UsersTable({
                 <TableHead className="text-sm font-semibold">Phone</TableHead>
                 <TableHead className="text-sm font-semibold">Roles</TableHead>
                 <TableHead className="text-sm font-semibold">KYC</TableHead>
-                <TableHead className="text-sm font-semibold">Investor Onboarded</TableHead>
-                <TableHead className="text-sm font-semibold">Issuer Onboarded</TableHead>
+                <TableHead className="text-sm font-semibold">Investor</TableHead>
+                <TableHead className="text-sm font-semibold">Issuer</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>

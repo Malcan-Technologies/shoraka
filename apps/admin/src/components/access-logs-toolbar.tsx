@@ -105,9 +105,10 @@ export function AccessLogsToolbar({
             <DropdownMenuRadioItem value="SIGNUP">Signup</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="ROLE_ADDED">Role Added</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="ROLE_SWITCHED">Role Switched</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ONBOARDING_COMPLETED">
-              Onboarding Completed
-            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ONBOARDING_COMPLETED">Onboarding Completed</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ONBOARDING_STATUS_UPDATED">Onboarding Status Updated</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="KYC_STATUS_UPDATED">KYC Status Updated</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PROFILE_UPDATED">Profile Updated</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
 
           <DropdownMenuSeparator />

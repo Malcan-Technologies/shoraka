@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
 import { SystemHealthIndicator } from "../../../components/system-health-indicator";
@@ -355,6 +356,7 @@ import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 ];*/
 
 export default function AccessLogsPage() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -385,7 +387,11 @@ export default function AccessLogsPage() {
     return params;
   }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
 
-  const { data, isLoading, error, refetch } = useAccessLogs(apiParams);
+  const { data, isLoading, error } = useAccessLogs(apiParams);
+
+  const handleReload = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] });
+  };
 
   const handleClearFilters = () => {
     setSearchQuery("");
@@ -427,7 +433,7 @@ export default function AccessLogsPage() {
             totalCount={totalLogs}
             filteredCount={totalLogs}
             onClearFilters={handleClearFilters}
-            onReload={() => refetch()}
+            onReload={handleReload}
             isLoading={isLoading}
             exportFilters={{
               search: searchQuery || undefined,

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { SystemHealthIndicator } from "../../components/system-health-indicator";
@@ -141,6 +142,7 @@ import type { GetUsersParams, UserRole } from "@cashsouk/types";
 ];*/
 
 export default function UsersPage() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
   const [kycFilter, setKycFilter] = React.useState("all");
@@ -185,7 +187,11 @@ export default function UsersPage() {
     return params;
   }, [currentPage, pageSize, searchQuery, roleFilter, kycFilter, investorOnboardedFilter, issuerOnboardedFilter]);
 
-  const { data, isLoading, error, refetch } = useUsers(apiParams);
+  const { data, isLoading, error } = useUsers(apiParams);
+
+  const handleReload = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+  };
 
   const handleUserUpdate = () => {
     // User updates are handled by mutations in the edit dialog
@@ -236,7 +242,7 @@ export default function UsersPage() {
             totalCount={totalUsers}
             filteredCount={totalUsers}
             onClearFilters={handleClearFilters}
-            onReload={() => refetch()}
+            onReload={handleReload}
             isLoading={isLoading}
           />
 

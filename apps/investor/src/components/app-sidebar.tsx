@@ -1,14 +1,16 @@
 "use client";
 
 import * as React from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import { APP_VERSION } from "@cashsouk/config";
-import { HomeIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, PlusIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +26,67 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
+  const isOnboarding = pathname === "/onboarding-start";
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Show skeleton while not mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarHeader>
+          <div className="flex h-16 items-center px-3">
+            <Skeleton className="h-8 w-8 rounded" />
+            <Skeleton className="ml-2 h-4 w-16 group-data-[collapsible=icon]:hidden" />
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <div className="px-2">
+            <Separator className="my-2" />
+          </div>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" className="cursor-default">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="grid flex-1 gap-1 group-data-[collapsible=icon]:hidden">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <Separator className="my-2" />
+            <Skeleton className="mx-3 h-3 w-16" />
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -36,16 +99,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
       <SidebarContent>
+        {/* Quick Action */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
-                  <Link href="/">
+                {isOnboarding ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed bg-muted text-muted-foreground"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    <span>Invest Now</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Invest Now"
+                    className="group/btn bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                  >
+                    <Link href="/investments">
+                      <PlusIcon className="h-4 w-4 transition-transform duration-200 group-hover/btn:rotate-90" />
+                      <span>Invest Now</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <div className="px-2">
+          <Separator className="my-2" />
+        </div>
+
+        {/* Navigation */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                {isOnboarding ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
                     <HomeIcon className="h-4 w-4" />
                     <span>Dashboard</span>
-                  </Link>
-                </SidebarMenuButton>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
+                    <Link href="/">
+                      <HomeIcon className="h-4 w-4" />
+                      <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
@@ -64,4 +174,3 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </Sidebar>
   );
 }
-

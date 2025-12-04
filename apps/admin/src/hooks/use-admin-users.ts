@@ -4,6 +4,7 @@ import type {
   GetUsersParams,
   UpdateUserRolesInput,
   UpdateUserOnboardingInput,
+  UpdateUserProfileInput,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -28,6 +29,8 @@ export function useUsers(params: GetUsersParams) {
       }
       return response.data;
     },
+    staleTime: 0,
+    refetchOnMount: true,
     retry: (failureCount, error) => {
       // Don't retry on auth errors
       if (error instanceof Error && (error.message.includes("UNAUTHORIZED") || error.message.includes("FORBIDDEN"))) {
@@ -115,6 +118,29 @@ export function useUpdateUserOnboarding() {
     },
     onError: (error: Error) => {
       toast.error("Failed to update onboarding status", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useUpdateUserProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, profile }: { id: string; profile: UpdateUserProfileInput }) => {
+      const response = await apiClient.updateUserProfile(id, profile);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.user;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast.success("User profile updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update user profile", {
         description: error.message,
       });
     },

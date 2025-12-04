@@ -23,6 +23,8 @@ export function useAccessLogs(params: GetAccessLogsParams) {
       }
       return response.data;
     },
+    staleTime: 0,
+    refetchOnMount: true,
     retry: (failureCount, error) => {
       // Don't retry on auth errors
       if (error instanceof Error && (error.message.includes("UNAUTHORIZED") || error.message.includes("FORBIDDEN"))) {

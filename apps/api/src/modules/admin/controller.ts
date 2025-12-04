@@ -9,6 +9,7 @@ import {
   updateUserRolesSchema,
   updateUserKycSchema,
   updateUserOnboardingSchema,
+  updateUserProfileSchema,
   exportAccessLogsQuerySchema,
 } from "./schemas";
 
@@ -180,6 +181,36 @@ router.patch("/users/:id/onboarding", requireRole(UserRole.ADMIN), async (req: R
     });
   } catch (error) {
     next(error instanceof AppError ? error : new AppError(400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Failed to update onboarding status"));
+  }
+});
+
+/**
+ * @swagger
+ * /v1/admin/users/:id/profile:
+ *   patch:
+ *     summary: Update user profile (name, phone) (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.patch("/users/:id/profile", requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const validated = updateUserProfileSchema.parse(req.body);
+
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    const updatedUser = await adminService.updateUserProfile(req, id, validated, req.user.id);
+
+    res.json({
+      success: true,
+      data: { user: updatedUser },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof AppError ? error : new AppError(400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Failed to update user profile"));
   }
 });
 

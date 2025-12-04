@@ -11,6 +11,7 @@ import {
   switchRoleSchema,
   createAdminUserSchema,
   startOnboardingSchema,
+  updateProfileSchema,
   type SyncUserInput,
   type CreateAdminUserInput,
 } from "./schemas";
@@ -332,6 +333,49 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
     });
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/auth/profile:
+ *   patch:
+ *     summary: Update current user's profile (name, phone)
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 maxLength: 100
+ *               lastName:
+ *                 type: string
+ *                 maxLength: 100
+ *               phone:
+ *                 type: string
+ *                 maxLength: 20
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ */
+router.patch("/profile", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = updateProfileSchema.parse(req.body);
+    const updatedUser = await authService.updateProfile(req, req.user!.id, validated);
+    
+    res.json({
+      success: true,
+      data: { user: updatedUser },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
   }
 });
 
