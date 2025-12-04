@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
-import { Navbar } from "../components/navbar";
+import { AppSidebar } from "../components/app-sidebar";
+import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
+import { Toaster } from "../components/ui/sonner";
+import { Providers } from "../lib/providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,8 +21,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="theme-investor">
       <body className={inter.className}>
-        <Navbar />
-        <div className="pt-16">{children}</div>
+        <Providers>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset>
+              {children}
+            </SidebarInset>
+          </SidebarProvider>
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

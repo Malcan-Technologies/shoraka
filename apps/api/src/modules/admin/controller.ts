@@ -185,6 +185,32 @@ router.patch("/users/:id/onboarding", requireRole(UserRole.ADMIN), async (req: R
 
 /**
  * @swagger
+ * /v1/admin/dashboard/stats:
+ *   get:
+ *     summary: Get dashboard statistics (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics including user counts and trends
+ */
+router.get("/dashboard/stats", requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stats = await adminService.getDashboardStats();
+
+    res.json({
+      success: true,
+      data: stats,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof AppError ? error : new AppError(500, "INTERNAL_ERROR", "Failed to fetch dashboard statistics"));
+  }
+});
+
+/**
+ * @swagger
  * /v1/admin/access-logs:
  *   get:
  *     summary: List access logs with pagination and filters (admin only)

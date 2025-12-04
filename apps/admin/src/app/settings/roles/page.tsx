@@ -238,14 +238,15 @@ export default function RolesPage() {
     setCurrentPage(1);
   };
 
+  const handleReload = () => {
+    // Currently using mock data - in production this would refetch from API
+    setAdminUsers(getMockAdminUsers());
+  };
+
   // Initialize mock data on client side to avoid hydration errors
   React.useEffect(() => {
-    // Simulate loading delay
-    const timer = setTimeout(() => {
-      setAdminUsers(getMockAdminUsers());
-      setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
+    setAdminUsers(getMockAdminUsers());
+    setLoading(false);
   }, []);
 
   // Reset to page 1 when filters change
@@ -313,6 +314,8 @@ export default function RolesPage() {
               onStatusesChange={setSelectedStatuses}
               totalCount={filteredUsers.length}
               onClearFilters={handleClearFilters}
+              onReload={handleReload}
+              isLoading={loading}
             />
             <AdminUsersTable
               users={paginatedUsers}

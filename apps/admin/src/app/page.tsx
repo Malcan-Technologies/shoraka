@@ -1,27 +1,14 @@
 "use client";
 
-import * as React from "react";
-import { StatsCard } from "../components/stats-card";
-import { RecentLoans } from "../components/recent-loans";
 import { UserSignupsChart } from "../components/user-signups-chart";
+import { UserStatsCard } from "../components/user-stats-card";
 import { SystemHealthIndicator } from "../components/system-health-indicator";
-import { formatCurrency, formatNumber } from "@cashsouk/config";
-import {
-  CurrencyDollarIcon as DollarSign,
-  UsersIcon as Users,
-  ArrowTrendingUpIcon as TrendingUp,
-  DocumentTextIcon as FileText,
-} from "@heroicons/react/24/outline";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
+import { useDashboardStats } from "../hooks/use-dashboard-stats";
 
 export default function AdminHomePage() {
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+  const { data: stats, isLoading } = useDashboardStats();
 
   return (
     <>
@@ -34,47 +21,27 @@ export default function AdminHomePage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="space-y-6 p-2 md:p-4">
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Total Loans"
-          value={formatNumber(124, 0)}
-          icon={FileText}
-          trend="+12% from last month"
-          loading={loading}
-        />
-        <StatsCard
-          title="Active Users"
-          value={formatNumber(1832, 0)}
-          icon={Users}
-          trend="+18% from last month"
-          loading={loading}
-        />
-        <StatsCard
-          title="Total Investments"
-          value={formatCurrency(284500, { decimals: 0 })}
-          icon={TrendingUp}
-          trend="+24% from last month"
-          loading={loading}
-        />
-        <StatsCard
-          title="Platform Revenue"
-          value={formatCurrency(12420, { decimals: 0 })}
-          icon={DollarSign}
-          trend="+8% from last month"
-          loading={loading}
-        />
-      </div>
+        <div className="space-y-8 p-2 md:p-4">
+          {/* Users Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4">Users</h2>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <UserStatsCard
+                total={stats?.users.total}
+                investorsOnboarded={stats?.users.investorsOnboarded}
+                issuersOnboarded={stats?.users.issuersOnboarded}
+                loading={isLoading}
+              />
+              <UserSignupsChart data={stats?.signupTrends} loading={isLoading} />
+            </div>
+          </section>
 
-      <div className="grid gap-6 lg:grid-cols-7">
-        <div className="lg:col-span-4">
-          <UserSignupsChart />
+          {/* Future sections will be added here as features are built:
+              - Loans Section (loan applications, approvals, etc.)
+              - Investments Section (total investments, active investments, etc.)
+              - Payments Section (repayments, disbursements, etc.)
+          */}
         </div>
-        <div className="lg:col-span-3">
-          <RecentLoans loading={loading} />
-        </div>
-      </div>
-    </div>
       </div>
     </>
   );

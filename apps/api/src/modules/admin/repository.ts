@@ -10,7 +10,8 @@ export class AdminRepository {
     users: User[];
     total: number;
   }> {
-    const { page, pageSize, search, role, kycVerified, investorOnboarded, issuerOnboarded } = params;
+    const { page, pageSize, search, role, kycVerified, investorOnboarded, issuerOnboarded } =
+      params;
     const skip = (page - 1) * pageSize;
 
     // Build where clause
@@ -97,7 +98,7 @@ export class AdminRepository {
   async updateUserOnboarding(
     userId: string,
     data: { investorOnboarded?: boolean; issuerOnboarded?: boolean },
-	roles?: UserRole[]
+    roles?: UserRole[]
   ): Promise<User> {
     const updateData: any = {};
 
@@ -108,9 +109,9 @@ export class AdminRepository {
       updateData.issuer_onboarding_completed = data.issuerOnboarded;
     }
 
-	if (roles !== undefined) {
-		updateData.roles = { set: roles };
-	}
+    if (roles !== undefined) {
+      updateData.roles = { set: roles };
+    }
 
     return prisma.user.update({
       where: { id: userId },
@@ -122,7 +123,9 @@ export class AdminRepository {
    * Get access logs with pagination and filters
    */
   async getAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & { user: { first_name: string; last_name: string; email: string; roles: UserRole[] } })[];
+    logs: (AccessLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[];
     total: number;
   }> {
     const { page, pageSize, search, eventType, status, dateRange, userId } = params;
@@ -211,8 +214,12 @@ export class AdminRepository {
   /**
    * Get all access logs for export (no pagination)
    */
-  async getAllAccessLogsForExport(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & { user: { first_name: string; last_name: string; email: string; roles: UserRole[] } })[]
+  async getAllAccessLogsForExport(
+    params: Omit<GetAccessLogsQuery, "page" | "pageSize">
+  ): Promise<
+    (AccessLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
   > {
     const { search, eventType, status, dateRange, userId } = params;
 
@@ -305,5 +312,150 @@ export class AdminRepository {
       },
     });
   }
-}
 
+  /**
+   * Get user statistics for dashboard
+   */
+  async getUserStats(
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{
+    totalUsers: number;
+    investorsOnboarded: number;
+    issuersOnboarded: number;
+  }> {
+    const where: any = {};
+
+    if (startDate && endDate) {
+      where.created_at = {
+        gte: startDate,
+        lt: endDate,
+      };
+    }
+
+    const [totalUsers, investorsOnboarded, issuersOnboarded] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.count({
+        where: {
+          ...where,
+          investor_onboarding_completed: true,
+        },
+      }),
+      prisma.user.count({
+        where: {
+          ...where,
+          issuer_onboarding_completed: true,
+        },
+      }),
+    ]);
+
+    return { totalUsers, investorsOnboarded, issuersOnboarded };
+  }
+
+  /**
+   * Get daily signup trends for the specified number of days
+   */
+  async getSignupTrends(days: number): Promise<
+    {
+      date: string;
+      totalSignups: number;
+      investorsOnboarded: number;
+      issuersOnboarded: number;
+    }[]
+  > {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get all users created in the period
+    const users = await prisma.user.findMany({
+      where: {
+        created_at: {
+          gte: startDate,
+        },
+      },
+      select: {
+        created_at: true,
+        investor_onboarding_completed: true,
+        issuer_onboarding_completed: true,
+      },
+    });
+
+    // Group by date
+    const trendMap = new Map<
+      string,
+      {
+        totalSignups: number;
+        investorsOnboarded: number;
+        issuersOnboarded: number;
+      }
+    >();
+
+    // Initialize all days in the range
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split("T")[0];
+      trendMap.set(dateKey, {
+        totalSignups: 0,
+        investorsOnboarded: 0,
+        issuersOnboarded: 0,
+      });
+    }
+
+    // Aggregate user data
+    for (const user of users) {
+      const dateKey = user.created_at.toISOString().split("T")[0];
+      const existing = trendMap.get(dateKey);
+      if (existing) {
+        existing.totalSignups++;
+        if (user.investor_onboarding_completed) {
+          existing.investorsOnboarded++;
+        }
+        if (user.issuer_onboarding_completed) {
+          existing.issuersOnboarded++;
+        }
+      }
+    }
+
+    // Convert to array and sort by date ascending
+    return Array.from(trendMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Get user stats for a previous period (for trend calculation)
+   */
+  async getPreviousPeriodStats(days: number): Promise<{
+    totalUsers: number;
+    investorsOnboarded: number;
+    issuersOnboarded: number;
+  }> {
+    const now = new Date();
+    const currentPeriodStart = new Date();
+    currentPeriodStart.setDate(now.getDate() - days);
+    currentPeriodStart.setHours(0, 0, 0, 0);
+
+    const previousPeriodStart = new Date(currentPeriodStart);
+    previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
+
+    return this.getUserStats(previousPeriodStart, currentPeriodStart);
+  }
+
+  /**
+   * Get current period user stats (for trend calculation)
+   */
+  async getCurrentPeriodStats(days: number): Promise<{
+    totalUsers: number;
+    investorsOnboarded: number;
+    issuersOnboarded: number;
+  }> {
+    const now = new Date();
+    const currentPeriodStart = new Date();
+    currentPeriodStart.setDate(now.getDate() - days);
+    currentPeriodStart.setHours(0, 0, 0, 0);
+
+    return this.getUserStats(currentPeriodStart, now);
+  }
+}

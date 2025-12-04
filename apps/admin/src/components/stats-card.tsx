@@ -1,10 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@cashsouk/ui";
-import { LucideIcon } from "lucide-react";
+import { ComponentType, SVGProps } from "react";
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
 interface StatsCardProps {
   title: string;
   value: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   trend?: string;
   loading?: boolean;
 }

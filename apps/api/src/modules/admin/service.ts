@@ -250,5 +250,70 @@ export class AdminService {
   > {
     return this.repository.getAllAccessLogsForExport(params);
   }
+
+  /**
+   * Get dashboard statistics including user counts, trends, and percentage changes
+   */
+  async getDashboardStats(): Promise<{
+    users: {
+      total: { current: number; previous: number; percentageChange: number };
+      investorsOnboarded: { current: number; previous: number; percentageChange: number };
+      issuersOnboarded: { current: number; previous: number; percentageChange: number };
+    };
+    signupTrends: {
+      date: string;
+      totalSignups: number;
+      investorsOnboarded: number;
+      issuersOnboarded: number;
+    }[];
+  }> {
+    const TREND_PERIOD_DAYS = 30;
+
+    // Get all stats in parallel
+    const [totalStats, currentPeriodStats, previousPeriodStats, signupTrends] = await Promise.all([
+      this.repository.getUserStats(),
+      this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
+      this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
+      this.repository.getSignupTrends(TREND_PERIOD_DAYS),
+    ]);
+
+    // Calculate percentage changes
+    const calculatePercentageChange = (current: number, previous: number): number => {
+      if (previous === 0) {
+        return current > 0 ? 100 : 0;
+      }
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    return {
+      users: {
+        total: {
+          current: totalStats.totalUsers,
+          previous: totalStats.totalUsers - currentPeriodStats.totalUsers + previousPeriodStats.totalUsers,
+          percentageChange: calculatePercentageChange(
+            currentPeriodStats.totalUsers,
+            previousPeriodStats.totalUsers
+          ),
+        },
+        investorsOnboarded: {
+          current: totalStats.investorsOnboarded,
+          previous: totalStats.investorsOnboarded - currentPeriodStats.investorsOnboarded + previousPeriodStats.investorsOnboarded,
+          percentageChange: calculatePercentageChange(
+            currentPeriodStats.investorsOnboarded,
+            previousPeriodStats.investorsOnboarded
+          ),
+        },
+        issuersOnboarded: {
+          current: totalStats.issuersOnboarded,
+          previous: totalStats.issuersOnboarded - currentPeriodStats.issuersOnboarded + previousPeriodStats.issuersOnboarded,
+          percentageChange: calculatePercentageChange(
+            currentPeriodStats.issuersOnboarded,
+            previousPeriodStats.issuersOnboarded
+          ),
+        },
+      },
+      signupTrends,
+    };
+  }
 }
 

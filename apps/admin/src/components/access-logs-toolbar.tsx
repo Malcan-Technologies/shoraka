@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,8 @@ export function AccessLogsToolbar({
   onReload,
   isLoading = false,
 }: AccessLogsToolbarProps) {
+  const [isSpinning, setIsSpinning] = React.useState(false);
+
   const hasFilters =
     searchQuery !== "" ||
     eventTypeFilter !== "all" ||
@@ -58,6 +61,13 @@ export function AccessLogsToolbar({
     statusFilter !== "all",
     dateRangeFilter !== "all",
   ].filter(Boolean).length;
+
+  const handleReload = () => {
+    setIsSpinning(true);
+    onReload?.();
+    // Keep spinning for at least 500ms for visual feedback
+    setTimeout(() => setIsSpinning(false), 500);
+  };
 
   return (
     <div className="flex items-center gap-3">
@@ -129,11 +139,11 @@ export function AccessLogsToolbar({
       {onReload && (
         <Button
           variant="outline"
-          onClick={onReload}
-          disabled={isLoading}
+          onClick={handleReload}
+          disabled={isLoading || isSpinning}
           className="gap-2 h-11 rounded-xl"
         >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
           Reload
         </Button>
       )}

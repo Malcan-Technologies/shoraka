@@ -105,3 +105,25 @@ export interface ExportAccessLogsParams extends Omit<GetAccessLogsParams, "page"
   format?: "csv" | "json";
 }
 
+// Dashboard Statistics Types
+export interface SignupTrendItem {
+  date: string;
+  totalSignups: number;
+  investorsOnboarded: number;
+  issuersOnboarded: number;
+}
+
+export interface UserStatsWithTrend {
+  current: number;
+  previous: number;
+  percentageChange: number;
+}
+
+export interface DashboardStatsResponse {
+  users: {
+    total: UserStatsWithTrend;
+    investorsOnboarded: UserStatsWithTrend;
+    issuersOnboarded: UserStatsWithTrend;
+  };
+  signupTrends: SignupTrendItem[];
+}

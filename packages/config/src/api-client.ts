@@ -11,6 +11,7 @@ import type {
   AccessLogsResponse,
   AccessLogResponse,
   ExportAccessLogsParams,
+  DashboardStatsResponse,
 } from "@cashsouk/types";
 
 export class ApiClient {
@@ -304,6 +305,11 @@ export class ApiClient {
 
   async updateUserOnboarding(id: string, onboarding: UpdateUserOnboardingInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/onboarding`, onboarding);
+  }
+
+  // Admin - Dashboard Statistics
+  async getDashboardStats(): Promise<ApiResponse<DashboardStatsResponse> | ApiError> {
+    return this.get<DashboardStatsResponse>(`/v1/admin/dashboard/stats`);
   }
 
   // Admin - Access Logs

@@ -5,13 +5,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { createApiClient } from "@cashsouk/config";
+import { SidebarTrigger } from "../components/ui/sidebar";
+import { Separator } from "../components/ui/separator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-function InvestorHomePageContent() {
+function InvestorDashboardContent() {
   const { isAuthenticated, token } = useAuth();
   const router = useRouter();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [userName, setUserName] = useState<string>("");
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
@@ -21,6 +24,8 @@ function InvestorHomePageContent() {
           const apiClient = createApiClient(API_URL);
           const result = await apiClient.get<{
             user: {
+              first_name: string | null;
+              last_name: string | null;
               investor_onboarding_completed: boolean;
             };
             activeRole: string | null;
@@ -31,6 +36,10 @@ function InvestorHomePageContent() {
 
           if (result.success && result.data) {
             const user = result.data.user;
+            
+            // Set user name for welcome message
+            const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
+            setUserName(name || "Investor");
             
             // Check if investor onboarding is completed
             if (!user.investor_onboarding_completed) {
@@ -70,20 +79,60 @@ function InvestorHomePageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold text-foreground mb-4">
-          Welcome to CashSouk Investor Portal
-        </h1>
-        <p className="text-[17px] leading-7 text-muted-foreground">
-          Browse and invest in verified loan opportunities
-        </p>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-lg font-semibold">Dashboard</h1>
+      </header>
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="space-y-8 p-2 md:p-4">
+          {/* Welcome Section */}
+          <section>
+            <h2 className="text-2xl font-bold mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h2>
+            <p className="text-[17px] leading-7 text-muted-foreground">
+              Browse and invest in verified loan opportunities from your dashboard.
+            </p>
+          </section>
+
+          {/* Placeholder for future content */}
+          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Portfolio Value</h3>
+              <p className="text-3xl font-bold text-primary">RM 0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">Total invested</p>
+            </div>
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Active Investments</h3>
+              <p className="text-3xl font-bold">0</p>
+              <p className="text-sm text-muted-foreground mt-1">Ongoing investments</p>
+            </div>
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Total Returns</h3>
+              <p className="text-3xl font-bold text-green-600">RM 0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">Earnings to date</p>
+            </div>
+          </section>
+
+          {/* Available Opportunities Placeholder */}
+          <section>
+            <h3 className="text-xl font-semibold mb-4">Available Opportunities</h3>
+            <div className="rounded-xl border bg-card p-8 text-center">
+              <p className="text-muted-foreground">
+                No investment opportunities available at this time.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Check back later for new financing opportunities.
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
-    </main>
+    </>
   );
 }
 
-export default function InvestorHomePage() {
+export default function InvestorDashboardPage() {
   return (
     <Suspense
       fallback={
@@ -95,8 +144,7 @@ export default function InvestorHomePage() {
         </div>
       }
     >
-      <InvestorHomePageContent />
+      <InvestorDashboardContent />
     </Suspense>
   );
 }
-

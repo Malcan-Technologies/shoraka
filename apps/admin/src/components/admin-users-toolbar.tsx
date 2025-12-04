@@ -10,7 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 
 type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
 
@@ -23,6 +28,8 @@ interface AdminUsersToolbarProps {
   onStatusesChange: (statuses: ("ACTIVE" | "INACTIVE")[]) => void;
   totalCount: number;
   onClearFilters: () => void;
+  onReload?: () => void;
+  isLoading?: boolean;
 }
 
 const roleOptions: { value: AdminRole; label: string }[] = [
@@ -46,11 +53,22 @@ export function AdminUsersToolbar({
   onStatusesChange,
   totalCount,
   onClearFilters,
+  onReload,
+  isLoading = false,
 }: AdminUsersToolbarProps) {
+  const [isSpinning, setIsSpinning] = React.useState(false);
+
   const hasActiveFilters =
     searchQuery.length > 0 || selectedRoles.length > 0 || selectedStatuses.length > 0;
 
   const activeFilterCount = selectedRoles.length + selectedStatuses.length + (searchQuery ? 1 : 0);
+
+  const handleReload = () => {
+    setIsSpinning(true);
+    onReload?.();
+    // Keep spinning for at least 500ms for visual feedback
+    setTimeout(() => setIsSpinning(false), 500);
+  };
 
   const handleRoleToggle = (role: AdminRole) => {
     if (selectedRoles.includes(role)) {
@@ -124,6 +142,18 @@ export function AdminUsersToolbar({
         <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
           <XMarkIcon className="h-4 w-4" />
           Clear
+        </Button>
+      )}
+
+      {onReload && (
+        <Button
+          variant="outline"
+          onClick={handleReload}
+          disabled={isLoading || isSpinning}
+          className="gap-2 h-11 rounded-xl"
+        >
+          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
+          Reload
         </Button>
       )}
 

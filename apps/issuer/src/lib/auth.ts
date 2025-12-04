@@ -55,6 +55,27 @@ export function redirectToLanding() {
 }
 
 /**
+ * Logout user from issuer portal
+ * Clears local storage and redirects to Cognito logout endpoint
+ */
+export function logout() {
+  if (typeof window === "undefined") return;
+
+  const token = getAuthToken();
+  const logoutUrl = new URL(`${API_URL}/v1/auth/cognito/logout`);
+  
+  if (token) {
+    logoutUrl.searchParams.set("token", token);
+  }
+
+  // Clear tokens from localStorage before redirecting
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("refresh_token");
+
+  window.location.href = logoutUrl.toString();
+}
+
+/**
  * Hook to check authentication and redirect if not authenticated
  */
 export function useAuth() {

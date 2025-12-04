@@ -129,12 +129,13 @@ export default function OnboardingStartPage() {
 
   const handleLogout = () => {
     const token = getAuthToken();
-    const logoutUrl = new URL(`${API_URL}/api/auth/logout`);
+    const logoutUrl = new URL(`${API_URL}/v1/auth/cognito/logout`);
     if (token) {
       logoutUrl.searchParams.set("token", token);
     }
-    // Clear token from localStorage before redirecting
+    // Clear tokens from localStorage before redirecting
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
     window.location.href = logoutUrl.toString();
   };
 

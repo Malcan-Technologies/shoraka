@@ -5,13 +5,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { createApiClient } from "@cashsouk/config";
+import { SidebarTrigger } from "../components/ui/sidebar";
+import { Separator } from "../components/ui/separator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-function BorrowerHomePageContent() {
+function IssuerDashboardContent() {
   const { isAuthenticated, token } = useAuth();
   const router = useRouter();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [userName, setUserName] = useState<string>("");
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
@@ -21,6 +24,8 @@ function BorrowerHomePageContent() {
           const apiClient = createApiClient(API_URL);
           const result = await apiClient.get<{
             user: {
+              first_name: string | null;
+              last_name: string | null;
               issuer_onboarding_completed: boolean;
             };
             activeRole: string | null;
@@ -31,6 +36,10 @@ function BorrowerHomePageContent() {
 
           if (result.success && result.data) {
             const user = result.data.user;
+            
+            // Set user name for welcome message
+            const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
+            setUserName(name || "Issuer");
             
             // Check if issuer onboarding is completed
             if (!user.issuer_onboarding_completed) {
@@ -70,20 +79,60 @@ function BorrowerHomePageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold text-foreground mb-4">
-          Welcome to CashSouk Issuer Portal
-        </h1>
-        <p className="text-[17px] leading-7 text-muted-foreground">
-          Apply for loans quickly and securely
-        </p>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-lg font-semibold">Dashboard</h1>
+      </header>
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="space-y-8 p-2 md:p-4">
+          {/* Welcome Section */}
+          <section>
+            <h2 className="text-2xl font-bold mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h2>
+            <p className="text-[17px] leading-7 text-muted-foreground">
+              Manage your financing requests and track your applications from your dashboard.
+            </p>
+          </section>
+
+          {/* Placeholder for future content */}
+          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Active Requests</h3>
+              <p className="text-3xl font-bold text-primary">0</p>
+              <p className="text-sm text-muted-foreground mt-1">Pending applications</p>
+            </div>
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Total Funded</h3>
+              <p className="text-3xl font-bold">RM 0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">Approved financing</p>
+            </div>
+            <div className="rounded-xl border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-2">Repayments Due</h3>
+              <p className="text-3xl font-bold text-amber-600">RM 0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">Outstanding amount</p>
+            </div>
+          </section>
+
+          {/* Recent Applications Placeholder */}
+          <section>
+            <h3 className="text-xl font-semibold mb-4">Recent Applications</h3>
+            <div className="rounded-xl border bg-card p-8 text-center">
+              <p className="text-muted-foreground">
+                You haven't submitted any financing applications yet.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Start by creating a new financing request.
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
-    </main>
+    </>
   );
 }
 
-export default function BorrowerHomePage() {
+export default function IssuerDashboardPage() {
   return (
     <Suspense
       fallback={
@@ -95,7 +144,7 @@ export default function BorrowerHomePage() {
         </div>
       }
     >
-      <BorrowerHomePageContent />
+      <IssuerDashboardContent />
     </Suspense>
   );
 }
