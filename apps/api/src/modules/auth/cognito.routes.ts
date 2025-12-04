@@ -807,43 +807,41 @@ router.get("/logout", async (req: Request, res: Response) => {
     }
   });
 
-  // Redirect to appropriate page based on portal
-  // We've already completed all logout steps:
+  // IMPORTANT: Redirect through Cognito's /logout endpoint to clear OAuth/Hosted UI session
+  // AdminUserGlobalSignOut only invalidates tokens, NOT the OAuth session
+  // Without redirecting through Cognito's /logout, users can auto-login without entering credentials
+  // 
+  // We've already completed:
   // 1. Revoked all refresh tokens in database
   // 2. Cleared HTTP-Only cookies (access_token, refresh_token)
-  // 3. Attempted AdminUserGlobalSignOut to invalidate Cognito session (if IAM permissions allow)
+  // 3. Called AdminUserGlobalSignOut to invalidate Cognito tokens (if IAM permissions allow)
   // 4. Destroyed Express session
   //
-  // Note: If you want to use Cognito's /logout endpoint for additional session cleanup,
-  // ensure FRONTEND_URL is added to "Sign out URL(s)" in Cognito User Pool settings:
-  // Cognito User Pool > App integration > App client > Sign out URL(s)
-  // Otherwise, Cognito will show "Invalid request" error when redirecting through /logout
+  // Now redirect through Cognito's /logout to clear OAuth session
   const env = getEnv();
+  const config = getCognitoConfig();
   
-  // Determine redirect URL based on portal
-  // Admin users should be redirected to admin portal (auth hook will redirect to login if needed)
-  // Other users go to landing page
-  let redirectUrl: string;
+  // Determine final redirect URL based on portal
+  let finalRedirectUrl: string;
   if (portal === "admin" && env.ADMIN_URL) {
-    // Redirect admin users to admin portal root
-    // The admin portal's auth hook will detect no auth and redirect to login
-    redirectUrl = env.ADMIN_URL;
+    finalRedirectUrl = env.ADMIN_URL;
   } else if (portal === "investor" && env.INVESTOR_URL) {
-    // Redirect investor users to landing page (they can choose portal from there)
-    redirectUrl = env.FRONTEND_URL;
+    finalRedirectUrl = env.FRONTEND_URL;
   } else if (portal === "issuer" && env.ISSUER_URL) {
-    // Redirect issuer users to landing page (they can choose portal from there)
-    redirectUrl = env.FRONTEND_URL;
+    finalRedirectUrl = env.FRONTEND_URL;
   } else {
-    // Default to landing page
-    redirectUrl = env.FRONTEND_URL;
+    finalRedirectUrl = env.FRONTEND_URL;
   }
   
+  // Build Cognito logout URL with logout_uri to redirect back to our portal
+  // This requires logout_uri to be in Cognito's allowed logout URLs
+  const cognitoLogoutUrl = `${config.domain}/logout?client_id=${config.clientId}&logout_uri=${encodeURIComponent(finalRedirectUrl)}`;
+  
   logger.info(
-    { correlationId, redirectUrl, userId, portal },
-    "Redirecting after successful logout"
+    { correlationId, cognitoLogoutUrl, finalRedirectUrl, userId, portal },
+    "Redirecting through Cognito logout to clear OAuth session"
   );
-  res.redirect(redirectUrl);
+  res.redirect(cognitoLogoutUrl);
 });
 
 export default router;
