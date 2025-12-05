@@ -8,9 +8,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cashsouk/types": "workspace:*"
+    "@cashsouk/types": "workspace:*",
+    "react": "^18.2.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.45",
     "typescript": "^5.3.3"
   }
 }
