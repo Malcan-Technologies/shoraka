@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuthToken } from "./auth-context";
-import { createApiClient } from "./api-client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -41,9 +40,6 @@ export function useAuthRefresh() {
       hasAttemptedRef.current = true;
 
       try {
-        // Create API client without token getter (we're refreshing)
-        const apiClient = createApiClient(API_URL);
-        
         // Call silent refresh endpoint (uses refresh_token cookie)
         const response = await fetch(`${API_URL}/v1/auth/silent-refresh`, {
           method: "GET",
