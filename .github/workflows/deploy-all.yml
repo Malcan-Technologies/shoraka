@@ -63,8 +63,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building API image..."
-          docker build -f docker/api.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/api.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
       - name: Check for migration changes
         id: migration_check
@@ -81,8 +102,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building migration image..."
-          docker build -f docker/migrate.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/migrate.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
           echo "📦 Pushing migration image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
@@ -226,8 +268,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Landing image..."
-          docker build -f docker/landing.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/landing.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
           echo "📦 Pushing Landing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
@@ -261,8 +324,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Investor image..."
-          docker build -f docker/portal-investor.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/portal-investor.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
           echo "📦 Pushing Investor image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
@@ -296,8 +380,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Issuer image..."
-          docker build -f docker/portal-issuer.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/portal-issuer.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
           echo "📦 Pushing Issuer image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
@@ -331,8 +436,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Admin image..."
-          docker build -f docker/portal-admin.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Retry logic for Docker Hub outages
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/portal-admin.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
 
           echo "📦 Pushing Admin image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
