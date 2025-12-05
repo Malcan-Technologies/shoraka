@@ -7,12 +7,9 @@ import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } fro
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Navbar } from "../../components/navbar";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 function AuthErrorPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const error = searchParams.get("error");
   const message = searchParams.get("message") || "Authentication failed. Please try again.";
   const [countdown, setCountdown] = useState(5);
 

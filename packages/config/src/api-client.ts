@@ -54,28 +54,16 @@ export class ApiClient {
     }
 
     // Start refresh request
-    // In development, cookies don't work across different origins (localhost:4000 vs localhost:3002)
-    // So we need to send refresh token in request body
-    // Try to get refresh token from localStorage (if stored there for dev mode)
-    // Otherwise, rely on cookies (production mode)
-    const refreshTokenFromStorage = this.getRefreshToken();
-
+    // Refresh token is stored in HTTP-only cookie and sent automatically
+    // Backend will read refresh_token from cookies
     const refreshHeaders: HeadersInit = {
       "Content-Type": "application/json",
     };
 
-    const refreshBody: { refreshToken?: string } = {};
-
-    // For dev mode: send refresh token in body
-    if (refreshTokenFromStorage) {
-      refreshBody.refreshToken = refreshTokenFromStorage;
-    }
-
     this.refreshPromise = fetch(`${this.baseUrl}/v1/auth/refresh`, {
       method: "POST",
-      credentials: "include", // Send HTTP-Only cookies (production)
+      credentials: "include", // Send HTTP-Only cookies (includes refresh_token)
       headers: refreshHeaders,
-      body: Object.keys(refreshBody).length > 0 ? JSON.stringify(refreshBody) : undefined,
     });
 
     try {

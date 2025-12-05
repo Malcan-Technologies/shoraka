@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Button,
@@ -18,12 +19,11 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
-import { useSearchParams } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
 
-export default function OnboardingStartPage() {
+function OnboardingStartPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, setAccessToken } = useAuthToken();
@@ -280,5 +280,29 @@ export default function OnboardingStartPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function OnboardingStartPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Skeleton className="h-6 w-28" />
+          </header>
+          <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </>
+      }
+    >
+      <OnboardingStartPageContent />
+    </Suspense>
   );
 }
