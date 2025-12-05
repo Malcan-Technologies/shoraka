@@ -35,27 +35,19 @@ function CallbackPageContent() {
 
       let redirectUrl = "";
 
-      if (onboarding === "required") {
-        if (activeRole === "INVESTOR") {
-          redirectUrl = `${INVESTOR_URL}/onboarding-start`;
-        } else if (activeRole === "ISSUER") {
-          redirectUrl = `${ISSUER_URL}/onboarding-start`;
-        } else if (activeRole === "ADMIN") {
-          redirectUrl = `${ADMIN_URL}/welcome`;
-        }
-      } else {
-        if (activeRole === "INVESTOR") {
-          redirectUrl = `${INVESTOR_URL}`;
-        } else if (activeRole === "ISSUER") {
-          redirectUrl = `${ISSUER_URL}`;
-        } else if (activeRole === "ADMIN") {
-          redirectUrl = `${ADMIN_URL}`;
-        }
+      // Always redirect to portal's callback page first to store token in memory
+      // Then portal callback will redirect to the appropriate destination
+      if (activeRole === "INVESTOR") {
+        redirectUrl = `${INVESTOR_URL}/callback`;
+      } else if (activeRole === "ISSUER") {
+        redirectUrl = `${ISSUER_URL}/callback`;
+      } else if (activeRole === "ADMIN") {
+        redirectUrl = `${ADMIN_URL}/callback`;
       }
 
       if (redirectUrl) {
-        // Pass token in URL for portal callback pages to store in memory
-        const finalUrl = `${redirectUrl}?token=${encodeURIComponent(token)}`;
+        // Pass token and onboarding status to portal callback page
+        const finalUrl = `${redirectUrl}?token=${encodeURIComponent(token)}${onboarding ? `&onboarding=${onboarding}` : ""}`;
         // Use window.location.replace to avoid adding to history and ensure redirect happens
         // This prevents back button from returning to callback with expired state
         window.location.replace(finalUrl);
