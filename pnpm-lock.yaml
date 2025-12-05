@@ -613,7 +613,13 @@ importers:
       '@cashsouk/types':
         specifier: workspace:*
         version: link:../types
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
     devDependencies:
+      '@types/react':
+        specifier: ^18.2.45
+        version: 18.3.26
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
