@@ -53,3 +53,4 @@ pnpm-debug.log*
 # OS
 Thumbs.db
 
+kill-dev.sh
