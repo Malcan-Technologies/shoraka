@@ -221,7 +221,7 @@ export function useAuth() {
     };
 
     checkAuth();
-  }, [accessToken, setAccessToken, clearAccessToken]); // Run when accessToken changes
+  }, []); // Only run once on mount
 
   return { isAuthenticated, token: accessToken, hasAdminRole };
 }

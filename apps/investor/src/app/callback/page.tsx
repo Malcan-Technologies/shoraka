@@ -1,14 +1,13 @@
 "use client";
 
 import { Suspense, useEffect, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function CallbackPageContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { setAccessToken } = useAuthToken();
   const processedRef = useRef(false);
 
@@ -28,19 +27,15 @@ function CallbackPageContent() {
         // Store access token in memory (Auth Context)
         setAccessToken(token);
 
-        // Clean the URL to remove the token
-        window.history.replaceState(null, "", window.location.pathname);
-
-        // Redirect based on onboarding status
+        // Redirect based on onboarding status using window.location for clean navigation
         if (onboarding === "required") {
-          router.replace("/onboarding-start");
+          window.location.replace("/onboarding-start");
         } else {
-          router.replace("/");
+          window.location.replace("/");
         }
       } catch (error) {
         console.error("[Investor Callback] Error processing token:", error);
-        window.history.replaceState(null, "", window.location.pathname);
-        router.replace("/");
+        window.location.replace("/");
       }
       return;
     }
@@ -62,23 +57,23 @@ function CallbackPageContent() {
           if (data.success && data.data?.accessToken) {
             // Store new access token in memory
             setAccessToken(data.data.accessToken);
-            // Redirect to dashboard
-            router.replace("/");
+            // Redirect to dashboard using window.location for clean navigation
+            window.location.replace("/");
             return;
           }
         }
 
         // Silent refresh failed - redirect to login
         console.warn("[Investor Callback] Silent refresh failed, redirecting to login");
-        router.replace("/");
+        window.location.replace("/");
       } catch (error) {
         console.error("[Investor Callback] Error during silent refresh:", error);
-        router.replace("/");
+        window.location.replace("/");
       }
     };
 
     attemptSilentRefresh();
-  }, [searchParams, router, setAccessToken]);
+  }, [searchParams, setAccessToken]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">

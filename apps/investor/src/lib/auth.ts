@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuthToken } from "@cashsouk/config";
 
@@ -60,11 +59,15 @@ export function logout(clearAccessToken: () => void) {
  * Hook to check authentication and redirect if not authenticated
  */
 export function useAuth() {
-  const searchParams = useSearchParams();
   const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Don't run auth check on callback page
+    if (typeof window !== "undefined" && window.location.pathname === "/callback") {
+      return;
+    }
+
     const checkAuth = async () => {
       // Check if token exists in query params (from callback redirect)
       const urlParams = new URLSearchParams(window.location.search);
@@ -134,7 +137,7 @@ export function useAuth() {
     };
 
     checkAuth();
-  }, [searchParams, accessToken, setAccessToken, clearAccessToken]);
+  }, []); // Only run once on mount
 
   return { isAuthenticated, token: accessToken };
 }
