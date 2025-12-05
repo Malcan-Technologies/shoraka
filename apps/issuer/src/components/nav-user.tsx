@@ -23,12 +23,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAuthToken, logout } from "../lib/auth";
-import { createApiClient } from "@cashsouk/config";
+import { logout } from "../lib/auth";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
-const apiClient = createApiClient(API_URL);
 
 interface ApiUserData {
   first_name: string | null;
@@ -41,10 +40,12 @@ export function NavUser() {
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isOnboarding = pathname === "/onboarding-start";
+  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
+      const apiClient = createApiClient(API_URL, () => accessToken, setAccessToken);
       const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me");
       if (!result.success) {
         throw new Error(result.error.message);
@@ -63,13 +64,12 @@ export function NavUser() {
 
   const handleLogout = () => {
     setIsLoggingOut(true);
-    logout();
+    logout(clearAccessToken);
   };
 
   const handleSwitchPortal = () => {
-    const token = getAuthToken();
-    if (token) {
-      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(token)}`;
+    if (accessToken) {
+      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(accessToken)}`;
     } else {
       window.location.href = INVESTOR_URL;
     }

@@ -2,15 +2,17 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { useAuthToken } from "@cashsouk/config";
 
 function CallbackPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { setAccessToken } = useAuthToken();
   const processedRef = useRef(false);
   const redirectingRef = useRef(false);
   const token = searchParams.get("token");
-  const refreshToken = searchParams.get("refresh_token");
   const onboarding = searchParams.get("onboarding");
 
   useEffect(() => {
@@ -23,31 +25,30 @@ function CallbackPageContent() {
     if (!token) {
       // No token - redirect to home
       redirectingRef.current = true;
-      window.location.href = "/";
+      router.push("/");
       return;
     }
 
     try {
-      // Store tokens in localStorage
-      localStorage.setItem("auth_token", token);
-      if (refreshToken) {
-        localStorage.setItem("refresh_token", refreshToken);
-      }
+      // Store access token in memory (React Context)
+      // refresh_token is stored in HTTP-only cookie by backend
+      setAccessToken(token);
 
-      // Set redirecting flag before redirect
-      redirectingRef.current = true;
-
-      // Remove token from URL to prevent infinite reloads
-      // Use window.location.replace to ensure clean redirect without query params
+      // Clean URL by removing token query params using replaceState
+      // This prevents tokens from being exposed in browser history
+      // and prevents back button from returning to callback with expired state
+      window.history.replaceState(null, "", window.location.pathname);
+      
       const cleanUrl = onboarding === "required" ? "/welcome" : "/";
-      window.location.replace(cleanUrl);
+      redirectingRef.current = true;
+      router.replace(cleanUrl);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("[Admin Callback] Error processing callback:", error);
       redirectingRef.current = true;
-      window.location.replace("/");
+      router.replace("/");
     }
-  }, [token, refreshToken, onboarding]);
+  }, [token, onboarding, router, setAccessToken]);
 
   // If we're redirecting, show redirecting message
   if (redirectingRef.current) {

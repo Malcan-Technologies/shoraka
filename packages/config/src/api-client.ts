@@ -18,27 +18,24 @@ import type {
 export class ApiClient {
   private baseUrl: string;
   private refreshPromise: Promise<Response> | null = null;
+  private getToken: (() => string | null) | null = null;
+  private setToken: ((token: string | null) => void) | null = null;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, getToken?: () => string | null, setToken?: (token: string | null) => void) {
     this.baseUrl = baseUrl;
+    this.getToken = getToken || null;
+    this.setToken = setToken || null;
   }
 
   /**
-   * Get auth token from localStorage (for development)
-   * In production, tokens are in HTTP-Only cookies and sent automatically
+   * Get auth token from memory (via callback)
+   * Tokens are stored in Next.js memory (React Context), not localStorage
    */
   private getAuthToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("auth_token");
-  }
-
-  /**
-   * Get refresh token from localStorage (for development)
-   * In production, refresh token is in HTTP-Only cookies and sent automatically
-   */
-  private getRefreshToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("refresh_token");
+    if (this.getToken) {
+      return this.getToken();
+    }
+    return null;
   }
 
   /**
@@ -89,34 +86,24 @@ export class ApiClient {
       this.refreshPromise = null;
 
       if (success) {
-        // Refresh successful - cookies are updated automatically
-        // In dev mode, also update localStorage with new tokens from response
+        // Refresh successful - refresh_token cookie is updated automatically
+        // Update access_token in memory via callback
         try {
           const data = await response.json();
-          // Backend returns tokens in response.data for dev mode (wrapped in ApiResponse)
-          if (data.data?.accessToken) {
-            localStorage.setItem("auth_token", data.data.accessToken);
-          }
-          if (data.data?.refreshToken) {
-            localStorage.setItem("refresh_token", data.data.refreshToken);
-          }
-          // Also check direct properties (in case response structure is different)
-          if (data.accessToken && !data.data?.accessToken) {
-            localStorage.setItem("auth_token", data.accessToken);
-          }
-          if (data.refreshToken && !data.data?.refreshToken) {
-            localStorage.setItem("refresh_token", data.refreshToken);
+          // Backend returns tokens in response body
+          const accessToken = data.data?.accessToken || data.accessToken;
+          if (accessToken && this.setToken) {
+            this.setToken(accessToken);
           }
         } catch {
-          // Response might not be JSON, that's okay - cookies are set automatically
+          // Response might not be JSON, that's okay - refresh_token cookie is set automatically
         }
       } else {
-        // Refresh failed (401 or 403) - clear tokens
+        // Refresh failed (401 or 403) - clear access token from memory
         // Don't redirect here - let the portal's auth logic handle redirects
         // This allows each portal (admin, investor, issuer) to redirect to their own login page
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("refresh_token");
+        if (this.setToken) {
+          this.setToken(null);
         }
       }
 
@@ -164,9 +151,9 @@ export class ApiClient {
       const refreshed = await this.refreshToken();
 
       if (refreshed) {
-        // After refresh, cookies are updated automatically
-        // In dev mode, localStorage is also updated with new tokens
-        // Get updated token from localStorage (dev mode) or use cookies (production)
+        // After refresh, refresh_token cookie is updated automatically
+        // Access token is updated in memory via callback
+        // Get updated token from memory
         const updatedToken = this.getAuthToken();
 
         // Update Authorization header with new token (if available)
@@ -174,11 +161,11 @@ export class ApiClient {
         if (updatedToken) {
           retryHeaders["Authorization"] = `Bearer ${updatedToken}`;
         }
-
-        // Retry original request (cookies will be sent automatically, or use Authorization header)
+        
+        // Retry original request with new access token in Authorization header
         response = await fetch(url, {
           ...options,
-          credentials: "include", // Send updated cookies
+          credentials: "include", // Send refresh_token cookie
           headers: retryHeaders,
         });
       } else {
@@ -420,7 +407,9 @@ export class ApiClient {
     const url = `${this.baseUrl}/v1/admin/access-logs/export?${queryParams.toString()}`;
     const authToken = this.getAuthToken();
 
-    const headers: HeadersInit = {};
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
@@ -439,6 +428,14 @@ export class ApiClient {
   }
 }
 
-export function createApiClient(baseUrl?: string): ApiClient {
-  return new ApiClient(baseUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000");
+export function createApiClient(
+  baseUrl?: string,
+  getToken?: () => string | null,
+  setToken?: (token: string | null) => void
+): ApiClient {
+  return new ApiClient(
+    baseUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
+    getToken,
+    setToken
+  );
 }

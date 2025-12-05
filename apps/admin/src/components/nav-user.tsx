@@ -31,10 +31,9 @@ import {
 } from "@/components/ui/sidebar"
 import { Skeleton } from "@cashsouk/ui"
 import { logout } from "../lib/auth"
-import { createApiClient } from "@cashsouk/config"
+import { createApiClient, useAuthToken } from "@cashsouk/config"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
-const apiClient = createApiClient(API_URL)
 
 interface ApiUserData {
   first_name: string | null
@@ -45,10 +44,12 @@ interface ApiUserData {
 export function NavUser() {
   const { isMobile } = useSidebar()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken()
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
+      const apiClient = createApiClient(API_URL, () => accessToken, setAccessToken)
       const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me")
       if (!result.success) {
         throw new Error(result.error.message)
@@ -67,7 +68,7 @@ export function NavUser() {
 
   const handleLogout = () => {
     setIsLoggingOut(true)
-    logout()
+    logout(clearAccessToken)
   }
 
   if (isLoading) {

@@ -13,17 +13,20 @@ import {
   Logo,
 } from "@cashsouk/ui";
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
-import { getAuthToken, redirectToLanding } from "../../lib/auth";
-import { createApiClient } from "@cashsouk/config";
+import { redirectToLanding } from "../../lib/auth";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
+import { useSearchParams } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
 
 export default function OnboardingStartPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { accessToken, setAccessToken } = useAuthToken();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
@@ -38,8 +41,16 @@ export default function OnboardingStartPage() {
     // Flag to prevent duplicate API calls in Strict Mode
     let isMounted = true;
     
-    // Get token from query params or localStorage
-    const token = getAuthToken();
+    // Check for token in URL query params first (from callback redirect)
+    const tokenFromQuery = searchParams.get("token");
+    if (tokenFromQuery) {
+      setAccessToken(tokenFromQuery);
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    
+    // Get token from memory
+    const token = accessToken || tokenFromQuery;
     
     if (!token) {
       if (isMounted) {
@@ -49,14 +60,14 @@ export default function OnboardingStartPage() {
     }
 
     const fetchUser = async () => {
-      const authToken = getAuthToken();
-      if (!authToken) {
+      const currentToken = accessToken || tokenFromQuery;
+      if (!currentToken) {
         setLoading(false);
         return;
       }
 
       try {
-        const apiClient = createApiClient(API_URL);
+        const apiClient = createApiClient(API_URL, () => currentToken, setAccessToken);
         
         // Fetch user info
         const userResult = await apiClient.get<{
@@ -100,10 +111,10 @@ export default function OnboardingStartPage() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [router, accessToken, searchParams, setAccessToken]);
 
   const handleStartOnboarding = async () => {
-    const token = getAuthToken();
+    const token = accessToken;
     
     if (!token) {
       redirectToLanding();
@@ -113,18 +124,13 @@ export default function OnboardingStartPage() {
     setCompleting(true);
 
     try {
-      const apiClient = createApiClient(API_URL);
+      const apiClient = createApiClient(API_URL, () => token, setAccessToken);
       const result = await apiClient.post("/v1/auth/complete-onboarding", {
         role: "ISSUER",
       });
 
       if (result.success) {
-        const authToken = getAuthToken();
-        if (authToken) {
-          router.push(`/?token=${encodeURIComponent(authToken)}`);
-        } else {
-          router.push("/");
-        }
+        router.push("/");
       } else {
         console.error("Failed to complete onboarding:", result);
         setCompleting(false);
@@ -136,9 +142,8 @@ export default function OnboardingStartPage() {
   };
 
   const handleSwitchPortal = () => {
-    const token = getAuthToken();
-    if (token) {
-      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(token)}`;
+    if (accessToken) {
+      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(accessToken)}`;
     } else {
       window.location.href = INVESTOR_URL;
     }
@@ -146,8 +151,7 @@ export default function OnboardingStartPage() {
 
   // Check for token - but only redirect if we're sure there's no token
   // (don't redirect during initial load when token might be in URL)
-  const token = getAuthToken();
-  if (!token && !loading && typeof window !== "undefined") {
+  if (!accessToken && !loading && typeof window !== "undefined") {
     // Only redirect if we've finished loading and still have no token
     // This prevents redirecting when token is in URL but not yet extracted
     const urlParams = new URLSearchParams(window.location.search);

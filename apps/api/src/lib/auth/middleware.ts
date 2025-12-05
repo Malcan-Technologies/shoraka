@@ -16,24 +16,27 @@ declare global {
 
 /**
  * Middleware to require authentication via JWT token
- * Validates token from HTTP-Only cookie or Authorization header
+ * Validates token from Authorization header (Bearer token)
+ * Access tokens are stored in Next.js memory, not cookies
  * Fetches user from database and attaches to req.user
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
-    // Priority 1: Check HTTP-Only cookie (for browser/web clients)
-    let token = req.cookies?.access_token;
+    // Check Authorization header for Bearer token
+    // Access tokens are stored in Next.js memory and sent via Authorization header
+    const authHeader = req.headers.authorization;
+    let token: string | undefined;
     
-    // Priority 2: Check Authorization header (for API clients, mobile apps, or testing)
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
-      }
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
     }
 
     if (!token) {
-      throw new AppError(401, "UNAUTHORIZED", "No authentication token provided");
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        "No authentication token provided. Please include a Bearer token in the Authorization header."
+      );
     }
 
     let payload;

@@ -20,7 +20,7 @@ import { extractRequestMetadata, getDeviceFingerprint } from "../../lib/http/req
 import { getPortalFromRole } from "../../lib/role-detector";
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma";
-import { verifyToken, verifyRefreshToken, generateTokenPair } from "../../lib/auth/jwt";
+import { verifyToken, verifyRefreshToken, generateTokenPair, parseTimeToMs } from "../../lib/auth/jwt";
 import { AppError } from "../../lib/http/error-handler";
 import { getEnv } from "../../config/env";
 import { logger } from "../../lib/logger";
@@ -646,42 +646,24 @@ export class AuthService {
         },
       });
 
-      // Set new HTTP-Only cookies
-      res.cookie("access_token", newTokens.accessToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        path: "/",
-        domain: env.COOKIE_DOMAIN,
-      });
-
+      // Set new HTTP-Only cookie for refresh_token only
+      // access_token is returned in response body and stored in Next.js memory (not cookies)
       res.cookie("refresh_token", newTokens.refreshToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "strict" : "lax", // Lax for dev cross-origin
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: parseTimeToMs(process.env.REFRESH_TOKEN_EXPIRES_IN || "7d"),
         path: "/", // Available to all paths (needed for /v1/auth/refresh)
         domain: env.COOKIE_DOMAIN,
       });
 
-      // Return success with message
-      // In development, also return tokens in response body (cookies don't work across ports)
-      const isDevelopment = env.NODE_ENV === "development";
-
-      if (isDevelopment || !env.COOKIE_DOMAIN) {
-        // Dev mode: Return tokens in response so frontend can store in localStorage
-        return {
-          message: "Tokens refreshed successfully",
-          accessToken: newTokens.accessToken,
-          refreshToken: newTokens.refreshToken,
-        };
-      } else {
-        // Production: Tokens only in HTTP-Only cookies (more secure)
-        return {
-          message: "Tokens refreshed successfully",
-        };
-      }
+      // Always return accessToken in response body (frontend stores in memory)
+      // refreshToken is also returned for dev mode compatibility
+      return {
+        message: "Tokens refreshed successfully",
+        accessToken: newTokens.accessToken,
+        refreshToken: newTokens.refreshToken,
+      };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;

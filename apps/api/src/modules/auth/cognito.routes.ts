@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { getCognitoConfig } from "../../config/aws";
 import { getOpenIdClient, generators } from "../../lib/openid-client";
-import { verifyToken, generateTokenPair } from "../../lib/auth/jwt";
+import { verifyToken, generateTokenPair, parseTimeToMs } from "../../lib/auth/jwt";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
@@ -131,7 +131,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
   }
 });
 
-router.get("/callback", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/callback", async (req: Request, res: Response) => {
   const correlationId = generateCorrelationId();
 
   try {
@@ -142,7 +142,12 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
     const encryptedState = params.state;
 
     if (!encryptedState) {
-      throw new AppError(400, "MISSING_STATE", "OAuth state parameter is missing");
+      // Redirect to user-friendly error page for missing state
+      const env = getEnv();
+      const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
+      errorUrl.searchParams.set("error", "missing_state");
+      errorUrl.searchParams.set("message", "Authentication session is missing. Please sign in again.");
+      return res.redirect(errorUrl.toString());
     }
 
     let stateData;
@@ -153,7 +158,14 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
         { correlationId, error: error instanceof Error ? error.message : String(error) },
         "Failed to decrypt OAuth state"
       );
-      throw new AppError(400, "INVALID_STATE", "Invalid or expired OAuth state");
+      
+      // Redirect to user-friendly error page instead of throwing JSON error
+      // This handles cases where user clicks back button and tries to reuse expired state
+      const env = getEnv();
+      const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
+      errorUrl.searchParams.set("error", "expired_session");
+      errorUrl.searchParams.set("message", "Your login session has expired. Please sign in again.");
+      return res.redirect(errorUrl.toString());
     }
 
     logger.info(
@@ -527,22 +539,14 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
-    // Set HTTP-Only cookies for tokens
+    // Set HTTP-Only cookie for refresh_token only
+    // access_token is passed via URL and stored in Next.js memory (not cookies)
     const env = getEnv();
-    res.cookie("access_token", tokens.accessToken, {
-      httpOnly: true, // XSS protection - cannot be accessed by JavaScript
-      secure: env.NODE_ENV === "production", // HTTPS only in production
-      sameSite: "strict", // CSRF protection
-      maxAge: 15 * 60 * 1000, // 15 minutes
-      path: "/",
-      domain: env.COOKIE_DOMAIN,
-    });
-
     res.cookie("refresh_token", tokens.refreshToken, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
       sameSite: env.NODE_ENV === "production" ? "strict" : "lax", // Lax for dev cross-origin
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: parseTimeToMs(process.env.REFRESH_TOKEN_EXPIRES_IN || "7d"),
       path: "/", // Available to all paths (needed for /v1/auth/refresh)
       domain: env.COOKIE_DOMAIN,
     });
@@ -638,13 +642,32 @@ router.get("/callback", async (req: Request, res: Response, next: NextFunction) 
       "Callback error"
     );
 
-    if (error instanceof z.ZodError) {
-      return next(
-        new AppError(400, "VALIDATION_ERROR", "Missing authorization code", error.errors)
-      );
+    // Redirect to user-friendly error page instead of showing JSON error
+    const env = getEnv();
+    const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
+
+    if (error instanceof AppError) {
+      // Map specific error codes to user-friendly messages
+      let userMessage = error.message;
+      if (error.code === "INVALID_STATE" || error.code === "MISSING_STATE") {
+        userMessage = "Your login session has expired. Please sign in again.";
+      } else if (error.code === "TOKEN_EXCHANGE_FAILED") {
+        userMessage = "Authentication failed. Please try signing in again.";
+      } else if (error.code === "COGNITO_ERROR") {
+        userMessage = "Authentication service error. Please try again.";
+      }
+
+      errorUrl.searchParams.set("error", error.code);
+      errorUrl.searchParams.set("message", userMessage);
+    } else if (error instanceof z.ZodError) {
+      errorUrl.searchParams.set("error", "VALIDATION_ERROR");
+      errorUrl.searchParams.set("message", "Invalid authentication request. Please try again.");
+    } else {
+      errorUrl.searchParams.set("error", "unknown_error");
+      errorUrl.searchParams.set("message", "An unexpected error occurred. Please try again.");
     }
 
-    return next(error);
+    return res.redirect(errorUrl.toString());
   }
 });
 
@@ -653,11 +676,9 @@ router.get("/logout", async (req: Request, res: Response) => {
   logger.info({ correlationId }, "Logout requested");
 
   // Try to extract user info from token before destroying session
-  // Check HTTP-Only cookie first, then fallback to Authorization header (for API clients)
-  const tokenFromCookie = req.cookies?.access_token;
+  // Access token is sent via Authorization header (stored in Next.js memory, not cookies)
   const authHeader = req.headers.authorization;
-  const token =
-    tokenFromCookie || (authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined);
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
 
   let cognitoSub: string | undefined;
   let portal: string | undefined;
@@ -748,19 +769,12 @@ router.get("/logout", async (req: Request, res: Response) => {
     logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
   }
 
-  // Clear HTTP-Only cookies
+  // Clear HTTP-Only cookie for refresh_token only
+  // access_token is not stored in cookies, so no need to clear it
   // IMPORTANT: Must use the SAME options as when cookies were set (domain, path, secure, sameSite)
   // Otherwise cookies won't be properly cleared
   const envForCookies = getEnv();
-
-  res.clearCookie("access_token", {
-    httpOnly: true,
-    secure: envForCookies.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    domain: envForCookies.COOKIE_DOMAIN,
-  });
-
+  
   // refresh_token uses same path "/" (not /api/auth/refresh)
   res.clearCookie("refresh_token", {
     httpOnly: true,

@@ -29,14 +29,9 @@ function CallbackPageContent() {
       // Normalize role to uppercase string for comparison
       const activeRole = (role || payload.activeRole || "INVESTOR").toString().toUpperCase();
 
-      // Store access token
-      localStorage.setItem("auth_token", token);
-      
-      // Store refresh token for dev mode (cookies don't work across different ports)
-      const refreshToken = searchParams.get("refresh_token");
-      if (refreshToken) {
-        localStorage.setItem("refresh_token", refreshToken);
-      }
+      // Don't store tokens here - landing page just redirects to portals
+      // Each portal's callback page will handle token storage in memory
+      // refresh_token is stored in HTTP-only cookie by backend
 
       let redirectUrl = "";
 
@@ -59,13 +54,19 @@ function CallbackPageContent() {
       }
 
       if (redirectUrl) {
+        // Pass token in URL for portal callback pages to store in memory
         const finalUrl = `${redirectUrl}?token=${encodeURIComponent(token)}`;
         // Use window.location.replace to avoid adding to history and ensure redirect happens
+        // This prevents back button from returning to callback with expired state
         window.location.replace(finalUrl);
       } else {
+        // Clean URL and redirect to home
+        window.history.replaceState(null, "", window.location.pathname);
         router.push("/");
       }
     } catch (error) {
+      // Clean URL on error and redirect to home
+      window.history.replaceState(null, "", window.location.pathname);
       router.push("/");
     }
   }, [token, onboarding, role, router]);

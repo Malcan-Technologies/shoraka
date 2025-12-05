@@ -6,6 +6,29 @@ import { randomBytes } from "crypto";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "15m";
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || "7d";
 
+/**
+ * Parse time string (e.g., "15m", "7d", "2h") to milliseconds
+ * Supports: s (seconds), m (minutes), h (hours), d (days)
+ */
+export function parseTimeToMs(timeString: string): number {
+  const match = timeString.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeString}. Expected format: <number><unit> (e.g., "15m", "7d")`);
+  }
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+
+  const multipliers: Record<string, number> = {
+    s: 1000, // seconds to milliseconds
+    m: 60 * 1000, // minutes to milliseconds
+    h: 60 * 60 * 1000, // hours to milliseconds
+    d: 24 * 60 * 60 * 1000, // days to milliseconds
+  };
+
+  return value * multipliers[unit];
+}
+
 export interface JwtPayload {
   userId: string;
   email: string;
@@ -89,10 +112,10 @@ export function generateTokenPair(
   const accessToken = signToken(accessPayload);
   const refreshToken = generateRefreshToken(userId);
   
-  // Calculate expiration dates
+  // Calculate expiration dates using environment variables
   const now = Date.now();
-  const accessTokenExpiresAt = new Date(now + 15 * 60 * 1000); // 15 minutes
-  const refreshTokenExpiresAt = new Date(now + 7 * 24 * 60 * 60 * 1000); // 7 days
+  const accessTokenExpiresAt = new Date(now + parseTimeToMs(JWT_EXPIRES_IN));
+  const refreshTokenExpiresAt = new Date(now + parseTimeToMs(REFRESH_TOKEN_EXPIRES_IN));
   
   return {
     accessToken,

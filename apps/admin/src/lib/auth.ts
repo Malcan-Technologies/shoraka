@@ -2,32 +2,25 @@
 
 import { useEffect, useState, useRef } from "react";
 import type { UserRole } from "@cashsouk/types";
+import { useAuthToken } from "@cashsouk/config";
 
 const LANDING_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
- * Get auth token from localStorage only
- * Token from query params should be handled by the callback page
- */
-export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  
-  // Only return from localStorage - callback page handles query params
-  return localStorage.getItem("auth_token");
-}
-
-/**
  * Verify token is valid by calling /v1/auth/me
  * Uses API client which handles automatic token refresh
- * Note: In production, tokens are in HTTP-Only cookies, so token parameter may be ignored
+ * Access token is stored in memory and sent via Authorization header
  */
-export async function verifyToken(_token?: string | null): Promise<boolean> {
+export async function verifyToken(
+  getToken: () => string | null,
+  setToken: (token: string | null) => void
+): Promise<boolean> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
-    const apiClient = createApiClient(API_URL);
+    const apiClient = createApiClient(API_URL, getToken, setToken);
     
-    // API client will use cookies if available, or Authorization header if token provided
+    // API client will use token from memory via Authorization header
     const result = await apiClient.get("/v1/auth/me");
     
     return result.success === true;
@@ -39,10 +32,13 @@ export async function verifyToken(_token?: string | null): Promise<boolean> {
 /**
  * Get user info including roles from /v1/auth/me
  */
-export async function getUserInfo(): Promise<{ roles: UserRole[]; email: string } | null> {
+export async function getUserInfo(
+  getToken: () => string | null,
+  setToken: (token: string | null) => void
+): Promise<{ roles: UserRole[]; email: string } | null> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
-    const apiClient = createApiClient(API_URL);
+    const apiClient = createApiClient(API_URL, getToken, setToken);
     
     const result = await apiClient.get<{
       user: {
@@ -94,23 +90,17 @@ export function redirectToLanding() {
 
 /**
  * Logout user from admin portal
- * Clears local storage and redirects to Cognito logout endpoint
+ * Clears token from memory and redirects to Cognito logout endpoint
  */
-export function logout() {
+export function logout(clearAccessToken: () => void) {
   if (typeof window === "undefined") return;
 
-  const token = getAuthToken();
-  const logoutUrl = new URL(`${API_URL}/v1/auth/cognito/logout`);
-  
-  if (token) {
-    logoutUrl.searchParams.set("token", token);
-  }
+  // Clear access token from memory
+  clearAccessToken();
 
-  // Clear tokens from localStorage before redirecting
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("refresh_token");
-
-  window.location.href = logoutUrl.toString();
+  // Redirect to logout endpoint (refresh_token cookie will be cleared by backend)
+  const logoutUrl = `${API_URL}/v1/auth/cognito/logout`;
+  window.location.href = logoutUrl;
 }
 
 /**
@@ -119,8 +109,8 @@ export function logout() {
  * Logs out and redirects if user doesn't have ADMIN role
  */
 export function useAuth() {
+  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [hasAdminRole, setHasAdminRole] = useState<boolean | null>(null);
   const checkingRef = useRef(false);
   const checkedRef = useRef(false);
@@ -140,19 +130,12 @@ export function useAuth() {
       checkingRef.current = true;
 
       try {
-        // Try to verify auth - API client will use cookies if available
-        // or localStorage token if cookies aren't available (dev mode)
-        const authToken = getAuthToken();
-        
-        // Even if no token in localStorage, try to verify (cookies might work)
-        const isValid = await verifyToken(authToken);
+        // Verify auth using token from memory
+        const isValid = await verifyToken(() => accessToken, setAccessToken);
         
         if (!isValid) {
           // Token is invalid and refresh failed, clear it and redirect
-          if (authToken) {
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("refresh_token");
-          }
+          clearAccessToken();
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
@@ -161,33 +144,21 @@ export function useAuth() {
         }
 
         // Auth is valid - check if user has ADMIN role
-        const userInfo = await getUserInfo();
+        const userInfo = await getUserInfo(() => accessToken, setAccessToken);
         
         if (!userInfo || !userInfo.roles.includes("ADMIN")) {
           // User doesn't have ADMIN role - logout and they'll be redirected to landing
-          
-          // Clear tokens locally first
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("refresh_token");
-          
+          clearAccessToken();
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
           
           // Logout from Cognito - user will be redirected to landing page
-          // User can then navigate to localhost:3003 to try logging in with admin credentials
-          const token = getAuthToken(); // Will be null since we just cleared it
-          const logoutUrl = new URL(`${API_URL}/v1/auth/cognito/logout`);
-          if (token) {
-            logoutUrl.searchParams.set("token", token);
-          }
-          
-          window.location.href = logoutUrl.toString();
+          logout(clearAccessToken);
           return;
         }
 
         // User is authenticated and has ADMIN role
-        setToken(authToken || "cookie-based"); // Use placeholder if cookie-based
         setIsAuthenticated(true);
         setHasAdminRole(true);
         checkedRef.current = true;
@@ -202,8 +173,8 @@ export function useAuth() {
     };
 
     checkAuth();
-  }, []); // Run on mount only - check auth when component loads
+  }, [accessToken, setAccessToken, clearAccessToken]); // Run when accessToken changes
 
-  return { isAuthenticated, token, hasAdminRole };
+  return { isAuthenticated, token: accessToken, hasAdminRole };
 }
 
