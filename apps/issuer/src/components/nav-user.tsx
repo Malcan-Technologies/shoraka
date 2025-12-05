@@ -68,11 +68,8 @@ export function NavUser() {
   };
 
   const handleSwitchPortal = () => {
-    if (accessToken) {
-      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(accessToken)}`;
-    } else {
-      window.location.href = INVESTOR_URL;
-    }
+    // Simply redirect to target portal - it will auto-refresh to get access token
+    window.location.href = INVESTOR_URL;
   };
 
   if (isLoading) {

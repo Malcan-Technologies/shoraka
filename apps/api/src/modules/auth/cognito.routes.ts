@@ -581,7 +581,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Always redirect to landing page callback first
     // Landing page will then redirect to the appropriate portal's callback page
     // This ensures consistent flow for all roles
-    callbackUrl = `${env.FRONTEND_URL}/callback`;
+      callbackUrl = `${env.FRONTEND_URL}/callback`;
 
     const redirectUrl = new URL(callbackUrl);
     redirectUrl.searchParams.set("token", tokens.accessToken);

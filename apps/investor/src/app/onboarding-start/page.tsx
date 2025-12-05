@@ -132,7 +132,7 @@ function OnboardingStartPageContent() {
       });
 
       if (result.success) {
-        router.push("/");
+          router.push("/");
       } else {
         console.error("Failed to complete onboarding:", result);
         setCompleting(false);
@@ -144,11 +144,8 @@ function OnboardingStartPageContent() {
   };
 
   const handleSwitchPortal = () => {
-    if (accessToken) {
-      window.location.href = `${ISSUER_URL}?token=${encodeURIComponent(accessToken)}`;
-    } else {
-      window.location.href = ISSUER_URL;
-    }
+    // Simply redirect to target portal - it will auto-refresh to get access token
+    window.location.href = ISSUER_URL;
   };
 
   // Check for token on every render

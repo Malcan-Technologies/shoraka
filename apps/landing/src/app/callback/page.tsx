@@ -37,11 +37,11 @@ function CallbackPageContent() {
 
       // Always redirect to portal's callback page first to store token in memory
       // Then portal callback will redirect to the appropriate destination
-      if (activeRole === "INVESTOR") {
+        if (activeRole === "INVESTOR") {
         redirectUrl = `${INVESTOR_URL}/callback`;
-      } else if (activeRole === "ISSUER") {
+        } else if (activeRole === "ISSUER") {
         redirectUrl = `${ISSUER_URL}/callback`;
-      } else if (activeRole === "ADMIN") {
+        } else if (activeRole === "ADMIN") {
         redirectUrl = `${ADMIN_URL}/callback`;
       }
 

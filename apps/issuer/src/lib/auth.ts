@@ -76,8 +76,50 @@ export function useAuth() {
         window.history.replaceState({}, "", window.location.pathname);
       }
 
-      // Verify auth using token from memory
-      const isValid = await verifyToken(() => accessToken, setAccessToken);
+      // If no access token in memory, attempt silent refresh first
+      let currentToken = accessToken || tokenFromQuery;
+      if (!currentToken) {
+        try {
+          const response = await fetch(`${API_URL}/v1/auth/silent-refresh`, {
+            method: "GET",
+            credentials: "include", // Include cookies (refresh_token)
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data?.accessToken) {
+              // Store new access token in memory
+              setAccessToken(data.data.accessToken);
+              currentToken = data.data.accessToken;
+            } else {
+              // Silent refresh failed - redirect to landing
+              clearAccessToken();
+              setIsAuthenticated(false);
+              redirectToLanding();
+              return;
+            }
+          } else {
+            // Silent refresh failed - redirect to landing
+            clearAccessToken();
+            setIsAuthenticated(false);
+            redirectToLanding();
+            return;
+          }
+        } catch (refreshError) {
+          // Silent refresh failed - redirect to landing
+          console.error("[useAuth] Silent refresh failed:", refreshError);
+          clearAccessToken();
+          setIsAuthenticated(false);
+          redirectToLanding();
+          return;
+        }
+      }
+
+      // Verify auth using token from memory (or newly refreshed token)
+      const isValid = await verifyToken(() => currentToken, setAccessToken);
 
       if (!isValid) {
         // Token is invalid and refresh failed, clear it and redirect

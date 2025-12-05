@@ -59,7 +59,7 @@ export class ApiClient {
     const refreshHeaders: HeadersInit = {
       "Content-Type": "application/json",
     };
-
+    
     this.refreshPromise = fetch(`${this.baseUrl}/v1/auth/refresh`, {
       method: "POST",
       credentials: "include", // Send HTTP-Only cookies (includes refresh_token)
@@ -107,14 +107,14 @@ export class ApiClient {
     options?: RequestInit
   ): Promise<ApiResponse<T> | ApiError> {
     const url = `${this.baseUrl}${endpoint}`;
-
+    
     // Don't retry refresh endpoint if it fails
     const isRefreshEndpoint = endpoint === "/v1/auth/refresh";
 
     // Get auth token from localStorage (for development)
     // In production, tokens are in HTTP-Only cookies and sent automatically
     const authToken = this.getAuthToken();
-
+    
     // Prepare headers
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -143,7 +143,7 @@ export class ApiClient {
         // Access token is updated in memory via callback
         // Get updated token from memory
         const updatedToken = this.getAuthToken();
-
+        
         // Update Authorization header with new token (if available)
         const retryHeaders = { ...headers };
         if (updatedToken) {

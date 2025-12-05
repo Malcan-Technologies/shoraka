@@ -130,7 +130,7 @@ function OnboardingStartPageContent() {
       });
 
       if (result.success) {
-        router.push("/");
+          router.push("/");
       } else {
         console.error("Failed to complete onboarding:", result);
         setCompleting(false);
@@ -142,11 +142,8 @@ function OnboardingStartPageContent() {
   };
 
   const handleSwitchPortal = () => {
-    if (accessToken) {
-      window.location.href = `${INVESTOR_URL}?token=${encodeURIComponent(accessToken)}`;
-    } else {
-      window.location.href = INVESTOR_URL;
-    }
+    // Simply redirect to target portal - it will auto-refresh to get access token
+    window.location.href = INVESTOR_URL;
   };
 
   // Check for token - but only redirect if we're sure there's no token

@@ -20,7 +20,7 @@ import { extractRequestMetadata, getDeviceFingerprint } from "../../lib/http/req
 import { getPortalFromRole } from "../../lib/role-detector";
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma";
-import { verifyToken, verifyRefreshToken, generateTokenPair, parseTimeToMs } from "../../lib/auth/jwt";
+import { verifyToken, verifyRefreshToken, generateTokenPair, parseTimeToMs, signToken } from "../../lib/auth/jwt";
 import { AppError } from "../../lib/http/error-handler";
 import { getEnv } from "../../config/env";
 import { logger } from "../../lib/logger";
@@ -664,6 +664,99 @@ export class AuthService {
         accessToken: newTokens.accessToken,
         refreshToken: newTokens.refreshToken,
       };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(403, "FORBIDDEN", "Invalid refresh token");
+    }
+  }
+
+  /**
+   * Silent refresh - generates a new access token without rotating the refresh token
+   * Used for automatic token refresh on page load and portal switching
+   * Does NOT mark refresh token as used or rotate it
+   */
+  async silentRefresh(req: Request): Promise<{ accessToken: string }> {
+    const { ipAddress, userAgent } = extractRequestMetadata(req);
+
+    // Get refresh token from HTTP-Only cookie only (no fallbacks for security)
+    const refreshToken = req.cookies?.refresh_token;
+
+    if (!refreshToken) {
+      logger.warn(
+        {
+          hasCookies: !!req.cookies,
+          cookieKeys: req.cookies ? Object.keys(req.cookies) : [],
+        },
+        "No refresh token found in cookies for silent refresh"
+      );
+      throw new AppError(401, "UNAUTHORIZED", "No refresh token provided");
+    }
+
+    try {
+      // Verify refresh token signature and expiration
+      verifyRefreshToken(refreshToken);
+
+      // Find token in database
+      const storedToken = await prisma.refreshToken.findUnique({
+        where: { token: refreshToken },
+        include: { user: true },
+      });
+
+      if (!storedToken) {
+        throw new AppError(403, "FORBIDDEN", "Invalid refresh token");
+      }
+
+      // Check if token is revoked
+      if (storedToken.revoked) {
+        throw new AppError(403, "FORBIDDEN", "Refresh token has been revoked");
+      }
+
+      // Check if token is expired
+      if (storedToken.expires_at < new Date()) {
+        throw new AppError(403, "FORBIDDEN", "Refresh token has expired");
+      }
+
+      // Check if token was already used (token reuse detection)
+      if (storedToken.used) {
+        // Token reuse detected - revoke all tokens for security
+        await prisma.refreshToken.updateMany({
+          where: { user_id: storedToken.user_id },
+          data: {
+            revoked: true,
+            revoked_at: new Date(),
+            revoked_reason: "TOKEN_REUSE_DETECTED",
+          },
+        });
+
+        await this.repository.createAccessLog({
+          userId: storedToken.user_id,
+          eventType: "LOGOUT",
+          ipAddress,
+          userAgent,
+          deviceInfo: extractRequestMetadata(req).deviceInfo,
+          deviceType: extractRequestMetadata(req).deviceType,
+          success: false,
+          metadata: {
+            reason: "TOKEN_REUSE_DETECTED",
+            revokedAllTokens: true,
+          },
+        });
+
+        throw new AppError(403, "FORBIDDEN", "Token reuse detected - all sessions revoked");
+      }
+
+      // Generate ONLY a new access token (do NOT rotate refresh token)
+      const accessToken = signToken({
+        userId: storedToken.user.id,
+        email: storedToken.user.email,
+        roles: storedToken.user.roles,
+        activeRole: storedToken.user.roles[0] || UserRole.INVESTOR,
+      });
+
+      // Return only access token (refresh token cookie remains unchanged)
+      return { accessToken };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;

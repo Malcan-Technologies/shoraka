@@ -329,6 +329,51 @@ router.post("/refresh", async (req: Request, res: Response, next: NextFunction) 
 
 /**
  * @swagger
+ * /v1/auth/silent-refresh:
+ *   get:
+ *     summary: Silent refresh - get new access token without rotating refresh token
+ *     tags: [Authentication]
+ *     description: |
+ *       Generates a new access token using the refresh token cookie.
+ *       Does NOT rotate the refresh token (unlike /refresh endpoint).
+ *       Used for automatic token refresh on page load and portal switching.
+ *     responses:
+ *       200:
+ *         description: New access token generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                       description: New access token (store in memory)
+ *       401:
+ *         description: No refresh token provided
+ *       403:
+ *         description: Invalid, expired, or reused refresh token
+ */
+router.get("/silent-refresh", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await authService.silentRefresh(req);
+
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
  * /v1/auth/me:
  *   get:
  *     summary: Get current user profile

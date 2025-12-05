@@ -130,8 +130,56 @@ export function useAuth() {
       checkingRef.current = true;
 
       try {
-        // Verify auth using token from memory
-        const isValid = await verifyToken(() => accessToken, setAccessToken);
+        // If no access token in memory, attempt silent refresh first
+        let currentToken = accessToken;
+        if (!currentToken) {
+          try {
+            const response = await fetch(`${API_URL}/v1/auth/silent-refresh`, {
+              method: "GET",
+              credentials: "include", // Include cookies (refresh_token)
+              headers: {
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.data?.accessToken) {
+                // Store new access token in memory
+                setAccessToken(data.data.accessToken);
+                currentToken = data.data.accessToken;
+              } else {
+                // Silent refresh failed - redirect to login
+                clearAccessToken();
+                setIsAuthenticated(false);
+                setHasAdminRole(false);
+                checkedRef.current = true;
+                redirectToLogin();
+                return;
+              }
+            } else {
+              // Silent refresh failed - redirect to login
+              clearAccessToken();
+              setIsAuthenticated(false);
+              setHasAdminRole(false);
+              checkedRef.current = true;
+              redirectToLogin();
+              return;
+            }
+          } catch (refreshError) {
+            // Silent refresh failed - redirect to login
+            console.error("[useAuth] Silent refresh failed:", refreshError);
+            clearAccessToken();
+            setIsAuthenticated(false);
+            setHasAdminRole(false);
+            checkedRef.current = true;
+            redirectToLogin();
+            return;
+          }
+        }
+
+        // Verify auth using token from memory (or newly refreshed token)
+        const isValid = await verifyToken(() => currentToken || accessToken, setAccessToken);
         
         if (!isValid) {
           // Token is invalid and refresh failed, clear it and redirect
@@ -144,7 +192,7 @@ export function useAuth() {
         }
 
         // Auth is valid - check if user has ADMIN role
-        const userInfo = await getUserInfo(() => accessToken, setAccessToken);
+        const userInfo = await getUserInfo(() => currentToken || accessToken, setAccessToken);
         
         if (!userInfo || !userInfo.roles.includes("ADMIN")) {
           // User doesn't have ADMIN role - logout and they'll be redirected to landing
