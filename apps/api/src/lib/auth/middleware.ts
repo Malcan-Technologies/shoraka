@@ -24,11 +24,11 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
   try {
     // Check Authorization header for Bearer token
     // Access tokens are stored in Next.js memory and sent via Authorization header
-    const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
     let token: string | undefined;
     
-    if (authHeader?.startsWith("Bearer ")) {
-      token = authHeader.substring(7);
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
     }
 
     if (!token) {

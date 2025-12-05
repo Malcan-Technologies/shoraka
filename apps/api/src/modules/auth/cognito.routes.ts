@@ -59,7 +59,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
         },
         "Sign-up attempt blocked for admin role - admin portal is sign-in only"
       );
-
+      
       // Redirect back to admin login without signup parameter
       const adminLoginUrl = new URL(
         req.originalUrl.split("?")[0],
@@ -481,12 +481,12 @@ router.get("/callback", async (req: Request, res: Response) => {
       // User will need to manually navigate to admin portal again with correct credentials
       const apiBaseUrl = `${req.protocol}://${req.get("host")}`;
       const logoutUrl = new URL(`${apiBaseUrl}/v1/auth/cognito/logout`);
-
+      
       logger.info(
         { correlationId, userId: user.id, redirectUrl: logoutUrl.toString() },
         "Logging out non-admin user from Cognito - will redirect to landing page"
       );
-
+      
       return res.redirect(logoutUrl.toString());
     }
 
@@ -574,10 +574,10 @@ router.get("/callback", async (req: Request, res: Response) => {
     // IMPORTANT: Since we use encrypted state (no cookies during OAuth flow),
     // we MUST pass tokens in URL for the callback page to work
     // Each portal has its own callback handler
-
+    
     // Determine which portal callback to redirect to
     let callbackUrl: string;
-
+    
     if (activeRole === UserRole.ADMIN && env.ADMIN_URL) {
       // Admin users go directly to admin callback
       callbackUrl = `${env.ADMIN_URL}/callback`;
@@ -683,7 +683,7 @@ router.get("/logout", async (req: Request, res: Response) => {
   let cognitoSub: string | undefined;
   let portal: string | undefined;
   let userId: string | undefined;
-
+  
   // Try to detect portal from referer/origin if token doesn't have it
   // This helps when logout is called without a valid token
   const referer = req.get("referer") || req.get("origin");
@@ -827,7 +827,7 @@ router.get("/logout", async (req: Request, res: Response) => {
   // IMPORTANT: Redirect through Cognito's /logout endpoint to clear OAuth/Hosted UI session
   // AdminUserGlobalSignOut only invalidates tokens, NOT the OAuth session
   // Without redirecting through Cognito's /logout, users can auto-login without entering credentials
-  //
+  // 
   // We've already completed:
   // 1. Revoked all refresh tokens in database
   // 2. Cleared HTTP-Only cookies (access_token, refresh_token)
@@ -837,7 +837,7 @@ router.get("/logout", async (req: Request, res: Response) => {
   // Now redirect through Cognito's /logout to clear OAuth session
   const env = getEnv();
   const config = getCognitoConfig();
-
+  
   // Determine final redirect URL based on portal
   let finalRedirectUrl: string;
   if (portal === "admin" && env.ADMIN_URL) {
@@ -849,11 +849,11 @@ router.get("/logout", async (req: Request, res: Response) => {
   } else {
     finalRedirectUrl = env.FRONTEND_URL;
   }
-
+  
   // Build Cognito logout URL with logout_uri to redirect back to our portal
   // This requires logout_uri to be in Cognito's allowed logout URLs
   const cognitoLogoutUrl = `${config.domain}/logout?client_id=${config.clientId}&logout_uri=${encodeURIComponent(finalRedirectUrl)}`;
-
+  
   logger.info(
     { correlationId, cognitoLogoutUrl, finalRedirectUrl, userId, portal },
     "Redirecting through Cognito logout to clear OAuth session"
