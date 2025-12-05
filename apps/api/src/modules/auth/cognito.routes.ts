@@ -578,19 +578,10 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Determine which portal callback to redirect to
     let callbackUrl: string;
     
-    if (activeRole === UserRole.ADMIN && env.ADMIN_URL) {
-      // Admin users go directly to admin callback
-      callbackUrl = `${env.ADMIN_URL}/callback`;
-    } else if (activeRole === UserRole.INVESTOR && env.INVESTOR_URL) {
-      // Investor users go to investor callback (if exists) or landing callback
-      callbackUrl = env.FRONTEND_URL + "/callback";
-    } else if (activeRole === UserRole.ISSUER && env.ISSUER_URL) {
-      // Issuer users go to issuer callback (if exists) or landing callback
-      callbackUrl = env.FRONTEND_URL + "/callback";
-    } else {
-      // Default to landing callback
-      callbackUrl = `${env.FRONTEND_URL}/callback`;
-    }
+    // Always redirect to landing page callback first
+    // Landing page will then redirect to the appropriate portal's callback page
+    // This ensures consistent flow for all roles
+    callbackUrl = `${env.FRONTEND_URL}/callback`;
 
     const redirectUrl = new URL(callbackUrl);
     redirectUrl.searchParams.set("token", tokens.accessToken);
