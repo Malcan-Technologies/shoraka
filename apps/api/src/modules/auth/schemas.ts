@@ -72,7 +72,7 @@ export type CreateAdminUserInput = z.infer<typeof createAdminUserSchema>;
  * Logs when user lands on onboarding page
  */
 export const startOnboardingSchema = z.object({
-	role: z.nativeEnum(UserRole).optional(),
+  role: z.nativeEnum(UserRole).optional(),
 });
 
 export type StartOnboardingInput = z.infer<typeof startOnboardingSchema>;
@@ -89,3 +89,63 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
+/**
+ * Schema for change-password endpoint
+ * Allows authenticated users to change their own password via Cognito
+ */
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z
+    .string()
+    .min(8, "New password must be at least 8 characters")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+    ),
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/**
+ * Schema for initiate-email-change endpoint
+ * Initiates email change process - sends verification code to new email
+ */
+export const initiateEmailChangeSchema = z.object({
+  newEmail: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required to verify your identity"),
+});
+
+export type InitiateEmailChangeInput = z.infer<typeof initiateEmailChangeSchema>;
+
+/**
+ * Schema for verify-email-change endpoint
+ * Completes email change by verifying the code sent to new email
+ */
+export const verifyEmailChangeSchema = z.object({
+  code: z.string().min(1, "Verification code is required"),
+  newEmail: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required to complete email change"),
+});
+
+export type VerifyEmailChangeInput = z.infer<typeof verifyEmailChangeSchema>;
+
+/**
+ * Schema for resend-email-verification endpoint
+ * Resends verification code to current email (for unverified emails)
+ */
+export const resendEmailVerificationSchema = z.object({
+  password: z.string().min(1, "Password is required to verify your identity"),
+});
+
+export type ResendEmailVerificationInput = z.infer<typeof resendEmailVerificationSchema>;
+
+/**
+ * Schema for verify-email endpoint
+ * Verifies email with code (for unverified emails after email change)
+ */
+export const verifyEmailSchema = z.object({
+  code: z.string().min(1, "Verification code is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

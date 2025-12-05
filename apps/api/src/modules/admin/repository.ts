@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma";
-import { User, AccessLog, UserRole } from "@prisma/client";
+import { Prisma, User, AccessLog, UserRole } from "@prisma/client";
 import type { GetUsersQuery, GetAccessLogsQuery } from "./schemas";
 
 export class AdminRepository {
@@ -15,7 +15,7 @@ export class AdminRepository {
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
 
     if (search) {
       where.OR = [
@@ -100,7 +100,7 @@ export class AdminRepository {
     data: { investorOnboarded?: boolean; issuerOnboarded?: boolean },
     roles?: UserRole[]
   ): Promise<User> {
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
 
     if (data.investorOnboarded !== undefined) {
       updateData.investor_onboarding_completed = data.investorOnboarded;
@@ -110,7 +110,7 @@ export class AdminRepository {
     }
 
     if (roles !== undefined) {
-      updateData.roles = { set: roles };
+      updateData.roles = roles;
     }
 
     return prisma.user.update({
@@ -126,7 +126,7 @@ export class AdminRepository {
     userId: string,
     data: { firstName?: string; lastName?: string; phone?: string | null }
   ): Promise<User> {
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
 
     if (data.firstName !== undefined) {
       updateData.first_name = data.firstName;
@@ -153,17 +153,20 @@ export class AdminRepository {
     })[];
     total: number;
   }> {
-    const { page, pageSize, search, eventType, status, dateRange, userId } = params;
+    const { page, pageSize, search, eventType, eventTypes, status, dateRange, userId } = params;
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.AccessLogWhereInput = {};
 
     if (userId) {
       where.user_id = userId;
     }
 
-    if (eventType) {
+    // Support both single eventType and multiple eventTypes
+    if (eventTypes && eventTypes.length > 0) {
+      where.event_type = { in: eventTypes };
+    } else if (eventType) {
       where.event_type = eventType;
     }
 
@@ -239,16 +242,14 @@ export class AdminRepository {
   /**
    * Get all access logs for export (no pagination)
    */
-  async getAllAccessLogsForExport(
-    params: Omit<GetAccessLogsQuery, "page" | "pageSize">
-  ): Promise<
+  async getAllAccessLogsForExport(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
     (AccessLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
     })[]
   > {
     const { search, eventType, status, dateRange, userId } = params;
 
-    const where: any = {};
+    const where: Prisma.AccessLogWhereInput = {};
 
     if (userId) {
       where.user_id = userId;
@@ -333,7 +334,7 @@ export class AdminRepository {
         device_info: data.deviceInfo,
         device_type: data.deviceType,
         success: data.success ?? true,
-        metadata: data.metadata as any,
+        metadata: data.metadata as Prisma.InputJsonValue,
       },
     });
   }
@@ -349,7 +350,7 @@ export class AdminRepository {
     investorsOnboarded: number;
     issuersOnboarded: number;
   }> {
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
 
     if (startDate && endDate) {
       where.created_at = {

@@ -12,6 +12,11 @@ import {
   createAdminUserSchema,
   startOnboardingSchema,
   updateProfileSchema,
+  changePasswordSchema,
+  initiateEmailChangeSchema,
+  verifyEmailChangeSchema,
+  resendEmailVerificationSchema,
+  verifyEmailSchema,
   type SyncUserInput,
   type CreateAdminUserInput,
 } from "./schemas";
@@ -77,7 +82,7 @@ router.post("/sync-user", async (req: Request, res: Response, next: NextFunction
   try {
     const validated = syncUserSchema.parse(req.body) as SyncUserInput;
     const result = await authService.syncUser(req, validated);
-    
+
     res.json({
       success: true,
       data: result,
@@ -114,7 +119,7 @@ router.post("/add-role", requireAuth, async (req: Request, res: Response, next: 
   try {
     const validated = addRoleSchema.parse(req.body);
     const user = await authService.addRole(req, req.user!.id, req.cognitoSub!, validated.role);
-    
+
     res.json({
       success: true,
       data: {
@@ -150,20 +155,24 @@ router.post("/add-role", requireAuth, async (req: Request, res: Response, next: 
  *       200:
  *         description: Onboarding status
  */
-router.post("/check-onboarding", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = checkOnboardingSchema.parse(req.body);
-    const result = await authService.checkOnboarding(req.user!.id, validated.role);
-    
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.post(
+  "/check-onboarding",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = checkOnboardingSchema.parse(req.body);
+      const result = await authService.checkOnboarding(req.user!.id, validated.role);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -186,20 +195,24 @@ router.post("/check-onboarding", requireAuth, async (req: Request, res: Response
  *       200:
  *         description: Onboarding start logged
  */
-router.post("/start-onboarding", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-	  const validated = startOnboardingSchema.parse(req.body);
-	  const result = await authService.startOnboarding(req, req.user!.id, validated.role);
-	  
-	  res.json({
-		success: true,
-		data: result,
-		correlationId: res.locals.correlationId,
-	  });
-	} catch (error) {
-	  next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
-	}
-  });
+router.post(
+  "/start-onboarding",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = startOnboardingSchema.parse(req.body);
+      const result = await authService.startOnboarding(req, req.user!.id, validated.role);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
 
 /**
  * @swagger
@@ -223,20 +236,24 @@ router.post("/start-onboarding", requireAuth, async (req: Request, res: Response
  *       200:
  *         description: Onboarding completed
  */
-router.post("/complete-onboarding", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = completeOnboardingSchema.parse(req.body);
-    const result = await authService.completeOnboarding(req, req.user!.id, validated.role);
-    
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.post(
+  "/complete-onboarding",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = completeOnboardingSchema.parse(req.body);
+      const result = await authService.completeOnboarding(req, req.user!.id, validated.role);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -253,7 +270,7 @@ router.post("/complete-onboarding", requireAuth, async (req: Request, res: Respo
 router.post("/logout", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await authService.logout(req, req.user!.id);
-    
+
     res.json({
       success: true,
       data: result,
@@ -299,7 +316,7 @@ router.post("/logout", requireAuth, async (req: Request, res: Response, next: Ne
 router.post("/refresh", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await authService.refreshTokens(req, res);
-    
+
     res.json({
       success: true,
       data: result,
@@ -325,7 +342,7 @@ router.post("/refresh", async (req: Request, res: Response, next: NextFunction) 
 router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await authService.getCurrentUser(req.cognitoSub!);
-    
+
     res.json({
       success: true,
       data: result,
@@ -368,7 +385,7 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response, next: 
   try {
     const validated = updateProfileSchema.parse(req.body);
     const updatedUser = await authService.updateProfile(req, req.user!.id, validated);
-    
+
     res.json({
       success: true,
       data: { user: updatedUser },
@@ -378,6 +395,244 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response, next: 
     next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
   }
 });
+
+/**
+ * @swagger
+ * /v1/auth/change-password:
+ *   post:
+ *     summary: Change current user's password
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: User's current password
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: New password (min 8 chars, must contain uppercase, lowercase, and number)
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Invalid current password or validation error
+ */
+router.post(
+  "/change-password",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = changePasswordSchema.parse(req.body);
+      const result = await authService.changePassword(req, req.user!.id, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/auth/initiate-email-change:
+ *   post:
+ *     summary: Initiate email change process
+ *     description: Sends verification code to new email address. User must verify with current password.
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newEmail, password]
+ *             properties:
+ *               newEmail:
+ *                 type: string
+ *                 format: email
+ *                 description: New email address
+ *               password:
+ *                 type: string
+ *                 description: Current password to verify identity
+ *     responses:
+ *       200:
+ *         description: Verification code sent to new email
+ *       400:
+ *         description: Invalid password or email already in use
+ */
+router.post(
+  "/initiate-email-change",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = initiateEmailChangeSchema.parse(req.body);
+      const result = await authService.initiateEmailChange(req, req.user!.id, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/auth/verify-email-change:
+ *   post:
+ *     summary: Verify email change with code
+ *     description: Completes email change by verifying the code sent to new email
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, password]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: Verification code from email
+ *               password:
+ *                 type: string
+ *                 description: Current password to verify identity
+ *     responses:
+ *       200:
+ *         description: Email changed successfully
+ *       400:
+ *         description: Invalid code or password
+ */
+router.post(
+  "/verify-email-change",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = verifyEmailChangeSchema.parse(req.body);
+      const result = await authService.verifyEmailChange(req, req.user!.id, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/auth/resend-email-verification:
+ *   post:
+ *     summary: Resend email verification code
+ *     description: Sends a new verification code to the user's current email (for unverified emails)
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [password]
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: Current password to verify identity
+ *     responses:
+ *       200:
+ *         description: Verification code sent successfully
+ *       400:
+ *         description: Invalid password or email already verified
+ */
+router.post(
+  "/resend-email-verification",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = resendEmailVerificationSchema.parse(req.body);
+      const result = await authService.resendEmailVerification(req, req.user!.id, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/auth/verify-email:
+ *   post:
+ *     summary: Verify email with code
+ *     description: Verifies an unverified email address using the verification code
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, password]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: Verification code from email
+ *               password:
+ *                 type: string
+ *                 description: Current password to verify identity
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid code, password, or email already verified
+ */
+router.post(
+  "/verify-email",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = verifyEmailSchema.parse(req.body);
+      const result = await authService.verifyEmail(req, req.user!.id, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * @swagger
@@ -401,20 +656,24 @@ router.patch("/profile", requireAuth, async (req: Request, res: Response, next: 
  *       200:
  *         description: Role switched successfully
  */
-router.post("/switch-role", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = switchRoleSchema.parse(req.body);
-    const result = await authService.switchRole(req, req.cognitoSub!, validated.role);
-    
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.post(
+  "/switch-role",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = switchRoleSchema.parse(req.body);
+      const result = await authService.switchRole(req, req.cognitoSub!, validated.role);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -446,20 +705,24 @@ router.post("/switch-role", requireAuth, async (req: Request, res: Response, nex
  *       201:
  *         description: Admin user created
  */
-router.post("/admin/create-user", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = createAdminUserSchema.parse(req.body) as CreateAdminUserInput;
-    const result = await authService.createAdminUser(validated);
-    
-    res.status(201).json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.post(
+  "/admin/create-user",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = createAdminUserSchema.parse(req.body) as CreateAdminUserInput;
+      const result = await authService.createAdminUser(validated);
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 export const authRouter = router;
-

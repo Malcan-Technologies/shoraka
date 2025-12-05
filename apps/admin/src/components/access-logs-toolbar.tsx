@@ -11,9 +11,29 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 import { AccessLogsExportButton } from "./access-logs-export-button";
-import type { ExportAccessLogsParams } from "@cashsouk/types";
+import type { ExportAccessLogsParams, EventType } from "@cashsouk/types";
+
+// All event types with their display labels
+const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
+  { value: "LOGIN", label: "Login" },
+  { value: "LOGOUT", label: "Logout" },
+  { value: "SIGNUP", label: "Signup" },
+  { value: "PASSWORD_CHANGED", label: "Password Changed" },
+  { value: "EMAIL_CHANGED", label: "Email Changed" },
+  { value: "ROLE_ADDED", label: "Role Added" },
+  { value: "ROLE_SWITCHED", label: "Role Switched" },
+  { value: "ONBOARDING_COMPLETED", label: "Onboarding Completed" },
+  { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
+  { value: "KYC_STATUS_UPDATED", label: "KYC Status Updated" },
+  { value: "PROFILE_UPDATED", label: "Profile Updated" },
+];
 
 interface AccessLogsToolbarProps {
   searchQuery: string;
@@ -30,6 +50,7 @@ interface AccessLogsToolbarProps {
   exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
   onReload?: () => void;
   isLoading?: boolean;
+  allowedEventTypes?: EventType[];
 }
 
 export function AccessLogsToolbar({
@@ -47,8 +68,14 @@ export function AccessLogsToolbar({
   exportFilters,
   onReload,
   isLoading = false,
+  allowedEventTypes,
 }: AccessLogsToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
+
+  // Filter event type options based on allowedEventTypes prop
+  const filteredEventTypes = allowedEventTypes
+    ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
+    : EVENT_TYPE_OPTIONS;
 
   const hasFilters =
     searchQuery !== "" ||
@@ -100,15 +127,11 @@ export function AccessLogsToolbar({
           <DropdownMenuLabel>Event Type</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
             <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="LOGIN">Login</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="LOGOUT">Logout</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="SIGNUP">Signup</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ROLE_ADDED">Role Added</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ROLE_SWITCHED">Role Switched</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ONBOARDING_COMPLETED">Onboarding Completed</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ONBOARDING_STATUS_UPDATED">Onboarding Status Updated</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="KYC_STATUS_UPDATED">KYC Status Updated</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PROFILE_UPDATED">Profile Updated</DropdownMenuRadioItem>
+            {filteredEventTypes.map((opt) => (
+              <DropdownMenuRadioItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </DropdownMenuRadioItem>
+            ))}
           </DropdownMenuRadioGroup>
 
           <DropdownMenuSeparator />

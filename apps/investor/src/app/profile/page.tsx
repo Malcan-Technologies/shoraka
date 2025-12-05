@@ -3,7 +3,13 @@
 import * as React from "react";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -12,17 +18,22 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { toast } from "sonner";
 import { createApiClient } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { 
-  EnvelopeIcon, 
-  UserCircleIcon, 
-  PhoneIcon, 
-  ShieldCheckIcon, 
+import {
+  EnvelopeIcon,
+  UserCircleIcon,
+  PhoneIcon,
+  ShieldCheckIcon,
   KeyIcon,
   PencilIcon,
   XMarkIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
+import { ChangePasswordDialog } from "../../components/change-password-dialog";
+import { ChangeEmailDialog } from "../../components/change-email-dialog";
+import { VerifyEmailDialog } from "../../components/verify-email-dialog";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { formatDistanceToNow } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const apiClient = createApiClient(API_URL);
@@ -37,6 +48,7 @@ interface UserData {
   roles: string[];
   investor_onboarding_completed: boolean;
   issuer_onboarding_completed: boolean;
+  password_changed_at: string | null;
 }
 
 function ProfileSkeleton() {
@@ -133,6 +145,9 @@ function ProfileSkeleton() {
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = React.useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
+  const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);
+  const [verifyEmailOpen, setVerifyEmailOpen] = React.useState(false);
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -146,6 +161,8 @@ export default function ProfilePage() {
       }
       return result.data.user;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Update form values when user data loads
@@ -200,15 +217,19 @@ export default function ProfilePage() {
   };
 
   const handleChangeEmail = () => {
-    toast.info("Email change feature coming soon", {
-      description: "This feature requires email verification and will be available in a future update.",
-    });
+    setChangeEmailOpen(true);
+  };
+
+  const handleEmailChanged = () => {
+    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+  };
+
+  const handleEmailVerified = () => {
+    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
   };
 
   const handleChangePassword = () => {
-    toast.info("Password change feature coming soon", {
-      description: "This feature will be available in a future update.",
-    });
+    setChangePasswordOpen(true);
   };
 
   if (isLoading) {
@@ -301,7 +322,10 @@ export default function ProfilePage() {
                   <Label className="text-base font-medium">Onboarding Status</Label>
                   <div className="flex flex-wrap gap-2">
                     {userData?.investor_onboarding_completed ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
                         <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
                         Investor
                       </Badge>
@@ -312,7 +336,10 @@ export default function ProfilePage() {
                       </Badge>
                     )}
                     {userData?.issuer_onboarding_completed ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
                         <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
                         Issuer
                       </Badge>
@@ -327,9 +354,9 @@ export default function ProfilePage() {
 
                 {isEditing && (
                   <div className="flex justify-end gap-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={handleCancelEdit}
                       disabled={updateProfile.isPending}
                     >
@@ -369,10 +396,21 @@ export default function ProfilePage() {
                     disabled
                     className="flex-1 bg-muted"
                   />
-                  {userData?.email_verified && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  {userData?.email_verified ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
                       <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
                       Verified
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="bg-amber-50 text-amber-700 border-amber-200"
+                    >
+                      <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1" />
+                      Unverified
                     </Badge>
                   )}
                 </div>
@@ -380,9 +418,16 @@ export default function ProfilePage() {
                   Your email is used for login and notifications
                 </p>
               </div>
-              <Button variant="outline" onClick={handleChangeEmail}>
-                Change Email Address
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleChangeEmail}>
+                  Change Email Address
+                </Button>
+                {!userData?.email_verified && (
+                  <Button variant="default" onClick={() => setVerifyEmailOpen(true)}>
+                    Verify Now
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -404,16 +449,25 @@ export default function ProfilePage() {
                 <div>
                   <Label className="text-base font-medium">Password</Label>
                   <p className="text-[0.8rem] text-muted-foreground mt-1">
-                    Keep your account secure by using a strong password that you don&apos;t use elsewhere.
+                    Keep your account secure by using a strong password that you don&apos;t use
+                    elsewhere.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Last changed:{" "}
+                    {userData?.password_changed_at
+                      ? formatDistanceToNow(new Date(userData.password_changed_at), {
+                          addSuffix: true,
+                        })
+                      : "never"}
                   </p>
                 </div>
                 <Button variant="outline" onClick={handleChangePassword}>
                   Change Password
                 </Button>
               </div>
-              
+
               <Separator />
-              
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -435,7 +489,22 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+
+      <ChangeEmailDialog
+        open={changeEmailOpen}
+        onOpenChange={setChangeEmailOpen}
+        currentEmail={userData?.email || ""}
+        onEmailChanged={handleEmailChanged}
+      />
+
+      <VerifyEmailDialog
+        open={verifyEmailOpen}
+        onOpenChange={setVerifyEmailOpen}
+        email={userData?.email || ""}
+        onVerified={handleEmailVerified}
+      />
     </>
   );
 }
-

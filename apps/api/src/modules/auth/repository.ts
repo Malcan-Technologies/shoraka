@@ -134,6 +134,16 @@ export class AuthRepository {
   }
 
   /**
+   * Update password changed timestamp
+   */
+  async updatePasswordChangedAt(userId: string): Promise<User> {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { password_changed_at: new Date() },
+    });
+  }
+
+  /**
    * Create access log entry
    */
   async createAccessLog(data: {

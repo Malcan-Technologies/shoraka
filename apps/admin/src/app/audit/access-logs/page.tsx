@@ -10,6 +10,16 @@ import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
 import { useAccessLogs } from "../../../hooks/use-access-logs";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
+// Access/Authentication event types (excludes security events which are in Security Logs)
+const ACCESS_EVENT_TYPES: EventType[] = [
+  "LOGIN",
+  "LOGOUT",
+  "SIGNUP",
+  "ONBOARDING_COMPLETED",
+  "ONBOARDING_STATUS_UPDATED",
+  "KYC_STATUS_UPDATED",
+];
+
 /*const mockAccessLogs: AccessLog[] = [
   {
     id: "log_1",
@@ -387,7 +397,10 @@ export default function AccessLogsPage() {
     return params;
   }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
 
-  const { data, isLoading, error } = useAccessLogs(apiParams);
+  const { data, isLoading, error } = useAccessLogs({
+    ...apiParams,
+    allowedEventTypes: ACCESS_EVENT_TYPES,
+  });
 
   const handleReload = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] });
@@ -435,9 +448,11 @@ export default function AccessLogsPage() {
             onClearFilters={handleClearFilters}
             onReload={handleReload}
             isLoading={isLoading}
+            allowedEventTypes={ACCESS_EVENT_TYPES}
             exportFilters={{
               search: searchQuery || undefined,
               eventType: eventTypeFilter !== "all" ? (eventTypeFilter as EventType) : undefined,
+              eventTypes: eventTypeFilter === "all" ? ACCESS_EVENT_TYPES : undefined,
               status: statusFilter !== "all" ? (statusFilter as "success" | "failed") : undefined,
               dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
             }}
@@ -465,4 +480,3 @@ export default function AccessLogsPage() {
     </>
   );
 }
-

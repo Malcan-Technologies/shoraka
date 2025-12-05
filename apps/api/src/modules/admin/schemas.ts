@@ -48,6 +48,10 @@ export const getAccessLogsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(15),
   search: z.string().optional(),
   eventType: z.string().optional(),
+  eventTypes: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(",") : undefined)),
   status: z.enum(["success", "failed"]).optional(),
   dateRange: z.enum(["24h", "7d", "30d", "all"]).default("all"),
   userId: z.string().optional(),
@@ -60,4 +64,3 @@ export const exportAccessLogsQuerySchema = getAccessLogsQuerySchema.extend({
 });
 
 export type ExportAccessLogsQuery = z.infer<typeof exportAccessLogsQuerySchema>;
-

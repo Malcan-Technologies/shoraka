@@ -70,7 +70,9 @@ export type EventType =
   | "ONBOARDING_COMPLETED"
   | "KYC_STATUS_UPDATED"
   | "ONBOARDING_STATUS_UPDATED"
-  | "PROFILE_UPDATED";
+  | "PROFILE_UPDATED"
+  | "PASSWORD_CHANGED"
+  | "EMAIL_CHANGED";
 
 export interface AccessLogUser {
   first_name: string;
@@ -98,6 +100,7 @@ export interface AccessLogResponse {
 export interface GetAccessLogsParams extends PaginationParams {
   search?: string;
   eventType?: EventType;
+  eventTypes?: EventType[];
   status?: "success" | "failed";
   dateRange?: "24h" | "7d" | "30d" | "all";
   userId?: string;
@@ -110,6 +113,7 @@ export interface AccessLogsResponse {
 
 export interface ExportAccessLogsParams extends Omit<GetAccessLogsParams, "page" | "pageSize"> {
   format?: "csv" | "json";
+  eventTypes?: EventType[];
 }
 
 // Dashboard Statistics Types

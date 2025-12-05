@@ -38,6 +38,7 @@ model User {
   kyc_verified                    Boolean    @default(false)
   investor_onboarding_completed   Boolean    @default(false)
   issuer_onboarding_completed     Boolean    @default(false)
+  password_changed_at             DateTime?
   created_at                      DateTime   @default(now())
   updated_at                      DateTime   @updatedAt
 

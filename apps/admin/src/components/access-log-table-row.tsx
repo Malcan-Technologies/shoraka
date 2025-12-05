@@ -23,6 +23,8 @@ const eventTypeColors: Partial<Record<EventType, string>> = {
   ONBOARDING_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
   KYC_STATUS_UPDATED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   ONBOARDING_STATUS_UPDATED: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  PASSWORD_CHANGED: "bg-rose-100 text-rose-800 border-rose-200",
+  EMAIL_CHANGED: "bg-cyan-100 text-cyan-800 border-cyan-200",
 };
 
 export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps) {

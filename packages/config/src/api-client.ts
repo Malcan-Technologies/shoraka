@@ -62,18 +62,18 @@ export class ApiClient {
     // Try to get refresh token from localStorage (if stored there for dev mode)
     // Otherwise, rely on cookies (production mode)
     const refreshTokenFromStorage = this.getRefreshToken();
-    
+
     const refreshHeaders: HeadersInit = {
       "Content-Type": "application/json",
     };
-    
+
     const refreshBody: { refreshToken?: string } = {};
-    
+
     // For dev mode: send refresh token in body
     if (refreshTokenFromStorage) {
       refreshBody.refreshToken = refreshTokenFromStorage;
     }
-    
+
     this.refreshPromise = fetch(`${this.baseUrl}/v1/auth/refresh`, {
       method: "POST",
       credentials: "include", // Send HTTP-Only cookies (production)
@@ -132,14 +132,14 @@ export class ApiClient {
     options?: RequestInit
   ): Promise<ApiResponse<T> | ApiError> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     // Don't retry refresh endpoint if it fails
     const isRefreshEndpoint = endpoint === "/v1/auth/refresh";
 
     // Get auth token from localStorage (for development)
     // In production, tokens are in HTTP-Only cookies and sent automatically
     const authToken = this.getAuthToken();
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -168,13 +168,13 @@ export class ApiClient {
         // In dev mode, localStorage is also updated with new tokens
         // Get updated token from localStorage (dev mode) or use cookies (production)
         const updatedToken = this.getAuthToken();
-        
+
         // Update Authorization header with new token (if available)
         const retryHeaders = { ...headers };
         if (updatedToken) {
           retryHeaders["Authorization"] = `Bearer ${updatedToken}`;
         }
-        
+
         // Retry original request (cookies will be sent automatically, or use Authorization header)
         response = await fetch(url, {
           ...options,
@@ -187,7 +187,7 @@ export class ApiClient {
         try {
           const contentType = response.headers.get("content-type");
           if (contentType && contentType.includes("application/json")) {
-            errorResponse = await response.json() as ApiError;
+            errorResponse = (await response.json()) as ApiError;
           } else {
             errorResponse = {
               success: false,
@@ -270,7 +270,11 @@ export class ApiClient {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
 
-  async patch<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<ApiResponse<T> | ApiError> {
+  async patch<T>(
+    endpoint: string,
+    body?: unknown,
+    options?: RequestInit
+  ): Promise<ApiResponse<T> | ApiError> {
     return this.request<T>(endpoint, {
       ...options,
       method: "PATCH",
@@ -285,9 +289,12 @@ export class ApiClient {
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
     if (params.role) queryParams.append("role", params.role);
-    if (params.kycVerified !== undefined) queryParams.append("kycVerified", String(params.kycVerified));
-    if (params.investorOnboarded !== undefined) queryParams.append("investorOnboarded", String(params.investorOnboarded));
-    if (params.issuerOnboarded !== undefined) queryParams.append("issuerOnboarded", String(params.issuerOnboarded));
+    if (params.kycVerified !== undefined)
+      queryParams.append("kycVerified", String(params.kycVerified));
+    if (params.investorOnboarded !== undefined)
+      queryParams.append("investorOnboarded", String(params.investorOnboarded));
+    if (params.issuerOnboarded !== undefined)
+      queryParams.append("issuerOnboarded", String(params.issuerOnboarded));
 
     return this.get<UsersResponse>(`/v1/admin/users?${queryParams.toString()}`);
   }
@@ -296,25 +303,82 @@ export class ApiClient {
     return this.get<{ user: UserResponse }>(`/v1/admin/users/${id}`);
   }
 
-  async updateUserRoles(id: string, roles: UpdateUserRolesInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+  async updateUserRoles(
+    id: string,
+    roles: UpdateUserRolesInput
+  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/roles`, roles);
   }
 
-  async updateUserKyc(id: string, kyc: UpdateUserKycInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+  async updateUserKyc(
+    id: string,
+    kyc: UpdateUserKycInput
+  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/kyc`, kyc);
   }
 
-  async updateUserOnboarding(id: string, onboarding: UpdateUserOnboardingInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+  async updateUserOnboarding(
+    id: string,
+    onboarding: UpdateUserOnboardingInput
+  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/onboarding`, onboarding);
   }
 
-  async updateUserProfile(id: string, profile: UpdateUserProfileInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+  async updateUserProfile(
+    id: string,
+    profile: UpdateUserProfileInput
+  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/profile`, profile);
   }
 
   // Self-service profile update (any authenticated user)
-  async updateMyProfile(profile: UpdateUserProfileInput): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+  async updateMyProfile(
+    profile: UpdateUserProfileInput
+  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.patch<{ user: UserResponse }>(`/v1/auth/profile`, profile);
+  }
+
+  // Self-service password change (any authenticated user)
+  async changePassword(data: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
+    return this.post<{ success: boolean }>(`/v1/auth/change-password`, data);
+  }
+
+  // Self-service email change - Step 1: Initiate (sends verification code)
+  async initiateEmailChange(data: {
+    newEmail: string;
+    password: string;
+  }): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
+    return this.post<{ success: boolean; message: string }>(`/v1/auth/initiate-email-change`, data);
+  }
+
+  // Self-service email change - Step 2: Verify code (completes change)
+  async verifyEmailChange(data: {
+    code: string;
+    newEmail: string;
+    password: string;
+  }): Promise<ApiResponse<{ success: boolean; newEmail: string }> | ApiError> {
+    return this.post<{ success: boolean; newEmail: string }>(`/v1/auth/verify-email-change`, data);
+  }
+
+  // Resend email verification code (for unverified emails)
+  async resendEmailVerification(data: {
+    password: string;
+  }): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
+    return this.post<{ success: boolean; message: string }>(
+      `/v1/auth/resend-email-verification`,
+      data
+    );
+  }
+
+  // Verify email with code (for unverified emails)
+  async verifyEmail(data: {
+    code: string;
+    password: string;
+  }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
+    return this.post<{ success: boolean }>(`/v1/auth/verify-email`, data);
   }
 
   // Admin - Dashboard Statistics
@@ -323,12 +387,16 @@ export class ApiClient {
   }
 
   // Admin - Access Logs
-  async getAccessLogs(params: GetAccessLogsParams): Promise<ApiResponse<AccessLogsResponse> | ApiError> {
+  async getAccessLogs(
+    params: GetAccessLogsParams
+  ): Promise<ApiResponse<AccessLogsResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page));
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
     if (params.status) queryParams.append("status", params.status);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
@@ -374,4 +442,3 @@ export class ApiClient {
 export function createApiClient(baseUrl?: string): ApiClient {
   return new ApiClient(baseUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000");
 }
-
