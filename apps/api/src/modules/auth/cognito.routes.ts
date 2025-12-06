@@ -834,9 +834,9 @@ router.get("/logout", async (req: Request, res: Response) => {
   if (portal === "admin" && env.ADMIN_URL) {
     finalRedirectUrl = env.ADMIN_URL;
   } else if (portal === "investor" && env.INVESTOR_URL) {
-    finalRedirectUrl = env.FRONTEND_URL;
+    finalRedirectUrl = env.INVESTOR_URL;
   } else if (portal === "issuer" && env.ISSUER_URL) {
-    finalRedirectUrl = env.FRONTEND_URL;
+    finalRedirectUrl = env.ISSUER_URL;
   } else {
     finalRedirectUrl = env.FRONTEND_URL;
   }

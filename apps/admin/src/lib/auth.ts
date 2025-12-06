@@ -195,14 +195,16 @@ export function useAuth() {
         const userInfo = await getUserInfo(() => currentToken || accessToken, setAccessToken);
         
         if (!userInfo || !userInfo.roles.includes("ADMIN")) {
-          // User doesn't have ADMIN role - logout and they'll be redirected to landing
+          // User doesn't have ADMIN role - redirect to landing page without logging out
+          // This allows them to access other portals (investor/issuer) if they have those roles
           clearAccessToken();
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
           
-          // Logout from Cognito - user will be redirected to landing page
-          logout(clearAccessToken);
+          // Redirect to landing page instead of logging out
+          // This way they can still access other portals if they have appropriate roles
+          window.location.href = LANDING_URL;
           return;
         }
 
