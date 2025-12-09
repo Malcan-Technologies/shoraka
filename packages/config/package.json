@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@cashsouk/types": "workspace:*",
-    "@aws-amplify/auth": "^6.0.0",
     "aws-amplify": "^6.0.0"
   },
   "peerDependencies": {

@@ -640,6 +640,9 @@ importers:
       '@cashsouk/types':
         specifier: workspace:*
         version: link:../types
+      aws-amplify:
+        specifier: ^6.0.0
+        version: 6.15.8
       react:
         specifier: ^18.2.0
         version: 18.3.1
