@@ -26,14 +26,16 @@ COPY packages/icons ./packages/icons
 
 RUN pnpm --filter @cashsouk/api prisma generate
 
-ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
-ARG NEXT_PUBLIC_LANDING_URL=https://www.cashsouk.com
+# Build-time environment variables for portal URLs
 ARG NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com
+ARG NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com
 ARG NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com
-ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
-ARG NEXT_PUBLIC_COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
-ARG NEXT_PUBLIC_COGNITO_DOMAIN=https://auth.cashsouk.com
-ARG NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+ARG NEXT_PUBLIC_LANDING_URL=https://www.cashsouk.com
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
+ARG NEXT_PUBLIC_COGNITO_REGION
+ARG NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com
 ARG NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com
 
 RUN rm -rf apps/issuer/.next && \

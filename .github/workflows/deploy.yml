@@ -246,6 +246,10 @@ jobs:
         run: |
           echo "🔨 Building Landing image..."
           docker build -f docker/landing.Dockerfile \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Landing image to ECR..."
@@ -281,6 +285,10 @@ jobs:
         run: |
           echo "🔨 Building Investor image..."
           docker build -f docker/portal-investor.Dockerfile \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Investor image to ECR..."
@@ -316,6 +324,10 @@ jobs:
         run: |
           echo "🔨 Building Issuer image..."
           docker build -f docker/portal-issuer.Dockerfile \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Issuer image to ECR..."
@@ -351,6 +363,10 @@ jobs:
         run: |
           echo "🔨 Building Admin image..."
           docker build -f docker/portal-admin.Dockerfile \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "📦 Pushing Admin image to ECR..."
