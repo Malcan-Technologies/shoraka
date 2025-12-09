@@ -22,7 +22,7 @@ export function useUsers(params: GetUsersParams) {
           // Only redirect in production or if auth is enabled
           // In development with DISABLE_AUTH, just show the error
           if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-            const landingUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+            const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
             window.location.href = landingUrl;
           }
         }

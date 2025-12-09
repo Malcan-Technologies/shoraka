@@ -13,7 +13,7 @@ export function useDashboardStats() {
       if (!response.success) {
         if (response.error.code === "UNAUTHORIZED" || response.error.code === "FORBIDDEN") {
           if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-            const landingUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+            const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
             window.location.href = landingUrl;
           }
         }

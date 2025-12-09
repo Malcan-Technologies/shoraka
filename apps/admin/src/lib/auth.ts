@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import type { UserRole } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 
-const LANDING_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
+const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
@@ -101,6 +101,8 @@ export async function logout(signOut: () => Promise<void>) {
 
   // 2. Manually clear all Cognito cookies
   const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || ".cashsouk.com";
+  
   if (clientId) {
     // Get all cookies
     const cookies = document.cookie.split(';');
@@ -109,7 +111,11 @@ export async function logout(signOut: () => Promise<void>) {
     cookies.forEach(cookie => {
       const cookieName = cookie.split('=')[0].trim();
       if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
-        // Delete cookie for localhost
+        // Delete cookie with domain (for production)
+        if (cookieDomain) {
+          document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
+        }
+        // Delete cookie for localhost (for development)
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
         // Delete cookie without domain (fallback)
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
