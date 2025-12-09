@@ -125,7 +125,7 @@ export async function logout(signOut: () => Promise<void>) {
       credentials: "include",
     });
     console.log("[Logout] Backend logout successful");
-    } catch (error) {
+  } catch (error) {
     console.error("[Logout] Backend logout failed:", error);
   }
 
