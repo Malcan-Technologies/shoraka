@@ -47,10 +47,7 @@ function GetStartedPageContent() {
       )}
 
       <div className="w-full max-w-xl grid gap-4">
-        <button
-          onClick={() => handleRoleSelect("INVESTOR")}
-          className="block text-left"
-        >
+        <button onClick={() => handleRoleSelect("INVESTOR")} className="block text-left">
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -73,10 +70,7 @@ function GetStartedPageContent() {
           </Card>
         </button>
 
-        <button
-          onClick={() => handleRoleSelect("ISSUER")}
-          className="block text-left"
-        >
+        <button onClick={() => handleRoleSelect("ISSUER")} className="block text-left">
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -108,9 +102,9 @@ function GetStartedPageContent() {
             Sign in
           </button>
         </p>
-        <p className="text-xs text-muted-foreground">
+        {/* <p className="text-xs text-muted-foreground">
           If you see an error saying "User already exists" during signup, please use the Sign in option above.
-        </p>
+        </p> */}
       </div>
 
       <RoleSelectionModal open={showSignInModal} onOpenChange={setShowSignInModal} />

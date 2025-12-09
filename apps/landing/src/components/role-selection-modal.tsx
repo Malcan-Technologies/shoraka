@@ -11,7 +11,8 @@ import {
 } from "@cashsouk/ui";
 import { BuildingLibraryIcon, UserIcon } from "@heroicons/react/24/outline";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
+const ISSUER_URL = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001";
 
 interface RoleSelectionModalProps {
   open: boolean;
@@ -20,7 +21,7 @@ interface RoleSelectionModalProps {
 
 export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalProps) {
   const handleRoleSelect = (role: "INVESTOR" | "ISSUER") => {
-    window.location.href = `${API_URL}/api/auth/login?role=${role}`;
+    window.location.href = role === "INVESTOR" ? INVESTOR_URL : ISSUER_URL;
   };
 
   return (
@@ -33,28 +34,36 @@ export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalPro
         <div className="grid gap-4 py-4">
           <Button
             variant="outline"
-            className="h-auto p-4 flex items-center gap-3 justify-start"
+            className="h-auto p-4 flex items-center gap-3 justify-start group"
             onClick={() => handleRoleSelect("INVESTOR")}
           >
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <BuildingLibraryIcon className="h-5 w-5 text-primary" />
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 group-active:bg-primary/20">
+              <BuildingLibraryIcon className="h-5 w-5 text-primary group-hover:text-primary-foreground group-active:text-primary-foreground" />
             </div>
             <div className="text-left">
-              <div className="font-semibold">Investor</div>
-              <div className="text-sm text-muted-foreground">Sign in as an investor</div>
+              <div className="font-semibold group-hover:text-primary-foreground group-active:text-primary-foreground">
+                Investor
+              </div>
+              <div className="text-sm text-muted-foreground group-hover:text-primary-foreground/90 group-active:text-primary-foreground/90">
+                Sign in as an investor
+              </div>
             </div>
           </Button>
           <Button
             variant="outline"
-            className="h-auto p-4 flex items-center gap-3 justify-start"
+            className="h-auto p-4 flex items-center gap-3 justify-start group"
             onClick={() => handleRoleSelect("ISSUER")}
           >
-            <div className="h-10 w-10 rounded-lg bg-secondary/30 flex items-center justify-center">
-              <UserIcon className="h-5 w-5 text-secondary-foreground" />
+            <div className="h-10 w-10 rounded-lg bg-secondary/30 flex items-center justify-center group-hover:bg-primary/20 group-active:bg-primary/20">
+              <UserIcon className="h-5 w-5 text-secondary-foreground group-hover:text-primary-foreground group-active:text-primary-foreground" />
             </div>
             <div className="text-left">
-              <div className="font-semibold">Issuer</div>
-              <div className="text-sm text-muted-foreground">Sign in as an issuer</div>
+              <div className="font-semibold group-hover:text-primary-foreground group-active:text-primary-foreground">
+                Issuer
+              </div>
+              <div className="text-sm text-muted-foreground group-hover:text-primary-foreground/90 group-active:text-primary-foreground/90">
+                Sign in as an issuer
+              </div>
             </div>
           </Button>
         </div>
@@ -62,4 +71,3 @@ export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalPro
     </Sheet>
   );
 }
-

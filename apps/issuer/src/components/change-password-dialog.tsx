@@ -104,11 +104,11 @@ export function ChangePasswordDialog({
           await logout(signOut, getAccessToken);
         }, 2000);
       } else {
-        toast.success("Password changed successfully", {
-          description: "Your password has been updated.",
-        });
-        form.reset();
-        onOpenChange(false);
+      toast.success("Password changed successfully", {
+        description: "Your password has been updated.",
+      });
+      form.reset();
+      onOpenChange(false);
       }
       
       return;

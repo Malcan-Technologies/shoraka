@@ -240,15 +240,15 @@ export function useAuth() {
         const userInfo = await getUserInfo(getAccessToken);
         
         if (!userInfo || !userInfo.roles.includes("ADMIN")) {
-          // User doesn't have ADMIN role - sign out and redirect to landing page
+          // User doesn't have ADMIN role - sign out and redirect to login
           console.log("[useAuth] User lacks ADMIN role, signing out");
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
           
-          // Sign out from Amplify and redirect to landing
+          // Sign out from Amplify and redirect to login
           await signOut();
-          redirectToLanding();
+          redirectToLogin();
           return;
         }
 

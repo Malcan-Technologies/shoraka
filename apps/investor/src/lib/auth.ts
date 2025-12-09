@@ -13,9 +13,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  * Verify token is valid by calling /v1/auth/me
  * Uses Amplify session to get access token
  */
-export async function verifyToken(
-  getAccessToken: () => Promise<string | null>
-): Promise<boolean> {
+export async function verifyToken(getAccessToken: () => Promise<string | null>): Promise<boolean> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
     const apiClient = createApiClient(API_URL, getAccessToken);
@@ -34,6 +32,15 @@ export async function verifyToken(
 export function redirectToLanding() {
   if (typeof window !== "undefined") {
     window.location.href = LANDING_URL;
+  }
+}
+
+/**
+ * Redirect to Cognito login for investor role
+ */
+export function redirectToLogin() {
+  if (typeof window !== "undefined") {
+    window.location.href = `${API_URL}/api/auth/login?role=INVESTOR`;
   }
 }
 
@@ -67,13 +74,13 @@ export async function logout(
   // 3. Manually clear all Cognito cookies
   const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
   const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
-  
+
   if (clientId) {
-    const cookies = document.cookie.split(';');
-    
-    cookies.forEach(cookie => {
-      const cookieName = cookie.split('=')[0].trim();
-      if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
+    const cookies = document.cookie.split(";");
+
+    cookies.forEach((cookie) => {
+      const cookieName = cookie.split("=")[0].trim();
+      if (cookieName.startsWith("CognitoIdentityServiceProvider")) {
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
         console.log(`[Logout] Cleared cookie: ${cookieName}`);
@@ -87,7 +94,7 @@ export async function logout(
     if (accessToken) {
       headers["Authorization"] = `Bearer ${accessToken}`;
     }
-    
+
     await fetch(`${API_URL}/v1/auth/cognito/logout?portal=investor`, {
       method: "GET",
       credentials: "include",
@@ -99,17 +106,18 @@ export async function logout(
   }
 
   // 5. Redirect through Cognito's logout endpoint to root domain
-  const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || 
+  const landingUrl =
+    process.env.NEXT_PUBLIC_LANDING_URL ||
     (process.env.NODE_ENV === "production" ? "https://cashsouk.com" : "http://localhost:3000");
-  
+
   let cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
   const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-  
+
   if (cognitoDomain && cognitoClientId) {
-    if (!cognitoDomain.startsWith('http://') && !cognitoDomain.startsWith('https://')) {
+    if (!cognitoDomain.startsWith("http://") && !cognitoDomain.startsWith("https://")) {
       cognitoDomain = `https://${cognitoDomain}`;
     }
-    
+
     const cognitoLogoutUrl = `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(landingUrl)}`;
     console.log("[Logout] Redirecting through Cognito logout to:", landingUrl);
     window.location.href = cognitoLogoutUrl;
@@ -140,21 +148,21 @@ export function useAuth() {
         let token: string | null = null;
         let retries = 0;
         const maxRetries = 3;
-        
+
         while (!token && retries < maxRetries) {
           token = await getAccessToken();
           if (!token) {
             console.log(`[useAuth] No token on attempt ${retries + 1}/${maxRetries}, waiting...`);
-            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+            await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 100ms
             retries++;
           }
         }
 
         if (!token) {
           // No token after retries - not authenticated
-          console.log("[useAuth] No token after retries, redirecting to landing");
+          console.log("[useAuth] No token after retries, redirecting to login");
           setIsAuthenticated(false);
-          redirectToLanding();
+          redirectToLogin();
           return;
         }
 
@@ -168,7 +176,7 @@ export function useAuth() {
           console.log("[useAuth] Token invalid, signing out");
           setIsAuthenticated(false);
           await signOut();
-          redirectToLanding();
+          redirectToLogin();
           return;
         }
 
@@ -178,7 +186,7 @@ export function useAuth() {
       } catch (error) {
         console.error("[useAuth] Auth check failed:", error);
         setIsAuthenticated(false);
-        redirectToLanding();
+        redirectToLogin();
       }
     };
 

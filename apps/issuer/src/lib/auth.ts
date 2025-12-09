@@ -38,6 +38,15 @@ export function redirectToLanding() {
 }
 
 /**
+ * Redirect to Cognito login for issuer role
+ */
+export function redirectToLogin() {
+  if (typeof window !== "undefined") {
+    window.location.href = `${API_URL}/api/auth/login?role=ISSUER`;
+  }
+}
+
+/**
  * Logout user from issuer portal
  * Clears all Cognito cookies and session, then redirects through Cognito logout
  */
@@ -152,9 +161,9 @@ export function useAuth() {
 
         if (!token) {
           // No token after retries - not authenticated
-          console.log("[useAuth] No token after retries, redirecting to landing");
+          console.log("[useAuth] No token after retries, redirecting to login");
           setIsAuthenticated(false);
-          redirectToLanding();
+          redirectToLogin();
           return;
         }
 
@@ -168,7 +177,7 @@ export function useAuth() {
           console.log("[useAuth] Token invalid, signing out");
           setIsAuthenticated(false);
           await signOut();
-          redirectToLanding();
+          redirectToLogin();
           return;
         }
 
@@ -178,7 +187,7 @@ export function useAuth() {
       } catch (error) {
         console.error("[useAuth] Auth check failed:", error);
         setIsAuthenticated(false);
-        redirectToLanding();
+        redirectToLogin();
       }
     };
 
