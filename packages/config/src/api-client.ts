@@ -223,8 +223,13 @@ export class ApiClient {
   async changePassword(data: {
     currentPassword: string;
     newPassword: string;
-  }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
-    return this.post<{ success: boolean }>(`/v1/auth/change-password`, data);
+  }): Promise<ApiResponse<{ success: boolean; sessionRevoked?: boolean }> | ApiError> {
+    return this.post<{ success: boolean; sessionRevoked?: boolean }>(`/v1/auth/change-password`, data);
+  }
+
+  // Update user's 5-letter ID (admin only)
+  async updateUserId(userId: string, newUserId: string): Promise<ApiResponse<{ user_id: string }> | ApiError> {
+    return this.patch<{ user_id: string }>(`/v1/admin/users/${userId}/user-id`, { userId: newUserId });
   }
 
   // Self-service email change - Step 1: Initiate (sends verification code)

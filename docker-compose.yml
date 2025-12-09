@@ -11,6 +11,19 @@ services:
       - NODE_ENV=development
       - PORT=4000
       - DATABASE_URL=postgresql://postgres:password@db:5432/cashsouk_dev
+      - COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
+      - COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
+      - COGNITO_CLIENT_SECRET=1vkj665jmq0m0ahlocfetb9mdm2gau3qns5cf3kcbg999bm1qcs2
+      - COGNITO_DOMAIN=https://auth.cashsouk.com
+      - COGNITO_REGION=ap-southeast-5
+      - REDIRECT_URI=http://localhost:3000/callback
+      - SESSION_SECRET=693672d58d1cbddc6a3f518568abc3395c92951a1600241a8df985b84d2c6926
+      - COOKIE_DOMAIN=
+      - FRONTEND_URL=http://localhost:3000
+      - INVESTOR_URL=http://localhost:3002
+      - ISSUER_URL=http://localhost:3001
+      - ADMIN_URL=http://localhost:3003
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
     depends_on:
       - db
     networks:
@@ -25,6 +38,12 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_COGNITO_DOMAIN=https://auth.cashsouk.com
+      - NEXT_PUBLIC_COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
+      - NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
+      - NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+      - NEXT_PUBLIC_COOKIE_DOMAIN=localhost
+      - NEXT_PUBLIC_LANDING_URL=http://localhost:3000
     networks:
       - cashsouk-network
 
@@ -37,6 +56,14 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_COGNITO_DOMAIN=https://auth.cashsouk.com
+      - NEXT_PUBLIC_COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
+      - NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
+      - NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+      - NEXT_PUBLIC_COOKIE_DOMAIN=localhost
+      - NEXT_PUBLIC_LANDING_URL=http://localhost:3000
+      - NEXT_PUBLIC_ISSUER_URL=http://localhost:3001
+      - NEXT_PUBLIC_INVESTOR_URL=http://localhost:3002
     networks:
       - cashsouk-network
 
@@ -49,6 +76,13 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_COGNITO_DOMAIN=https://auth.cashsouk.com
+      - NEXT_PUBLIC_COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
+      - NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
+      - NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+      - NEXT_PUBLIC_COOKIE_DOMAIN=localhost
+      - NEXT_PUBLIC_LANDING_URL=http://localhost:3000
+      - NEXT_PUBLIC_INVESTOR_URL=http://localhost:3002
     networks:
       - cashsouk-network
 
@@ -61,6 +95,12 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_COGNITO_DOMAIN=https://auth.cashsouk.com
+      - NEXT_PUBLIC_COGNITO_CLIENT_ID=4es0361hj0r66iv7da3hhm8ftk
+      - NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-southeast-5_Ugz3vHRnm
+      - NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+      - NEXT_PUBLIC_COOKIE_DOMAIN=localhost
+      - NEXT_PUBLIC_LANDING_URL=http://localhost:3000
     networks:
       - cashsouk-network
 

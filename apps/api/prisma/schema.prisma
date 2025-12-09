@@ -27,6 +27,7 @@ enum LoanStatus {
 
 model User {
   id                              String     @id @default(cuid())
+  user_id                         String?    @unique @db.VarChar(5)
   email                           String     @unique
   cognito_sub                     String     @unique @db.VarChar(255)
   cognito_username                String     @db.VarChar(255)
@@ -48,6 +49,7 @@ model User {
   sessions       UserSession[]
   
   @@index([cognito_sub])
+  @@index([user_id])
   @@map("users")
 }
 

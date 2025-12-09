@@ -22,6 +22,7 @@ export class AdminRepository {
         { first_name: { contains: search, mode: "insensitive" } },
         { last_name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
+        { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
       ];
     }
 
@@ -195,13 +196,14 @@ export class AdminRepository {
       where.created_at = { gte: cutoffDate };
     }
 
-    // If search is provided, filter by user name or email
+    // If search is provided, filter by user name, email, or user_id
     if (search) {
       where.user = {
         OR: [
           { first_name: { contains: search, mode: "insensitive" } },
           { last_name: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
         ],
       };
     }
@@ -290,6 +292,7 @@ export class AdminRepository {
           { first_name: { contains: search, mode: "insensitive" } },
           { last_name: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
         ],
       };
     }

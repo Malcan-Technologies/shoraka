@@ -22,6 +22,7 @@ export interface GetUsersParams extends PaginationParams {
 
 export interface UserResponse {
   id: string;
+  user_id: string | null;
   email: string;
   cognito_sub: string;
   cognito_username: string;

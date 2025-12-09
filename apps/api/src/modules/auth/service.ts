@@ -2,6 +2,7 @@ import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
   AdminUpdateUserAttributesCommand,
+  AdminUserGlobalSignOutCommand,
   InitiateAuthCommand,
   ChangePasswordCommand,
   UpdateUserAttributesCommand,
@@ -27,6 +28,10 @@ import { createHmac } from "crypto";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
+  // AWS credentials will be automatically loaded from:
+  // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+  // 2. IAM role (in production/ECS)
+  // 3. ~/.aws/credentials (local development)
 });
 
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
@@ -267,23 +272,26 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    console.log("completeOnboarding - Current user:", {
-      userId: user.id,
-      email: user.email,
-      currentRoles: user.roles,
-      requestedRole: role,
-      investorOnboarding: user.investor_onboarding_completed,
-      issuerOnboarding: user.issuer_onboarding_completed,
-    });
+    logger.info(
+      {
+        userId: user.id,
+        email: user.email,
+        currentRoles: user.roles,
+        requestedRole: role,
+        investorOnboarding: user.investor_onboarding_completed,
+        issuerOnboarding: user.issuer_onboarding_completed,
+      },
+      "Complete onboarding - current user state"
+    );
 
     const roleNeedsToBeAdded = !user.roles.includes(role);
     let updatedUser = user;
 
     // Add role if user doesn't have it yet
     if (roleNeedsToBeAdded) {
-      console.log("Adding role to user:", role);
+      logger.info({ role }, "Adding role to user");
       updatedUser = await this.repository.addRoleToUser(user.id, role);
-      console.log("Role added. Updated roles:", updatedUser.roles);
+      logger.info({ updatedRoles: updatedUser.roles }, "Role added successfully");
 
       // Update Cognito custom:roles attribute if not ADMIN
       // This is optional - if AWS credentials aren't configured (e.g., local dev), we'll skip it
@@ -306,24 +314,27 @@ export class AuthService {
         } catch (error) {
           // Log warning but don't fail - Cognito sync is optional in local dev
           // In production, AWS credentials should be configured
-          console.warn(
-            "Failed to update Cognito custom:roles attribute:",
-            error instanceof Error ? error.message : String(error)
+          logger.warn(
+            { error: error instanceof Error ? error.message : String(error) },
+            "Failed to update Cognito custom:roles attribute"
           );
         }
       }
     } else {
-      console.log("User already has role:", role);
+      logger.info({ role }, "User already has role");
     }
 
     // Update onboarding status - this should always run regardless of whether role was added
-    console.log("Updating onboarding status for role:", role);
+    logger.info({ role }, "Updating onboarding status for role");
     updatedUser = await this.repository.updateOnboardingStatus(updatedUser.id, role, true);
-    console.log("Onboarding status updated. Final user state:", {
-      roles: updatedUser.roles,
-      investorOnboarding: updatedUser.investor_onboarding_completed,
-      issuerOnboarding: updatedUser.issuer_onboarding_completed,
-    });
+    logger.info(
+      {
+        roles: updatedUser.roles,
+        investorOnboarding: updatedUser.investor_onboarding_completed,
+        issuerOnboarding: updatedUser.issuer_onboarding_completed,
+      },
+      "Onboarding status updated successfully"
+    );
 
     // Create access log
     await this.repository.createAccessLog({
@@ -480,7 +491,11 @@ export class AuthService {
     _req: Request,
     _res: Response
   ): Promise<{ message: string; accessToken?: string; refreshToken?: string }> {
-    throw new AppError(410, "GONE", "Token refresh is now handled by AWS Amplify. This endpoint is deprecated.");
+    throw new AppError(
+      410,
+      "GONE",
+      "Token refresh is now handled by AWS Amplify. This endpoint is deprecated."
+    );
   }
 
   /**
@@ -488,7 +503,11 @@ export class AuthService {
    * This method is kept for backward compatibility but should not be used
    */
   async silentRefresh(_req: Request): Promise<{ accessToken: string }> {
-    throw new AppError(410, "GONE", "Token refresh is now handled by AWS Amplify. This endpoint is deprecated.");
+    throw new AppError(
+      410,
+      "GONE",
+      "Token refresh is now handled by AWS Amplify. This endpoint is deprecated."
+    );
   }
 
   /**
@@ -596,7 +615,7 @@ export class AuthService {
       currentPassword: string;
       newPassword: string;
     }
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ success: boolean; sessionRevoked?: boolean }> {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
     // Get user to find their email (used as Cognito username)
@@ -668,7 +687,30 @@ export class AuthService {
       // Update password changed timestamp
       await this.repository.updatePasswordChangedAt(userId);
 
-      // Log successful password change
+      // CRITICAL: Revoke all existing sessions globally
+      let sessionRevoked = false;
+      try {
+        const command = new AdminUserGlobalSignOutCommand({
+          UserPoolId: COGNITO_USER_POOL_ID,
+          Username: user.cognito_sub,
+        });
+
+        await cognitoClient.send(command);
+        sessionRevoked = true;
+
+        logger.info(
+          { userId, cognitoSub: user.cognito_sub },
+          "All user sessions revoked after password change via AdminUserGlobalSignOut"
+        );
+      } catch (error) {
+        logger.error(
+          { userId, error: error instanceof Error ? error.message : String(error) },
+          "Failed to revoke sessions after password change"
+        );
+        // Don't fail the password change, but log the error
+      }
+
+      // Log successful password change with session revocation status
       await this.repository.createAccessLog({
         userId,
         eventType: "PASSWORD_CHANGED",
@@ -680,12 +722,13 @@ export class AuthService {
         success: true,
         metadata: {
           reason: "USER_INITIATED",
+          sessionRevoked,
         },
       });
 
-      logger.info({ userId, email: user.email }, "Password changed successfully");
+      logger.info({ userId, email: user.email, sessionRevoked }, "Password changed successfully");
 
-      return { success: true };
+      return { success: true, sessionRevoked };
     } catch (error) {
       // Log failed password change attempt
       await this.repository.createAccessLog({

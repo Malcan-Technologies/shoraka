@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { User, UserRole, AccessLog, UserSession } from "@prisma/client";
+import { generateUniqueUserId } from "../../lib/user-id-generator";
 
 export class AuthRepository {
   /**
@@ -33,6 +34,15 @@ export class AuthRepository {
     lastName?: string;
     phone?: string;
   }): Promise<User> {
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { cognito_sub: data.cognitoSub },
+    });
+
+    // Generate user_id if user doesn't exist or doesn't have one
+    const needsUserId = !existingUser || !existingUser.user_id;
+    const userId = needsUserId ? await generateUniqueUserId() : existingUser.user_id;
+
     return prisma.user.upsert({
       where: { cognito_sub: data.cognitoSub },
       create: {
@@ -44,6 +54,7 @@ export class AuthRepository {
         first_name: data.firstName || "",
         last_name: data.lastName || "",
         phone: data.phone,
+        user_id: userId,
       },
       update: {
         cognito_username: data.cognitoUsername,
@@ -53,6 +64,8 @@ export class AuthRepository {
         ...(data.firstName && { first_name: data.firstName }),
         ...(data.lastName && { last_name: data.lastName }),
         ...(data.phone && { phone: data.phone }),
+        // Assign user_id if it doesn't exist
+        ...(needsUserId && { user_id: userId }),
       },
     });
   }
@@ -62,15 +75,15 @@ export class AuthRepository {
    */
   async addRoleToUser(userId: string, role: UserRole): Promise<User> {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    
+
     if (!user) {
       throw new Error("User not found");
     }
-    
+
     if (user.roles.includes(role)) {
       return user; // Role already exists
     }
-    
+
     // Prisma doesn't support push for arrays - need to use set with full array
     return prisma.user.update({
       where: { id: userId },
@@ -87,7 +100,7 @@ export class AuthRepository {
    */
   async updateOnboardingStatus(userId: string, role: UserRole, completed: boolean): Promise<User> {
     const updateData: Record<string, boolean> = {};
-    
+
     if (role === UserRole.INVESTOR) {
       updateData.investor_onboarding_completed = completed;
     } else if (role === UserRole.ISSUER) {
@@ -97,11 +110,11 @@ export class AuthRepository {
       // No database field to update for ADMIN
       return prisma.user.findUniqueOrThrow({ where: { id: userId } });
     }
-    
+
     if (Object.keys(updateData).length === 0) {
       throw new Error(`Invalid role for onboarding update: ${role}`);
     }
-    
+
     return prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -257,4 +270,3 @@ export class AuthRepository {
     });
   }
 }
-

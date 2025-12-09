@@ -15,6 +15,7 @@ import {
   AdminUserGlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
+import { AuthRepository } from "./repository";
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
         },
         "Sign-up attempt blocked for admin role - admin portal is sign-in only"
       );
-      
+
       // Redirect back to admin login without signup parameter
       const adminLoginUrl = new URL(
         req.originalUrl.split("?")[0],
@@ -146,7 +147,10 @@ router.get("/callback", async (req: Request, res: Response) => {
       const env = getEnv();
       const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
       errorUrl.searchParams.set("error", "missing_state");
-      errorUrl.searchParams.set("message", "Authentication session is missing. Please sign in again.");
+      errorUrl.searchParams.set(
+        "message",
+        "Authentication session is missing. Please sign in again."
+      );
       return res.redirect(errorUrl.toString());
     }
 
@@ -158,7 +162,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         { correlationId, error: error instanceof Error ? error.message : String(error) },
         "Failed to decrypt OAuth state"
       );
-      
+
       // Redirect to user-friendly error page instead of throwing JSON error
       // This handles cases where user clicks back button and tries to reuse expired state
       const env = getEnv();
@@ -348,92 +352,68 @@ router.get("/callback", async (req: Request, res: Response) => {
       "Processing callback with requested role"
     );
 
-    let user = await prisma.user.findUnique({
+    // Check if user exists by cognito_sub first
+    let existingUser = await prisma.user.findUnique({
       where: { cognito_sub: cognitoId },
     });
 
-    if (!user) {
-      user = await prisma.user.findUnique({
+    // If not found by cognito_sub, check by email (for migration scenarios)
+    // This handles users who existed before Cognito integration
+    if (!existingUser) {
+      existingUser = await prisma.user.findUnique({
         where: { email },
       });
 
-      if (user) {
+      if (existingUser) {
         logger.info(
-          { correlationId, userId: user.id, email },
-          "User found by email, updating cognito_sub"
+          { correlationId, userId: existingUser.id, email },
+          "User found by email (migration scenario), updating cognito_sub"
         );
-        user = await prisma.user.update({
-          where: { id: user.id },
+        // Update the cognito_sub for this user
+        existingUser = await prisma.user.update({
+          where: { id: existingUser.id },
           data: { cognito_sub: cognitoId },
         });
       }
     }
 
-    if (!user) {
-      // Don't assign roles during signup - roles will be added after onboarding completion
-      const initialRoles: UserRole[] = [];
-      // Only assign ADMIN role immediately (admin users are created differently)
-      if (isSignup && requestedRole === UserRole.ADMIN) {
-        initialRoles.push(UserRole.ADMIN);
-      }
+    // Use AuthRepository to handle user creation/update with user_id assignment
+    const authRepository = new AuthRepository();
 
-      try {
-        user = await prisma.user.create({
-          data: {
-            cognito_sub: cognitoId,
-            cognito_username: email,
-            email,
-            roles: initialRoles,
-            first_name: firstName,
-            last_name: lastName,
-            email_verified: true,
-          },
-        });
-
-        logger.info(
-          { correlationId, userId: user.id, email, roles: initialRoles, requestedRole, isSignup },
-          "User created in database (roles will be added after onboarding)"
-        );
-      } catch (error) {
-        if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
-          logger.warn(
-            { correlationId, error },
-            "User creation failed due to unique constraint, attempting to find existing user"
-          );
-          user = await prisma.user.findUnique({
-            where: { email },
-          });
-
-          if (user && user.cognito_sub !== cognitoId) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: { cognito_sub: cognitoId },
-            });
-          }
-
-          if (!user) {
-            throw new AppError(500, "USER_CREATION_FAILED", "Failed to create or find user");
-          }
-        } else {
-          throw error;
-        }
-      }
-    } else {
-      if (firstName && user.first_name !== firstName) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { first_name: firstName },
-        });
-      }
-      if (lastName && user.last_name !== lastName) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { last_name: lastName },
-        });
-      }
-
-      logger.info({ correlationId, userId: user.id, email }, "User found in database");
+    // Don't assign roles during signup - roles will be added after onboarding completion
+    const initialRoles: UserRole[] = [];
+    // Only assign ADMIN role immediately (admin users are created differently)
+    if (isSignup && requestedRole === UserRole.ADMIN) {
+      initialRoles.push(UserRole.ADMIN);
     }
+
+    // If user exists, preserve their existing roles (don't overwrite with initialRoles)
+    const rolesToUse =
+      existingUser && existingUser.roles.length > 0 ? existingUser.roles : initialRoles;
+
+    const user = await authRepository.upsertUser({
+      cognitoSub: cognitoId,
+      cognitoUsername: email,
+      email,
+      emailVerified: true,
+      roles: rolesToUse,
+      firstName,
+      lastName,
+    });
+
+    logger.info(
+      {
+        correlationId,
+        userId: user.id,
+        email,
+        roles: user.roles,
+        hasUserId: !!user.user_id,
+        requestedRole,
+        isSignup,
+        wasMigration: !!existingUser && !existingUser.cognito_sub,
+      },
+      "User synced via repository (upsert with user_id assignment)"
+    );
 
     // Extract request metadata early (needed for both success and error cases)
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
@@ -481,12 +461,12 @@ router.get("/callback", async (req: Request, res: Response) => {
       // User will need to manually navigate to admin portal again with correct credentials
       const apiBaseUrl = `${req.protocol}://${req.get("host")}`;
       const logoutUrl = new URL(`${apiBaseUrl}/v1/auth/cognito/logout`);
-      
+
       logger.info(
         { correlationId, userId: user.id, redirectUrl: logoutUrl.toString() },
         "Logging out non-admin user from Cognito - will redirect to landing page"
       );
-      
+
       return res.redirect(logoutUrl.toString());
     }
 
@@ -548,21 +528,17 @@ router.get("/callback", async (req: Request, res: Response) => {
     const env = getEnv();
     const cookieDomain = process.env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost";
     const isSecure = process.env.NODE_ENV === "production";
-    
+
     // Set access token cookie (Amplify format)
-    res.cookie(
-      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`,
-      cognitoId,
-      {
-        httpOnly: false, // Amplify needs to read this
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      }
-    );
-    
+    res.cookie(`CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`, cognitoId, {
+      httpOnly: false, // Amplify needs to read this
+      secure: isSecure,
+      sameSite: "lax",
+      domain: cookieDomain,
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.accessToken`,
       tokenSet.access_token,
@@ -575,7 +551,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         maxAge: 60 * 60 * 1000, // 1 hour (access token expiry)
       }
     );
-    
+
     if (tokenSet.id_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.idToken`,
@@ -590,7 +566,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         }
       );
     }
-    
+
     if (tokenSet.refresh_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.refreshToken`,
@@ -605,7 +581,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         }
       );
     }
-    
+
     // Set clock drift cookie (Amplify uses this)
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.clockDrift`,
@@ -636,20 +612,25 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Amplify will now be able to read tokens from cookies
     const callbackUrl = `${env.FRONTEND_URL}/callback`;
     const redirectUrl = new URL(callbackUrl);
-    
+
     // Determine target portal based on requestedRole (from state) or activeRole
     // requestedRole is what the user originally clicked on (e.g., "Login as Investor")
     // activeRole is what we assigned (may differ if user already has another role)
-    const targetPortal = requestedRole?.toLowerCase() || 
-                        (activeRole === UserRole.ADMIN ? "admin" :
-                         activeRole === UserRole.INVESTOR ? "investor" :
-                         activeRole === UserRole.ISSUER ? "issuer" : "landing");
-    
+    const targetPortal =
+      requestedRole?.toLowerCase() ||
+      (activeRole === UserRole.ADMIN
+        ? "admin"
+        : activeRole === UserRole.INVESTOR
+          ? "investor"
+          : activeRole === UserRole.ISSUER
+            ? "issuer"
+            : "landing");
+
     redirectUrl.searchParams.set("portal", targetPortal);
 
     // Check if user has the requested role
     const hasRequestedRole = requestedRole ? user.roles.includes(requestedRole) : false;
-    
+
     // Check onboarding status for the active role
     const onboardingCompleted =
       (activeRole === UserRole.INVESTOR && user.investor_onboarding_completed) ||
@@ -737,7 +718,7 @@ router.get("/logout", async (req: Request, res: Response) => {
   let cognitoSub: string | undefined;
   let portal: string | undefined;
   let userId: string | undefined;
-  
+
   // Try to detect portal from referer/origin if token doesn't have it
   // This helps when logout is called without a valid token
   const referer = req.get("referer") || req.get("origin");
@@ -772,43 +753,40 @@ router.get("/logout", async (req: Request, res: Response) => {
       if (user) {
         userId = user.id;
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-        
+
         // Determine portal from user's roles if not detected from referer
         if (!portal && user.roles.length > 0) {
           portal = getPortalFromRole(user.roles[0]);
         }
 
         // Create access log before signing out
-          await prisma.accessLog.create({
-            data: {
+        await prisma.accessLog.create({
+          data: {
             user_id: user.id,
-              event_type: "LOGOUT",
+            event_type: "LOGOUT",
             portal: portal || null,
-              ip_address: ipAddress,
-              user_agent: userAgent,
-              device_info: deviceInfo,
-              device_type: deviceType,
-              success: true,
-              metadata: {
-                roles: user.roles,
-              },
+            ip_address: ipAddress,
+            user_agent: userAgent,
+            device_info: deviceInfo,
+            device_type: deviceType,
+            success: true,
+            metadata: {
+              roles: user.roles,
             },
-          });
-          
+          },
+        });
+
         logger.info({ correlationId, userId: user.id, portal }, "Logout access log created");
-        }
-      } catch (error) {
-      // If token is invalid/expired, log warning but continue with logout
-        logger.warn(
-          { correlationId, error: error instanceof Error ? error.message : String(error) },
-        "Failed to create logout access log - token invalid or expired"
-        );
       }
-    } else {
+    } catch (error) {
+      // If token is invalid/expired, log warning but continue with logout
       logger.warn(
-        { correlationId },
-      "No token provided for logout - access log will not be created"
+        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        "Failed to create logout access log - token invalid or expired"
       );
+    }
+  } else {
+    logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
   }
 
   // Note: Amplify handles token clearing on the frontend
@@ -853,62 +831,17 @@ router.get("/logout", async (req: Request, res: Response) => {
     }
   });
 
-  // IMPORTANT: Redirect through Cognito's /logout endpoint to clear OAuth/Hosted UI session
-  // Amplify handles token clearing on the frontend
-  // We redirect through Cognito's logout endpoint to clear the OAuth session
-  const env = getEnv();
-  const config = getCognitoConfig();
-  
-  // Determine final redirect URL based on portal
-  let finalRedirectUrl: string;
+  // Note: Amplify handles token clearing on the frontend
+  // We don't need to clear cookies here as Amplify manages session storage
+  // Backend only handles access logging and Cognito session revocation
+  // Frontend will handle the redirect to Cognito logout URL
 
-  // Determine redirect URL based on portal
-  // Priority: portal from token > portal from referer > default (landing)
-  if (portal === "admin") {
-    // Admin portal logout always goes back to admin portal
-    finalRedirectUrl = env.ADMIN_URL || (process.env.NODE_ENV === "production" 
-      ? "https://admin.cashsouk.com"
-      : "http://localhost:3003");
-    logger.info(
-      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer" },
-      "Admin portal logout - redirecting to admin portal"
-    );
-  } else if (portal === "investor") {
-    // Investor portal logout
-    finalRedirectUrl = env.INVESTOR_URL || (process.env.NODE_ENV === "production"
-      ? "https://investor.cashsouk.com"
-      : "http://localhost:3002");
-    logger.info(
-      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer", finalRedirectUrl },
-      "Investor portal logout - redirecting to investor portal"
-    );
-  } else if (portal === "issuer") {
-    // Issuer portal logout
-    finalRedirectUrl = env.ISSUER_URL || (process.env.NODE_ENV === "production"
-      ? "https://issuer.cashsouk.com"
-      : "http://localhost:3001");
-    logger.info(
-      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer", finalRedirectUrl },
-      "Issuer portal logout - redirecting to issuer portal"
-    );
-  } else {
-    // Default to landing page
-    finalRedirectUrl = env.FRONTEND_URL;
-    logger.info(
-      { correlationId, userId, portal: portal || "none", finalRedirectUrl },
-      "No specific portal detected - redirecting to landing page"
-    );
-  }
-  
-  // Build Cognito logout URL with logout_uri to redirect back to our portal
-  // This requires logout_uri to be in Cognito's allowed logout URLs
-  const cognitoLogoutUrl = `${config.domain}/logout?client_id=${config.clientId}&logout_uri=${encodeURIComponent(finalRedirectUrl)}`;
-  
-  logger.info(
-    { correlationId, cognitoLogoutUrl, finalRedirectUrl, userId, portal },
-    "Redirecting through Cognito logout to clear OAuth session"
-  );
-  res.redirect(cognitoLogoutUrl);
+  // Return success response - let frontend handle redirect
+  logger.info({ correlationId, userId, portal }, "Logout completed - returning success");
+  return res.json({
+    success: true,
+    message: "Logged out successfully",
+  });
 });
 
 export default router;

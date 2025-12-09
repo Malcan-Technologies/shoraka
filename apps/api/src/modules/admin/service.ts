@@ -1,7 +1,9 @@
 import { AdminRepository } from "./repository";
-import { User, AccessLog, UserRole } from "@prisma/client";
+import { User, AccessLog, UserRole, Prisma } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { AppError } from "../../lib/http/error-handler";
+import { prisma } from "../../lib/prisma";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -71,7 +73,7 @@ export class AdminService {
 
     // If removing INVESTOR role, reset investor onboarding
     // If removing ISSUER role, reset issuer onboarding
-    const updateData: any = { roles: { set: data.roles } };
+    const updateData: Prisma.UserUpdateInput = { roles: { set: data.roles } };
     if (!hasInvestorRole && user.investor_onboarding_completed) {
       updateData.investor_onboarding_completed = false;
     }
@@ -169,20 +171,20 @@ export class AdminService {
 
     // When setting onboarding to false, remove the role
     if (data.investorOnboarded === false && updatedRoles.includes(UserRole.INVESTOR)) {
-      updatedRoles = updatedRoles.filter(role => role !== UserRole.INVESTOR);
+      updatedRoles = updatedRoles.filter((role) => role !== UserRole.INVESTOR);
     }
 
     if (data.issuerOnboarded === false && updatedRoles.includes(UserRole.ISSUER)) {
-      updatedRoles = updatedRoles.filter(role => role !== UserRole.ISSUER);
+      updatedRoles = updatedRoles.filter((role) => role !== UserRole.ISSUER);
     }
 
     const rolesChanged = JSON.stringify(updatedRoles.sort()) !== JSON.stringify(user.roles.sort());
 
     const updatedUser = await this.repository.updateUserOnboarding(
-		userId,
-		data,
-		rolesChanged ? updatedRoles : undefined
-	);
+      userId,
+      data,
+      rolesChanged ? updatedRoles : undefined
+    );
 
     // Create access log for admin action
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
@@ -202,8 +204,8 @@ export class AdminService {
         issuerOnboarded: data.issuerOnboarded,
         previousInvestorOnboarded: user.investor_onboarding_completed,
         previousIssuerOnboarded: user.issuer_onboarding_completed,
-		rolesRemoved: rolesChanged ? user.roles.filter(r => !updatedRoles.includes(r)) : [],
-		newRoles: rolesChanged ? updatedRoles : user.roles,
+        rolesRemoved: rolesChanged ? user.roles.filter((r) => !updatedRoles.includes(r)) : [],
+        newRoles: rolesChanged ? updatedRoles : user.roles,
       },
     });
 
@@ -240,7 +242,9 @@ export class AdminService {
       metadata: {
         targetUserId: userId,
         targetUserEmail: user.email,
-        updatedFields: Object.keys(data).filter(k => data[k as keyof UpdateUserProfileInput] !== undefined),
+        updatedFields: Object.keys(data).filter(
+          (k) => data[k as keyof UpdateUserProfileInput] !== undefined
+        ),
         previousValues: {
           firstName: user.first_name,
           lastName: user.last_name,
@@ -256,7 +260,9 @@ export class AdminService {
    * List access logs with pagination and filters
    */
   async listAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & { user: { first_name: string; last_name: string; email: string; roles: UserRole[] } })[];
+    logs: (AccessLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[];
     pagination: {
       page: number;
       pageSize: number;
@@ -289,7 +295,9 @@ export class AdminService {
    * Export access logs (returns all matching logs without pagination)
    */
   async exportAccessLogs(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & { user: { first_name: string; last_name: string; email: string; roles: UserRole[] } })[]
+    (AccessLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
   > {
     return this.repository.getAllAccessLogsForExport(params);
   }
@@ -332,7 +340,8 @@ export class AdminService {
       users: {
         total: {
           current: totalStats.totalUsers,
-          previous: totalStats.totalUsers - currentPeriodStats.totalUsers + previousPeriodStats.totalUsers,
+          previous:
+            totalStats.totalUsers - currentPeriodStats.totalUsers + previousPeriodStats.totalUsers,
           percentageChange: calculatePercentageChange(
             currentPeriodStats.totalUsers,
             previousPeriodStats.totalUsers
@@ -340,7 +349,10 @@ export class AdminService {
         },
         investorsOnboarded: {
           current: totalStats.investorsOnboarded,
-          previous: totalStats.investorsOnboarded - currentPeriodStats.investorsOnboarded + previousPeriodStats.investorsOnboarded,
+          previous:
+            totalStats.investorsOnboarded -
+            currentPeriodStats.investorsOnboarded +
+            previousPeriodStats.investorsOnboarded,
           percentageChange: calculatePercentageChange(
             currentPeriodStats.investorsOnboarded,
             previousPeriodStats.investorsOnboarded
@@ -348,7 +360,10 @@ export class AdminService {
         },
         issuersOnboarded: {
           current: totalStats.issuersOnboarded,
-          previous: totalStats.issuersOnboarded - currentPeriodStats.issuersOnboarded + previousPeriodStats.issuersOnboarded,
+          previous:
+            totalStats.issuersOnboarded -
+            currentPeriodStats.issuersOnboarded +
+            previousPeriodStats.issuersOnboarded,
           percentageChange: calculatePercentageChange(
             currentPeriodStats.issuersOnboarded,
             previousPeriodStats.issuersOnboarded
@@ -358,5 +373,31 @@ export class AdminService {
       signupTrends,
     };
   }
-}
 
+  /**
+   * Update user's 5-letter ID (admin only)
+   */
+  async updateUserId(userId: string, newUserId: string): Promise<{ user_id: string }> {
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new AppError(404, "NOT_FOUND", "User not found");
+    }
+
+    // Update user_id and let database unique constraint handle conflicts
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { user_id: newUserId },
+      });
+
+      return { user_id: updatedUser.user_id! };
+    } catch (error) {
+      // Handle unique constraint violation (P2002 is Prisma's code for unique constraint errors)
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new AppError(409, "CONFLICT", "This User ID is already assigned to another user");
+      }
+      throw error;
+    }
+  }
+}

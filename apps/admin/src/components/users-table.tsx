@@ -16,6 +16,7 @@ type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
 
 interface User {
   id: string;
+  user_id?: string | null;
   email: string;
   cognito_sub: string;
   cognito_username: string;
@@ -46,6 +47,9 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
+          <TableCell>
+            <Skeleton className="h-5 w-16" />
+          </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-32" />
           </TableCell>
@@ -119,6 +123,7 @@ export function UsersTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="text-sm font-semibold">User ID</TableHead>
                 <TableHead className="text-sm font-semibold">Name</TableHead>
                 <TableHead className="text-sm font-semibold">Email</TableHead>
                 <TableHead className="text-sm font-semibold">Phone</TableHead>
@@ -135,7 +140,7 @@ export function UsersTable({
                 <TableSkeleton />
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>

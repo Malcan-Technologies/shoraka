@@ -42,6 +42,12 @@ export const updateUserProfileSchema = z.object({
 
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 
+export const updateUserIdSchema = z.object({
+  userId: z.string().regex(/^[A-Z]{5}$/, "User ID must be exactly 5 uppercase letters (A-Z)"),
+});
+
+export type UpdateUserIdInput = z.infer<typeof updateUserIdSchema>;
+
 // Access logs query schema
 export const getAccessLogsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

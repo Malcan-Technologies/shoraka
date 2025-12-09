@@ -39,6 +39,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface UserData {
   id: string;
+  user_id?: string | null;
   email: string;
   first_name: string;
   last_name: string;
@@ -314,6 +315,18 @@ export default function ProfilePage() {
                   />
                   <p className="text-[0.8rem] text-muted-foreground">
                     Enter your phone number with country code
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">User ID</Label>
+                  <div className="font-mono text-lg font-semibold">
+                    {userData?.user_id || "Not assigned"}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Your unique 5-letter identifier
                   </p>
                 </div>
 

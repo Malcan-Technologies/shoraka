@@ -28,6 +28,7 @@ export interface ApiError {
 
 export interface User {
   id: string;
+  user_id?: string | null;
   email: string;
   role: UserRole;
   firstName: string;

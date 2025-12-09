@@ -68,7 +68,7 @@ export function NavUser() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    await logout(signOut)
+    await logout(signOut, getAccessToken)
   }
 
   if (isLoading) {

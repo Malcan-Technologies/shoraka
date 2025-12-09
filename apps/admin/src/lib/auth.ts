@@ -86,71 +86,84 @@ export function redirectToLanding() {
 
 /**
  * Logout user from admin portal
- * Clears all Cognito cookies and session, then redirects through Cognito logout
+ * Clears all Cognito cookies and session, then redirects through Cognito logout to root domain
  */
-export async function logout(signOut: () => Promise<void>) {
+export async function logout(
+  signOut: () => Promise<void>,
+  getAccessToken: () => Promise<string | null>
+) {
   if (typeof window === "undefined") return;
 
+  // 1. Get access token before logout (for backend access log)
+  let accessToken: string | null = null;
   try {
-    // 1. Sign out from Amplify (clears Amplify-managed tokens)
+    accessToken = await getAccessToken();
+    console.log("[Logout] Got access token:", accessToken ? "present" : "missing");
+  } catch (error) {
+    console.error("[Logout] Failed to get access token:", error);
+  }
+
+  // 2. Sign out from Amplify (clears Amplify-managed tokens)
+  try {
     await signOut();
     console.log("[Logout] Amplify signOut successful");
   } catch (error) {
     console.error("[Logout] Amplify signOut failed:", error);
   }
 
-  // 2. Manually clear all Cognito cookies
+  // 3. Manually clear all Cognito cookies
   const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || ".cashsouk.com";
+  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
   
   if (clientId) {
-    // Get all cookies
     const cookies = document.cookie.split(';');
     
-    // Find and delete all CognitoIdentityServiceProvider cookies
     cookies.forEach(cookie => {
       const cookieName = cookie.split('=')[0].trim();
       if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
-        // Delete cookie with domain (for production)
-        if (cookieDomain) {
-          document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
-        }
-        // Delete cookie for localhost (for development)
-        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
-        // Delete cookie without domain (fallback)
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
         console.log(`[Logout] Cleared cookie: ${cookieName}`);
       }
     });
   }
 
-  // 3. Call backend logout endpoint to clear server-side session
+  // 4. Call backend logout endpoint (for access logging and session revocation)
   try {
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+    
     await fetch(`${API_URL}/v1/auth/cognito/logout?portal=admin`, {
       method: "GET",
       credentials: "include",
+      headers,
     });
     console.log("[Logout] Backend logout successful");
   } catch (error) {
     console.error("[Logout] Backend logout failed:", error);
   }
 
-  // 4. Redirect through Cognito's logout endpoint to clear hosted UI session
+  // 5. Redirect through Cognito's logout endpoint to clear hosted UI session
+  // Then Cognito will redirect to root domain
+  const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || 
+    (process.env.NODE_ENV === "production" ? "https://cashsouk.com" : "http://localhost:3000");
+  
   let cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
   const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
   
   if (cognitoDomain && cognitoClientId) {
-    // Ensure cognitoDomain has the https:// prefix
     if (!cognitoDomain.startsWith('http://') && !cognitoDomain.startsWith('https://')) {
       cognitoDomain = `https://${cognitoDomain}`;
     }
     
-    const cognitoLogoutUrl = `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(LANDING_URL)}`;
-    console.log("[Logout] Redirecting through Cognito logout:", cognitoLogoutUrl);
+    const cognitoLogoutUrl = `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(landingUrl)}`;
+    console.log("[Logout] Redirecting through Cognito logout to:", landingUrl);
     window.location.href = cognitoLogoutUrl;
   } else {
     console.error("[Logout] Cognito domain or client ID not configured");
-    redirectToLanding();
+    window.location.href = landingUrl;
   }
 }
 

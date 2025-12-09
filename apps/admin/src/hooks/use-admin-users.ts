@@ -159,3 +159,28 @@ export function useUpdateUserProfile() {
   });
 }
 
+export function useUpdateUserId() {
+  const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ userId, newUserId }: { userId: string; newUserId: string }) => {
+      const result = await apiClient.updateUserId(userId, newUserId);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data.user_id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast.success("User ID updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update User ID", {
+        description: error.message,
+      });
+    },
+  });
+}
+

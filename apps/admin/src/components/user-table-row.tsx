@@ -16,9 +16,11 @@ import {
 } from "../hooks/use-admin-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
+import { EditUserIdDialog } from "./edit-user-id-dialog";
 
 interface User {
   id: string;
+  user_id?: string | null;
   email: string;
   cognito_sub: string;
   cognito_username: string;
@@ -52,6 +54,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   const [editedUser, setEditedUser] = React.useState<Partial<User>>(user);
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [isConfirming, setIsConfirming] = React.useState(false);
+  const [showEditUserIdDialog, setShowEditUserIdDialog] = React.useState(false);
   const updateRoles = useUpdateUserRoles();
   const updateKyc = useUpdateUserKyc();
   const updateOnboarding = useUpdateUserOnboarding();
@@ -82,8 +85,10 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     setIsConfirming(true);
     try {
       // Update profile (name, phone) if changed
-      const firstNameChanged = editedUser.first_name !== undefined && editedUser.first_name !== user.first_name;
-      const lastNameChanged = editedUser.last_name !== undefined && editedUser.last_name !== user.last_name;
+      const firstNameChanged =
+        editedUser.first_name !== undefined && editedUser.first_name !== user.first_name;
+      const lastNameChanged =
+        editedUser.last_name !== undefined && editedUser.last_name !== user.last_name;
       const phoneChanged = editedUser.phone !== user.phone;
 
       if (firstNameChanged || lastNameChanged || phoneChanged) {
@@ -101,9 +106,13 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
       }
 
       // Update roles if changed
-      const rolesChanged = JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
+      const rolesChanged =
+        JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
       if (rolesChanged && editedUser.roles) {
-        await updateRoles.mutateAsync({ id: user.id, roles: { roles: editedUser.roles as UserRole[] } });
+        await updateRoles.mutateAsync({
+          id: user.id,
+          roles: { roles: editedUser.roles as UserRole[] },
+        });
       }
 
       // Update KYC if changed
@@ -114,17 +123,19 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
       // Update onboarding if changed - only send changed fields
       // Normalize null/undefined to false for comparison (switches use ?? false)
       const normalizeBoolean = (val: boolean | null | undefined) => val ?? false;
-      
+
       const investorChanged =
         editedUser.investor_onboarding_completed !== undefined &&
-        normalizeBoolean(editedUser.investor_onboarding_completed) !== normalizeBoolean(user.investor_onboarding_completed);
+        normalizeBoolean(editedUser.investor_onboarding_completed) !==
+          normalizeBoolean(user.investor_onboarding_completed);
       const issuerChanged =
         editedUser.issuer_onboarding_completed !== undefined &&
-        normalizeBoolean(editedUser.issuer_onboarding_completed) !== normalizeBoolean(user.issuer_onboarding_completed);
+        normalizeBoolean(editedUser.issuer_onboarding_completed) !==
+          normalizeBoolean(user.issuer_onboarding_completed);
 
       if (investorChanged || issuerChanged) {
         const onboarding: { investorOnboarded?: boolean; issuerOnboarded?: boolean } = {};
-        
+
         // Only include fields that actually changed
         if (investorChanged) {
           onboarding.investorOnboarded = editedUser.investor_onboarding_completed;
@@ -132,7 +143,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         if (issuerChanged) {
           onboarding.issuerOnboarded = editedUser.issuer_onboarding_completed;
         }
-        
+
         await updateOnboarding.mutateAsync({
           id: user.id,
           onboarding,
@@ -141,21 +152,27 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         // Backend auto-adds/removes roles based on onboarding status
         // Update local state to reflect these changes
         let updatedRoles = [...(editedUser.roles || user.roles)];
-        
-        if (onboarding.investorOnboarded === true && !updatedRoles.includes("INVESTOR" as UserRole)) {
+
+        if (
+          onboarding.investorOnboarded === true &&
+          !updatedRoles.includes("INVESTOR" as UserRole)
+        ) {
           updatedRoles.push("INVESTOR" as UserRole);
         }
-        if (onboarding.investorOnboarded === false && updatedRoles.includes("INVESTOR" as UserRole)) {
+        if (
+          onboarding.investorOnboarded === false &&
+          updatedRoles.includes("INVESTOR" as UserRole)
+        ) {
           updatedRoles = updatedRoles.filter((r) => r !== "INVESTOR");
         }
-        
+
         if (onboarding.issuerOnboarded === true && !updatedRoles.includes("ISSUER" as UserRole)) {
           updatedRoles.push("ISSUER" as UserRole);
         }
         if (onboarding.issuerOnboarded === false && updatedRoles.includes("ISSUER" as UserRole)) {
           updatedRoles = updatedRoles.filter((r) => r !== "ISSUER");
         }
-        
+
         // Update editedUser with the new roles
         setEditedUser({ ...editedUser, roles: updatedRoles });
       }
@@ -179,114 +196,131 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     setEditedUser({ ...editedUser, roles: newRoles });
   };
 
-  const isSaving = updateRoles.isPending || updateKyc.isPending || updateOnboarding.isPending || updateProfile.isPending;
+  const isSaving =
+    updateRoles.isPending ||
+    updateKyc.isPending ||
+    updateOnboarding.isPending ||
+    updateProfile.isPending;
 
-  const userName = user.first_name && user.last_name 
-    ? `${user.first_name} ${user.last_name}`
-    : user.email;
+  const userName =
+    user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email;
 
   if (isEditing) {
     return (
       <>
         <TableRow className="bg-muted/30">
-        <TableCell>
-          <div className="flex gap-2">
+          <TableCell className="font-mono text-sm">
+            {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
+          </TableCell>
+          <TableCell>
+            <div className="flex gap-2">
+              <Input
+                value={editedUser.first_name || ""}
+                onChange={(e) => setEditedUser({ ...editedUser, first_name: e.target.value })}
+                className="h-9 text-sm"
+                placeholder="First name"
+              />
+              <Input
+                value={editedUser.last_name || ""}
+                onChange={(e) => setEditedUser({ ...editedUser, last_name: e.target.value })}
+                className="h-9 text-sm"
+                placeholder="Last name"
+              />
+            </div>
+          </TableCell>
+          <TableCell>
             <Input
-              value={editedUser.first_name || ""}
-              onChange={(e) => setEditedUser({ ...editedUser, first_name: e.target.value })}
+              value={editedUser.email || ""}
+              onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
               className="h-9 text-sm"
-              placeholder="First name"
+              type="email"
+              disabled
             />
+          </TableCell>
+          <TableCell>
             <Input
-              value={editedUser.last_name || ""}
-              onChange={(e) => setEditedUser({ ...editedUser, last_name: e.target.value })}
+              value={editedUser.phone || ""}
+              onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
               className="h-9 text-sm"
-              placeholder="Last name"
+              placeholder="+60..."
             />
-          </div>
-        </TableCell>
-        <TableCell>
-          <Input
-            value={editedUser.email || ""}
-            onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
-            className="h-9 text-sm"
-            type="email"
-            disabled
-          />
-        </TableCell>
-        <TableCell>
-          <Input
-            value={editedUser.phone || ""}
-            onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
-            className="h-9 text-sm"
-            placeholder="+60..."
-          />
-        </TableCell>
-        <TableCell>
-          <div className="flex flex-wrap gap-1">
-            {(["INVESTOR", "ISSUER", "ADMIN"] as UserRole[]).map((role) => (
-              <Badge
-                key={role}
-                variant="outline"
-                className={`cursor-pointer text-xs ${
-                  editedUser.roles?.includes(role) ? roleColors[role] : "opacity-40"
-                }`}
-                onClick={() => toggleRole(role)}
+          </TableCell>
+          <TableCell>
+            <div className="flex flex-wrap gap-1">
+              {(["INVESTOR", "ISSUER", "ADMIN"] as UserRole[]).map((role) => (
+                <Badge
+                  key={role}
+                  variant="outline"
+                  className={`cursor-pointer text-xs ${
+                    editedUser.roles?.includes(role) ? roleColors[role] : "opacity-40"
+                  }`}
+                  onClick={() => toggleRole(role)}
+                >
+                  {role}
+                </Badge>
+              ))}
+            </div>
+          </TableCell>
+          <TableCell>
+            <Switch
+              checked={editedUser.kyc_verified ?? false}
+              onCheckedChange={(checked) => setEditedUser({ ...editedUser, kyc_verified: checked })}
+            />
+          </TableCell>
+          <TableCell>
+            <Switch
+              checked={editedUser.investor_onboarding_completed ?? false}
+              onCheckedChange={(checked) =>
+                setEditedUser({ ...editedUser, investor_onboarding_completed: checked })
+              }
+            />
+          </TableCell>
+          <TableCell>
+            <Switch
+              checked={editedUser.issuer_onboarding_completed ?? false}
+              onCheckedChange={(checked) =>
+                setEditedUser({ ...editedUser, issuer_onboarding_completed: checked })
+              }
+            />
+          </TableCell>
+          <TableCell className="text-sm text-muted-foreground">
+            {formatDistanceToNow(user.created_at, { addSuffix: true })}
+          </TableCell>
+          <TableCell>
+            <div className="flex flex-col gap-1">
+              <Button
+                size="sm"
+                onClick={handleSaveClick}
+                className="h-7 text-xs"
+                disabled={isSaving}
               >
-                {role}
-              </Badge>
-            ))}
-          </div>
-        </TableCell>
-        <TableCell>
-          <Switch
-            checked={editedUser.kyc_verified ?? false}
-            onCheckedChange={(checked) => setEditedUser({ ...editedUser, kyc_verified: checked })}
-          />
-        </TableCell>
-        <TableCell>
-          <Switch
-            checked={editedUser.investor_onboarding_completed ?? false}
-            onCheckedChange={(checked) =>
-              setEditedUser({ ...editedUser, investor_onboarding_completed: checked })
+                <CheckIcon className="h-3.5 w-3.5 mr-1" />
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCancel}
+                className="h-7 text-xs"
+                disabled={isSaving}
+              >
+                <XMarkIcon className="h-3.5 w-3.5 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+        <EditUserDialog
+          open={showConfirmDialog}
+          onOpenChange={(open) => {
+            // Only allow closing if not currently saving or confirming
+            if (!isSaving && !isConfirming) {
+              setShowConfirmDialog(open);
             }
-          />
-        </TableCell>
-        <TableCell>
-          <Switch
-            checked={editedUser.issuer_onboarding_completed ?? false}
-            onCheckedChange={(checked) =>
-              setEditedUser({ ...editedUser, issuer_onboarding_completed: checked })
-            }
-          />
-        </TableCell>
-        <TableCell className="text-sm text-muted-foreground">
-          {formatDistanceToNow(user.created_at, { addSuffix: true })}
-        </TableCell>
-        <TableCell>
-          <div className="flex flex-col gap-1">
-            <Button size="sm" onClick={handleSaveClick} className="h-7 text-xs" disabled={isSaving}>
-              <CheckIcon className="h-3.5 w-3.5 mr-1" />
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleCancel} className="h-7 text-xs" disabled={isSaving}>
-              <XMarkIcon className="h-3.5 w-3.5 mr-1" />
-              Cancel
-            </Button>
-          </div>
-        </TableCell>
-      </TableRow>
-      <EditUserDialog
-        open={showConfirmDialog}
-        onOpenChange={(open) => {
-          // Only allow closing if not currently saving or confirming
-          if (!isSaving && !isConfirming) {
-            setShowConfirmDialog(open);
-          }
-        }}
-        userName={userName}
-        onConfirm={handleConfirmSave}
-      />
+          }}
+          userName={userName}
+          onConfirm={handleConfirmSave}
+        />
       </>
     );
   }
@@ -294,52 +328,81 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   return (
     <>
       <TableRow className="hover:bg-muted/50">
-      <TableCell className="font-medium text-[15px]">
-        {user.first_name} {user.last_name}
-      </TableCell>
-      <TableCell className="text-[15px]">{user.email}</TableCell>
-      <TableCell className="text-[15px]">{user.phone || "—"}</TableCell>
-      <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {user.roles.map((role) => (
-            <Badge key={role} variant="outline" className={`text-xs ${roleColors[role]}`}>
-              {role}
-            </Badge>
-          ))}
-        </div>
-      </TableCell>
-      <TableCell>
-        {user.kyc_verified ? (
-          <CheckIcon className="h-5 w-5 text-green-600" />
-        ) : (
-          <XMarkIcon className="h-5 w-5 text-gray-400" />
-        )}
-      </TableCell>
-      <TableCell>
-        {user.investor_onboarding_completed ? (
-          <CheckIcon className="h-5 w-5 text-green-600" />
-        ) : (
-          <XMarkIcon className="h-5 w-5 text-gray-400" />
-        )}
-      </TableCell>
-      <TableCell>
-        {user.issuer_onboarding_completed ? (
-          <CheckIcon className="h-5 w-5 text-green-600" />
-        ) : (
-          <XMarkIcon className="h-5 w-5 text-gray-400" />
-        )}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {formatDistanceToNow(user.created_at, { addSuffix: true })}
-      </TableCell>
-      <TableCell>
-        <Button size="sm" variant="ghost" onClick={onEdit} className="h-8">
-          <PencilIcon className="h-4 w-4 mr-1" />
-          Edit
-        </Button>
-      </TableCell>
+        <TableCell className="font-mono text-sm">
+          <div className="flex items-center gap-2">
+            <span>
+              {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowEditUserIdDialog(true)}
+              className="h-6 px-2 text-xs"
+            >
+              Change
+            </Button>
+          </div>
+        </TableCell>
+        <TableCell className="font-medium text-[15px]">
+          {user.first_name} {user.last_name}
+        </TableCell>
+        <TableCell className="text-[15px]">{user.email}</TableCell>
+        <TableCell className="text-[15px]">{user.phone || "—"}</TableCell>
+        <TableCell>
+          <div className="flex flex-wrap gap-1">
+            {user.roles.map((role) => (
+              <Badge key={role} variant="outline" className={`text-xs ${roleColors[role]}`}>
+                {role}
+              </Badge>
+            ))}
+          </div>
+        </TableCell>
+        <TableCell>
+          {user.kyc_verified ? (
+            <CheckIcon className="h-5 w-5 text-green-600" />
+          ) : (
+            <XMarkIcon className="h-5 w-5 text-gray-400" />
+          )}
+        </TableCell>
+        <TableCell>
+          {user.investor_onboarding_completed ? (
+            <CheckIcon className="h-5 w-5 text-green-600" />
+          ) : (
+            <XMarkIcon className="h-5 w-5 text-gray-400" />
+          )}
+        </TableCell>
+        <TableCell>
+          {user.issuer_onboarding_completed ? (
+            <CheckIcon className="h-5 w-5 text-green-600" />
+          ) : (
+            <XMarkIcon className="h-5 w-5 text-gray-400" />
+          )}
+        </TableCell>
+        <TableCell className="text-sm text-muted-foreground">
+          {formatDistanceToNow(user.created_at, { addSuffix: true })}
+        </TableCell>
+        <TableCell>
+          <Button size="sm" variant="ghost" onClick={onEdit} className="h-8">
+            <PencilIcon className="h-4 w-4 mr-1" />
+            Edit
+          </Button>
+        </TableCell>
       </TableRow>
+
+      <EditUserIdDialog
+        user={{
+          id: user.id,
+          user_id: user.user_id || null,
+          first_name: user.first_name,
+          last_name: user.last_name,
+        }}
+        open={showEditUserIdDialog}
+        onOpenChange={setShowEditUserIdDialog}
+        onSuccess={(newUserId: string) => {
+          // Update user_id through parent callback to maintain React state
+          onSave({ user_id: newUserId });
+        }}
+      />
     </>
   );
 }
-

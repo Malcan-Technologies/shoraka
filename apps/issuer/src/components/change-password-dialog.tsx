@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { logout } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -56,7 +57,7 @@ export function ChangePasswordDialog({
   open,
   onOpenChange,
 }: ChangePasswordDialogProps) {
-  const { getAccessToken } = useAuthToken();
+  const { getAccessToken, signOut } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
@@ -87,11 +88,30 @@ export function ChangePasswordDialog({
         return;
       }
 
-      toast.success("Password changed successfully", {
-        description: "Your password has been updated.",
-      });
-      form.reset();
-      onOpenChange(false);
+      // Check if all sessions were revoked
+      if (result.data?.sessionRevoked) {
+        toast.success("Password changed successfully", {
+          description: "For security, you'll be signed out from all devices. Please sign in again.",
+          duration: 5000,
+        });
+        
+        // Close dialog
+        form.reset();
+        onOpenChange(false);
+        
+        // Wait a moment for user to read the message, then logout
+        setTimeout(async () => {
+          await logout(signOut, getAccessToken);
+        }, 2000);
+      } else {
+        toast.success("Password changed successfully", {
+          description: "Your password has been updated.",
+        });
+        form.reset();
+        onOpenChange(false);
+      }
+      
+      return;
     } catch (error) {
       toast.error("Failed to change password", {
         description:
