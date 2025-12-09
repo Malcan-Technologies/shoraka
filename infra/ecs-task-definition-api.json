@@ -69,22 +69,6 @@
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REDIRECT_URI::"
         },
         {
-          "name": "JWT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_SECRET::"
-        },
-        {
-          "name": "JWT_EXPIRES_IN",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_EXPIRES_IN::"
-        },
-        {
-          "name": "JWT_REFRESH_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:JWT_REFRESH_SECRET::"
-        },
-        {
-          "name": "REFRESH_TOKEN_EXPIRES_IN",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REFRESH_TOKEN_EXPIRES_IN::"
-        },
-        {
           "name": "SESSION_SECRET",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SESSION_SECRET::"
         },
