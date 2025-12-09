@@ -11,7 +11,7 @@ services:
       - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
       - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
       - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
-      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://cashsouk.com}
       - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
@@ -52,7 +52,7 @@ services:
       - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
       - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
       - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
-      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://cashsouk.com}
       - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
@@ -93,7 +93,7 @@ services:
       - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
       - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
       - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
-      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://cashsouk.com}
       - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
@@ -134,7 +134,7 @@ services:
       - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
       - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
       - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
-      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://cashsouk.com}
       - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
@@ -180,12 +180,12 @@ services:
       - COGNITO_DOMAIN=${COGNITO_DOMAIN:-https://auth.cashsouk.com}
       - COGNITO_REGION=${COGNITO_REGION:-ap-southeast-5}
       - REDIRECT_URI=${REDIRECT_URI:-https://api.cashsouk.com/api/auth/callback}
-      - FRONTEND_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - FRONTEND_URL=${FRONTEND_URL:-https://cashsouk.com}
       - INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
       - ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
       - ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://www.cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com}
     depends_on:
       db:
         condition: service_healthy
