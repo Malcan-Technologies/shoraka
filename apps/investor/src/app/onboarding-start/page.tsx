@@ -46,7 +46,7 @@ function OnboardingStartPageContent() {
       
       if (!token) {
         if (isMounted) {
-          setLoading(false);
+        setLoading(false);
           redirectToLanding();
         }
         return;

@@ -11,13 +11,16 @@ const investorUrl = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:30
 const issuerUrl = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001";
 const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3003";
 
-if (!cognitoUserPoolId || !cognitoClientId || !cognitoDomain) {
-  throw new Error(
-    "Missing required Cognito environment variables: NEXT_PUBLIC_COGNITO_USER_POOL_ID, NEXT_PUBLIC_COGNITO_CLIENT_ID, NEXT_PUBLIC_COGNITO_DOMAIN"
-  );
-}
+// Only configure Amplify if we're in the browser and have all required variables
+// During build/SSR, skip configuration to avoid errors
+if (typeof window !== "undefined") {
+  if (!cognitoUserPoolId || !cognitoClientId || !cognitoDomain) {
+    throw new Error(
+      "Missing required Cognito environment variables: NEXT_PUBLIC_COGNITO_USER_POOL_ID, NEXT_PUBLIC_COGNITO_CLIENT_ID, NEXT_PUBLIC_COGNITO_DOMAIN"
+    );
+  }
 
-Amplify.configure(
+  Amplify.configure(
   {
     Auth: {
       Cognito: {
@@ -51,7 +54,8 @@ Amplify.configure(
       sameSite: "lax",
     }),
   } as { ssr: boolean; storage: InstanceType<typeof CookieStorage> }
-);
+  );
+}
 
 export default Amplify;
 

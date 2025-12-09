@@ -28,10 +28,26 @@ RUN pnpm --filter @cashsouk/api prisma generate
 
 ARG NEXT_PUBLIC_API_URL=https://api.cashsouk.com
 ARG NEXT_PUBLIC_LANDING_URL=https://www.cashsouk.com
+ARG NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com
+ARG NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com
+ARG NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com
+ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
+ARG NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com
+ARG NEXT_PUBLIC_COGNITO_REGION=ap-southeast-5
+ARG NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com
 
 RUN rm -rf apps/admin/.next && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/admin/.env.production && \
     echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_INVESTOR_URL=${NEXT_PUBLIC_INVESTOR_URL}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_ISSUER_URL=${NEXT_PUBLIC_ISSUER_URL}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${NEXT_PUBLIC_COGNITO_USER_POOL_ID}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_CLIENT_ID=${NEXT_PUBLIC_COGNITO_CLIENT_ID}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_DOMAIN=${NEXT_PUBLIC_COGNITO_DOMAIN}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_REGION=${NEXT_PUBLIC_COGNITO_REGION}" >> apps/admin/.env.production && \
+    echo "NEXT_PUBLIC_COOKIE_DOMAIN=${NEXT_PUBLIC_COOKIE_DOMAIN}" >> apps/admin/.env.production && \
     echo "📝 Building admin portal..." && \
     pnpm --filter @cashsouk/admin build && \
     echo "✅ Admin portal built successfully"
