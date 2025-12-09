@@ -2,13 +2,13 @@ import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { getCognitoConfig } from "../../config/aws";
 import { getOpenIdClient, generators } from "../../lib/openid-client";
-import { verifyToken, generateTokenPair, parseTimeToMs } from "../../lib/auth/jwt";
+import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
 import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
 import { UserRole } from "@prisma/client";
-import { extractRequestMetadata, getDeviceFingerprint } from "../../lib/http/request-utils";
+import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
 import {
   CognitoIdentityProviderClient,
@@ -502,23 +502,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       "Determined active role"
     );
 
-    // Generate token pair (access + refresh)
-    const tokens = generateTokenPair(user.id, user.email, user.roles, activeRole);
-
-    const deviceFingerprint = getDeviceFingerprint(req);
     const portal = getPortalFromRole(activeRole);
-
-    // Store refresh token in database
-    await prisma.refreshToken.create({
-      data: {
-        token: tokens.refreshToken,
-        user_id: user.id,
-        expires_at: tokens.refreshTokenExpiresAt,
-        device_fingerprint: deviceFingerprint,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-    });
 
     // Create access log
     await prisma.accessLog.create({
@@ -539,18 +523,6 @@ router.get("/callback", async (req: Request, res: Response) => {
       },
     });
 
-    // Set HTTP-Only cookie for refresh_token only
-    // access_token is passed via URL and stored in Next.js memory (not cookies)
-    const env = getEnv();
-    res.cookie("refresh_token", tokens.refreshToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: env.NODE_ENV === "production" ? "strict" : "lax", // Lax for dev cross-origin
-      maxAge: parseTimeToMs(process.env.REFRESH_TOKEN_EXPIRES_IN || "7d"),
-      path: "/", // Available to all paths (needed for /v1/auth/refresh)
-      domain: env.COOKIE_DOMAIN,
-    });
-
     // Clear session data
     req.session.nonce = undefined;
     req.session.state = undefined;
@@ -568,54 +540,141 @@ router.get("/callback", async (req: Request, res: Response) => {
         investorOnboarding: user.investor_onboarding_completed,
         issuerOnboarding: user.issuer_onboarding_completed,
       },
-      "Authentication successful - tokens set in HTTP-Only cookies"
+      "Authentication successful - setting Amplify cookies"
     );
 
-    // IMPORTANT: Since we use encrypted state (no cookies during OAuth flow),
-    // we MUST pass tokens in URL for the callback page to work
-    // Each portal has its own callback handler
+    // Set Cognito tokens as cookies for Amplify to read
+    // Amplify expects these cookie names for its session management
+    const env = getEnv();
+    const cookieDomain = process.env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost";
+    const isSecure = process.env.NODE_ENV === "production";
     
-    // Determine which portal callback to redirect to
-    let callbackUrl: string;
+    // Set access token cookie (Amplify format)
+    res.cookie(
+      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`,
+      cognitoId,
+      {
+        httpOnly: false, // Amplify needs to read this
+        secure: isSecure,
+        sameSite: "lax",
+        domain: cookieDomain,
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      }
+    );
     
-    // Always redirect to landing page callback first
-    // Landing page will then redirect to the appropriate portal's callback page
-    // This ensures consistent flow for all roles
-      callbackUrl = `${env.FRONTEND_URL}/callback`;
-
-    const redirectUrl = new URL(callbackUrl);
-    redirectUrl.searchParams.set("token", tokens.accessToken);
-    redirectUrl.searchParams.set("refresh_token", tokens.refreshToken);
+    res.cookie(
+      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.accessToken`,
+      tokenSet.access_token,
+      {
+        httpOnly: false, // Amplify needs to read this
+        secure: isSecure,
+        sameSite: "lax",
+        domain: cookieDomain,
+        path: "/",
+        maxAge: 60 * 60 * 1000, // 1 hour (access token expiry)
+      }
+    );
+    
+    if (tokenSet.id_token) {
+      res.cookie(
+        `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.idToken`,
+        tokenSet.id_token,
+        {
+          httpOnly: false, // Amplify needs to read this
+          secure: isSecure,
+          sameSite: "lax",
+          domain: cookieDomain,
+          path: "/",
+          maxAge: 60 * 60 * 1000, // 1 hour
+        }
+      );
+    }
+    
+    if (tokenSet.refresh_token) {
+      res.cookie(
+        `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.refreshToken`,
+        tokenSet.refresh_token,
+        {
+          httpOnly: false, // Amplify needs to read this
+          secure: isSecure,
+          sameSite: "lax",
+          domain: cookieDomain,
+          path: "/",
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        }
+      );
+    }
+    
+    // Set clock drift cookie (Amplify uses this)
+    res.cookie(
+      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.clockDrift`,
+      "0",
+      {
+        httpOnly: false,
+        secure: isSecure,
+        sameSite: "lax",
+        domain: cookieDomain,
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      }
+    );
 
     logger.info(
       {
         correlationId,
-        redirectUrl: redirectUrl.toString(),
-        tokenLength: tokens.accessToken.length,
-        activeRole: activeRole.toString(),
-        callbackUrl,
-        method: "token-in-url",
+        userId: user.id,
+        cognitoId,
+        cookieDomain,
+        cookiesSet: ["accessToken", "idToken", "refreshToken", "LastAuthUser", "clockDrift"],
       },
-      "Redirecting to portal callback with tokens in URL"
+      "Amplify cookies set successfully"
     );
 
-    // Always include the role in the redirect URL so the callback page knows which portal to redirect to
-    redirectUrl.searchParams.set("role", activeRole.toString());
+    // IMPORTANT: ALL OAuth callbacks go to landing page callback
+    // Landing page will handle portal-specific routing based on roles and portal parameter
+    // Amplify will now be able to read tokens from cookies
+    const callbackUrl = `${env.FRONTEND_URL}/callback`;
+    const redirectUrl = new URL(callbackUrl);
+    
+    // Determine target portal based on requestedRole (from state) or activeRole
+    // requestedRole is what the user originally clicked on (e.g., "Login as Investor")
+    // activeRole is what we assigned (may differ if user already has another role)
+    const targetPortal = requestedRole?.toLowerCase() || 
+                        (activeRole === UserRole.ADMIN ? "admin" :
+                         activeRole === UserRole.INVESTOR ? "investor" :
+                         activeRole === UserRole.ISSUER ? "issuer" : "landing");
+    
+    redirectUrl.searchParams.set("portal", targetPortal);
 
+    // Check if user has the requested role
+    const hasRequestedRole = requestedRole ? user.roles.includes(requestedRole) : false;
+    
     // Check onboarding status for the active role
-    // If user doesn't have the role yet, they need to complete onboarding first
-    const hasRole = user.roles.includes(activeRole);
     const onboardingCompleted =
       (activeRole === UserRole.INVESTOR && user.investor_onboarding_completed) ||
       (activeRole === UserRole.ISSUER && user.issuer_onboarding_completed) ||
       activeRole === UserRole.ADMIN;
 
-    // Redirect to onboarding if:
-    // 1. User doesn't have the role yet (needs to complete onboarding to get it)
-    // 2. User has the role but hasn't completed onboarding
-    if (!hasRole || !onboardingCompleted) {
+    // Pass onboarding flag if user needs to complete onboarding
+    if (!hasRequestedRole || !onboardingCompleted) {
       redirectUrl.searchParams.set("onboarding", "required");
     }
+
+    logger.info(
+      {
+        correlationId,
+        userId: user.id,
+        redirectUrl: redirectUrl.toString(),
+        activeRole: activeRole.toString(),
+        requestedRole,
+        targetPortal,
+        hasRequestedRole,
+        onboardingCompleted,
+        method: "amplify-managed-tokens",
+      },
+      "Redirecting to landing callback - tokens managed by Amplify"
+    );
 
     res.redirect(redirectUrl.toString());
   } catch (error) {
@@ -666,10 +725,14 @@ router.get("/logout", async (req: Request, res: Response) => {
   const correlationId = generateCorrelationId();
   logger.info({ correlationId }, "Logout requested");
 
-  // Try to extract user info from token before destroying session
-  // Access token is sent via Authorization header (stored in Next.js memory, not cookies)
+  // Try to extract user info from Cognito access token
+  // Access token can be sent via:
+  // 1. Authorization header (preferred) - stored in Amplify
+  // 2. Query parameter ?token= (fallback for browser redirects)
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
+  const tokenFromHeader = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
+  const tokenFromQuery = req.query.token as string | undefined;
+  const token = tokenFromHeader || tokenFromQuery;
 
   let cognitoSub: string | undefined;
   let portal: string | undefined;
@@ -696,89 +759,64 @@ router.get("/logout", async (req: Request, res: Response) => {
 
   if (token) {
     try {
-      const payload = verifyToken(token);
-      userId = payload.userId;
-      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-      portal = getPortalFromRole(payload.activeRole);
+      // Verify Cognito access token
+      const cognitoPayload = await verifyCognitoAccessToken(token);
+      cognitoSub = cognitoPayload.sub;
 
-      // Get user's cognito_sub to sign out from Cognito
+      // Get user from database
       const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
-        select: { cognito_sub: true },
+        where: { cognito_sub: cognitoPayload.sub },
+        select: { id: true, roles: true },
       });
 
       if (user) {
-        cognitoSub = user.cognito_sub;
-      }
+        userId = user.id;
+        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+        
+        // Determine portal from user's roles if not detected from referer
+        if (!portal && user.roles.length > 0) {
+          portal = getPortalFromRole(user.roles[0]);
+        }
 
-      // Revoke ALL refresh tokens for this user
-      const revokedCount = await prisma.refreshToken.updateMany({
-        where: {
-          user_id: payload.userId,
-          revoked: false,
-        },
-        data: {
-          revoked: true,
-          revoked_at: new Date(),
-          revoked_reason: "USER_LOGOUT",
-        },
-      });
-
-      logger.info(
-        { correlationId, userId: payload.userId, revokedTokens: revokedCount.count },
-        "Revoked all refresh tokens for user"
-      );
-
-      // Create access log before destroying session or signing out
-      await prisma.accessLog.create({
-        data: {
-          user_id: payload.userId,
-          event_type: "LOGOUT",
-          portal,
-          ip_address: ipAddress,
-          user_agent: userAgent,
-          device_info: deviceInfo,
-          device_type: deviceType,
-          success: true,
-          metadata: {
-            activeRole: payload.activeRole,
-            roles: payload.roles,
-            revokedTokens: revokedCount.count,
-          },
-        },
-      });
-
-      logger.info({ correlationId, userId: payload.userId, portal }, "Logout access log created");
-    } catch (error) {
+        // Create access log before signing out
+          await prisma.accessLog.create({
+            data: {
+            user_id: user.id,
+              event_type: "LOGOUT",
+            portal: portal || null,
+              ip_address: ipAddress,
+              user_agent: userAgent,
+              device_info: deviceInfo,
+              device_type: deviceType,
+              success: true,
+              metadata: {
+                roles: user.roles,
+              },
+            },
+          });
+          
+        logger.info({ correlationId, userId: user.id, portal }, "Logout access log created");
+        }
+      } catch (error) {
       // If token is invalid/expired, log warning but continue with logout
-      logger.warn(
-        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        logger.warn(
+          { correlationId, error: error instanceof Error ? error.message : String(error) },
         "Failed to create logout access log - token invalid or expired"
+        );
+      }
+    } else {
+      logger.warn(
+        { correlationId },
+      "No token provided for logout - access log will not be created"
       );
-    }
-  } else {
-    logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
   }
 
-  // Clear HTTP-Only cookie for refresh_token only
-  // access_token is not stored in cookies, so no need to clear it
-  // IMPORTANT: Must use the SAME options as when cookies were set (domain, path, secure, sameSite)
-  // Otherwise cookies won't be properly cleared
-  const envForCookies = getEnv();
-  
-  // refresh_token uses same path "/" (not /api/auth/refresh)
-  res.clearCookie("refresh_token", {
-    httpOnly: true,
-    secure: envForCookies.NODE_ENV === "production",
-    sameSite: envForCookies.NODE_ENV === "production" ? "strict" : "lax",
-    path: "/",
-    domain: envForCookies.COOKIE_DOMAIN,
-  });
+  // Note: Amplify handles token clearing on the frontend
+  // We don't need to clear cookies here as Amplify manages session storage
 
   // Sign out from Cognito using AdminUserGlobalSignOut
   // This revokes all tokens and signs out the user from all devices
   // According to AWS docs: https://docs.aws.amazon.com/cognito/latest/developerguide/logout-endpoint.html
-  // The /logout endpoint is a redirection endpoint that signs out the user
   if (cognitoSub) {
     try {
       const config = getCognitoConfig();
@@ -816,29 +854,50 @@ router.get("/logout", async (req: Request, res: Response) => {
   });
 
   // IMPORTANT: Redirect through Cognito's /logout endpoint to clear OAuth/Hosted UI session
-  // AdminUserGlobalSignOut only invalidates tokens, NOT the OAuth session
-  // Without redirecting through Cognito's /logout, users can auto-login without entering credentials
-  // 
-  // We've already completed:
-  // 1. Revoked all refresh tokens in database
-  // 2. Cleared HTTP-Only cookies (access_token, refresh_token)
-  // 3. Called AdminUserGlobalSignOut to invalidate Cognito tokens (if IAM permissions allow)
-  // 4. Destroyed Express session
-  //
-  // Now redirect through Cognito's /logout to clear OAuth session
+  // Amplify handles token clearing on the frontend
+  // We redirect through Cognito's logout endpoint to clear the OAuth session
   const env = getEnv();
   const config = getCognitoConfig();
   
   // Determine final redirect URL based on portal
   let finalRedirectUrl: string;
-  if (portal === "admin" && env.ADMIN_URL) {
-    finalRedirectUrl = env.ADMIN_URL;
-  } else if (portal === "investor" && env.INVESTOR_URL) {
-    finalRedirectUrl = env.INVESTOR_URL;
-  } else if (portal === "issuer" && env.ISSUER_URL) {
-    finalRedirectUrl = env.ISSUER_URL;
+
+  // Determine redirect URL based on portal
+  // Priority: portal from token > portal from referer > default (landing)
+  if (portal === "admin") {
+    // Admin portal logout always goes back to admin portal
+    finalRedirectUrl = env.ADMIN_URL || (process.env.NODE_ENV === "production" 
+      ? "https://admin.cashsouk.com"
+      : "http://localhost:3003");
+    logger.info(
+      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer" },
+      "Admin portal logout - redirecting to admin portal"
+    );
+  } else if (portal === "investor") {
+    // Investor portal logout
+    finalRedirectUrl = env.INVESTOR_URL || (process.env.NODE_ENV === "production"
+      ? "https://investor.cashsouk.com"
+      : "http://localhost:3002");
+    logger.info(
+      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer", finalRedirectUrl },
+      "Investor portal logout - redirecting to investor portal"
+    );
+  } else if (portal === "issuer") {
+    // Issuer portal logout
+    finalRedirectUrl = env.ISSUER_URL || (process.env.NODE_ENV === "production"
+      ? "https://issuer.cashsouk.com"
+      : "http://localhost:3001");
+    logger.info(
+      { correlationId, userId, portal, detectedFrom: token ? "token" : "referer", finalRedirectUrl },
+      "Issuer portal logout - redirecting to issuer portal"
+    );
   } else {
+    // Default to landing page
     finalRedirectUrl = env.FRONTEND_URL;
+    logger.info(
+      { correlationId, userId, portal: portal || "none", finalRedirectUrl },
+      "No specific portal detected - redirecting to landing page"
+    );
   }
   
   // Build Cognito logout URL with logout_uri to redirect back to our portal

@@ -11,18 +11,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
  * Verify token is valid by calling /v1/auth/me
- * Uses API client which handles automatic token refresh
- * Access token is stored in memory and sent via Authorization header
+ * Uses Amplify session to get access token
  */
 export async function verifyToken(
-  getToken: () => string | null,
-  setToken: (token: string | null) => void
+  getAccessToken: () => Promise<string | null>
 ): Promise<boolean> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
-    const apiClient = createApiClient(API_URL, getToken, setToken);
+    const apiClient = createApiClient(API_URL, getAccessToken);
 
-    // API client will use token from memory via Authorization header
     const result = await apiClient.get("/v1/auth/me");
 
     return result.success === true;
@@ -42,24 +39,92 @@ export function redirectToLanding() {
 
 /**
  * Logout user from issuer portal
- * Clears token from memory and redirects to Cognito logout endpoint
+ * Clears all Cognito cookies and session, then redirects through Cognito logout
  */
-export function logout(clearAccessToken: () => void) {
+export async function logout(signOut: () => Promise<void>, getAccessToken: () => Promise<string | null>) {
   if (typeof window === "undefined") return;
 
-  // Clear access token from memory
-  clearAccessToken();
+  // 1. Get access token before logout (for backend access log)
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getAccessToken();
+    console.log("[Logout] Got access token:", accessToken ? "present" : "missing");
+  } catch (error) {
+    console.error("[Logout] Failed to get access token:", error);
+  }
 
-  // Redirect to logout endpoint (refresh_token cookie will be cleared by backend)
-  const logoutUrl = `${API_URL}/v1/auth/cognito/logout`;
-  window.location.href = logoutUrl;
+  // 2. Call backend logout endpoint FIRST (before clearing tokens)
+  try {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+    
+    await fetch(`${API_URL}/v1/auth/cognito/logout?portal=issuer`, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+    console.log("[Logout] Backend logout successful");
+  } catch (error) {
+    console.error("[Logout] Backend logout failed:", error);
+  }
+
+  // 3. Sign out from Amplify (clears Amplify-managed tokens)
+  try {
+    await signOut();
+    console.log("[Logout] Amplify signOut successful");
+  } catch (error) {
+    console.error("[Logout] Amplify signOut failed:", error);
+  }
+
+  // 4. Manually clear all Cognito cookies
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  if (clientId) {
+    // Get all cookies
+    const cookies = document.cookie.split(';');
+    
+    // Find and delete all CognitoIdentityServiceProvider cookies
+    cookies.forEach(cookie => {
+      const cookieName = cookie.split('=')[0].trim();
+      if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
+        // Delete cookie for localhost
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
+        // Delete cookie without domain (fallback)
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        console.log(`[Logout] Cleared cookie: ${cookieName}`);
+      }
+    });
+  }
+
+  // 5. Redirect through Cognito's logout endpoint to clear hosted UI session
+  let cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+  const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  
+  if (cognitoDomain && cognitoClientId) {
+    // Ensure cognitoDomain has the https:// prefix
+    if (!cognitoDomain.startsWith('http://') && !cognitoDomain.startsWith('https://')) {
+      cognitoDomain = `https://${cognitoDomain}`;
+    }
+    
+    const cognitoLogoutUrl = `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(LANDING_URL)}`;
+    console.log("[Logout] Redirecting through Cognito logout:", cognitoLogoutUrl);
+    window.location.href = cognitoLogoutUrl;
+  } else {
+    console.error("[Logout] Cognito domain or client ID not configured");
+    redirectToLanding();
+  }
 }
 
 /**
  * Hook to check authentication and redirect if not authenticated
+ * Uses Amplify session to check authentication status
  */
 export function useAuth() {
-  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
+  const { getAccessToken, signOut } = useAuthToken();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -69,75 +134,56 @@ export function useAuth() {
     }
 
     const checkAuth = async () => {
-      // Check if token exists in query params (from callback redirect)
-      const urlParams = new URLSearchParams(window.location.search);
-      const tokenFromQuery = urlParams.get("token");
-      if (tokenFromQuery) {
-        // Store token in memory
-        setAccessToken(tokenFromQuery);
-        // Clean URL
-        window.history.replaceState({}, "", window.location.pathname);
-      }
-
-      // If no access token in memory, attempt silent refresh first
-      let currentToken = accessToken || tokenFromQuery;
-      if (!currentToken) {
-        try {
-          const response = await fetch(`${API_URL}/v1/auth/silent-refresh`, {
-            method: "GET",
-            credentials: "include", // Include cookies (refresh_token)
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data?.accessToken) {
-              // Store new access token in memory
-              setAccessToken(data.data.accessToken);
-              currentToken = data.data.accessToken;
-            } else {
-              // Silent refresh failed - redirect to landing
-              clearAccessToken();
-              setIsAuthenticated(false);
-              redirectToLanding();
-              return;
-            }
-          } else {
-            // Silent refresh failed - redirect to landing
-            clearAccessToken();
-            setIsAuthenticated(false);
-            redirectToLanding();
-            return;
+      try {
+        // Get access token from Amplify session with retry logic
+        // Sometimes Amplify needs a moment to read cookies after page load
+        let token: string | null = null;
+        let retries = 0;
+        const maxRetries = 3;
+        
+        while (!token && retries < maxRetries) {
+          token = await getAccessToken();
+          if (!token) {
+            console.log(`[useAuth] No token on attempt ${retries + 1}/${maxRetries}, waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+            retries++;
           }
-        } catch (refreshError) {
-          // Silent refresh failed - redirect to landing
-          console.error("[useAuth] Silent refresh failed:", refreshError);
-          clearAccessToken();
+        }
+
+        if (!token) {
+          // No token after retries - not authenticated
+          console.log("[useAuth] No token after retries, redirecting to landing");
           setIsAuthenticated(false);
           redirectToLanding();
           return;
         }
-      }
 
-      // Verify auth using token from memory (or newly refreshed token)
-      const isValid = await verifyToken(() => currentToken, setAccessToken);
+        console.log("[useAuth] Token found, verifying with backend");
 
-      if (!isValid) {
-        // Token is invalid and refresh failed, clear it and redirect
-        clearAccessToken();
+        // Verify token is valid by calling backend
+        const isValid = await verifyToken(getAccessToken);
+
+        if (!isValid) {
+          // Token is invalid - sign out and redirect
+          console.log("[useAuth] Token invalid, signing out");
+          setIsAuthenticated(false);
+          await signOut();
+          redirectToLanding();
+          return;
+        }
+
+        // Auth is valid
+        console.log("[useAuth] Auth valid");
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error("[useAuth] Auth check failed:", error);
         setIsAuthenticated(false);
         redirectToLanding();
-        return;
       }
-
-      // Auth is valid
-      setIsAuthenticated(true);
     };
 
     checkAuth();
-  }, []); // Only run once on mount
+  }, [getAccessToken, signOut]); // Re-run if auth functions change
 
-  return { isAuthenticated, token: accessToken };
+  return { isAuthenticated, token: null }; // Token is managed by Amplify
 }

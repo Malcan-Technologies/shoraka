@@ -16,7 +16,7 @@ import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
 import { toast } from "sonner";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   EnvelopeIcon,
@@ -36,7 +36,6 @@ import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const apiClient = createApiClient(API_URL);
 
 interface UserData {
   id: string;
@@ -144,6 +143,8 @@ function ProfileSkeleton() {
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);

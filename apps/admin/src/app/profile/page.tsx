@@ -27,7 +27,7 @@ import {
 } from "../../components/ui/form";
 import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@cashsouk/ui";
 import {
@@ -46,7 +46,6 @@ import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const apiClient = createApiClient(API_URL);
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100),
@@ -173,6 +172,8 @@ function ProfileSkeleton() {
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);

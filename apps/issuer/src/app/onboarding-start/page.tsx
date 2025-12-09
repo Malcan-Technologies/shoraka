@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Button,
@@ -25,8 +25,7 @@ const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3
 
 function OnboardingStartPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { accessToken, setAccessToken } = useAuthToken();
+  const { getAccessToken } = useAuthToken();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
@@ -40,34 +39,21 @@ function OnboardingStartPageContent() {
   useEffect(() => {
     // Flag to prevent duplicate API calls in Strict Mode
     let isMounted = true;
-    
-    // Check for token in URL query params first (from callback redirect)
-    const tokenFromQuery = searchParams.get("token");
-    if (tokenFromQuery) {
-      setAccessToken(tokenFromQuery);
-      // Clean URL
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    
-    // Get token from memory
-    const token = accessToken || tokenFromQuery;
-    
-    if (!token) {
-      if (isMounted) {
-        redirectToLanding();
-      }
-      return;
-    }
 
     const fetchUser = async () => {
-      const currentToken = accessToken || tokenFromQuery;
-      if (!currentToken) {
-        setLoading(false);
+      // Get token from Amplify session
+      const token = await getAccessToken();
+      
+      if (!token) {
+        if (isMounted) {
+          setLoading(false);
+          redirectToLanding();
+        }
         return;
       }
 
       try {
-        const apiClient = createApiClient(API_URL, () => currentToken, setAccessToken);
+        const apiClient = createApiClient(API_URL, getAccessToken);
         
         // Fetch user info
         const userResult = await apiClient.get<{
@@ -111,10 +97,11 @@ function OnboardingStartPageContent() {
     return () => {
       isMounted = false;
     };
-  }, [router, accessToken, searchParams, setAccessToken]);
+  }, [router, getAccessToken]);
 
   const handleStartOnboarding = async () => {
-    const token = accessToken;
+    // Get token from Amplify session
+    const token = await getAccessToken();
     
     if (!token) {
       redirectToLanding();
@@ -124,7 +111,7 @@ function OnboardingStartPageContent() {
     setCompleting(true);
 
     try {
-      const apiClient = createApiClient(API_URL, () => token, setAccessToken);
+      const apiClient = createApiClient(API_URL, getAccessToken);
       const result = await apiClient.post("/v1/auth/complete-onboarding", {
         role: "ISSUER",
       });
@@ -146,19 +133,7 @@ function OnboardingStartPageContent() {
     window.location.href = INVESTOR_URL;
   };
 
-  // Check for token - but only redirect if we're sure there's no token
-  // (don't redirect during initial load when token might be in URL)
-  if (!accessToken && !loading && typeof window !== "undefined") {
-    // Only redirect if we've finished loading and still have no token
-    // This prevents redirecting when token is in URL but not yet extracted
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenInUrl = urlParams.get("token");
-    if (!tokenInUrl) {
-      redirectToLanding();
-      return null;
-    }
-  }
-
+  // Show loading state while fetching user data
   if (loading) {
     return (
       <>

@@ -27,8 +27,46 @@
           "value": "3000"
         },
         {
+          "name": "NEXT_PUBLIC_COGNITO_DOMAIN",
+          "value": "auth.cashsouk.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_INVESTOR_URL",
+          "value": "https://investor.cashsouk.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_ISSUER_URL",
+          "value": "https://issuer.cashsouk.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_ADMIN_URL",
+          "value": "https://admin.cashsouk.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_LANDING_URL",
+          "value": "https://www.cashsouk.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_COOKIE_DOMAIN",
+          "value": ".cashsouk.com"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXT_PUBLIC_COGNITO_USER_POOL_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_COGNITO_USER_POOL_ID::"
+        },
+        {
+          "name": "NEXT_PUBLIC_COGNITO_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_COGNITO_CLIENT_ID::"
+        },
+        {
           "name": "NEXT_PUBLIC_COGNITO_REGION",
-          "value": "ap-southeast-5"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_COGNITO_REGION::"
+        },
+        {
+          "name": "NEXT_PUBLIC_API_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_API_URL::"
         }
       ],
       "logConfiguration": {

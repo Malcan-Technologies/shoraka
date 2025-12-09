@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { AppError } from "../http/error-handler";
 import { User, UserRole } from "@prisma/client";
 import { prisma } from "../prisma";
-import { verifyToken } from "./jwt";
+import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 
 declare global {
   namespace Express {
@@ -15,15 +15,14 @@ declare global {
 }
 
 /**
- * Middleware to require authentication via JWT token
- * Validates token from Authorization header (Bearer token)
- * Access tokens are stored in Next.js memory, not cookies
- * Fetches user from database and attaches to req.user
+ * Middleware to require authentication via Cognito JWT token
+ * Validates Cognito access token from Authorization header (Bearer token)
+ * Tokens are managed by AWS Amplify on the frontend
+ * Fetches user from database by cognito_sub and attaches to req.user
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     // Check Authorization header for Bearer token
-    // Access tokens are stored in Next.js memory and sent via Authorization header
       const authHeader = req.headers.authorization;
     let token: string | undefined;
     
@@ -39,24 +38,32 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       );
     }
 
-    let payload;
+    // Verify Cognito access token
+    let cognitoPayload;
     try {
-      payload = verifyToken(token);
+      cognitoPayload = await verifyCognitoAccessToken(token);
     } catch (error) {
-      throw new AppError(401, "UNAUTHORIZED", "Invalid or expired token");
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        `Invalid or expired Cognito token: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
+    // Find user by Cognito sub (user ID from Cognito)
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { cognito_sub: cognitoPayload.sub },
     });
 
     if (!user) {
       throw new AppError(401, "UNAUTHORIZED", "User not found in database");
     }
 
+    // Set user and cognito sub on request
     req.user = user;
-    req.cognitoSub = user.cognito_sub;
-    req.activeRole = payload.activeRole;
+    req.cognitoSub = cognitoPayload.sub;
+    // Default activeRole to first role (can be changed via role switching endpoint)
+    req.activeRole = user.roles[0] || UserRole.INVESTOR;
 
     next();
   } catch (error) {

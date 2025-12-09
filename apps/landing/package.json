@@ -24,7 +24,9 @@
     "@cashsouk/styles": "workspace:*",
     "@cashsouk/types": "workspace:*",
     "@cashsouk/config": "workspace:*",
-    "@heroicons/react": "^2.1.1"
+    "@heroicons/react": "^2.1.1",
+    "@aws-amplify/auth": "^6.0.0",
+    "aws-amplify": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",

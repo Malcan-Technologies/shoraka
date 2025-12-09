@@ -9,17 +9,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ExportAccessLogsParams } from "@cashsouk/types";
 import { toast } from "sonner";
-
-const apiClient = createApiClient();
 
 interface AccessLogsExportButtonProps {
   filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
 }
 
 export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
   const [isExporting, setIsExporting] = React.useState(false);
 
   const handleExport = async (format: "csv" | "json") => {

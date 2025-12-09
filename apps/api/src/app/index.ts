@@ -11,6 +11,7 @@ import { correlationIdMiddleware } from "./middleware/cors";
 import { registerRoutes } from "../routes";
 import { createSessionMiddleware } from "./session";
 import { initializeOpenIdClient } from "../lib/openid-client";
+import { hydrateVerifier } from "../lib/auth/cognito-jwt-verifier";
 
 export async function createApp(): Promise<Application> {
   const app = express();
@@ -115,7 +116,11 @@ export async function createApp(): Promise<Application> {
 
   app.use(correlationIdMiddleware);
 
+  // Initialize OpenID client for OAuth flows
   await initializeOpenIdClient();
+
+  // Hydrate JWT verifier with JWKS to reduce latency on first request
+  await hydrateVerifier();
 
   app.use(
     pinoHttp({

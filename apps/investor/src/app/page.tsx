@@ -4,24 +4,25 @@ import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function InvestorDashboardContent() {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const { getAccessToken } = useAuthToken();
   const router = useRouter();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [userName, setUserName] = useState<string>("");
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (isAuthenticated) {
       const checkOnboarding = async () => {
         try {
-          const apiClient = createApiClient(API_URL);
+          const apiClient = createApiClient(API_URL, getAccessToken);
           const result = await apiClient.get<{
             user: {
               first_name: string | null;
@@ -59,7 +60,7 @@ function InvestorDashboardContent() {
     } else if (isAuthenticated === false) {
       setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, token, router]);
+  }, [isAuthenticated, router, getAccessToken]);
 
   // Show loading while checking auth or onboarding
   if (isAuthenticated === null || checkingOnboarding) {

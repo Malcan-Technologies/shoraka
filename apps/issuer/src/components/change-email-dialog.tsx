@@ -23,11 +23,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { EyeIcon, EyeSlashIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const apiClient = createApiClient(API_URL);
 
 // Step 1: Initiate email change
 const initiateEmailSchema = z
@@ -63,6 +62,8 @@ export function ChangeEmailDialog({
   currentEmail,
   onEmailChanged,
 }: ChangeEmailDialogProps) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
   const [step, setStep] = React.useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);

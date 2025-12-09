@@ -44,12 +44,12 @@ interface ApiUserData {
 export function NavUser() {
   const { isMobile } = useSidebar()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken()
+  const { getAccessToken, signOut } = useAuthToken()
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
-      const apiClient = createApiClient(API_URL, () => accessToken, setAccessToken)
+      const apiClient = createApiClient(API_URL, getAccessToken)
       const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me")
       if (!result.success) {
         throw new Error(result.error.message)
@@ -66,9 +66,9 @@ export function NavUser() {
     avatar: "",
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLoggingOut(true)
-    logout(clearAccessToken)
+    await logout(signOut)
   }
 
   if (isLoading) {

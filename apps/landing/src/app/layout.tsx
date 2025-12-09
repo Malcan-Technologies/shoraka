@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
+import "../lib/amplify-config"; // Initialize Amplify
 
 const inter = Inter({ subsets: ["latin"] });
 

@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
-
-const apiClient = createApiClient();
 
 export interface UseAccessLogsOptions extends GetAccessLogsParams {
   allowedEventTypes?: EventType[];
 }
 
 export function useAccessLogs(params: UseAccessLogsOptions) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
   const { allowedEventTypes, ...queryParams } = params;
 
   // If allowedEventTypes is provided and no specific eventType filter is set,
@@ -52,6 +52,9 @@ export function useAccessLogs(params: UseAccessLogsOptions) {
 }
 
 export function useAccessLog(id: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
+  
   return useQuery({
     queryKey: ["admin", "access-logs", id],
     queryFn: async () => {

@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { DashboardStatsResponse } from "@cashsouk/types";
 
-const apiClient = createApiClient();
-
 export function useDashboardStats() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
+  
   return useQuery<DashboardStatsResponse>({
     queryKey: ["admin", "dashboard", "stats"],
     queryFn: async () => {

@@ -5,12 +5,6 @@ const envSchema = z.object({
   PORT: z.string().default("4000"),
   DATABASE_URL: z.string().url(),
   
-  // JWT
-  JWT_SECRET: z.string().min(32),
-  JWT_REFRESH_SECRET: z.string().min(32).optional(), // Optional, falls back to JWT_SECRET
-  JWT_EXPIRES_IN: z.string().default("15m"),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
-  
   // Cognito
   COGNITO_USER_POOL_ID: z.string(),
   COGNITO_CLIENT_ID: z.string(),

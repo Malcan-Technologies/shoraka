@@ -17,89 +17,22 @@ import type {
 
 export class ApiClient {
   private baseUrl: string;
-  private refreshPromise: Promise<Response> | null = null;
-  private getToken: (() => string | null) | null = null;
-  private setToken: ((token: string | null) => void) | null = null;
+  private getAccessToken: (() => Promise<string | null>) | null = null;
 
-  constructor(baseUrl: string, getToken?: () => string | null, setToken?: (token: string | null) => void) {
+  constructor(baseUrl: string, getAccessToken?: () => Promise<string | null>) {
     this.baseUrl = baseUrl;
-    this.getToken = getToken || null;
-    this.setToken = setToken || null;
+    this.getAccessToken = getAccessToken || null;
   }
 
   /**
-   * Get auth token from memory (via callback)
-   * Tokens are stored in Next.js memory (React Context), not localStorage
+   * Get auth token from Amplify session
+   * Tokens are managed by AWS Amplify and stored in cookies
    */
-  private getAuthToken(): string | null {
-    if (this.getToken) {
-      return this.getToken();
+  private async getAuthToken(): Promise<string | null> {
+    if (this.getAccessToken) {
+      return await this.getAccessToken();
     }
     return null;
-  }
-
-  /**
-   * Attempt to refresh the access token using refresh token
-   * Handles concurrent requests by reusing the same refresh promise
-   */
-  private async refreshToken(): Promise<boolean> {
-    // If already refreshing, wait for that promise
-    if (this.refreshPromise) {
-      try {
-        const response = await this.refreshPromise;
-        return response.ok;
-      } catch {
-        return false;
-      }
-    }
-
-    // Start refresh request
-    // Refresh token is stored in HTTP-only cookie and sent automatically
-    // Backend will read refresh_token from cookies
-    const refreshHeaders: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    
-    this.refreshPromise = fetch(`${this.baseUrl}/v1/auth/refresh`, {
-      method: "POST",
-      credentials: "include", // Send HTTP-Only cookies (includes refresh_token)
-      headers: refreshHeaders,
-    });
-
-    try {
-      const response = await this.refreshPromise;
-      const success = response.ok;
-
-      // Clear refresh promise after completion
-      this.refreshPromise = null;
-
-      if (success) {
-        // Refresh successful - refresh_token cookie is updated automatically
-        // Update access_token in memory via callback
-        try {
-          const data = await response.json();
-          // Backend returns tokens in response body
-          const accessToken = data.data?.accessToken || data.accessToken;
-          if (accessToken && this.setToken) {
-            this.setToken(accessToken);
-          }
-        } catch {
-          // Response might not be JSON, that's okay - refresh_token cookie is set automatically
-        }
-      } else {
-        // Refresh failed (401 or 403) - clear access token from memory
-        // Don't redirect here - let the portal's auth logic handle redirects
-        // This allows each portal (admin, investor, issuer) to redirect to their own login page
-        if (this.setToken) {
-          this.setToken(null);
-        }
-      }
-
-      return success;
-    } catch (error) {
-      this.refreshPromise = null;
-      return false;
-    }
   }
 
   private async request<T>(
@@ -108,12 +41,8 @@ export class ApiClient {
   ): Promise<ApiResponse<T> | ApiError> {
     const url = `${this.baseUrl}${endpoint}`;
     
-    // Don't retry refresh endpoint if it fails
-    const isRefreshEndpoint = endpoint === "/v1/auth/refresh";
-
-    // Get auth token from localStorage (for development)
-    // In production, tokens are in HTTP-Only cookies and sent automatically
-    const authToken = this.getAuthToken();
+    // Get auth token from Amplify session
+    const authToken = await this.getAuthToken();
     
     // Prepare headers
     const headers: Record<string, string> = {
@@ -121,43 +50,21 @@ export class ApiClient {
       ...(options?.headers as Record<string, string> | undefined),
     };
 
-    // Add Authorization header if token exists (for development)
-    // In production, token is in HTTP-Only cookie and sent automatically
-    if (authToken && !isRefreshEndpoint) {
+    // Add Authorization header with Cognito access token
+    if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
 
-    // Make initial request
-    let response = await fetch(url, {
+    // Make request
+    // Amplify handles token refresh automatically, so we don't need manual refresh logic
+    const response = await fetch(url, {
       ...options,
-      credentials: "include", // Always send cookies (for production)
+      credentials: "include", // Always send cookies
       headers,
     });
 
-    // If unauthorized and not the refresh endpoint, try to refresh
-    if (response.status === 401 && !isRefreshEndpoint) {
-      const refreshed = await this.refreshToken();
-
-      if (refreshed) {
-        // After refresh, refresh_token cookie is updated automatically
-        // Access token is updated in memory via callback
-        // Get updated token from memory
-        const updatedToken = this.getAuthToken();
-        
-        // Update Authorization header with new token (if available)
-        const retryHeaders = { ...headers };
-        if (updatedToken) {
-          retryHeaders["Authorization"] = `Bearer ${updatedToken}`;
-        }
-        
-        // Retry original request with new access token in Authorization header
-        response = await fetch(url, {
-          ...options,
-          credentials: "include", // Send refresh_token cookie
-          headers: retryHeaders,
-        });
-      } else {
-        // Refresh failed - try to parse error response
+    // If unauthorized, return error (Amplify will handle refresh automatically)
+    if (response.status === 401) {
         let errorResponse: ApiError;
         try {
           const contentType = response.headers.get("content-type");
@@ -184,7 +91,6 @@ export class ApiClient {
           } as ApiError;
         }
         return errorResponse;
-      }
     }
 
     // Handle non-JSON responses (e.g., 204 No Content)
@@ -393,7 +299,7 @@ export class ApiClient {
     queryParams.append("format", params.format || "json");
 
     const url = `${this.baseUrl}/v1/admin/access-logs/export?${queryParams.toString()}`;
-    const authToken = this.getAuthToken();
+    const authToken = await this.getAuthToken();
 
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -418,12 +324,10 @@ export class ApiClient {
 
 export function createApiClient(
   baseUrl?: string,
-  getToken?: () => string | null,
-  setToken?: (token: string | null) => void
+  getAccessToken?: () => Promise<string | null>
 ): ApiClient {
   return new ApiClient(
     baseUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
-    getToken,
-    setToken
+    getAccessToken
   );
 }

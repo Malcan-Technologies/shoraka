@@ -9,18 +9,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
  * Verify token is valid by calling /v1/auth/me
- * Uses API client which handles automatic token refresh
- * Access token is stored in memory and sent via Authorization header
+ * Uses Amplify session to get access token
  */
 export async function verifyToken(
-  getToken: () => string | null,
-  setToken: (token: string | null) => void
+  getAccessToken: () => Promise<string | null>
 ): Promise<boolean> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
-    const apiClient = createApiClient(API_URL, getToken, setToken);
+    const apiClient = createApiClient(API_URL, getAccessToken);
     
-    // API client will use token from memory via Authorization header
     const result = await apiClient.get("/v1/auth/me");
     
     return result.success === true;
@@ -33,12 +30,11 @@ export async function verifyToken(
  * Get user info including roles from /v1/auth/me
  */
 export async function getUserInfo(
-  getToken: () => string | null,
-  setToken: (token: string | null) => void
+  getAccessToken: () => Promise<string | null>
 ): Promise<{ roles: UserRole[]; email: string } | null> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
-    const apiClient = createApiClient(API_URL, getToken, setToken);
+    const apiClient = createApiClient(API_URL, getAccessToken);
     
     const result = await apiClient.get<{
       user: {
@@ -90,17 +86,66 @@ export function redirectToLanding() {
 
 /**
  * Logout user from admin portal
- * Clears token from memory and redirects to Cognito logout endpoint
+ * Clears all Cognito cookies and session, then redirects through Cognito logout
  */
-export function logout(clearAccessToken: () => void) {
+export async function logout(signOut: () => Promise<void>) {
   if (typeof window === "undefined") return;
 
-  // Clear access token from memory
-  clearAccessToken();
+  try {
+    // 1. Sign out from Amplify (clears Amplify-managed tokens)
+    await signOut();
+    console.log("[Logout] Amplify signOut successful");
+  } catch (error) {
+    console.error("[Logout] Amplify signOut failed:", error);
+  }
 
-  // Redirect to logout endpoint (refresh_token cookie will be cleared by backend)
-  const logoutUrl = `${API_URL}/v1/auth/cognito/logout`;
-  window.location.href = logoutUrl;
+  // 2. Manually clear all Cognito cookies
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  if (clientId) {
+    // Get all cookies
+    const cookies = document.cookie.split(';');
+    
+    // Find and delete all CognitoIdentityServiceProvider cookies
+    cookies.forEach(cookie => {
+      const cookieName = cookie.split('=')[0].trim();
+      if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
+        // Delete cookie for localhost
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
+        // Delete cookie without domain (fallback)
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        console.log(`[Logout] Cleared cookie: ${cookieName}`);
+      }
+    });
+  }
+
+  // 3. Call backend logout endpoint to clear server-side session
+  try {
+    await fetch(`${API_URL}/v1/auth/cognito/logout?portal=admin`, {
+      method: "GET",
+      credentials: "include",
+    });
+    console.log("[Logout] Backend logout successful");
+    } catch (error) {
+    console.error("[Logout] Backend logout failed:", error);
+  }
+
+  // 4. Redirect through Cognito's logout endpoint to clear hosted UI session
+  let cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+  const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  
+  if (cognitoDomain && cognitoClientId) {
+    // Ensure cognitoDomain has the https:// prefix
+    if (!cognitoDomain.startsWith('http://') && !cognitoDomain.startsWith('https://')) {
+      cognitoDomain = `https://${cognitoDomain}`;
+    }
+    
+    const cognitoLogoutUrl = `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(LANDING_URL)}`;
+    console.log("[Logout] Redirecting through Cognito logout:", cognitoLogoutUrl);
+    window.location.href = cognitoLogoutUrl;
+  } else {
+    console.error("[Logout] Cognito domain or client ID not configured");
+    redirectToLanding();
+  }
 }
 
 /**
@@ -109,7 +154,7 @@ export function logout(clearAccessToken: () => void) {
  * Logs out and redirects if user doesn't have ADMIN role
  */
 export function useAuth() {
-  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
+  const { getAccessToken, signOut } = useAuthToken();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [hasAdminRole, setHasAdminRole] = useState<boolean | null>(null);
   const checkingRef = useRef(false);
@@ -130,60 +175,39 @@ export function useAuth() {
       checkingRef.current = true;
 
       try {
-        // If no access token in memory, attempt silent refresh first
-        let currentToken = accessToken;
-        if (!currentToken) {
-          try {
-            const response = await fetch(`${API_URL}/v1/auth/silent-refresh`, {
-              method: "GET",
-              credentials: "include", // Include cookies (refresh_token)
-              headers: {
-                "Content-Type": "application/json",
-              },
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success && data.data?.accessToken) {
-                // Store new access token in memory
-                setAccessToken(data.data.accessToken);
-                currentToken = data.data.accessToken;
-              } else {
-                // Silent refresh failed - redirect to login
-                clearAccessToken();
-                setIsAuthenticated(false);
-                setHasAdminRole(false);
-                checkedRef.current = true;
-                redirectToLogin();
-                return;
-              }
-            } else {
-              // Silent refresh failed - redirect to login
-              clearAccessToken();
-              setIsAuthenticated(false);
-              setHasAdminRole(false);
-              checkedRef.current = true;
-              redirectToLogin();
-              return;
+        // Get access token from Amplify session with retry logic
+        // Sometimes Amplify needs a moment to read cookies after page load
+        let token: string | null = null;
+        let retries = 0;
+        const maxRetries = 3;
+        
+        while (!token && retries < maxRetries) {
+          token = await getAccessToken();
+          if (!token) {
+            console.log(`[useAuth] No token on attempt ${retries + 1}/${maxRetries}, waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+            retries++;
             }
-          } catch (refreshError) {
-            // Silent refresh failed - redirect to login
-            console.error("[useAuth] Silent refresh failed:", refreshError);
-            clearAccessToken();
+        }
+
+        if (!token) {
+          // No token after retries - redirect to login
+          console.log("[useAuth] No token after retries, redirecting to login");
             setIsAuthenticated(false);
             setHasAdminRole(false);
             checkedRef.current = true;
             redirectToLogin();
             return;
           }
-        }
 
-        // Verify auth using token from memory (or newly refreshed token)
-        const isValid = await verifyToken(() => currentToken || accessToken, setAccessToken);
+        console.log("[useAuth] Token found, verifying with backend");
+
+        // Verify auth using token
+        const isValid = await verifyToken(getAccessToken);
         
         if (!isValid) {
-          // Token is invalid and refresh failed, clear it and redirect
-          clearAccessToken();
+          // Token is invalid - redirect to login
+          console.log("[useAuth] Token invalid, redirecting to login");
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
@@ -191,28 +215,31 @@ export function useAuth() {
           return;
         }
 
+        console.log("[useAuth] Auth valid, checking admin role");
+
         // Auth is valid - check if user has ADMIN role
-        const userInfo = await getUserInfo(() => currentToken || accessToken, setAccessToken);
+        const userInfo = await getUserInfo(getAccessToken);
         
         if (!userInfo || !userInfo.roles.includes("ADMIN")) {
-          // User doesn't have ADMIN role - redirect to landing page without logging out
-          // This allows them to access other portals (investor/issuer) if they have those roles
-          clearAccessToken();
+          // User doesn't have ADMIN role - sign out and redirect to landing page
+          console.log("[useAuth] User lacks ADMIN role, signing out");
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
           
-          // Redirect to landing page instead of logging out
-          // This way they can still access other portals if they have appropriate roles
-          window.location.href = LANDING_URL;
+          // Sign out from Amplify and redirect to landing
+          await signOut();
+          redirectToLanding();
           return;
         }
 
         // User is authenticated and has ADMIN role
+        console.log("[useAuth] User has ADMIN role");
         setIsAuthenticated(true);
         setHasAdminRole(true);
         checkedRef.current = true;
-      } catch {
+      } catch (error) {
+        console.error("[useAuth] Auth check failed:", error);
         setIsAuthenticated(false);
         setHasAdminRole(false);
         checkedRef.current = true;
@@ -223,8 +250,7 @@ export function useAuth() {
     };
 
     checkAuth();
-  }, []); // Only run once on mount
+  }, [getAccessToken, signOut]); // Re-run if auth functions change
 
-  return { isAuthenticated, token: accessToken, hasAdminRole };
+  return { isAuthenticated, token: null, hasAdminRole }; // Token is managed by Amplify
 }
-

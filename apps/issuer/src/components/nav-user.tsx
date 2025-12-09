@@ -40,12 +40,12 @@ export function NavUser() {
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isOnboarding = pathname === "/onboarding-start";
-  const { accessToken, setAccessToken, clearAccessToken } = useAuthToken();
+  const { getAccessToken, signOut } = useAuthToken();
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
-      const apiClient = createApiClient(API_URL, () => accessToken, setAccessToken);
+      const apiClient = createApiClient(API_URL, getAccessToken);
       const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me");
       if (!result.success) {
         throw new Error(result.error.message);
@@ -62,9 +62,9 @@ export function NavUser() {
     avatar: "",
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLoggingOut(true);
-    logout(clearAccessToken);
+    await logout(signOut, getAccessToken);
   };
 
   const handleSwitchPortal = () => {

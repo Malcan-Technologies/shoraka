@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
   GetUsersParams,
   UpdateUserRolesInput,
@@ -8,9 +8,10 @@ import type {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 
-const apiClient = createApiClient();
-
 export function useUsers(params: GetUsersParams) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
+  
   return useQuery({
     queryKey: ["admin", "users", params],
     queryFn: async () => {
@@ -42,6 +43,9 @@ export function useUsers(params: GetUsersParams) {
 }
 
 export function useUser(id: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
+  
   return useQuery({
     queryKey: ["admin", "users", id],
     queryFn: async () => {
@@ -57,6 +61,8 @@ export function useUser(id: string) {
 
 export function useUpdateUserRoles() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
 
   return useMutation({
     mutationFn: async ({ id, roles }: { id: string; roles: UpdateUserRolesInput }) => {
@@ -80,6 +86,8 @@ export function useUpdateUserRoles() {
 
 export function useUpdateUserKyc() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
 
   return useMutation({
     mutationFn: async ({ id, kycVerified }: { id: string; kycVerified: boolean }) => {
@@ -103,6 +111,8 @@ export function useUpdateUserKyc() {
 
 export function useUpdateUserOnboarding() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
 
   return useMutation({
     mutationFn: async ({ id, onboarding }: { id: string; onboarding: UpdateUserOnboardingInput }) => {
@@ -126,6 +136,8 @@ export function useUpdateUserOnboarding() {
 
 export function useUpdateUserProfile() {
   const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
 
   return useMutation({
     mutationFn: async ({ id, profile }: { id: string; profile: UpdateUserProfileInput }) => {

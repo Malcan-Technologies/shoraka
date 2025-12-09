@@ -7,6 +7,12 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_COGNITO_DOMAIN=${COGNITO_DOMAIN:-auth.cashsouk.com}
+      - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
+      - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
+      - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
         condition: service_healthy
@@ -42,6 +48,12 @@ services:
       - "3001:3000"
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_COGNITO_DOMAIN=${COGNITO_DOMAIN:-auth.cashsouk.com}
+      - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
+      - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
+      - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
         condition: service_healthy
@@ -77,6 +89,12 @@ services:
       - "3002:3000"
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_COGNITO_DOMAIN=${COGNITO_DOMAIN:-auth.cashsouk.com}
+      - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
+      - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
+      - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
         condition: service_healthy
@@ -112,6 +130,12 @@ services:
       - "3003:3000"
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_COGNITO_DOMAIN=${COGNITO_DOMAIN:-auth.cashsouk.com}
+      - NEXT_PUBLIC_INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
+      - NEXT_PUBLIC_ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
+      - NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
+      - NEXT_PUBLIC_LANDING_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - NEXT_PUBLIC_COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
     depends_on:
       api:
         condition: service_healthy
@@ -148,24 +172,20 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USERNAME=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-password}
-      - DB_NAME=${POSTGRES_DB:-cashsouk_prod}
-      - JWT_SECRET=${JWT_SECRET:-changeme_min32chars_jwt_secret_12345}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cashsouk_prod}
       - SESSION_SECRET=${SESSION_SECRET:-changeme_min32chars_session_secret1}
       - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID:-ap-southeast-5_Ugz3vHRnm}
       - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID:-4es0361hj0r66iv7da3hhm8ftk}
       - COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET:-1vkj665jmq0m0ahlocfetb9mdm2gau3qns5cf3kcbg999bm1qcs2}
-      - COGNITO_DOMAIN=${COGNITO_DOMAIN:-https://ap-southeast-5ugz3vhrnm.auth.ap-southeast-5.amazoncognito.com}
+      - COGNITO_DOMAIN=${COGNITO_DOMAIN:-https://auth.cashsouk.com}
       - COGNITO_REGION=${COGNITO_REGION:-ap-southeast-5}
-      - REDIRECT_URI=${REDIRECT_URI:-http://localhost:4000/api/auth/callback}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-      - INVESTOR_URL=${INVESTOR_URL:-http://localhost:3002}
-      - ISSUER_URL=${ISSUER_URL:-http://localhost:3001}
-      - ADMIN_URL=${ADMIN_URL:-http://localhost:3003}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003}
+      - REDIRECT_URI=${REDIRECT_URI:-https://api.cashsouk.com/api/auth/callback}
+      - FRONTEND_URL=${FRONTEND_URL:-https://www.cashsouk.com}
+      - INVESTOR_URL=${INVESTOR_URL:-https://investor.cashsouk.com}
+      - ISSUER_URL=${ISSUER_URL:-https://issuer.cashsouk.com}
+      - ADMIN_URL=${ADMIN_URL:-https://admin.cashsouk.com}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN:-.cashsouk.com}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://www.cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com}
     depends_on:
       db:
         condition: service_healthy
