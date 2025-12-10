@@ -504,18 +504,6 @@ export class AuthService {
   }
 
   /**
-   * @deprecated Token refresh is now handled by AWS Amplify on the frontend
-   * This method is kept for backward compatibility but should not be used
-   */
-  async silentRefresh(_req: Request): Promise<{ accessToken: string }> {
-    throw new AppError(
-      410,
-      "GONE",
-      "Token refresh is now handled by AWS Amplify. This endpoint is deprecated."
-    );
-  }
-
-  /**
    * Create admin user (admin-only function)
    */
   async createAdminUser(data: {

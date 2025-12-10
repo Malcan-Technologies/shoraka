@@ -14,12 +14,11 @@ import type {
   ExportAccessLogsParams,
   DashboardStatsResponse,
 } from "@cashsouk/types";
+import { tokenRefreshService } from "./token-refresh-service";
 
 export class ApiClient {
   private baseUrl: string;
   private getAccessToken: (() => Promise<string | null>) | null = null;
-  private isRefreshing: boolean = false;
-  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string, getAccessToken?: () => Promise<string | null>) {
     this.baseUrl = baseUrl;
@@ -27,181 +26,8 @@ export class ApiClient {
   }
 
   /**
-   * Check if JWT token is expired or about to expire (within 5 minutes)
-   */
-  private isTokenExpired(token: string): boolean {
-    try {
-      const parts = token.split(".");
-      if (parts.length !== 3) return true;
-
-      const payload = JSON.parse(atob(parts[1]));
-      const exp = payload.exp * 1000; // Convert to milliseconds
-      const now = Date.now();
-      const buffer = 5 * 60 * 1000; // 5 minute buffer
-
-      return now >= exp - buffer;
-    } catch {
-      return true; // If we can't parse, assume expired
-    }
-  }
-
-  /**
-   * Refresh access token using refresh token from cookies
-   * Prevents multiple simultaneous refresh attempts using a promise lock
-   */
-  private async refreshToken(): Promise<boolean> {
-    // If already refreshing, wait for existing refresh to complete
-    if (this.isRefreshing && this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
-    this.isRefreshing = true;
-    this.refreshPromise = this._doRefresh();
-
-    try {
-      const result = await this.refreshPromise;
-      return result;
-    } finally {
-      this.isRefreshing = false;
-      this.refreshPromise = null;
-    }
-  }
-
-  /**
-   * Read access token directly from cookies
-   * This bypasses Amplify's cache which may be stale after manual refresh
-   */
-  private readTokenFromCookies(): string | null {
-    try {
-      const cookies = document.cookie.split(";");
-      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-
-      if (!clientId) {
-        return null;
-      }
-
-      // Find LastAuthUser cookie to get the user ID
-      const lastAuthUserCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
-      );
-
-      if (!lastAuthUserCookie) {
-        return null;
-      }
-
-      const userId = lastAuthUserCookie.split("=")[1].trim();
-
-      // Find access token cookie
-      const accessTokenCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=`)
-      );
-
-      if (!accessTokenCookie) {
-        return null;
-      }
-
-      return accessTokenCookie.split("=")[1].trim();
-    } catch (error) {
-      console.error("[ApiClient] Error reading token from cookies:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Execute the actual token refresh
-   */
-  private async _doRefresh(): Promise<boolean> {
-    try {
-      // Get refresh token from cookies
-      const cookies = document.cookie.split(";");
-      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-
-      if (!clientId) {
-        console.error("[ApiClient] NEXT_PUBLIC_COGNITO_CLIENT_ID not set");
-        return false;
-      }
-
-      // Find LastAuthUser cookie to get the user ID
-      const lastAuthUserCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
-      );
-
-      if (!lastAuthUserCookie) {
-        // eslint-disable-next-line no-console
-        console.log("[ApiClient] No LastAuthUser cookie found");
-        return false;
-      }
-
-      const userId = lastAuthUserCookie.split("=")[1].trim();
-
-      // Find refresh token
-      const refreshTokenCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.refreshToken=`)
-      );
-
-      if (!refreshTokenCookie) {
-        // eslint-disable-next-line no-console
-        console.log("[ApiClient] No refresh token found");
-        return false;
-      }
-
-      const refreshToken = refreshTokenCookie.split("=")[1].trim();
-
-      // Call Cognito token endpoint
-      const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
-
-      if (!cognitoDomain) {
-        console.error("[ApiClient] NEXT_PUBLIC_COGNITO_DOMAIN not set");
-        return false;
-      }
-
-      // eslint-disable-next-line no-console
-      console.log("[ApiClient] Refreshing access token...");
-
-      const response = await fetch(`https://${cognitoDomain}/oauth2/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: clientId,
-          refresh_token: refreshToken,
-        }),
-      });
-
-      if (!response.ok) {
-        console.error("[ApiClient] Token refresh failed:", response.status);
-        return false;
-      }
-
-      const data = await response.json();
-
-      // Update cookies with new tokens
-      const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
-      const isSecure = process.env.NODE_ENV === "production";
-      const cookieOptions = `domain=${cookieDomain}; path=/; ${isSecure ? "secure;" : ""} samesite=lax`;
-
-      // Set new access token
-      document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=${data.access_token}; max-age=3600; ${cookieOptions}`;
-
-      // Set new ID token
-      if (data.id_token) {
-        document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.idToken=${data.id_token}; max-age=3600; ${cookieOptions}`;
-      }
-
-      // eslint-disable-next-line no-console
-      console.log("[ApiClient] Token refreshed successfully");
-      return true;
-    } catch (error) {
-      console.error("[ApiClient] Token refresh error:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Get auth token from Amplify session or cookies
-   * Automatically refreshes if token is expired
+   * Get auth token with automatic refresh support
+   * Delegates to TokenRefreshService for all refresh operations
    */
   private async getAuthToken(): Promise<string | null> {
     if (!this.getAccessToken) {
@@ -210,36 +36,23 @@ export class ApiClient {
 
     let token = await this.getAccessToken();
 
-    // If no token or token is expired, try to refresh
-    if (!token || this.isTokenExpired(token)) {
+    // If no token or expired, refresh via centralized service
+    if (!token || tokenRefreshService.isTokenExpired(token)) {
       // eslint-disable-next-line no-console
-      console.log("[ApiClient] Token expired or missing, attempting refresh...");
-      const refreshed = await this.refreshToken();
+      console.log("[ApiClient] Token expired or missing, attempting refresh via service...");
+      token = await tokenRefreshService.refreshToken();
 
-      if (refreshed) {
-        // Read the new token directly from cookies to bypass Amplify's stale cache
-        token = this.readTokenFromCookies();
-
-        // If cookie read failed, fall back to Amplify (though it may be stale)
-        if (!token) {
-          // eslint-disable-next-line no-console
-          console.warn("[ApiClient] Cookie read failed after refresh, falling back to Amplify");
-          token = await this.getAccessToken();
-        }
-
-        if (token) {
-          // eslint-disable-next-line no-console
-          console.log("[ApiClient] Using refreshed token from cookies");
-        } else {
-          // eslint-disable-next-line no-console
-          console.error("[ApiClient] Failed to get token after successful refresh");
-          return null;
-        }
-      } else {
+      // If refresh succeeded, return the fresh token
+      if (token) {
         // eslint-disable-next-line no-console
-        console.log("[ApiClient] Refresh failed, user needs to login");
-        return null;
+        console.log("[ApiClient] Using refreshed token");
+        return token;
       }
+
+      // Refresh failed, try one more time via Amplify as fallback
+      // eslint-disable-next-line no-console
+      console.log("[ApiClient] Refresh failed, trying Amplify fallback...");
+      token = await this.getAccessToken();
     }
 
     return token;

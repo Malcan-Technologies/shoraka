@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { fetchAuthSession, signOut as amplifySignOut } from "aws-amplify/auth";
+import { tokenRefreshService } from "./token-refresh-service";
 
 interface AuthContextType {
   accessToken: string | null;
@@ -24,14 +25,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   /**
-   * Get access token from Amplify session
-   * Fetches the current session and extracts the access token
+   * Get access token with automatic refresh support
+   *
+   * Flow:
+   * 1. Try Amplify's fetchAuthSession first
+   * 2. If token expired/missing, attempt manual refresh via tokenRefreshService
+   * 3. Fallback to reading directly from cookies
+   * 4. Update state and return token
    */
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     try {
+      // Try Amplify first
       const session = await fetchAuthSession();
-      const token = session.tokens?.accessToken?.toString() || null;
-      
+      let token = session.tokens?.accessToken?.toString() || null;
+
+      // If no token or token is expired, try manual refresh
+      if (!token || tokenRefreshService.isTokenExpired(token)) {
+        // eslint-disable-next-line no-console
+        console.log("[AuthProvider] Token expired or missing, attempting refresh...");
+        token = await tokenRefreshService.refreshToken();
+
+        // If still no token, try reading directly from cookies as last resort
+        if (!token) {
+          token = tokenRefreshService.readTokenFromCookies();
+        }
+      }
+
       if (token) {
         setAccessTokenState(token);
         setIsAuthenticated(true);
@@ -42,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
     } catch (error) {
-      console.error("[AuthProvider] Failed to fetch auth session:", error);
+      console.error("[AuthProvider] Failed to get access token:", error);
       setAccessTokenState(null);
       setIsAuthenticated(false);
       return null;
@@ -55,6 +74,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getAccessToken();
   }, [getAccessToken]);
+
+  /**
+   * Add visibility change detection
+   * Triggers token check when:
+   * - Tab gains focus
+   * - Laptop wakes from sleep
+   * - Screen unlocks
+   */
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible") {
+        // eslint-disable-next-line no-console
+        console.log("[AuthProvider] Page visible, checking token...");
+        await getAccessToken(); // Will refresh if needed
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [getAccessToken]);
+
+  /**
+   * Proactive token refresh interval
+   * Checks token expiry every 5 minutes and refreshes if needed
+   * This prevents tokens from expiring during long active sessions
+   */
+  useEffect(() => {
+    const interval = setInterval(
+      async () => {
+        const token = accessToken || tokenRefreshService.readTokenFromCookies();
+        if (token && tokenRefreshService.isTokenExpired(token)) {
+          // eslint-disable-next-line no-console
+          console.log("[AuthProvider] Proactive refresh triggered");
+          await getAccessToken();
+        }
+      },
+      5 * 60 * 1000
+    ); // Every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [accessToken, getAccessToken]);
 
   const setAccessToken = useCallback((token: string | null) => {
     setAccessTokenState(token);

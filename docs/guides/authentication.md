@@ -269,6 +269,132 @@ Route (app)                              Size     First Load JS
 - Helper text is replaced by error messages when validation fails
 - Form submission is blocked until all validations pass
 
+## Token Refresh Mechanism
+
+### Overview
+
+The application uses a centralized Token Refresh Service to maintain user sessions beyond the 60-minute access token expiry. This ensures users remain authenticated during laptop sleep/wake cycles, tab switching, and long idle sessions.
+
+### Components
+
+1. **TokenRefreshService** (`packages/config/src/token-refresh-service.ts`): Singleton service that manages all token refresh operations
+2. **AuthProvider** (`packages/config/src/auth-context.tsx`): Integrates service for proactive refresh and visibility detection
+3. **ApiClient** (`packages/config/src/api-client.ts`): Delegates token refresh to service for API calls
+
+### Refresh Triggers
+
+The token refresh mechanism is triggered by multiple events to ensure seamless authentication:
+
+- **On app initialization**: When page loads or AuthProvider mounts
+- **On visibility change**: When tab gains focus, laptop wakes from sleep, or screen unlocks
+- **Proactive interval**: Every 5 minutes, checks if token expires within 5 minutes
+- **Reactive refresh**: Before API calls if token is expired or missing
+
+### Token Lifecycle
+
+- **Access Token**: 60 minutes (short-lived, used for API authentication via Bearer token)
+- **ID Token**: 60 minutes (short-lived, contains user profile information)
+- **Refresh Token**: 30 days (long-lived, used to obtain new access/ID tokens)
+- **Refresh Buffer**: 5 minutes (refresh triggers 5 minutes before expiry)
+
+### How It Works
+
+```
+1. User logs in
+   ↓
+2. Backend exchanges OAuth code with Cognito
+   ↓
+3. Backend sets Amplify-format cookies (access, refresh, ID tokens)
+   ↓
+4. AuthProvider monitors token expiry via background interval
+   ↓
+5. When token nears expiry (55 min), service calls Cognito /oauth2/token
+   ↓
+6. New access/ID tokens written to cookies
+   ↓
+7. User remains authenticated seamlessly
+   ↓
+8. After 30 days, refresh token expires → user must login again
+```
+
+### Technical Implementation
+
+**TokenRefreshService Methods:**
+
+- `isTokenExpired(token: string): boolean` - Decodes JWT and checks expiry with 5-minute buffer
+- `readTokenFromCookies(): string | null` - Reads access token directly from Amplify cookies (bypasses cache)
+- `refreshToken(): Promise<string | null>` - Calls Cognito `/oauth2/token`, updates cookies, returns new token
+
+**Promise Locking:**
+
+The service uses a singleton pattern with promise locking to prevent concurrent refresh attempts:
+
+```typescript
+if (this.isRefreshing && this.refreshPromise) {
+  return this.refreshPromise; // Wait for existing refresh
+}
+```
+
+This ensures that multiple simultaneous API calls don't trigger duplicate refresh requests.
+
+**AuthProvider Integration:**
+
+Three useEffect hooks manage token freshness:
+
+1. **Mount Effect**: Checks auth on initial page load
+2. **Visibility Change**: Listens for `visibilitychange` event to detect tab focus and laptop wake
+3. **Proactive Interval**: Runs every 5 minutes to check and refresh before expiry
+
+### Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| **Concurrent Refreshes** | Service uses promise locking - all callers wait for single refresh |
+| **Network Failure** | Falls back to Amplify session, then redirects to login if both fail |
+| **Invalid Refresh Token** | Service returns null, API calls fail with 401, user redirected to login |
+| **Multiple Tabs** | All tabs share cookies; refresh in one tab updates all tabs |
+| **Password Change** | Backend revokes all sessions; next refresh attempt fails → user logged out |
+| **Laptop Sleep > 60min** | Visibility change on wake triggers refresh before any API call |
+| **Refresh Token Expired** | After 30 days, user must login again (expected behavior) |
+
+### Cookie Format
+
+Tokens are stored in Amplify-compatible cookie format:
+
+```
+CognitoIdentityServiceProvider.{clientId}.LastAuthUser={userId}
+CognitoIdentityServiceProvider.{clientId}.{userId}.accessToken={token}
+CognitoIdentityServiceProvider.{clientId}.{userId}.idToken={token}
+CognitoIdentityServiceProvider.{clientId}.{userId}.refreshToken={token}
+CognitoIdentityServiceProvider.{clientId}.{userId}.clockDrift=0
+```
+
+This ensures compatibility with AWS Amplify while allowing manual refresh control.
+
+### Debugging
+
+Token refresh operations log to console with prefixes:
+
+- `[TokenRefreshService]` - Service-level operations
+- `[AuthProvider]` - Provider-level auth checks
+- `[ApiClient]` - API call token handling
+
+Example console output:
+```
+[AuthProvider] Page visible, checking token...
+[TokenRefreshService] Refreshing access token...
+[TokenRefreshService] Token refreshed successfully
+[ApiClient] Using refreshed token
+```
+
+### Security Considerations
+
+- Access tokens have short expiry (60 min) to limit exposure if compromised
+- Refresh tokens stored in cookies with `httpOnly: false` (required for JavaScript access)
+- In production, cookies use `secure` flag (HTTPS only) and proper `domain` scope
+- Token refresh requires valid refresh token from cookies (cannot be forged)
+- Backend validates all tokens with Cognito on every request
+
 ## Next Steps (Not Implemented)
 
 1. **AWS Cognito Integration**
