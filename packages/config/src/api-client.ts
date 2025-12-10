@@ -68,6 +68,46 @@ export class ApiClient {
   }
 
   /**
+   * Read access token directly from cookies
+   * This bypasses Amplify's cache which may be stale after manual refresh
+   */
+  private readTokenFromCookies(): string | null {
+    try {
+      const cookies = document.cookie.split(";");
+      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+
+      if (!clientId) {
+        return null;
+      }
+
+      // Find LastAuthUser cookie to get the user ID
+      const lastAuthUserCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
+      );
+
+      if (!lastAuthUserCookie) {
+        return null;
+      }
+
+      const userId = lastAuthUserCookie.split("=")[1].trim();
+
+      // Find access token cookie
+      const accessTokenCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=`)
+      );
+
+      if (!accessTokenCookie) {
+        return null;
+      }
+
+      return accessTokenCookie.split("=")[1].trim();
+    } catch (error) {
+      console.error("[ApiClient] Error reading token from cookies:", error);
+      return null;
+    }
+  }
+
+  /**
    * Execute the actual token refresh
    */
   private async _doRefresh(): Promise<boolean> {
@@ -87,6 +127,7 @@ export class ApiClient {
       );
 
       if (!lastAuthUserCookie) {
+        // eslint-disable-next-line no-console
         console.log("[ApiClient] No LastAuthUser cookie found");
         return false;
       }
@@ -99,6 +140,7 @@ export class ApiClient {
       );
 
       if (!refreshTokenCookie) {
+        // eslint-disable-next-line no-console
         console.log("[ApiClient] No refresh token found");
         return false;
       }
@@ -113,6 +155,7 @@ export class ApiClient {
         return false;
       }
 
+      // eslint-disable-next-line no-console
       console.log("[ApiClient] Refreshing access token...");
 
       const response = await fetch(`https://${cognitoDomain}/oauth2/token`, {
@@ -147,6 +190,7 @@ export class ApiClient {
         document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.idToken=${data.id_token}; max-age=3600; ${cookieOptions}`;
       }
 
+      // eslint-disable-next-line no-console
       console.log("[ApiClient] Token refreshed successfully");
       return true;
     } catch (error) {
@@ -156,7 +200,7 @@ export class ApiClient {
   }
 
   /**
-   * Get auth token from Amplify session
+   * Get auth token from Amplify session or cookies
    * Automatically refreshes if token is expired
    */
   private async getAuthToken(): Promise<string | null> {
@@ -168,14 +212,31 @@ export class ApiClient {
 
     // If no token or token is expired, try to refresh
     if (!token || this.isTokenExpired(token)) {
+      // eslint-disable-next-line no-console
       console.log("[ApiClient] Token expired or missing, attempting refresh...");
       const refreshed = await this.refreshToken();
 
       if (refreshed) {
-        // Get the new token
-        token = await this.getAccessToken();
-        console.log("[ApiClient] Using refreshed token");
+        // Read the new token directly from cookies to bypass Amplify's stale cache
+        token = this.readTokenFromCookies();
+
+        // If cookie read failed, fall back to Amplify (though it may be stale)
+        if (!token) {
+          // eslint-disable-next-line no-console
+          console.warn("[ApiClient] Cookie read failed after refresh, falling back to Amplify");
+          token = await this.getAccessToken();
+        }
+
+        if (token) {
+          // eslint-disable-next-line no-console
+          console.log("[ApiClient] Using refreshed token from cookies");
+        } else {
+          // eslint-disable-next-line no-console
+          console.error("[ApiClient] Failed to get token after successful refresh");
+          return null;
+        }
       } else {
+        // eslint-disable-next-line no-console
         console.log("[ApiClient] Refresh failed, user needs to login");
         return null;
       }
