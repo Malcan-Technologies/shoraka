@@ -18,6 +18,8 @@ import type {
 export class ApiClient {
   private baseUrl: string;
   private getAccessToken: (() => Promise<string | null>) | null = null;
+  private isRefreshing: boolean = false;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string, getAccessToken?: () => Promise<string | null>) {
     this.baseUrl = baseUrl;
@@ -25,14 +27,161 @@ export class ApiClient {
   }
 
   /**
+   * Check if JWT token is expired or about to expire (within 5 minutes)
+   */
+  private isTokenExpired(token: string): boolean {
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return true;
+
+      const payload = JSON.parse(atob(parts[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      const buffer = 5 * 60 * 1000; // 5 minute buffer
+
+      return now >= exp - buffer;
+    } catch {
+      return true; // If we can't parse, assume expired
+    }
+  }
+
+  /**
+   * Refresh access token using refresh token from cookies
+   * Prevents multiple simultaneous refresh attempts using a promise lock
+   */
+  private async refreshToken(): Promise<boolean> {
+    // If already refreshing, wait for existing refresh to complete
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this._doRefresh();
+
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  /**
+   * Execute the actual token refresh
+   */
+  private async _doRefresh(): Promise<boolean> {
+    try {
+      // Get refresh token from cookies
+      const cookies = document.cookie.split(";");
+      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+
+      if (!clientId) {
+        console.error("[ApiClient] NEXT_PUBLIC_COGNITO_CLIENT_ID not set");
+        return false;
+      }
+
+      // Find LastAuthUser cookie to get the user ID
+      const lastAuthUserCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
+      );
+
+      if (!lastAuthUserCookie) {
+        console.log("[ApiClient] No LastAuthUser cookie found");
+        return false;
+      }
+
+      const userId = lastAuthUserCookie.split("=")[1].trim();
+
+      // Find refresh token
+      const refreshTokenCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.refreshToken=`)
+      );
+
+      if (!refreshTokenCookie) {
+        console.log("[ApiClient] No refresh token found");
+        return false;
+      }
+
+      const refreshToken = refreshTokenCookie.split("=")[1].trim();
+
+      // Call Cognito token endpoint
+      const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+
+      if (!cognitoDomain) {
+        console.error("[ApiClient] NEXT_PUBLIC_COGNITO_DOMAIN not set");
+        return false;
+      }
+
+      console.log("[ApiClient] Refreshing access token...");
+
+      const response = await fetch(`https://${cognitoDomain}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: clientId,
+          refresh_token: refreshToken,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("[ApiClient] Token refresh failed:", response.status);
+        return false;
+      }
+
+      const data = await response.json();
+
+      // Update cookies with new tokens
+      const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
+      const isSecure = process.env.NODE_ENV === "production";
+      const cookieOptions = `domain=${cookieDomain}; path=/; ${isSecure ? "secure;" : ""} samesite=lax`;
+
+      // Set new access token
+      document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=${data.access_token}; max-age=3600; ${cookieOptions}`;
+
+      // Set new ID token
+      if (data.id_token) {
+        document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.idToken=${data.id_token}; max-age=3600; ${cookieOptions}`;
+      }
+
+      console.log("[ApiClient] Token refreshed successfully");
+      return true;
+    } catch (error) {
+      console.error("[ApiClient] Token refresh error:", error);
+      return false;
+    }
+  }
+
+  /**
    * Get auth token from Amplify session
-   * Tokens are managed by AWS Amplify and stored in cookies
+   * Automatically refreshes if token is expired
    */
   private async getAuthToken(): Promise<string | null> {
-    if (this.getAccessToken) {
-      return await this.getAccessToken();
+    if (!this.getAccessToken) {
+      return null;
     }
-    return null;
+
+    let token = await this.getAccessToken();
+
+    // If no token or token is expired, try to refresh
+    if (!token || this.isTokenExpired(token)) {
+      console.log("[ApiClient] Token expired or missing, attempting refresh...");
+      const refreshed = await this.refreshToken();
+
+      if (refreshed) {
+        // Get the new token
+        token = await this.getAccessToken();
+        console.log("[ApiClient] Using refreshed token");
+      } else {
+        console.log("[ApiClient] Refresh failed, user needs to login");
+        return null;
+      }
+    }
+
+    return token;
   }
 
   private async request<T>(
@@ -40,10 +189,10 @@ export class ApiClient {
     options?: RequestInit
   ): Promise<ApiResponse<T> | ApiError> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     // Get auth token from Amplify session
     const authToken = await this.getAuthToken();
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -56,31 +205,21 @@ export class ApiClient {
     }
 
     // Make request
-    // Amplify handles token refresh automatically, so we don't need manual refresh logic
+    // Token refresh is handled automatically by getAuthToken() if token is expired
     const response = await fetch(url, {
       ...options,
       credentials: "include", // Always send cookies
       headers,
     });
 
-    // If unauthorized, return error (Amplify will handle refresh automatically)
+    // If unauthorized, return error
     if (response.status === 401) {
-        let errorResponse: ApiError;
-        try {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            errorResponse = (await response.json()) as ApiError;
-          } else {
-            errorResponse = {
-              success: false,
-              error: {
-                code: "UNAUTHORIZED",
-                message: "Session expired. Please log in again.",
-              },
-              correlationId: response.headers.get("x-correlation-id") || "",
-            } as ApiError;
-          }
-        } catch {
+      let errorResponse: ApiError;
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          errorResponse = (await response.json()) as ApiError;
+        } else {
           errorResponse = {
             success: false,
             error: {
@@ -90,7 +229,17 @@ export class ApiClient {
             correlationId: response.headers.get("x-correlation-id") || "",
           } as ApiError;
         }
-        return errorResponse;
+      } catch {
+        errorResponse = {
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Session expired. Please log in again.",
+          },
+          correlationId: response.headers.get("x-correlation-id") || "",
+        } as ApiError;
+      }
+      return errorResponse;
     }
 
     // Handle non-JSON responses (e.g., 204 No Content)
@@ -224,12 +373,20 @@ export class ApiClient {
     currentPassword: string;
     newPassword: string;
   }): Promise<ApiResponse<{ success: boolean; sessionRevoked?: boolean }> | ApiError> {
-    return this.post<{ success: boolean; sessionRevoked?: boolean }>(`/v1/auth/change-password`, data);
+    return this.post<{ success: boolean; sessionRevoked?: boolean }>(
+      `/v1/auth/change-password`,
+      data
+    );
   }
 
   // Update user's 5-letter ID (admin only)
-  async updateUserId(userId: string, newUserId: string): Promise<ApiResponse<{ user_id: string }> | ApiError> {
-    return this.patch<{ user_id: string }>(`/v1/admin/users/${userId}/user-id`, { userId: newUserId });
+  async updateUserId(
+    userId: string,
+    newUserId: string
+  ): Promise<ApiResponse<{ user_id: string }> | ApiError> {
+    return this.patch<{ user_id: string }>(`/v1/admin/users/${userId}/user-id`, {
+      userId: newUserId,
+    });
   }
 
   // Self-service email change - Step 1: Initiate (sends verification code)

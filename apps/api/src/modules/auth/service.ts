@@ -58,7 +58,7 @@ export class AuthService {
 
   /**
    * Sync Cognito user to database after OAuth callback
-   * Creates or updates user record and creates access log
+   * Creates or updates user record and creates access log for audit trail
    */
   async syncUser(
     req: Request,
@@ -91,8 +91,12 @@ export class AuthService {
       phone: data.phone,
     });
 
-    // Create access log
-    // Note: Portal is not set here as it's determined in the callback route
+    // Create access log for audit trail
+    // Note: This may create a duplicate log if called from OAuth callback route,
+    // but both logs serve different purposes:
+    // - This log: Records the sync operation (no portal context)
+    // - Callback log: Records LOGIN/SIGNUP event (with portal context)
+    // Both are needed for complete audit trail
     await this.repository.createAccessLog({
       userId: user.id,
       eventType: "LOGIN",
@@ -103,6 +107,7 @@ export class AuthService {
       success: true,
       metadata: {
         roles: data.roles,
+        source: "sync-user-endpoint",
       },
     });
 
