@@ -283,6 +283,37 @@ router.post("/logout", requireAuth, async (req: Request, res: Response, next: Ne
 
 /**
  * @swagger
+ * /v1/auth/refresh-token:
+ *   post:
+ *     summary: Refresh access token using refresh token from cookies
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *       401:
+ *         description: No refresh token or refresh failed
+ */
+router.post("/refresh-token", async (req: Request, res: Response, next: NextFunction) => {
+  const correlationId = res.locals.correlationId;
+  
+  try {
+    // Delegate to service
+    const result = await authService.refreshToken(req, res);
+    
+    res.json({
+      success: true,
+      data: {
+        accessToken: result.accessToken,
+      },
+      correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
  * /v1/auth/me:
  *   get:
  *     summary: Get current user profile

@@ -25,6 +25,7 @@ import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { createHmac } from "crypto";
+import { getEnv } from "../../config/env";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -501,6 +502,140 @@ export class AuthService {
       "GONE",
       "Token refresh is now handled by AWS Amplify. This endpoint is deprecated."
     );
+  }
+
+  /**
+   * Refresh access token using refresh token from cookies
+   * Authenticates to Cognito with client secret (secure backend-only operation)
+   */
+  async refreshToken(req: Request, res: Response): Promise<{ accessToken: string }> {
+    const env = getEnv();
+    const cookies = req.cookies;
+    const clientId = env.COGNITO_CLIENT_ID;
+    const clientSecret = env.COGNITO_CLIENT_SECRET;
+    const cognitoDomain = env.COGNITO_DOMAIN;
+
+    // Get user ID from LastAuthUser cookie
+    const lastAuthUser = cookies[`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`];
+
+    if (!lastAuthUser) {
+      throw new AppError(401, "NO_REFRESH_TOKEN", "No authentication session found");
+    }
+
+    // Get refresh token for this user
+    const refreshToken =
+      cookies[`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.refreshToken`];
+
+    if (!refreshToken) {
+      throw new AppError(401, "NO_REFRESH_TOKEN", "No refresh token found");
+    }
+
+    // Prepare Basic Auth header with client secret
+    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+    logger.info(
+      {
+        userId: lastAuthUser,
+        cognitoDomain,
+      },
+      "Refreshing token via Cognito"
+    );
+
+    // Call Cognito with client secret authentication
+    const response = await fetch(`${cognitoDomain}/oauth2/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${authHeader}`,
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: clientId,
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(
+        {
+          status: response.status,
+          error: errorText,
+        },
+        "Cognito token refresh failed"
+      );
+      throw new AppError(401, "REFRESH_FAILED", "Failed to refresh authentication token");
+    }
+
+    const tokens = (await response.json()) as {
+      access_token: string;
+      id_token?: string;
+      refresh_token?: string;
+      token_type: string;
+      expires_in: number;
+    };
+
+    // Update cookies with new tokens
+    const cookieDomain = env.COOKIE_DOMAIN;
+    const isSecure = env.NODE_ENV === "production";
+
+    // Set new access token
+    res.cookie(
+      `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.accessToken`,
+      tokens.access_token,
+      {
+        httpOnly: false, // Amplify needs to read this
+        secure: isSecure,
+        sameSite: "lax",
+        domain: cookieDomain,
+        path: "/",
+        maxAge: 60 * 60 * 1000, // 1 hour
+      }
+    );
+
+    // Set new ID token
+    if (tokens.id_token) {
+      res.cookie(
+        `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`,
+        tokens.id_token,
+        {
+          httpOnly: false,
+          secure: isSecure,
+          sameSite: "lax",
+          domain: cookieDomain,
+          path: "/",
+          maxAge: 60 * 60 * 1000,
+        }
+      );
+    }
+
+    // Update refresh token if Cognito returned a new one (token rotation)
+    if (tokens.refresh_token) {
+      res.cookie(
+        `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.refreshToken`,
+        tokens.refresh_token,
+        {
+          httpOnly: true, // SECURITY: Refresh tokens must be httpOnly to prevent XSS exfiltration
+          secure: isSecure,
+          sameSite: "lax",
+          domain: cookieDomain,
+          path: "/",
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        }
+      );
+    }
+
+    logger.info(
+      {
+        userId: lastAuthUser,
+        hasNewRefreshToken: !!tokens.refresh_token,
+      },
+      "Token refreshed successfully"
+    );
+
+    return {
+      accessToken: tokens.access_token,
+    };
   }
 
   /**

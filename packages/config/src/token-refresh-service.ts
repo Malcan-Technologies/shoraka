@@ -1,9 +1,9 @@
 /**
  * Centralized Token Refresh Service
- * 
+ *
  * Singleton service that manages all token refresh operations across the application.
  * Used by both AuthProvider and ApiClient to ensure consistent token management.
- * 
+ *
  * Features:
  * - Reads/writes Amplify-format cookies directly
  * - Calls AWS Cognito /oauth2/token endpoint for refresh
@@ -114,92 +114,44 @@ class TokenRefreshService {
   /**
    * Execute the actual token refresh
    * Private method called by refreshToken()
+   * Calls backend endpoint which securely handles Cognito client secret
    */
   private async _doRefresh(): Promise<string | null> {
     try {
-      // Get refresh token from cookies
-      const cookies = document.cookie.split(";");
-      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-
-      if (!clientId) {
-        console.error("[TokenRefreshService] NEXT_PUBLIC_COGNITO_CLIENT_ID not set");
-        return null;
-      }
-
-      // Find LastAuthUser cookie to get the user ID
-      const lastAuthUserCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
-      );
-
-      if (!lastAuthUserCookie) {
-        // eslint-disable-next-line no-console
-        console.log("[TokenRefreshService] No LastAuthUser cookie found");
-        return null;
-      }
-
-      const userId = lastAuthUserCookie.split("=")[1].trim();
-
-      // Find refresh token
-      const refreshTokenCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.refreshToken=`)
-      );
-
-      if (!refreshTokenCookie) {
-        // eslint-disable-next-line no-console
-        console.log("[TokenRefreshService] No refresh token found");
-        return null;
-      }
-
-      const refreshToken = refreshTokenCookie.split("=")[1].trim();
-
-      // Call Cognito token endpoint
-      const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
-
-      if (!cognitoDomain) {
-        console.error("[TokenRefreshService] NEXT_PUBLIC_COGNITO_DOMAIN not set");
-        return null;
-      }
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
       // eslint-disable-next-line no-console
-      console.log("[TokenRefreshService] Refreshing access token...");
+      console.log("[TokenRefreshService] Calling backend refresh endpoint...");
 
-      const response = await fetch(`https://${cognitoDomain}/oauth2/token`, {
+      const response = await fetch(`${apiUrl}/v1/auth/refresh-token`, {
         method: "POST",
+        credentials: "include", // Send cookies to backend
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
         },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: clientId,
-          refresh_token: refreshToken,
-        }),
       });
 
       if (!response.ok) {
-        console.error("[TokenRefreshService] Token refresh failed:", response.status);
+        let errorDetail = `Status ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorDetail = `${response.status} - ${errorData.error?.message || errorData.message || JSON.stringify(errorData)}`;
+        } catch {
+          // Response wasn't JSON
+        }
+        console.error("[TokenRefreshService] Token refresh failed:", errorDetail);
         return null;
       }
 
       const data = await response.json();
 
-      // Update cookies with new tokens
-      const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
-      const isSecure = process.env.NODE_ENV === "production";
-      const cookieOptions = `domain=${cookieDomain}; path=/; ${isSecure ? "secure;" : ""} samesite=lax`;
-
-      // Set new access token
-      document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=${data.access_token}; max-age=3600; ${cookieOptions}`;
-
-      // Set new ID token
-      if (data.id_token) {
-        document.cookie = `CognitoIdentityServiceProvider.${clientId}.${userId}.idToken=${data.id_token}; max-age=3600; ${cookieOptions}`;
+      if (data.success && data.data?.accessToken) {
+        // eslint-disable-next-line no-console
+        console.log("[TokenRefreshService] Token refreshed successfully via backend");
+        return data.data.accessToken;
       }
 
-      // eslint-disable-next-line no-console
-      console.log("[TokenRefreshService] Token refreshed successfully");
-      
-      // Return the new access token
-      return data.access_token;
+      return null;
     } catch (error) {
       console.error("[TokenRefreshService] Token refresh error:", error);
       return null;
@@ -209,4 +161,3 @@ class TokenRefreshService {
 
 // Export singleton instance
 export const tokenRefreshService = TokenRefreshService.getInstance();
-

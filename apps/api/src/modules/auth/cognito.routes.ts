@@ -572,7 +572,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.refreshToken`,
         tokenSet.refresh_token,
         {
-          httpOnly: false, // Amplify needs to read this
+          httpOnly: true, // SECURITY: Refresh tokens must be httpOnly to prevent XSS exfiltration
           secure: isSecure,
           sameSite: "lax",
           domain: cookieDomain,

@@ -308,13 +308,19 @@ The token refresh mechanism is triggered by multiple events to ensure seamless a
    ↓
 4. AuthProvider monitors token expiry via background interval
    ↓
-5. When token nears expiry (55 min), service calls Cognito /oauth2/token
+5. When token nears expiry (55 min), frontend calls /v1/auth/refresh-token
    ↓
-6. New access/ID tokens written to cookies
+6. Backend reads refresh token from cookies (secure)
    ↓
-7. User remains authenticated seamlessly
+7. Backend authenticates to Cognito with client secret
    ↓
-8. After 30 days, refresh token expires → user must login again
+8. Backend updates cookies with new access/ID tokens
+   ↓
+9. Frontend receives new access token
+   ↓
+10. User remains authenticated seamlessly
+   ↓
+11. After 30 days, refresh token expires → user must login again
 ```
 
 ### Technical Implementation
@@ -323,7 +329,7 @@ The token refresh mechanism is triggered by multiple events to ensure seamless a
 
 - `isTokenExpired(token: string): boolean` - Decodes JWT and checks expiry with 5-minute buffer
 - `readTokenFromCookies(): string | null` - Reads access token directly from Amplify cookies (bypasses cache)
-- `refreshToken(): Promise<string | null>` - Calls Cognito `/oauth2/token`, updates cookies, returns new token
+- `refreshToken(): Promise<string | null>` - Calls backend `/v1/auth/refresh-token` endpoint, returns new token
 
 **Promise Locking:**
 
@@ -382,17 +388,36 @@ Token refresh operations log to console with prefixes:
 Example console output:
 ```
 [AuthProvider] Page visible, checking token...
-[TokenRefreshService] Refreshing access token...
-[TokenRefreshService] Token refreshed successfully
+[TokenRefreshService] Calling backend refresh endpoint...
+[TokenRefreshService] Token refreshed successfully via backend
 [ApiClient] Using refreshed token
+```
+
+Backend logs (structured JSON via Pino):
+```json
+{
+  "level": "info",
+  "msg": "Refreshing token via Cognito",
+  "userId": "user-sub-id",
+  "cognitoDomain": "https://auth.cashsouk.com"
+}
+{
+  "level": "info",
+  "msg": "Token refreshed successfully",
+  "userId": "user-sub-id",
+  "hasNewRefreshToken": false
+}
 ```
 
 ### Security Considerations
 
+- **Client secret never exposed** to frontend - stays on backend
+- **Refresh tokens are httpOnly** - protected from XSS attacks, only accessible to backend
+- **Access/ID tokens are readable** by Amplify (httpOnly: false) for session management
+- **Backend validates** all refresh requests
+- **Token rotation supported** - backend updates refresh token if Cognito returns new one
 - Access tokens have short expiry (60 min) to limit exposure if compromised
-- Refresh tokens stored in cookies with `httpOnly: false` (required for JavaScript access)
 - In production, cookies use `secure` flag (HTTPS only) and proper `domain` scope
-- Token refresh requires valid refresh token from cookies (cannot be forged)
 - Backend validates all tokens with Cognito on every request
 
 ## Next Steps (Not Implemented)
