@@ -1,16 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, Input, Label } from "@cashsouk/ui";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
+  Label,
+} from "@cashsouk/ui";
 import { EnvelopeIcon, CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 type ViewState = "enter-email" | "code-sent" | "error" | "already-verified";
 
-export default function VerifyEmailHelpPage() {
+function VerifyEmailHelpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<ViewState>("enter-email");
@@ -20,7 +29,7 @@ export default function VerifyEmailHelpPage() {
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       setError("Please enter your email address");
       return;
@@ -52,7 +61,7 @@ export default function VerifyEmailHelpPage() {
         // Redirect directly to verify-email page with email pre-filled
         redirectToVerify();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error sending verification code:", err);
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -78,16 +87,22 @@ export default function VerifyEmailHelpPage() {
             )}
           </div>
           <CardTitle className="text-2xl">
-            {view === "code-sent" ? "Verification Code Sent" :
-             view === "already-verified" ? "Already Verified" :
-             view === "error" ? "Something Went Wrong" :
-             "Email Verification Help"}
+            {view === "code-sent"
+              ? "Verification Code Sent"
+              : view === "already-verified"
+                ? "Already Verified"
+                : view === "error"
+                  ? "Something Went Wrong"
+                  : "Email Verification Help"}
           </CardTitle>
           <CardDescription>
-            {view === "code-sent" ? "Check your email for the verification code" :
-             view === "already-verified" ? "Your email is already verified" :
-             view === "error" ? "We couldn't send the verification code" :
-             "Can't sign in? Let's verify your email address"}
+            {view === "code-sent"
+              ? "Check your email for the verification code"
+              : view === "already-verified"
+                ? "Your email is already verified"
+                : view === "error"
+                  ? "We couldn't send the verification code"
+                  : "Can't sign in? Let's verify your email address"}
           </CardDescription>
         </CardHeader>
 
@@ -197,3 +212,20 @@ export default function VerifyEmailHelpPage() {
   );
 }
 
+export default function VerifyEmailHelpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-2xl">Loading...</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      }
+    >
+      <VerifyEmailHelpContent />
+    </Suspense>
+  );
+}

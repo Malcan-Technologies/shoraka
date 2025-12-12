@@ -79,7 +79,6 @@ function VerifyEmailPageContent() {
     if (emailParam && step === 2 && !isSubmitting && cooldownRemaining === 0) {
       handleSendCode(emailParam);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
   const handleSendCode = async (emailValue: string) => {
