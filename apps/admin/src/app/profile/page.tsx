@@ -35,15 +35,14 @@ import {
   UserCircleIcon,
   PhoneIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
   KeyIcon,
   PencilIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { ChangeEmailDialog } from "../../components/change-email-dialog";
-import { VerifyEmailDialog } from "../../components/verify-email-dialog";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -64,6 +63,10 @@ interface UserData {
   email_verified: boolean;
   roles: string[];
   password_changed_at: string | null;
+  admin: {
+    status: string;
+    role_description: string | null;
+  } | null;
 }
 
 function ProfileSkeleton() {
@@ -176,8 +179,6 @@ export default function ProfilePage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
-  const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);
-  const [verifyEmailOpen, setVerifyEmailOpen] = React.useState(false);
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
@@ -188,6 +189,8 @@ export default function ProfilePage() {
       }
       return result.data.user;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const form = useForm<ProfileFormValues>({
@@ -249,18 +252,6 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  const handleChangeEmail = () => {
-    setChangeEmailOpen(true);
-  };
-
-  const handleEmailChanged = () => {
-    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-  };
-
-  const handleEmailVerified = () => {
-    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-  };
-
   const handleChangePassword = () => {
     setChangePasswordOpen(true);
   };
@@ -278,6 +269,52 @@ export default function ProfilePage() {
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+          {/* Account Info Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <ShieldCheckIcon className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Account Information</CardTitle>
+                  <CardDescription>Your account details and roles</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Admin Role</Label>
+                <div className="flex flex-wrap gap-2">
+                  {userData?.admin?.role_description ? (
+                    <Badge
+                      variant="outline"
+                      className={
+                        userData.admin.role_description === "SUPER_ADMIN"
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : userData.admin.role_description === "COMPLIANCE_OFFICER"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : userData.admin.role_description === "OPERATIONS_OFFICER"
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : "bg-green-50 text-green-700 border-green-200"
+                      }
+                    >
+                      {userData.admin.role_description === "SUPER_ADMIN"
+                        ? "Super Admin"
+                        : userData.admin.role_description === "COMPLIANCE_OFFICER"
+                          ? "Compliance Officer"
+                          : userData.admin.role_description === "OPERATIONS_OFFICER"
+                            ? "Operations Officer"
+                            : "Finance Officer"}
+                    </Badge>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No admin role assigned</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Profile Information Card */}
           <Card>
             <CardHeader>
@@ -400,13 +437,16 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <CardTitle className="text-xl">Email Address</CardTitle>
-                  <CardDescription>Manage your email address</CardDescription>
+                  <CardDescription>Your registered email address</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <InfoTooltip content="Email addresses cannot be changed for security reasons. Please contact support if you need to update your email." />
+                </div>
                 <div className="flex items-center gap-3">
                   <Input
                     id="email"
@@ -426,26 +466,16 @@ export default function ProfilePage() {
                   ) : (
                     <Badge
                       variant="outline"
-                      className="bg-amber-50 text-amber-700 border-amber-200"
+                      className="bg-yellow-50 text-yellow-700 border-yellow-200"
                     >
-                      <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1" />
-                      Unverified
+                      <ShieldExclamationIcon className="h-3.5 w-3.5 mr-1" />
+                      Not Verified
                     </Badge>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Your email is used for login and notifications
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleChangeEmail}>
-                  Change Email Address
-                </Button>
-                {!userData?.email_verified && (
-                  <Button variant="default" onClick={() => setVerifyEmailOpen(true)}>
-                    Verify Now
-                  </Button>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -506,61 +536,10 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Account Info Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <ShieldCheckIcon className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Account Information</CardTitle>
-                  <CardDescription>Your account details and roles</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Roles</Label>
-                <div className="flex flex-wrap gap-2">
-                  {userData?.roles.map((role) => (
-                    <Badge
-                      key={role}
-                      variant="outline"
-                      className={
-                        role === "ADMIN"
-                          ? "bg-red-50 text-red-700 border-red-200"
-                          : role === "INVESTOR"
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : "bg-purple-50 text-purple-700 border-purple-200"
-                      }
-                    >
-                      {role}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
-
-      <ChangeEmailDialog
-        open={changeEmailOpen}
-        onOpenChange={setChangeEmailOpen}
-        currentEmail={userData?.email || ""}
-        onEmailChanged={handleEmailChanged}
-      />
-
-      <VerifyEmailDialog
-        open={verifyEmailOpen}
-        onOpenChange={setVerifyEmailOpen}
-        email={userData?.email || ""}
-        onVerified={handleEmailVerified}
-      />
     </>
   );
 }

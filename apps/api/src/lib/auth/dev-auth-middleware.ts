@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../prisma";
-import { UserRole } from "@prisma/client";
+import { UserRole, User } from "@prisma/client";
 
 /**
  * Development-only middleware that bypasses authentication
@@ -46,7 +46,7 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
         issuer_onboarding_completed: false,
         created_at: new Date(),
         updated_at: new Date(),
-      } as any;
+      } as User;
     }
 
     // Ensure adminUser is not null (convert null to undefined for req.user type)
@@ -73,7 +73,7 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
       issuer_onboarding_completed: false,
       created_at: new Date(),
       updated_at: new Date(),
-    } as any;
+    } as User;
     req.cognitoSub = "dev-admin-sub";
     req.activeRole = UserRole.ADMIN;
     next();

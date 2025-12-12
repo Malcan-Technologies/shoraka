@@ -3,18 +3,15 @@ import {
   AdminCreateUserCommand,
   AdminUpdateUserAttributesCommand,
   AdminUserGlobalSignOutCommand,
-  InitiateAuthCommand,
-  ChangePasswordCommand,
-  UpdateUserAttributesCommand,
-  VerifyUserAttributeCommand,
-  GetUserAttributeVerificationCodeCommand,
+  AdminSetUserPasswordCommand,
+  AdminInitiateAuthCommand,
   ResendConfirmationCodeCommand,
   ConfirmSignUpCommand,
   NotAuthorizedException,
   UserNotFoundException,
   CodeMismatchException,
   ExpiredCodeException,
-  AliasExistsException,
+  VerifyUserAttributeCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
@@ -411,7 +408,7 @@ export class AuthService {
    * Get current user profile with session info
    */
   async getCurrentUser(userId: string): Promise<{
-    user: User & { admin: { status: string } | null };
+    user: User & { admin: { status: string; role_description: string | null } | null };
     activeRole: UserRole | null;
     sessions: {
       active: number;
@@ -423,6 +420,7 @@ export class AuthService {
         admin: {
           select: {
             status: true,
+            role_description: true,
           },
         },
       },
@@ -754,46 +752,41 @@ export class AuthService {
     }
 
     try {
-      // Step 1: Verify current password by attempting to authenticate
+      // Step 1: Verify the current password by attempting to authenticate with it
+      // Use AdminInitiateAuth with ADMIN_NO_SRP_AUTH to avoid triggering MFA
       logger.info(
-        { email: user.email, clientId: COGNITO_CLIENT_ID },
-        "Attempting to verify current password via InitiateAuth"
+        { email: user.email, cognitoSub: user.cognito_sub },
+        "Verifying current password"
       );
 
-      // Compute SECRET_HASH required when Cognito client has a secret configured
-      const secretHash = computeSecretHash(user.email);
+      // SECRET_HASH must be computed with the USERNAME parameter (cognito_sub in this case)
+      const secretHash = computeSecretHash(user.cognito_sub);
 
-      const authCommand = new InitiateAuthCommand({
-        AuthFlow: "USER_PASSWORD_AUTH",
+      const authCommand = new AdminInitiateAuthCommand({
+        AuthFlow: "ADMIN_NO_SRP_AUTH",
+        UserPoolId: COGNITO_USER_POOL_ID,
         ClientId: COGNITO_CLIENT_ID,
         AuthParameters: {
-          USERNAME: user.email,
+          USERNAME: user.cognito_sub,
           PASSWORD: data.currentPassword,
           SECRET_HASH: secretHash,
         },
       });
 
-      const authResult = await cognitoClient.send(authCommand);
-      logger.info({ email: user.email }, "Current password verified successfully");
+      // This will throw NotAuthorizedException if password is incorrect
+      await cognitoClient.send(authCommand);
 
-      // Step 2: Use the Cognito access token from auth to change password
-      // This doesn't require AWS IAM credentials, only the user's Cognito access token
-      const cognitoAccessToken = authResult.AuthenticationResult?.AccessToken;
-      if (!cognitoAccessToken) {
-        throw new AppError(
-          500,
-          "INTERNAL_ERROR",
-          "Failed to obtain access token for password change"
-        );
-      }
+      logger.info({ email: user.email }, "Current password verified, setting new password");
 
-      const changePasswordCommand = new ChangePasswordCommand({
-        AccessToken: cognitoAccessToken,
-        PreviousPassword: data.currentPassword,
-        ProposedPassword: data.newPassword,
+      // Step 2: Set the new password using admin command
+      const setPasswordCommand = new AdminSetUserPasswordCommand({
+        UserPoolId: COGNITO_USER_POOL_ID,
+        Username: user.cognito_sub,
+        Password: data.newPassword,
+        Permanent: true,
       });
 
-      await cognitoClient.send(changePasswordCommand);
+      await cognitoClient.send(setPasswordCommand);
 
       // Update password changed timestamp
       await this.repository.updatePasswordChangedAt(userId);
@@ -886,348 +879,15 @@ export class AuthService {
   }
 
   /**
-   * Initiate email change process
-   * Verifies password, checks new email availability, and sends verification code
-   */
-  async initiateEmailChange(
-    _req: Request,
-    userId: string,
-    data: {
-      newEmail: string;
-      password: string;
-    }
-  ): Promise<{ success: boolean; message: string }> {
-    // Get user to find their current email
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    // Check if new email is same as current
-    if (user.email.toLowerCase() === data.newEmail.toLowerCase()) {
-      throw new AppError(400, "VALIDATION_ERROR", "New email must be different from current email");
-    }
-
-    // Check if new email is already in use by another user
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.newEmail.toLowerCase() },
-    });
-    if (existingUser) {
-      throw new AppError(400, "EMAIL_IN_USE", "This email address is already in use");
-    }
-
-    try {
-      // Step 1: Verify password by authenticating to get Cognito access token
-      logger.info({ email: user.email }, "Initiating email change - verifying password");
-
-      const secretHash = computeSecretHash(user.email);
-      const authCommand = new InitiateAuthCommand({
-        AuthFlow: "USER_PASSWORD_AUTH",
-        ClientId: COGNITO_CLIENT_ID,
-        AuthParameters: {
-          USERNAME: user.email,
-          PASSWORD: data.password,
-          SECRET_HASH: secretHash,
-        },
-      });
-
-      const authResult = await cognitoClient.send(authCommand);
-      const cognitoAccessToken = authResult.AuthenticationResult?.AccessToken;
-
-      if (!cognitoAccessToken) {
-        throw new AppError(500, "INTERNAL_ERROR", "Failed to obtain access token");
-      }
-
-      logger.info(
-        { email: user.email, newEmail: data.newEmail },
-        "Password verified, updating email attribute"
-      );
-
-      // Step 2: Update email attribute in Cognito (triggers verification email)
-      const updateCommand = new UpdateUserAttributesCommand({
-        AccessToken: cognitoAccessToken,
-        UserAttributes: [
-          {
-            Name: "email",
-            Value: data.newEmail.toLowerCase(),
-          },
-        ],
-      });
-
-      await cognitoClient.send(updateCommand);
-
-      // Update database email immediately to stay in sync with Cognito
-      // Set email_verified to false until verification is complete
-      const oldEmail = user.email;
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          email: data.newEmail.toLowerCase(),
-          email_verified: false,
-        },
-      });
-
-      logger.info(
-        { userId, oldEmail, newEmail: data.newEmail.toLowerCase() },
-        "Email change initiated - verification code sent, database updated"
-      );
-
-      return {
-        success: true,
-        message: "Verification code sent to your new email address",
-      };
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : "Unknown";
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      logger.error(
-        {
-          userId,
-          email: user.email,
-          newEmail: data.newEmail,
-          errorName,
-          errorMessage,
-        },
-        "Failed to initiate email change"
-      );
-
-      if (error instanceof NotAuthorizedException) {
-        throw new AppError(400, "INVALID_PASSWORD", "Current password is incorrect");
-      }
-
-      if (error instanceof AliasExistsException) {
-        throw new AppError(
-          400,
-          "EMAIL_IN_USE",
-          "This email address is already registered in the system"
-        );
-      }
-
-      throw new AppError(500, "INTERNAL_ERROR", `Failed to initiate email change: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Verify email change with code
-   * Completes the email change process and updates the database
-   */
-  async verifyEmailChange(
-    req: Request,
-    userId: string,
-    data: {
-      code: string;
-      newEmail: string; // The new email (Cognito email was already updated in initiate step)
-      password: string; // Need password to get access token for verification
-    }
-  ): Promise<{ success: boolean; newEmail: string }> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    // Get user
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    try {
-      // Get Cognito access token by authenticating with the NEW email
-      // (Cognito email was already changed in initiate step, pending verification)
-      logger.info({ oldEmail: user.email, newEmail: data.newEmail }, "Verifying email change code");
-
-      const secretHash = computeSecretHash(data.newEmail);
-      const authCommand = new InitiateAuthCommand({
-        AuthFlow: "USER_PASSWORD_AUTH",
-        ClientId: COGNITO_CLIENT_ID,
-        AuthParameters: {
-          USERNAME: data.newEmail,
-          PASSWORD: data.password,
-          SECRET_HASH: secretHash,
-        },
-      });
-
-      const authResult = await cognitoClient.send(authCommand);
-      const cognitoAccessToken = authResult.AuthenticationResult?.AccessToken;
-
-      if (!cognitoAccessToken) {
-        throw new AppError(500, "INTERNAL_ERROR", "Failed to obtain access token");
-      }
-
-      // Verify the email attribute with the code
-      const verifyCommand = new VerifyUserAttributeCommand({
-        AccessToken: cognitoAccessToken,
-        AttributeName: "email",
-        Code: data.code,
-      });
-
-      await cognitoClient.send(verifyCommand);
-
-      // Email was already updated in database during initiate step
-      // Now just mark it as verified
-      await prisma.user.update({
-        where: { id: userId },
-        data: { email_verified: true },
-      });
-
-      // Log successful email change verification (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
-        eventType: "EMAIL_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        metadata: {
-          newEmail: data.newEmail.toLowerCase(),
-          reason: "USER_INITIATED",
-        },
-      });
-
-      logger.info({ userId, newEmail: data.newEmail }, "Email change verified successfully");
-
-      return {
-        success: true,
-        newEmail: data.newEmail.toLowerCase(),
-      };
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : "Unknown";
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      // Log failed attempt (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
-        eventType: "EMAIL_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        metadata: {
-          reason: "USER_INITIATED",
-          success: false,
-          error: errorName,
-        },
-      });
-
-      logger.error(
-        {
-          userId,
-          email: user.email,
-          errorName,
-          errorMessage,
-        },
-        "Failed to verify email change"
-      );
-
-      if (error instanceof NotAuthorizedException) {
-        throw new AppError(400, "INVALID_PASSWORD", "Password is incorrect");
-      }
-
-      if (error instanceof CodeMismatchException) {
-        throw new AppError(400, "INVALID_CODE", "Invalid verification code");
-      }
-
-      if (error instanceof ExpiredCodeException) {
-        throw new AppError(
-          400,
-          "EXPIRED_CODE",
-          "Verification code has expired. Please request a new code."
-        );
-      }
-
-      throw new AppError(500, "INTERNAL_ERROR", `Failed to verify email change: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Resend email verification code
-   * For users with unverified email addresses
-   */
-  async resendEmailVerification(
-    _req: Request,
-    userId: string,
-    data: {
-      password: string;
-    }
-  ): Promise<{ success: boolean; message: string }> {
-    // Get user
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    // Check if email is already verified
-    if (user.email_verified) {
-      throw new AppError(400, "ALREADY_VERIFIED", "Email is already verified");
-    }
-
-    try {
-      // Authenticate to get Cognito access token
-      logger.info({ email: user.email }, "Resending email verification code");
-
-      const secretHash = computeSecretHash(user.email);
-      const authCommand = new InitiateAuthCommand({
-        AuthFlow: "USER_PASSWORD_AUTH",
-        ClientId: COGNITO_CLIENT_ID,
-        AuthParameters: {
-          USERNAME: user.email,
-          PASSWORD: data.password,
-          SECRET_HASH: secretHash,
-        },
-      });
-
-      const authResult = await cognitoClient.send(authCommand);
-      const cognitoAccessToken = authResult.AuthenticationResult?.AccessToken;
-
-      if (!cognitoAccessToken) {
-        throw new AppError(500, "INTERNAL_ERROR", "Failed to obtain access token");
-      }
-
-      // Request new verification code
-      const verificationCommand = new GetUserAttributeVerificationCodeCommand({
-        AccessToken: cognitoAccessToken,
-        AttributeName: "email",
-      });
-
-      await cognitoClient.send(verificationCommand);
-
-      logger.info({ userId, email: user.email }, "Email verification code resent");
-
-      return {
-        success: true,
-        message: "Verification code sent to your email address",
-      };
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : "Unknown";
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      logger.error(
-        {
-          userId,
-          email: user.email,
-          errorName,
-          errorMessage,
-        },
-        "Failed to resend email verification code"
-      );
-
-      if (error instanceof NotAuthorizedException) {
-        throw new AppError(400, "INVALID_PASSWORD", "Password is incorrect");
-      }
-
-      throw new AppError(
-        500,
-        "INTERNAL_ERROR",
-        `Failed to resend verification code: ${errorMessage}`
-      );
-    }
-  }
-
-  /**
    * Verify email with code
-   * For users with unverified email addresses
+   * For logged-in users with unverified email addresses
+   * No password needed since user is already authenticated
    */
   async verifyEmail(
     req: Request,
     userId: string,
     data: {
       code: string;
-      password: string;
     }
   ): Promise<{ success: boolean }> {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
@@ -1244,35 +904,40 @@ export class AuthService {
     }
 
     try {
-      // Authenticate to get Cognito access token
-      logger.info({ email: user.email }, "Verifying email");
+      logger.info({ email: user.email, userId }, "Verifying email attribute with code");
 
-      const secretHash = computeSecretHash(user.email);
-      const authCommand = new InitiateAuthCommand({
-        AuthFlow: "USER_PASSWORD_AUTH",
-        ClientId: COGNITO_CLIENT_ID,
-        AuthParameters: {
-          USERNAME: user.email,
-          PASSWORD: data.password,
-          SECRET_HASH: secretHash,
-        },
-      });
-
-      const authResult = await cognitoClient.send(authCommand);
-      const cognitoAccessToken = authResult.AuthenticationResult?.AccessToken;
-
-      if (!cognitoAccessToken) {
-        throw new AppError(500, "INTERNAL_ERROR", "Failed to obtain access token");
+      // Extract access token from Authorization header (user is already authenticated)
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        throw new AppError(401, "UNAUTHORIZED", "No access token provided");
       }
 
-      // Verify the email attribute with the code
+      const accessToken = authHeader.substring(7); // Remove "Bearer " prefix
+
+      // Verify the email attribute with the code using the user's access token
+      // This works for confirmed users with unverified emails
       const verifyCommand = new VerifyUserAttributeCommand({
-        AccessToken: cognitoAccessToken,
+        AccessToken: accessToken,
         AttributeName: "email",
         Code: data.code,
       });
 
       await cognitoClient.send(verifyCommand);
+      logger.info({ email: user.email }, "Email attribute verified successfully");
+
+      // Ensure email is marked as verified in Cognito (idempotent)
+      const updateVerifiedCommand = new AdminUpdateUserAttributesCommand({
+        UserPoolId: COGNITO_USER_POOL_ID,
+        Username: user.cognito_sub,
+        UserAttributes: [
+          {
+            Name: "email_verified",
+            Value: "true",
+          },
+        ],
+      });
+
+      await cognitoClient.send(updateVerifiedCommand);
 
       // Update email_verified in database
       await prisma.user.update({

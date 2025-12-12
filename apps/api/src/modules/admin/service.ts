@@ -114,7 +114,7 @@ export class AdminService {
 
     // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
     if (adminRoleAdded) {
-      let admin = await this.repository.getAdminByUserId(userId);
+      const admin = await this.repository.getAdminByUserId(userId);
       
       if (admin) {
         // Admin record exists - reactivate it (preserving existing role_description)
@@ -869,7 +869,7 @@ export class AdminService {
     }
 
     // Add ADMIN role if not present
-    let updatedRoles = [...user.roles];
+    const updatedRoles = [...user.roles];
     if (!updatedRoles.includes(UserRole.ADMIN)) {
       updatedRoles.push(UserRole.ADMIN);
       await this.repository.updateUserRoles(user.id, updatedRoles);
@@ -972,5 +972,155 @@ export class AdminService {
         totalPages,
       },
     };
+  }
+
+  /**
+   * Get pending admin invitations
+   */
+  async getPendingInvitations(params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    roleDescription?: AdminRole;
+  }): Promise<{
+    invitations: Array<{
+      id: string;
+      email: string;
+      role_description: AdminRole;
+      token: string;
+      expires_at: Date;
+      created_at: Date;
+      invited_by: { first_name: string; last_name: string; email: string };
+    }>;
+    pagination: {
+      currentPage: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    return this.repository.getPendingInvitations(params);
+  }
+
+  /**
+   * Resend admin invitation email (by invitation ID)
+   */
+  async resendInvitation(
+    _req: Request,
+    invitationId: string,
+    invitedBy: string
+  ): Promise<{ messageId?: string; emailSent: boolean; emailError?: string }> {
+    const invitation = await this.repository.getAdminInvitationById(invitationId);
+    
+    if (!invitation) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
+
+    if (invitation.accepted) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invitation has already been accepted");
+    }
+
+    if (new Date() > invitation.expires_at) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invitation has expired");
+    }
+
+    // Only send email if invitation has a real email (not placeholder)
+    if (!invitation.email || invitation.email.startsWith("invitation-")) {
+      throw new AppError(400, "VALIDATION_ERROR", "Cannot resend link-based invitation via email");
+    }
+
+    const inviter = await this.repository.getUserById(invitedBy);
+    if (!inviter) {
+      throw new AppError(404, "NOT_FOUND", "Inviter not found");
+    }
+
+    // Generate invitation URL
+    const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
+    const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${invitation.role_description}`;
+
+    let messageId: string | undefined;
+    let emailSent = false;
+    let emailError: string | undefined;
+
+    try {
+      const inviterName = `${inviter.first_name} ${inviter.last_name}`;
+      const template = adminInvitationTemplate(inviteUrl, invitation.role_description, inviterName);
+      
+      const result = await sendEmail({
+        to: invitation.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      });
+
+      messageId = result.messageId;
+      emailSent = true;
+
+      logger.info(
+        {
+          email: invitation.email,
+          roleDescription: invitation.role_description,
+          invitedBy,
+          messageId,
+        },
+        "Admin invitation resent via email"
+      );
+    } catch (error) {
+      emailSent = false;
+      emailError = error instanceof Error ? error.message : String(error);
+      
+      logger.warn(
+        {
+          email: invitation.email,
+          roleDescription: invitation.role_description,
+          invitedBy,
+          error: emailError,
+        },
+        "Failed to resend admin invitation email"
+      );
+    }
+
+    return { messageId, emailSent, ...(emailError && { emailError }) };
+  }
+
+  /**
+   * Revoke/delete a pending admin invitation
+   */
+  async revokeInvitation(req: Request, invitationId: string, revokedBy: string): Promise<void> {
+    const invitation = await this.repository.getAdminInvitationById(invitationId);
+    
+    if (!invitation) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
+
+    if (invitation.accepted) {
+      throw new AppError(400, "VALIDATION_ERROR", "Cannot revoke an accepted invitation");
+    }
+
+    // Delete the invitation
+    await this.repository.deleteAdminInvitation(invitationId);
+
+    // Log the action
+    await this.repository.createSecurityLog({
+      userId: revokedBy,
+      eventType: "INVITATION_REVOKED",
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+      metadata: {
+        invitationId,
+        email: invitation.email,
+        roleDescription: invitation.role_description,
+      },
+    });
+
+    logger.info(
+      {
+        invitationId,
+        email: invitation.email,
+        roleDescription: invitation.role_description,
+        revokedBy,
+      },
+      "Admin invitation revoked"
+    );
   }
 }

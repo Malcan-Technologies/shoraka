@@ -233,3 +233,28 @@ export interface SecurityLogsResponse {
   logs: SecurityLogResponse[];
   pagination: PaginationResponse;
 }
+
+// Pending Invitations Types
+export interface PendingInvitation {
+  id: string;
+  email: string;
+  role_description: AdminRole;
+  token: string;
+  expires_at: string;
+  created_at: string;
+  invited_by: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+}
+
+export interface GetPendingInvitationsParams extends PaginationParams {
+  search?: string;
+  roleDescription?: AdminRole;
+}
+
+export interface PendingInvitationsResponse {
+  invitations: PendingInvitation[];
+  pagination: PaginationResponse;
+}

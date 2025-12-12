@@ -30,10 +30,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { ChangeEmailDialog } from "../../components/change-email-dialog";
-import { VerifyEmailDialog } from "../../components/verify-email-dialog";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
+import { CopyableField } from "@cashsouk/ui/copyable-field";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -148,8 +147,6 @@ export default function ProfilePage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
-  const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);
-  const [verifyEmailOpen, setVerifyEmailOpen] = React.useState(false);
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -218,18 +215,6 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  const handleChangeEmail = () => {
-    setChangeEmailOpen(true);
-  };
-
-  const handleEmailChanged = () => {
-    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-  };
-
-  const handleEmailVerified = () => {
-    queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-  };
-
   const handleChangePassword = () => {
     setChangePasswordOpen(true);
   };
@@ -247,6 +232,69 @@ export default function ProfilePage() {
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+          {/* Account Information Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <UserCircleIcon className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Account Information</CardTitle>
+                  <CardDescription>Your user ID and onboarding status</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">User ID</Label>
+                <CopyableField
+                  value={userData?.user_id || "Not assigned"}
+                  placeholder="Not assigned"
+                />
+                <p className="text-[0.8rem] text-muted-foreground">
+                  Your unique 5-letter identifier
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Onboarding Status</Label>
+                <div className="flex flex-wrap gap-2">
+                  {userData?.investor_onboarding_completed ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
+                      <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
+                      Investor
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground/60 border-muted">
+                      <XCircleIcon className="h-3.5 w-3.5 mr-1" />
+                      Investor
+                    </Badge>
+                  )}
+                  {userData?.issuer_onboarding_completed ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
+                      <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
+                      Issuer
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground/60 border-muted">
+                      <XCircleIcon className="h-3.5 w-3.5 mr-1" />
+                      Issuer
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Profile Information Card */}
           <Card>
             <CardHeader>
@@ -318,54 +366,6 @@ export default function ProfilePage() {
                   </p>
                 </div>
 
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">User ID</Label>
-                  <div className="font-mono text-lg font-semibold">
-                    {userData?.user_id || "Not assigned"}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Your unique 5-letter identifier
-                  </p>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Onboarding Status</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {userData?.investor_onboarding_completed ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-green-50 text-green-700 border-green-200"
-                      >
-                        <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
-                        Investor
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-muted-foreground/60 border-muted">
-                        <XCircleIcon className="h-3.5 w-3.5 mr-1" />
-                        Investor
-                      </Badge>
-                    )}
-                    {userData?.issuer_onboarding_completed ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-green-50 text-green-700 border-green-200"
-                      >
-                        <CheckCircleSolidIcon className="h-3.5 w-3.5 mr-1" />
-                        Issuer
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-muted-foreground/60 border-muted">
-                        <XCircleIcon className="h-3.5 w-3.5 mr-1" />
-                        Issuer
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
                 {isEditing && (
                   <div className="flex justify-end gap-2">
                     <Button
@@ -395,13 +395,16 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <CardTitle className="text-xl">Email Address</CardTitle>
-                  <CardDescription>Manage your email address</CardDescription>
+                  <CardDescription>Your registered email address</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <InfoTooltip content="Email addresses cannot be changed for security reasons. Please contact support if you need to update your email." />
+                </div>
                 <div className="flex items-center gap-3">
                   <Input
                     id="email"
@@ -410,37 +413,14 @@ export default function ProfilePage() {
                     disabled
                     className="flex-1 bg-muted"
                   />
-                  {userData?.email_verified ? (
-                    <Badge
-                      variant="outline"
-                      className="bg-green-50 text-green-700 border-green-200"
-                    >
-                      <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                      Verified
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="bg-amber-50 text-amber-700 border-amber-200"
-                    >
-                      <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1" />
-                      Unverified
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
+                    Verified
+                  </Badge>
                 </div>
                 <p className="text-[0.8rem] text-muted-foreground">
                   Your email is used for login and notifications
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleChangeEmail}>
-                  Change Email Address
-                </Button>
-                {!userData?.email_verified && (
-                  <Button variant="default" onClick={() => setVerifyEmailOpen(true)}>
-                    Verify Now
-                  </Button>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -505,20 +485,6 @@ export default function ProfilePage() {
       </div>
 
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
-
-      <ChangeEmailDialog
-        open={changeEmailOpen}
-        onOpenChange={setChangeEmailOpen}
-        currentEmail={userData?.email || ""}
-        onEmailChanged={handleEmailChanged}
-      />
-
-      <VerifyEmailDialog
-        open={verifyEmailOpen}
-        onOpenChange={setVerifyEmailOpen}
-        email={userData?.email || ""}
-        onVerified={handleEmailVerified}
-      />
     </>
   );
 }

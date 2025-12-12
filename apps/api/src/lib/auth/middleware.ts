@@ -5,6 +5,7 @@ import { prisma } from "../prisma";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: User;
@@ -23,11 +24,11 @@ declare global {
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     // Check Authorization header for Bearer token
-      const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization;
     let token: string | undefined;
-    
-      if (authHeader?.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
+
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
     }
 
     if (!token) {
@@ -78,7 +79,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 /**
  * Middleware to require one or more specific roles
  * User must have at least one of the specified roles
- * 
+ *
  * @example
  * router.get('/admin', requireAuth, requireRole(UserRole.ADMIN), handler);
  * router.get('/investor-or-admin', requireAuth, requireRole(UserRole.INVESTOR, UserRole.ADMIN), handler);
@@ -92,7 +93,7 @@ export function requireRole(...roles: UserRole[]) {
 
     // Check if user has any of the required roles
     const hasRole = req.user.roles.some((userRole) => roles.includes(userRole));
-    
+
     if (!hasRole) {
       next(new AppError(403, "FORBIDDEN", `Access denied. Required role(s): ${roles.join(", ")}`));
       return;
@@ -104,7 +105,7 @@ export function requireRole(...roles: UserRole[]) {
 
 /**
  * Middleware to require ALL specified roles (user must have every role)
- * 
+ *
  * @example
  * router.get('/investor-and-issuer', requireAuth, requireAllRoles(UserRole.INVESTOR, UserRole.ISSUER), handler);
  */
@@ -117,13 +118,14 @@ export function requireAllRoles(...roles: UserRole[]) {
 
     // Check if user has all required roles
     const hasAllRoles = roles.every((role) => req.user!.roles.includes(role));
-    
+
     if (!hasAllRoles) {
-      next(new AppError(403, "FORBIDDEN", `Access denied. Required all roles: ${roles.join(", ")}`));
+      next(
+        new AppError(403, "FORBIDDEN", `Access denied. Required all roles: ${roles.join(", ")}`)
+      );
       return;
     }
 
     next();
   };
 }
-

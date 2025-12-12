@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { PencilIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { PencilIcon, XMarkIcon, CheckIcon, ShieldExclamationIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
 import type { AdminUser, AdminRole } from "@cashsouk/types";
 
@@ -201,15 +201,29 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         {user.admin?.last_login ? format(new Date(user.admin.last_login), "MMM d, yyyy h:mm a") : "Never"}
       </TableCell>
       <TableCell>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleToggleStatus}
-          disabled={deactivateMutation.isPending || reactivateMutation.isPending}
-          className={`text-[13px] ${status === "ACTIVE" ? "text-red-600 hover:text-red-100" : ""}`}
-        >
-          {status === "ACTIVE" ? "Deactivate" : "Activate"}
-        </Button>
+        {status === "ACTIVE" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleStatus}
+            disabled={deactivateMutation.isPending}
+            className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+          >
+            <ShieldExclamationIcon className="size-4" />
+            Deactivate
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleStatus}
+            disabled={reactivateMutation.isPending}
+            className="gap-1.5 text-green-600 hover:text-green-600 hover:bg-green-50 border-green-200"
+          >
+            <ShieldCheckIcon className="size-4" />
+            Activate
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   );

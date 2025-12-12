@@ -17,6 +17,7 @@ import {
   inviteAdminSchema,
   acceptInvitationSchema,
   getSecurityLogsQuerySchema,
+  getPendingInvitationsQuerySchema,
 } from "./schemas";
 
 const router = Router();
@@ -782,6 +783,100 @@ router.get(
       });
     } catch (error) {
       next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/invitations/pending:
+ *   get:
+ *     summary: Get pending admin invitations (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/invitations/pending",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getPendingInvitationsQuerySchema.parse(req.query);
+      const result = await adminService.getPendingInvitations(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/invitations/{token}/resend:
+ *   post:
+ *     summary: Resend admin invitation email (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/invitations/:id/resend",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.resendInvitation(req, id, req.user.id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/invitations/:id/revoke:
+ *   delete:
+ *     summary: Revoke/delete a pending invitation (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.delete(
+  "/invitations/:id/revoke",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      await adminService.revokeInvitation(req, id, req.user.id);
+
+      res.json({
+        success: true,
+        data: { message: "Invitation revoked successfully" },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

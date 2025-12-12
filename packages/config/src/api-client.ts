@@ -21,6 +21,8 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsParams,
   SecurityLogsResponse,
+  GetPendingInvitationsParams,
+  PendingInvitationsResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -271,37 +273,9 @@ export class ApiClient {
     });
   }
 
-  // Self-service email change - Step 1: Initiate (sends verification code)
-  async initiateEmailChange(data: {
-    newEmail: string;
-    password: string;
-  }): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
-    return this.post<{ success: boolean; message: string }>(`/v1/auth/initiate-email-change`, data);
-  }
-
-  // Self-service email change - Step 2: Verify code (completes change)
-  async verifyEmailChange(data: {
-    code: string;
-    newEmail: string;
-    password: string;
-  }): Promise<ApiResponse<{ success: boolean; newEmail: string }> | ApiError> {
-    return this.post<{ success: boolean; newEmail: string }>(`/v1/auth/verify-email-change`, data);
-  }
-
-  // Resend email verification code (for unverified emails)
-  async resendEmailVerification(data: {
-    password: string;
-  }): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
-    return this.post<{ success: boolean; message: string }>(
-      `/v1/auth/resend-email-verification`,
-      data
-    );
-  }
-
   // Verify email with code (for unverified emails)
   async verifyEmail(data: {
     code: string;
-    password: string;
   }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
     return this.post<{ success: boolean }>(`/v1/auth/verify-email`, data);
   }
@@ -414,6 +388,31 @@ export class ApiClient {
       `/v1/admin/accept-invitation`,
       data
     );
+  }
+
+  async getPendingInvitations(
+    params: GetPendingInvitationsParams
+  ): Promise<ApiResponse<PendingInvitationsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.roleDescription) queryParams.append("roleDescription", params.roleDescription);
+
+    return this.get<PendingInvitationsResponse>(`/v1/admin/invitations/pending?${queryParams.toString()}`);
+  }
+
+  async resendInvitation(
+    invitationId: string
+  ): Promise<ApiResponse<{ messageId?: string; emailSent: boolean; emailError?: string }> | ApiError> {
+    return this.post<{ messageId?: string; emailSent: boolean; emailError?: string }>(
+      `/v1/admin/invitations/${invitationId}/resend`,
+      {}
+    );
+  }
+
+  async revokeInvitation(invitationId: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/admin/invitations/${invitationId}/revoke`);
   }
 
   // Admin - Security Logs

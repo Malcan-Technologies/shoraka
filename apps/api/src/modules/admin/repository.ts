@@ -1,6 +1,20 @@
 import { prisma } from "../../lib/prisma";
-import { Prisma, User, AccessLog, UserRole, Admin, AdminInvitation, SecurityLog, AdminRole } from "@prisma/client";
-import type { GetUsersQuery, GetAccessLogsQuery, GetAdminUsersQuery, GetSecurityLogsQuery } from "./schemas";
+import {
+  Prisma,
+  User,
+  AccessLog,
+  UserRole,
+  Admin,
+  AdminInvitation,
+  SecurityLog,
+  AdminRole,
+} from "@prisma/client";
+import type {
+  GetUsersQuery,
+  GetAccessLogsQuery,
+  GetAdminUsersQuery,
+  GetSecurityLogsQuery,
+} from "./schemas";
 
 export class AdminRepository {
   /**
@@ -502,7 +516,7 @@ export class AdminRepository {
     // Filter by users who have an admin record (not by ADMIN role)
     // This ensures deactivated admins still appear in the list
     const adminWhere: Prisma.AdminWhereInput = {};
-    
+
     if (roleDescription) {
       adminWhere.role_description = roleDescription;
     }
@@ -631,6 +645,97 @@ export class AdminRepository {
         accepted: true,
         accepted_at: new Date(),
       },
+    });
+  }
+
+  /**
+   * Get pending admin invitations (not accepted, not expired)
+   */
+  async getPendingInvitations(params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    roleDescription?: AdminRole;
+  }): Promise<{
+    invitations: (AdminInvitation & {
+      invited_by: { first_name: string; last_name: string; email: string };
+    })[];
+    pagination: {
+      currentPage: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 10;
+    const skip = (page - 1) * pageSize;
+
+    const where: {
+      accepted: boolean;
+      expires_at: { gt: Date };
+      role_description?: AdminRole;
+      OR?: Array<{
+        email?: { contains: string; mode: "insensitive" };
+      }>;
+    } = {
+      accepted: false,
+      expires_at: { gt: new Date() },
+    };
+
+    if (params?.roleDescription) {
+      where.role_description = params.roleDescription;
+    }
+
+    if (params?.search) {
+      where.OR = [{ email: { contains: params.search, mode: "insensitive" as const } }];
+    }
+
+    const [invitations, totalCount] = await Promise.all([
+      prisma.adminInvitation.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          invited_by: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      prisma.adminInvitation.count({ where }),
+    ]);
+
+    return {
+      invitations,
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+    };
+  }
+
+  /**
+   * Get admin invitation by ID
+   */
+  async getAdminInvitationById(id: string): Promise<AdminInvitation | null> {
+    return prisma.adminInvitation.findUnique({
+      where: { id },
+    });
+  }
+
+  /**
+   * Delete admin invitation
+   */
+  async deleteAdminInvitation(id: string): Promise<void> {
+    await prisma.adminInvitation.delete({
+      where: { id },
     });
   }
 

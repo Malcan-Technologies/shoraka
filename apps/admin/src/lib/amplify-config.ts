@@ -27,7 +27,7 @@ if (typeof window !== "undefined") {
         loginWith: {
           oauth: {
             domain: cognitoDomain,
-            scopes: ["email", "openid", "profile"],
+            scopes: ["email", "openid", "profile", "aws.cognito.signin.user.admin"],
             redirectSignIn: [`${adminUrl}/callback`, `${landingUrl}/callback`],
             redirectSignOut: [landingUrl],
             responseType: "code",

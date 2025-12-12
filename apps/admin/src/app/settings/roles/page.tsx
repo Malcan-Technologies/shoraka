@@ -16,12 +16,19 @@ import { RoleBadgeInfo } from "../../../components/role-badge-info";
 import { InviteAdminDialog } from "../../../components/invite-admin-dialog";
 import { AdminUsersTable } from "../../../components/admin-users-table";
 import { AdminUsersToolbar } from "../../../components/admin-users-toolbar";
+import { PendingInvitationsTable } from "../../../components/pending-invitations-table";
 import { useAdminUsers } from "../../../hooks/use-admin-users";
+import {
+  usePendingInvitations,
+  useResendInvitation,
+  useRevokeInvitation,
+} from "../../../hooks/use-pending-invitations";
 import {
   ShieldCheckIcon,
   DocumentCheckIcon,
   CogIcon,
   BanknotesIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import type { AdminUser, AdminRole } from "@cashsouk/types";
 
@@ -100,6 +107,10 @@ export default function RolesPage() {
   const [selectedStatuses, setSelectedStatuses] = React.useState<("ACTIVE" | "INACTIVE")[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
 
+  // Pending invitations state
+  const [invitationsPage, setInvitationsPage] = React.useState(1);
+  const [isInvitationsSpinning, setIsInvitationsSpinning] = React.useState(false);
+
   const { data, isLoading, refetch } = useAdminUsers({
     page: currentPage,
     pageSize: ITEMS_PER_PAGE,
@@ -110,6 +121,18 @@ export default function RolesPage() {
 
   const adminUsers = data?.users || [];
   const totalPages = data?.pagination.totalPages || 0;
+
+  // Pending invitations hooks
+  const { data: invitationsData, isLoading: invitationsLoading, refetch: refetchInvitations } = usePendingInvitations({
+    page: invitationsPage,
+    pageSize: ITEMS_PER_PAGE,
+  });
+
+  const resendInvitation = useResendInvitation();
+  const revokeInvitation = useRevokeInvitation();
+
+  const pendingInvitations = invitationsData?.invitations || [];
+  const invitationsTotalPages = invitationsData?.pagination.totalPages || 0;
 
   const handleUpdateUser = (_userId: string, _updates: Partial<AdminUser>) => {
     // Optimistic update - the mutation will invalidate and refetch
@@ -125,6 +148,13 @@ export default function RolesPage() {
 
   const handleReload = () => {
     refetch();
+  };
+
+  const handleInvitationsReload = () => {
+    setIsInvitationsSpinning(true);
+    refetchInvitations();
+    // Keep spinning for at least 500ms for visual feedback
+    setTimeout(() => setIsInvitationsSpinning(false), 500);
   };
 
   React.useEffect(() => {
@@ -177,6 +207,33 @@ export default function RolesPage() {
                 <RoleBadgeInfo key={role.name} role={role} />
               ))}
             </div>
+          </div>
+
+          {/* Pending Invitations Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Pending Invitations ({invitationsData?.pagination.totalCount || 0})
+              </h2>
+              <Button
+                variant="outline"
+                onClick={handleInvitationsReload}
+                disabled={invitationsLoading || isInvitationsSpinning}
+                className="gap-2 h-11 rounded-xl"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${invitationsLoading || isInvitationsSpinning ? "animate-spin" : ""}`} />
+                Reload
+              </Button>
+            </div>
+            <PendingInvitationsTable
+              invitations={pendingInvitations}
+              isLoading={invitationsLoading}
+              currentPage={invitationsPage}
+              totalPages={invitationsTotalPages}
+              onPageChange={setInvitationsPage}
+              onResend={(id) => resendInvitation.mutate(id)}
+              onRevoke={(id) => revokeInvitation.mutate(id)}
+            />
           </div>
 
           {/* Admin Users Table Section */}

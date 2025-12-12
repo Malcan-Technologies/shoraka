@@ -12,7 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 export function useAdminUsers(params: GetAdminUsersParams) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  
+
   return useQuery({
     queryKey: ["admin", "admin-users", params],
     queryFn: async () => {
@@ -93,6 +93,7 @@ export function useReactivateAdmin() {
 export function useGenerateInvitationUrl() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: InviteAdminInput): Promise<{ inviteUrl: string }> => {
@@ -101,6 +102,9 @@ export function useGenerateInvitationUrl() {
         throw new Error(response.error.message);
       }
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
     },
   });
 }
@@ -120,6 +124,7 @@ export function useInviteAdmin() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
     },
   });
 }

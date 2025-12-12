@@ -119,3 +119,25 @@ export const getSecurityLogsQuerySchema = z.object({
 });
 
 export type GetSecurityLogsQuery = z.infer<typeof getSecurityLogsQuerySchema>;
+
+// Pending invitations schema
+export const getPendingInvitationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  roleDescription: z.nativeEnum(AdminRole).optional(),
+});
+
+export type GetPendingInvitationsQuery = z.infer<typeof getPendingInvitationsQuerySchema>;
+
+export const resendInvitationSchema = z.object({
+  invitationId: z.string().cuid(),
+});
+
+export type ResendInvitationInput = z.infer<typeof resendInvitationSchema>;
+
+export const revokeInvitationSchema = z.object({
+  invitationId: z.string().cuid(),
+});
+
+export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>;

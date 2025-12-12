@@ -4,6 +4,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./info-tooltip": "./src/info-tooltip.tsx",
+    "./copyable-field": "./src/copyable-field.tsx",
     "./button": "./src/components/button.tsx",
     "./card": "./src/components/card.tsx"
   },
@@ -20,6 +22,7 @@
     "@radix-ui/react-scroll-area": "^1.0.5",
     "@radix-ui/react-separator": "^1.0.3",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tooltip": "^1.0.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "lucide-react": "^0.554.0",
