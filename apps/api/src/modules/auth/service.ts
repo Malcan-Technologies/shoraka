@@ -13,6 +13,10 @@ import {
   CodeMismatchException,
   ExpiredCodeException,
   AliasExistsException,
+  ResendConfirmationCodeCommand,
+  ConfirmSignUpCommand,
+  LimitExceededException,
+  InvalidParameterException,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
@@ -1340,6 +1344,121 @@ export class AuthService {
       }
 
       throw new AppError(500, "INTERNAL_ERROR", `Failed to verify email: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Resend confirmation code using Cognito's native public API
+   * No authentication required - uses email only
+   * For unverified users who need to verify their email before logging in
+   */
+  async resendConfirmationCodePublic(
+    email: string
+  ): Promise<{ success: boolean; message: string; codeDeliveryDetails: unknown }> {
+    try {
+      const secretHash = computeSecretHash(email);
+      
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: COGNITO_CLIENT_ID,
+        Username: email,
+        SecretHash: secretHash,
+      });
+
+      const result = await cognitoClient.send(command);
+      
+      logger.info(
+        { 
+          email, 
+          deliveryMedium: result.CodeDeliveryDetails?.DeliveryMedium 
+        }, 
+        "Confirmation code resent via Cognito native API"
+      );
+
+      return {
+        success: true,
+        message: `Verification code sent to ${result.CodeDeliveryDetails?.Destination}`,
+        codeDeliveryDetails: result.CodeDeliveryDetails,
+      };
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : "Unknown";
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error(
+        { email, errorName, errorMessage },
+        "Failed to resend confirmation code"
+      );
+
+      if (error instanceof UserNotFoundException) {
+        throw new AppError(404, "USER_NOT_FOUND", "No account found with this email");
+      }
+      
+      if (error instanceof InvalidParameterException) {
+        throw new AppError(400, "ALREADY_CONFIRMED", "This account is already verified. Please try logging in.");
+      }
+      
+      if (error instanceof LimitExceededException) {
+        throw new AppError(429, "RATE_LIMIT", "Too many requests. Please try again later.");
+      }
+
+      throw new AppError(500, "INTERNAL_ERROR", "Failed to resend verification code");
+    }
+  }
+
+  /**
+   * Confirm user signup using verification code
+   * No authentication required - uses email + code
+   * This verifies the user's email in Cognito and updates the database
+   */
+  async confirmSignup(
+    email: string,
+    code: string
+  ): Promise<{ success: boolean }> {
+    try {
+      const secretHash = computeSecretHash(email);
+      
+      const command = new ConfirmSignUpCommand({
+        ClientId: COGNITO_CLIENT_ID,
+        Username: email,
+        ConfirmationCode: code,
+        SecretHash: secretHash,
+      });
+
+      await cognitoClient.send(command);
+      
+      // Update database to mark email as verified
+      const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+      if (user) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email_verified: true },
+        });
+      }
+      
+      logger.info({ email }, "User confirmed via Cognito native API");
+      
+      return { success: true };
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : "Unknown";
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      logger.error(
+        { email, errorName, errorMessage },
+        "Failed to confirm signup"
+      );
+      
+      if (errorName === "CodeMismatchException") {
+        throw new AppError(400, "INVALID_CODE", "Invalid verification code");
+      }
+      
+      if (errorName === "ExpiredCodeException") {
+        throw new AppError(400, "EXPIRED_CODE", "Verification code expired. Request a new one.");
+      }
+      
+      if (errorName === "UserNotFoundException") {
+        throw new AppError(404, "USER_NOT_FOUND", "No account found with this email");
+      }
+      
+      throw new AppError(500, "INTERNAL_ERROR", "Failed to verify email");
     }
   }
 }

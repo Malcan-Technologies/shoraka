@@ -710,4 +710,64 @@ router.post(
   }
 );
 
+/**
+ * Public endpoint: Resend confirmation code to unverified user
+ * No authentication required - for users who haven't verified their email yet
+ */
+router.post(
+  "/cognito/resend-code",
+  async (req: Request, res: Response, next: NextFunction) => {
+    const correlationId = res.locals.correlationId || `req_${Date.now()}`;
+    
+    try {
+      const { email } = req.body;
+      
+      if (!email || typeof email !== "string") {
+        throw new AppError(400, "MISSING_EMAIL", "Email is required");
+      }
+
+      const result = await authService.resendConfirmationCodePublic(email);
+      
+      res.json({
+        success: true,
+        data: {
+          message: result.message,
+        },
+        correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * Public endpoint: Confirm signup with verification code
+ * No authentication required - for users verifying their email before first login
+ */
+router.post(
+  "/cognito/confirm-signup",
+  async (req: Request, res: Response, next: NextFunction) => {
+    const correlationId = res.locals.correlationId || `req_${Date.now()}`;
+    
+    try {
+      const { email, code } = req.body;
+      
+      if (!email || !code) {
+        throw new AppError(400, "MISSING_FIELDS", "Email and code are required");
+      }
+
+      await authService.confirmSignup(email, code);
+      
+      res.json({
+        success: true,
+        data: { verified: true },
+        correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export const authRouter = router;

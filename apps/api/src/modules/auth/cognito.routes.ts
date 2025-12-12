@@ -264,14 +264,46 @@ router.get("/callback", async (req: Request, res: Response) => {
         "Token exchange successful"
       );
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : "Unknown";
+      
       logger.error(
-        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        { correlationId, errorName, errorMessage },
         "Token exchange failed"
       );
+      
+      // Check for unverified user - redirect to verification page
+      if (
+        errorName === "UserNotConfirmedException" ||
+        errorMessage.includes("not confirmed") ||
+        errorMessage.includes("not verified") ||
+        (error as any).error === "invalid_grant"
+      ) {
+        logger.warn(
+          { 
+            correlationId, 
+            requestedRole: stateData.requestedRole,
+            isSignup: stateData.signup,
+          },
+          "Unverified user detected - redirecting to verification page"
+        );
+        
+        // Redirect to verification page with context
+        const env = getEnv();
+        const verifyUrl = new URL(`${env.FRONTEND_URL}/verify-email`);
+        
+        // Preserve context for post-verification redirect
+        verifyUrl.searchParams.set("redirect", stateData.requestedRole?.toLowerCase() || "investor");
+        verifyUrl.searchParams.set("signup", stateData.signup ? "true" : "false");
+        
+        return res.redirect(verifyUrl.toString());
+      }
+      
+      // Other errors - continue with existing error handling
       throw new AppError(
         400,
         "TOKEN_EXCHANGE_FAILED",
-        `Token exchange failed: ${error instanceof Error ? error.message : String(error)}`
+        `Token exchange failed: ${errorMessage}`
       );
     }
 
