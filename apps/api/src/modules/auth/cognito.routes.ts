@@ -631,18 +631,25 @@ router.get("/callback", async (req: Request, res: Response) => {
         },
       });
 
-      // Logout user from Cognito and redirect to landing page
+      // Redirect to landing page with error message
       // This breaks the infinite loop where Cognito auto-authenticates the same user
       // User will need to manually navigate to admin portal again with correct credentials
-      const apiBaseUrl = `${req.protocol}://${req.get("host")}`;
-      const logoutUrl = new URL(`${apiBaseUrl}/v1/auth/cognito/logout`);
-
-      logger.info(
-        { correlationId, userId: user.id, redirectUrl: logoutUrl.toString() },
-          "Logging out non-admin or inactive admin user from Cognito - will redirect to landing page"
+      const env = getEnv();
+      const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
+      errorUrl.searchParams.set("error", "admin_access_denied");
+      errorUrl.searchParams.set(
+        "message",
+        !hasAdminRole
+          ? "You do not have admin access. Please contact support if you believe this is an error."
+          : "Your admin account is inactive. Please contact support to reactivate your account."
       );
 
-      return res.redirect(logoutUrl.toString());
+      logger.info(
+        { correlationId, userId: user.id, redirectUrl: errorUrl.toString() },
+          "Redirecting non-admin or inactive admin user to landing page with error"
+      );
+
+      return res.redirect(errorUrl.toString());
       }
     }
 
