@@ -6,20 +6,16 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle, 
-  Button, 
-  Input 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
 } from "@cashsouk/ui";
-import { 
-  ArrowLeftIcon, 
-  EnvelopeIcon, 
-  CheckCircleIcon 
-} from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, EnvelopeIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -43,10 +39,10 @@ type CodeFormValues = z.infer<typeof codeSchema>;
 function VerifyEmailPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const redirect = searchParams.get("redirect") || "investor";
   const emailParam = searchParams.get("email");
-  
+
   const [step, setStep] = React.useState<1 | 2>(emailParam ? 2 : 1);
   const [email, setEmail] = React.useState(emailParam || "");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -66,11 +62,11 @@ function VerifyEmailPageContent() {
   // Cooldown timer
   React.useEffect(() => {
     if (cooldownRemaining <= 0) return;
-    
+
     const timer = setInterval(() => {
       setCooldownRemaining((prev) => Math.max(0, prev - 1));
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
 
@@ -117,7 +113,7 @@ function VerifyEmailPageContent() {
       setEmail(emailValue);
       setStep(2);
       setCooldownRemaining(RESEND_COOLDOWN_SECONDS);
-      
+
       toast.success("Verification code sent", {
         description: `Check your email at ${emailValue}`,
       });
@@ -168,7 +164,7 @@ function VerifyEmailPageContent() {
       }
 
       setIsVerified(true);
-      
+
       toast.success("Email verified!", {
         description: "Redirecting to login...",
       });
@@ -361,4 +357,3 @@ export default function VerifyEmailPage() {
     </Suspense>
   );
 }
-
