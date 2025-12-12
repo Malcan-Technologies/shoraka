@@ -185,7 +185,9 @@ export interface InviteAdminInput {
 
 export interface InviteAdminResponse {
   inviteUrl: string;
-  messageId: string;
+  messageId?: string;
+  emailSent: boolean;
+  emailError?: string;
 }
 
 export interface AcceptInvitationInput {

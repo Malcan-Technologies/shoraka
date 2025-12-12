@@ -40,7 +40,7 @@
         },
 		{
 			"name": "EMAIL_FROM",
-			"value": "noreply@cashsouk.com"
+			"value": "no-reply@cashsouk.com"
 		}
       ],
       "secrets": [
@@ -95,7 +95,11 @@
         {
           "name": "COOKIE_DOMAIN",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COOKIE_DOMAIN::"
-        }
+        },
+		{
+			"name": "SES_REGION",
+			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SES_REGION::"
+		}
       ],
       "healthCheck": {
         "command": [

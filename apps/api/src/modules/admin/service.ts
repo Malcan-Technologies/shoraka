@@ -756,7 +756,7 @@ export class AdminService {
     _req: Request,
     data: InviteAdminInput,
     invitedBy: string
-  ): Promise<{ inviteUrl: string; messageId?: string }> {
+  ): Promise<{ inviteUrl: string; messageId?: string; emailSent: boolean; emailError?: string }> {
     const inviter = await this.repository.getUserById(invitedBy);
     if (!inviter) {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
@@ -767,6 +767,9 @@ export class AdminService {
 
     // Send email via SES only if email is provided
     let messageId: string | undefined;
+    let emailSent = false;
+    let emailError: string | undefined;
+    
     if (data.email) {
       try {
         const inviterName = `${inviter.first_name} ${inviter.last_name}`;
@@ -780,6 +783,7 @@ export class AdminService {
         });
 
         messageId = result.messageId;
+        emailSent = true;
 
         logger.info(
           {
@@ -792,12 +796,15 @@ export class AdminService {
         );
       } catch (error) {
         // Log error but don't fail the request - invitation link is still valid
+        emailSent = false;
+        emailError = error instanceof Error ? error.message : String(error);
+        
         logger.warn(
           {
             email: data.email,
             roleDescription: data.roleDescription,
             invitedBy,
-            error: error instanceof Error ? error.message : String(error),
+            error: emailError,
           },
           "Failed to send admin invitation email, but invitation link is still valid"
         );
@@ -813,7 +820,7 @@ export class AdminService {
       );
     }
 
-    return { inviteUrl, messageId };
+    return { inviteUrl, messageId, emailSent, ...(emailError && { emailError }) };
   }
 
   /**

@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useInviteAdmin, useGenerateInvitationUrl } from "@/hooks/use-admin-users";
 import { AdminRole } from "@cashsouk/types";
-import { ClipboardIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { ClipboardIcon, CheckIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
 const inviteAdminSchema = z.object({
   email: z.string().email("Please enter a valid email address").optional(),
@@ -58,6 +58,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
   const [messageId, setMessageId] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [emailSent, setEmailSent] = React.useState(false);
+  const [emailError, setEmailError] = React.useState<string | null>(null);
   const inviteMutation = useInviteAdmin();
   const generateUrlMutation = useGenerateInvitationUrl();
 
@@ -79,6 +80,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
       setMessageId(null);
       setCopied(false);
       setEmailSent(false);
+      setEmailError(null);
     }
   }, [open, form]);
 
@@ -117,14 +119,26 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
 
       // Store URL for Copy Link button, but don't show it in the UI if email was sent
       setInviteUrl(result.inviteUrl);
-      setMessageId(result.messageId);
-      setEmailSent(!!data.email); // Mark as email sent if email was provided
+      setMessageId(result.messageId || null);
+      setEmailSent(result.emailSent || false);
+      setEmailError(result.emailError || null);
 
-      toast.success("Invitation sent!", {
-        description: data.email 
-          ? `An invitation has been sent via email to ${data.email}`
-          : "Invitation link generated",
-    });
+      // Show appropriate toast based on email status
+      if (data.email) {
+        if (result.emailSent) {
+          toast.success("Invitation sent!", {
+            description: `An invitation has been sent via email to ${data.email}`,
+          });
+        } else {
+          toast.warning("Invitation link generated, but email failed to send", {
+            description: result.emailError || "Please copy the link manually to share it.",
+          });
+        }
+      } else {
+        toast.success("Invitation link generated", {
+          description: "Copy the link to share it with the admin user.",
+        });
+      }
     } catch (error) {
       toast.error("Failed to send invitation", {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -146,6 +160,10 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
   };
 
   const handleCancel = () => {
+    setInviteUrl(null);
+    setMessageId(null);
+    setEmailSent(false);
+    setEmailError(null);
     form.reset();
     onOpenChange(false);
   };
@@ -160,24 +178,41 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
           </DialogDescription>
         </DialogHeader>
 
-        {emailSent ? (
+        {(emailSent || emailError) ? (
           <div className="space-y-4">
-            <div className="rounded-lg border bg-green-50 border-green-200 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckIcon className="h-5 w-5 text-green-600" />
-                <p className="text-sm font-medium text-green-900">
-                  Email sent successfully
+            {emailSent ? (
+              <div className="rounded-lg border bg-green-50 border-green-200 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckIcon className="h-5 w-5 text-green-600" />
+                  <p className="text-sm font-medium text-green-900">
+                    Email sent successfully
+                  </p>
+                </div>
+                <p className="text-sm text-green-700">
+                  An invitation has been sent to {form.getValues("email")}.
+                </p>
+                {messageId && (
+                  <p className="text-xs text-green-600 mt-2">
+                    Email ID: {messageId}
+                  </p>
+                )}
+              </div>
+            ) : emailError ? (
+              <div className="rounded-lg border bg-yellow-50 border-yellow-200 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600" />
+                  <p className="text-sm font-medium text-yellow-900">
+                    Email failed to send
+                  </p>
+                </div>
+                <p className="text-sm text-yellow-700 mb-2">
+                  The invitation link was generated, but the email could not be sent.
+                </p>
+                <p className="text-xs text-yellow-600">
+                  Error: {emailError}
                 </p>
               </div>
-              <p className="text-sm text-green-700">
-                An invitation has been sent to {form.getValues("email")}.
-              </p>
-              {messageId && (
-                <p className="text-xs text-green-600 mt-2">
-                  Email ID: {messageId}
-                </p>
-              )}
-            </div>
+            ) : null}
             <DialogFooter>
               <Button
                 type="button"
@@ -185,6 +220,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
                   setInviteUrl(null);
                   setMessageId(null);
                   setEmailSent(false);
+                  setEmailError(null);
                   form.reset();
                   onOpenChange(false);
                 }}
