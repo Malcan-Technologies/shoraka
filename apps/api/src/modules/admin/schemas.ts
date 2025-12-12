@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole } from "@prisma/client";
+import { UserRole, AdminRole } from "@prisma/client";
 
 // User listing query schema
 export const getUsersQuerySchema = z.object({
@@ -70,3 +70,52 @@ export const exportAccessLogsQuerySchema = getAccessLogsQuerySchema.extend({
 });
 
 export type ExportAccessLogsQuery = z.infer<typeof exportAccessLogsQuerySchema>;
+
+// Admin management schemas
+export const getAdminUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  roleDescription: z.nativeEnum(AdminRole).optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+});
+
+export type GetAdminUsersQuery = z.infer<typeof getAdminUsersQuerySchema>;
+
+export const updateAdminRoleSchema = z.object({
+  roleDescription: z.nativeEnum(AdminRole),
+});
+
+export type UpdateAdminRoleInput = z.infer<typeof updateAdminRoleSchema>;
+
+export const inviteAdminSchema = z.object({
+  email: z
+    .preprocess(
+      (val) => (val === "" || val === null || val === undefined ? undefined : val),
+      z.string().email("Please enter a valid email address").optional()
+    ),
+  roleDescription: z.nativeEnum(AdminRole),
+});
+
+export type InviteAdminInput = z.infer<typeof inviteAdminSchema>;
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
+
+export const getSecurityLogsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+  search: z.string().optional(),
+  eventType: z.string().optional(),
+  eventTypes: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(",") : undefined)),
+  dateRange: z.enum(["24h", "7d", "30d", "all"]).default("all"),
+  userId: z.string().optional(),
+});
+
+export type GetSecurityLogsQuery = z.infer<typeof getSecurityLogsQuerySchema>;

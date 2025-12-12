@@ -1,6 +1,6 @@
 import { prisma } from "../../lib/prisma";
-import { Prisma, User, AccessLog, UserRole } from "@prisma/client";
-import type { GetUsersQuery, GetAccessLogsQuery } from "./schemas";
+import { Prisma, User, AccessLog, UserRole, Admin, AdminInvitation, SecurityLog, AdminRole } from "@prisma/client";
+import type { GetUsersQuery, GetAccessLogsQuery, GetAdminUsersQuery, GetSecurityLogsQuery } from "./schemas";
 
 export class AdminRepository {
   /**
@@ -486,5 +486,252 @@ export class AdminRepository {
     currentPeriodStart.setHours(0, 0, 0, 0);
 
     return this.getUserStats(currentPeriodStart, now);
+  }
+
+  /**
+   * Get admin users with pagination and filters
+   */
+  async getAdminUsers(params: GetAdminUsersQuery): Promise<{
+    users: (User & { admin: Admin | null })[];
+    total: number;
+  }> {
+    const { page, pageSize, search, roleDescription, status } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.UserWhereInput = {
+      roles: { has: UserRole.ADMIN },
+    };
+
+    if (search) {
+      where.OR = [
+        { first_name: { contains: search, mode: "insensitive" } },
+        { last_name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          admin: true,
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    // Filter by role_description and status if provided
+    let filteredUsers = users;
+    if (roleDescription) {
+      filteredUsers = filteredUsers.filter(
+        (u) => u.admin?.role_description === roleDescription
+      );
+    }
+    if (status) {
+      filteredUsers = filteredUsers.filter((u) => u.admin?.status === status);
+    }
+
+    return { users: filteredUsers, total };
+  }
+
+  /**
+   * Get Admin record by user ID
+   */
+  async getAdminByUserId(userId: string): Promise<Admin | null> {
+    return prisma.admin.findUnique({
+      where: { user_id: userId },
+    });
+  }
+
+  /**
+   * Create Admin record
+   */
+  async createAdmin(userId: string, roleDescription: AdminRole): Promise<Admin> {
+    return prisma.admin.create({
+      data: {
+        user_id: userId,
+        role_description: roleDescription,
+        status: "ACTIVE",
+      },
+    });
+  }
+
+  /**
+   * Update admin role description
+   */
+  async updateAdminRole(userId: string, roleDescription: AdminRole): Promise<Admin> {
+    return prisma.admin.update({
+      where: { user_id: userId },
+      data: { role_description: roleDescription },
+    });
+  }
+
+  /**
+   * Update admin status
+   */
+  async updateAdminStatus(userId: string, status: "ACTIVE" | "INACTIVE"): Promise<Admin> {
+    return prisma.admin.update({
+      where: { user_id: userId },
+      data: { status },
+    });
+  }
+
+  /**
+   * Update admin last login
+   */
+  async updateAdminLastLogin(userId: string): Promise<Admin> {
+    return prisma.admin.update({
+      where: { user_id: userId },
+      data: { last_login: new Date() },
+    });
+  }
+
+  /**
+   * Create admin invitation
+   */
+  async createAdminInvitation(data: {
+    email: string;
+    roleDescription: AdminRole;
+    token: string;
+    expiresAt: Date;
+    invitedByUserId: string;
+  }): Promise<AdminInvitation> {
+    return prisma.adminInvitation.create({
+      data: {
+        email: data.email,
+        role_description: data.roleDescription,
+        token: data.token,
+        expires_at: data.expiresAt,
+        invited_by_user_id: data.invitedByUserId,
+      },
+    });
+  }
+
+  /**
+   * Get admin invitation by token
+   */
+  async getAdminInvitationByToken(token: string): Promise<AdminInvitation | null> {
+    return prisma.adminInvitation.findUnique({
+      where: { token },
+    });
+  }
+
+  /**
+   * Mark invitation as accepted
+   */
+  async acceptAdminInvitation(token: string): Promise<AdminInvitation> {
+    return prisma.adminInvitation.update({
+      where: { token },
+      data: {
+        accepted: true,
+        accepted_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Create security log entry
+   */
+  async createSecurityLog(data: {
+    userId: string;
+    eventType: string;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceInfo?: string;
+    metadata?: object;
+  }): Promise<SecurityLog> {
+    return prisma.securityLog.create({
+      data: {
+        user_id: data.userId,
+        event_type: data.eventType,
+        ip_address: data.ipAddress,
+        user_agent: data.userAgent,
+        device_info: data.deviceInfo,
+        metadata: data.metadata as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
+   * Get security logs with pagination and filters
+   */
+  async getSecurityLogs(params: GetSecurityLogsQuery): Promise<{
+    logs: (SecurityLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[];
+    total: number;
+  }> {
+    const { page, pageSize, search, eventType, eventTypes, dateRange, userId } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.SecurityLogWhereInput = {};
+
+    if (userId) {
+      where.user_id = userId;
+    }
+
+    if (eventTypes && eventTypes.length > 0) {
+      where.event_type = { in: eventTypes };
+    } else if (eventType) {
+      where.event_type = eventType;
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let cutoffDate: Date;
+
+      switch (dateRange) {
+        case "24h":
+          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "7d":
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30d":
+          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+
+      where.created_at = { gte: cutoffDate };
+    }
+
+    if (search) {
+      where.user = {
+        OR: [
+          { first_name: { contains: search, mode: "insensitive" } },
+          { last_name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
+        ],
+      };
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.securityLog.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+              roles: true,
+            },
+          },
+        },
+      }),
+      prisma.securityLog.count({ where }),
+    ]);
+
+    return { logs, total };
   }
 }

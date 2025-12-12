@@ -28,15 +28,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useInviteAdmin, useGenerateInvitationUrl } from "@/hooks/use-admin-users";
+import { AdminRole } from "@cashsouk/types";
+import { ClipboardIcon, CheckIcon } from "@heroicons/react/24/outline";
 
 const inviteAdminSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  role: z.enum(["SUPER_ADMIN", "COMPLIANCE_OFFICER", "OPERATIONS_OFFICER", "FINANCE_OFFICER"], {
+  email: z.string().email("Please enter a valid email address").optional(),
+  roleDescription: z.nativeEnum(AdminRole, {
     required_error: "Please select a role",
   }),
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  message: z.string().optional(),
 });
 
 type InviteAdminFormValues = z.infer<typeof inviteAdminSchema>;
@@ -47,30 +47,102 @@ interface InviteAdminDialogProps {
 }
 
 const roleOptions = [
-  { value: "SUPER_ADMIN", label: "Super Admin" },
-  { value: "COMPLIANCE_OFFICER", label: "Compliance Officer" },
-  { value: "OPERATIONS_OFFICER", label: "Operations Officer" },
-  { value: "FINANCE_OFFICER", label: "Finance Officer" },
+  { value: AdminRole.SUPER_ADMIN, label: "Super Admin" },
+  { value: AdminRole.COMPLIANCE_OFFICER, label: "Compliance Officer" },
+  { value: AdminRole.OPERATIONS_OFFICER, label: "Operations Officer" },
+  { value: AdminRole.FINANCE_OFFICER, label: "Finance Officer" },
 ];
 
 export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps) {
+  const [inviteUrl, setInviteUrl] = React.useState<string | null>(null);
+  const [messageId, setMessageId] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+  const [emailSent, setEmailSent] = React.useState(false);
+  const inviteMutation = useInviteAdmin();
+  const generateUrlMutation = useGenerateInvitationUrl();
+
   const form = useForm<InviteAdminFormValues>({
     resolver: zodResolver(inviteAdminSchema),
     defaultValues: {
       email: "",
-      firstName: "",
-      lastName: "",
-      message: "",
+      roleDescription: undefined,
     },
   });
 
-  const onSubmit = (data: InviteAdminFormValues) => {
-    toast.success("Invitation sent!", {
-      description: `An invitation has been sent to ${data.email}`,
-    });
+  const formValues = form.watch();
+  // Only role is required for link generation
 
-    form.reset();
-    onOpenChange(false);
+  React.useEffect(() => {
+    if (!open) {
+      form.reset();
+      setInviteUrl(null);
+      setMessageId(null);
+      setCopied(false);
+      setEmailSent(false);
+    }
+  }, [open, form]);
+
+  const handleGenerateAndCopyLink = async () => {
+    if (!formValues.roleDescription) {
+      form.trigger("roleDescription"); // Trigger validation to show errors
+      return;
+    }
+
+    try {
+      const result = await generateUrlMutation.mutateAsync({
+        email: formValues.email, // Optional
+        roleDescription: formValues.roleDescription,
+      });
+
+      setInviteUrl(result.inviteUrl);
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(result.inviteUrl);
+      setCopied(true);
+      toast.success("Invitation link copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error("Failed to generate link", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
+    }
+  };
+
+  const onSubmit = async (data: InviteAdminFormValues) => {
+    try {
+      const result = await inviteMutation.mutateAsync({
+        email: data.email,
+        roleDescription: data.roleDescription,
+      });
+
+      // Store URL for Copy Link button, but don't show it in the UI if email was sent
+      setInviteUrl(result.inviteUrl);
+      setMessageId(result.messageId);
+      setEmailSent(!!data.email); // Mark as email sent if email was provided
+
+      toast.success("Invitation sent!", {
+        description: data.email 
+          ? `An invitation has been sent via email to ${data.email}`
+          : "Invitation link generated",
+    });
+    } catch (error) {
+      toast.error("Failed to send invitation", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (inviteUrl) {
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        setCopied(true);
+        toast.success("Link copied to clipboard");
+        setTimeout(() => setCopied(false), 2000);
+      } catch (error) {
+        toast.error("Failed to copy link");
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -88,64 +160,136 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
           </DialogDescription>
         </DialogHeader>
 
+        {emailSent ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-green-50 border-green-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckIcon className="h-5 w-5 text-green-600" />
+                <p className="text-sm font-medium text-green-900">
+                  Email sent successfully
+                </p>
+              </div>
+              <p className="text-sm text-green-700">
+                An invitation has been sent to {form.getValues("email")}.
+              </p>
+              {messageId && (
+                <p className="text-xs text-green-600 mt-2">
+                  Email ID: {messageId}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                onClick={() => {
+                  setInviteUrl(null);
+                  setMessageId(null);
+                  setEmailSent(false);
+                  form.reset();
+                  onOpenChange(false);
+                }}
+                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : inviteUrl ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                Invitation link generated. You can copy it to share directly.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={inviteUrl}
+                readOnly
+                className="h-11 rounded-xl font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCopyLink}
+                className="h-11 w-11"
+                title="Copy link"
+              >
+                {copied ? (
+                  <CheckIcon className="h-4 w-4 text-green-600" />
+                ) : (
+                  <ClipboardIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCopyLink}
+              className="w-full h-11"
+            >
+              {copied ? (
+                <>
+                  <CheckIcon className="h-4 w-4 mr-2 text-green-600" />
+                  Link Copied!
+                </>
+              ) : (
+                <>
+                  <ClipboardIcon className="h-4 w-4 mr-2" />
+                  Copy Invitation Link
+                </>
+              )}
+            </Button>
+            <DialogFooter>
+              <Button
+                type="button"
+                onClick={() => {
+                  setInviteUrl(null);
+                  setMessageId(null);
+                  form.reset();
+                  onOpenChange(false);
+                }}
+                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="firstName"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name</FormLabel>
+                    <FormLabel>Email Address (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="John" {...field} className="h-11 rounded-xl" />
+                      <Input
+                        type="email"
+                        placeholder="admin@cashsouk.com (optional)"
+                        {...field}
+                        className="h-11 rounded-xl"
+                      />
                     </FormControl>
                     <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to generate a shareable link that works for anyone
+                    </p>
                   </FormItem>
                 )}
               />
 
               <FormField
                 control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Last Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Doe" {...field} className="h-11 rounded-xl" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email Address</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="admin@cashsouk.com"
-                      {...field}
-                      className="h-11 rounded-xl"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="role"
+                name="roleDescription"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Admin Role</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={(value) => field.onChange(value as AdminRole)}
+                      value={field.value}
+                    >
                     <FormControl>
                       <SelectTrigger className="h-11 rounded-xl">
                         <SelectValue placeholder="Select a role" />
@@ -164,37 +308,73 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="message"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Message (Optional)</FormLabel>
-                  <FormControl>
+              {inviteUrl && (
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="flex items-center gap-2 mb-2">
                     <Input
-                      placeholder="Welcome message or notes..."
-                      {...field}
-                      className="h-11 rounded-xl"
+                      value={inviteUrl}
+                      readOnly
+                      className="h-9 rounded-lg font-mono text-xs flex-1"
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCopyLink}
+                      className="h-9 w-9"
+                      title="Copy link"
+                    >
+                      {copied ? (
+                        <CheckIcon className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ClipboardIcon className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Invitation link generated. You can copy it or send via email below.
+                  </p>
+                </div>
               )}
-            />
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="button" variant="outline" onClick={handleCancel}>
+              <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between items-center">
+                <div className="flex gap-2 w-full sm:w-auto order-2 sm:order-1">
+                  <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 sm:flex-none">
                 Cancel
               </Button>
+                  {formValues.email && (
               <Button
                 type="submit"
-                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      disabled={inviteMutation.isPending || !formValues.roleDescription}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95 flex-1 sm:flex-none"
               >
-                Send Invitation
+                      {inviteMutation.isPending ? "Sending..." : "Send Invitation"}
+                    </Button>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGenerateAndCopyLink}
+                  disabled={!formValues.roleDescription || generateUrlMutation.isPending}
+                  className="w-full sm:w-auto order-1 sm:order-2 flex items-center gap-2"
+                >
+                  {copied ? (
+                    <>
+                      <CheckIcon className="h-4 w-4 text-green-600" />
+                      Link Copied!
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardIcon className="h-4 w-4" />
+                      Copy Link
+                    </>
+                  )}
               </Button>
             </DialogFooter>
           </form>
         </Form>
+        )}
       </DialogContent>
     </Dialog>
   );

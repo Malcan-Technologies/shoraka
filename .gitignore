@@ -50,6 +50,9 @@ pnpm-debug.log*
 *.swo
 *~
 
+# TypeScript
+*.tsbuildinfo
+
 # OS
 Thumbs.db
 

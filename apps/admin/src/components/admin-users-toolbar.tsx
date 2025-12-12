@@ -16,8 +16,7 @@ import {
   XMarkIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-
-type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
+import { AdminRole } from "@cashsouk/types";
 
 interface AdminUsersToolbarProps {
   searchQuery: string;
@@ -33,10 +32,10 @@ interface AdminUsersToolbarProps {
 }
 
 const roleOptions: { value: AdminRole; label: string }[] = [
-  { value: "SUPER_ADMIN", label: "Super Admin" },
-  { value: "COMPLIANCE_OFFICER", label: "Compliance Officer" },
-  { value: "OPERATIONS_OFFICER", label: "Operations Officer" },
-  { value: "FINANCE_OFFICER", label: "Finance Officer" },
+  { value: AdminRole.SUPER_ADMIN, label: "Super Admin" },
+  { value: AdminRole.COMPLIANCE_OFFICER, label: "Compliance Officer" },
+  { value: AdminRole.OPERATIONS_OFFICER, label: "Operations Officer" },
+  { value: AdminRole.FINANCE_OFFICER, label: "Finance Officer" },
 ];
 
 const statusOptions: { value: "ACTIVE" | "INACTIVE"; label: string }[] = [

@@ -7,11 +7,11 @@ import { Separator } from "../../../components/ui/separator";
 import { SystemHealthIndicator } from "../../../components/system-health-indicator";
 import { AccessLogsTable } from "../../../components/access-logs-table";
 import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
-import { useAccessLogs } from "../../../hooks/use-access-logs";
-import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
+import { useSecurityLogs } from "../../../hooks/use-security-logs";
+import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
 
 // Security-related event types
-const SECURITY_EVENT_TYPES: EventType[] = [
+const SECURITY_EVENT_TYPES: SecurityEventType[] = [
   "PASSWORD_CHANGED",
   "EMAIL_CHANGED",
   "ROLE_ADDED",
@@ -30,7 +30,7 @@ export default function SecurityLogsPage() {
 
   // Build API params from filters
   const apiParams = React.useMemo(() => {
-    const params: GetAccessLogsParams = {
+    const params: GetSecurityLogsParams = {
       page: currentPage,
       pageSize,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
@@ -41,23 +41,19 @@ export default function SecurityLogsPage() {
     }
 
     if (eventTypeFilter !== "all") {
-      params.eventType = eventTypeFilter as EventType;
-    }
-
-    if (statusFilter !== "all") {
-      params.status = statusFilter as "success" | "failed";
+      params.eventType = eventTypeFilter as SecurityEventType;
     }
 
     return params;
-  }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [currentPage, pageSize, searchQuery, eventTypeFilter, dateRangeFilter]);
 
-  const { data, isLoading, error } = useAccessLogs({
+  const { data, isLoading, error } = useSecurityLogs({
     ...apiParams,
     allowedEventTypes: SECURITY_EVENT_TYPES,
   });
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "security-logs"] });
   };
 
   const handleClearFilters = () => {
@@ -105,9 +101,8 @@ export default function SecurityLogsPage() {
             allowedEventTypes={SECURITY_EVENT_TYPES}
             exportFilters={{
               search: searchQuery || undefined,
-              eventType: eventTypeFilter !== "all" ? (eventTypeFilter as EventType) : undefined,
+              eventType: eventTypeFilter !== "all" ? (eventTypeFilter as SecurityEventType) : undefined,
               eventTypes: eventTypeFilter === "all" ? SECURITY_EVENT_TYPES : undefined,
-              status: statusFilter !== "all" ? (statusFilter as "success" | "failed") : undefined,
               dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
             }}
           />
@@ -123,6 +118,11 @@ export default function SecurityLogsPage() {
             logs={logs.map((log) => ({
               ...log,
               created_at: new Date(log.created_at),
+              // SecurityLog doesn't have these fields, so we provide defaults
+              success: true, // Security events are always successful (they're logged after the action)
+              portal: null,
+              device_type: null,
+              cognito_event: null,
             }))}
             loading={loading}
             currentPage={currentPage}

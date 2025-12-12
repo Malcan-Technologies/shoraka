@@ -126,7 +126,7 @@ export class AuthService {
    * Updates both Cognito custom attribute and database
    */
   async addRole(req: Request, userId: string, cognitoSub: string, role: UserRole): Promise<User> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Add role in database
     const updatedUser = await this.repository.addRoleToUser(userId, role);
@@ -147,17 +147,13 @@ export class AuthService {
 
     await cognitoClient.send(command);
 
-    // Create access log
-    // ROLE_ADDED is typically an admin action
-    await this.repository.createAccessLog({
+    // Create security log (ROLE_ADDED is a security event)
+    await this.repository.createSecurityLog({
       userId,
       eventType: "ROLE_ADDED",
-      portal: "admin",
       ipAddress,
       userAgent,
       deviceInfo,
-      deviceType,
-      success: true,
       metadata: {
         addedRole: role,
         allRoles: updatedUser.roles,
@@ -413,13 +409,22 @@ export class AuthService {
    * Get current user profile with session info
    */
   async getCurrentUser(userId: string): Promise<{
-    user: User;
+    user: User & { admin: { status: string } | null };
     activeRole: UserRole | null;
     sessions: {
       active: number;
     };
   }> {
-    const user = await this.repository.findUserByCognitoSub(userId);
+    const user = await prisma.user.findUnique({
+      where: { cognito_sub: userId },
+      include: {
+        admin: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
 
     if (!user) {
       throw new Error("User not found");
@@ -448,8 +453,7 @@ export class AuthService {
     success: boolean;
     activeRole: UserRole;
   }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const portal = getPortalFromRole(role);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const user = await this.repository.findUserByCognitoSub(userId);
 
     if (!user) {
@@ -468,16 +472,13 @@ export class AuthService {
       await this.repository.updateSessionActiveRole(session.id, role);
     }
 
-    // Create access log
-    await this.repository.createAccessLog({
+    // Create security log (ROLE_SWITCHED is a security event)
+    await this.repository.createSecurityLog({
       userId: user.id,
       eventType: "ROLE_SWITCHED",
-      portal,
       ipAddress,
       userAgent,
       deviceInfo,
-      deviceType,
-      success: true,
       metadata: {
         newRole: role,
       },
@@ -700,7 +701,7 @@ export class AuthService {
       phone?: string | null;
     }
   ): Promise<User> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Verify user exists before proceeding
     const currentUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -710,15 +711,13 @@ export class AuthService {
 
     const updatedUser = await this.repository.updateUserProfile(userId, data);
 
-    // Create access log
-    await this.repository.createAccessLog({
+    // Create security log (PROFILE_UPDATED is a security event)
+    await this.repository.createSecurityLog({
       userId,
       eventType: "PROFILE_UPDATED",
       ipAddress,
       userAgent,
       deviceInfo,
-      deviceType,
-      success: true,
       metadata: {
         updatedFields: Object.keys(data).filter((k) => data[k as keyof typeof data] !== undefined),
         previousValues: {
@@ -744,30 +743,12 @@ export class AuthService {
       newPassword: string;
     }
   ): Promise<{ success: boolean; sessionRevoked?: boolean }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Get user to find their email (used as Cognito username)
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    // Determine portal from token for access logging
-    let portal: string | undefined;
-    try {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const payload = await verifyCognitoAccessToken(token);
-        const tokenUser = await prisma.user.findUnique({
-          where: { cognito_sub: payload.sub },
-        });
-        if (tokenUser?.roles[0]) {
-          portal = getPortalFromRole(tokenUser.roles[0]);
-        }
-      }
-    } catch {
-      // Ignore token verification errors for portal detection
     }
 
     try {
@@ -838,16 +819,13 @@ export class AuthService {
         // Don't fail the password change, but log the error
       }
 
-      // Log successful password change with session revocation status
-      await this.repository.createAccessLog({
+      // Log successful password change with session revocation status (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "PASSWORD_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: true,
         metadata: {
           reason: "USER_INITIATED",
           sessionRevoked,
@@ -858,18 +836,16 @@ export class AuthService {
 
       return { success: true, sessionRevoked };
     } catch (error) {
-      // Log failed password change attempt
-      await this.repository.createAccessLog({
+      // Log failed password change attempt (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "PASSWORD_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: false,
         metadata: {
           reason: "USER_INITIATED",
+          success: false,
           error:
             error instanceof NotAuthorizedException
               ? "INCORRECT_PASSWORD"
@@ -1042,30 +1018,12 @@ export class AuthService {
       password: string; // Need password to get access token for verification
     }
   ): Promise<{ success: boolean; newEmail: string }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Get user
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    // Determine portal from token for access logging
-    let portal: string | undefined;
-    try {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const payload = await verifyCognitoAccessToken(token);
-        const tokenUser = await prisma.user.findUnique({
-          where: { cognito_sub: payload.sub },
-        });
-        if (tokenUser?.roles[0]) {
-          portal = getPortalFromRole(tokenUser.roles[0]);
-        }
-      }
-    } catch {
-      // Ignore token verification errors for portal detection
     }
 
     try {
@@ -1107,16 +1065,13 @@ export class AuthService {
         data: { email_verified: true },
       });
 
-      // Log successful email change verification
-      await this.repository.createAccessLog({
+      // Log successful email change verification (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "EMAIL_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: true,
         metadata: {
           newEmail: data.newEmail.toLowerCase(),
           reason: "USER_INITIATED",
@@ -1133,18 +1088,16 @@ export class AuthService {
       const errorName = error instanceof Error ? error.name : "Unknown";
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      // Log failed attempt
-      await this.repository.createAccessLog({
+      // Log failed attempt (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "EMAIL_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: false,
         metadata: {
           reason: "USER_INITIATED",
+          success: false,
           error: errorName,
         },
       });
@@ -1275,7 +1228,7 @@ export class AuthService {
       password: string;
     }
   ): Promise<{ success: boolean }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Get user
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -1286,24 +1239,6 @@ export class AuthService {
     // Check if email is already verified
     if (user.email_verified) {
       throw new AppError(400, "ALREADY_VERIFIED", "Email is already verified");
-    }
-
-    // Determine portal from token for access logging
-    let portal: string | undefined;
-    try {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const payload = await verifyCognitoAccessToken(token);
-        const tokenUser = await prisma.user.findUnique({
-          where: { cognito_sub: payload.sub },
-        });
-        if (tokenUser?.roles[0]) {
-          portal = getPortalFromRole(tokenUser.roles[0]);
-        }
-      }
-    } catch {
-      // Ignore token verification errors for portal detection
     }
 
     try {
@@ -1343,16 +1278,13 @@ export class AuthService {
         data: { email_verified: true },
       });
 
-      // Log successful verification
-      await this.repository.createAccessLog({
+      // Log successful verification (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "EMAIL_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: true,
         metadata: {
           email: user.email,
           reason: "EMAIL_VERIFIED",
@@ -1366,19 +1298,17 @@ export class AuthService {
       const errorName = error instanceof Error ? error.name : "Unknown";
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      // Log failed attempt
-      await this.repository.createAccessLog({
+      // Log failed attempt (SecurityLog)
+      await this.repository.createSecurityLog({
         userId,
         eventType: "EMAIL_CHANGED",
-        portal,
         ipAddress,
         userAgent,
         deviceInfo,
-        deviceType,
-        success: false,
         metadata: {
           email: user.email,
           reason: "VERIFICATION_FAILED",
+          success: false,
           error: errorName,
         },
       });

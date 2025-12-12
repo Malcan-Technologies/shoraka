@@ -7,7 +7,7 @@ import { Separator } from "../../components/ui/separator";
 import { SystemHealthIndicator } from "../../components/system-health-indicator";
 import { UsersTable } from "../../components/users-table";
 import { UsersTableToolbar } from "../../components/users-table-toolbar";
-import { useUsers } from "../../hooks/use-admin-users";
+import { useUsers } from "../../hooks/use-users";
 import type { GetUsersParams, UserRole } from "@cashsouk/types";
 
 /*const mockUsers: User[] = [

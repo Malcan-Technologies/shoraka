@@ -16,6 +16,7 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider";
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
 import { AuthRepository } from "./repository";
+import { AdminService } from "../admin/service";
 
 const router = Router();
 
@@ -78,12 +79,18 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
     // Instead of storing in session (Safari ITP blocks cookies), encrypt state and embed in URL
     // This is Safari-proof and more secure for cross-domain OAuth flows
     // createOAuthState adds a unique stateId for replay attack prevention
+    // Include invitation token if present (for admin invitations)
+    const invitationToken = req.query.invitation as string | undefined;
+    const invitationRole = req.query.invitation_role as string | undefined;
+    
     const stateData = encryptOAuthState(
       createOAuthState({
         nonce,
         state: oauthState,
         requestedRole: requestedRole.toString().toUpperCase(),
         signup: signupParam,
+        invitationToken,
+        invitationRole,
         timestamp: Date.now(),
       })
     );
@@ -391,7 +398,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     const rolesToUse =
       existingUser && existingUser.roles.length > 0 ? existingUser.roles : initialRoles;
 
-    const user = await authRepository.upsertUser({
+    let user = await authRepository.upsertUser({
       cognitoSub: cognitoId,
       cognitoUsername: email,
       email,
@@ -418,14 +425,176 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Extract request metadata early (needed for both success and error cases)
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
+    // Handle admin invitation token if present (from OAuth state or query parameter)
+    const invitationToken = stateData.invitationToken || (req.query.invitation as string | undefined);
+    let invitationAccepted = false;
+    if (invitationToken && requestedRole === UserRole.ADMIN) {
+      try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:430',message:'Before acceptInvitation',data:{userId:user.id,userRoles:user.roles,invitationToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        const adminService = new AdminService();
+        const invitationResult = await adminService.acceptInvitation(req, { token: invitationToken }, user);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:433',message:'After acceptInvitation',data:{userId:user.id,adminStatus:invitationResult.admin?.status || 'N/A',adminRole:invitationResult.admin?.role_description || 'N/A',userRoles:invitationResult.user.roles},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        // Verify that the invitation was actually accepted and admin status is ACTIVE
+        if (invitationResult.admin?.status !== "ACTIVE") {
+          logger.error(
+            {
+              correlationId,
+              userId: user.id,
+              email: user.email,
+              invitationToken,
+              returnedStatus: invitationResult.admin?.status,
+            },
+            "Invitation accepted but returned admin status is not ACTIVE"
+          );
+        }
+        
+        logger.info(
+          {
+            correlationId,
+            userId: user.id,
+            email: user.email,
+            invitationToken,
+            adminStatus: invitationResult.admin?.status,
+            source: stateData.invitationToken ? "oauth-state" : "query-param",
+          },
+          "Admin invitation accepted during OAuth callback"
+        );
+        // Refresh user to get updated roles (admin status will be queried fresh in access check)
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: user.id },
+        });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:456',message:'After refresh user',data:{userId:updatedUser?.id,userRoles:updatedUser?.roles},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        if (updatedUser) {
+          user = updatedUser;
+          invitationAccepted = true;
+        }
+      } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:463',message:'Error accepting invitation',data:{userId:user.id,error:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        logger.error(
+          {
+            correlationId,
+            userId: user.id,
+            error: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? error.stack : undefined,
+          },
+          "Failed to accept admin invitation during OAuth callback"
+        );
+        // Continue with normal flow even if invitation fails
+      }
+    }
+
     // Determine active role:
     // Always use the requestedRole (from the login button clicked)
     // This ensures users go to the portal they requested, even if they don't have that role yet
     // EXCEPTION: ADMIN role requires explicit ADMIN role in database - no signup allowed
     const activeRole: UserRole = requestedRole;
 
-    // CRITICAL: Admin portal is sign-in only - users must have ADMIN role in database
-    if (requestedRole === UserRole.ADMIN && !user.roles.includes(UserRole.ADMIN)) {
+    // CRITICAL: Admin portal is sign-in only - users must have ADMIN role AND active status
+    if (requestedRole === UserRole.ADMIN) {
+      const hasAdminRole = user.roles.includes(UserRole.ADMIN);
+      
+      // Check admin status if user has ADMIN role
+      // ALWAYS query fresh if invitation was just accepted to avoid stale data
+      let adminStatus: string | null = null;
+      if (hasAdminRole) {
+        if (invitationAccepted) {
+          // If invitation was just accepted, ALWAYS query fresh to get the updated status
+          // This ensures we don't use stale cached data
+          const admin = await prisma.admin.findUnique({
+            where: { user_id: user.id },
+            select: { status: true },
+          });
+          adminStatus = admin?.status || null;
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:492',message:'Queried admin fresh after invitation',data:{userId:user.id,adminStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+        } else {
+          // For normal flow, prefer admin from user object if available
+          if ((user as any).admin) {
+            adminStatus = (user as any).admin.status || null;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:499',message:'Using admin from user object',data:{userId:user.id,adminStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+          } else {
+            // Fallback: query fresh if admin not in user object
+            const admin = await prisma.admin.findUnique({
+              where: { user_id: user.id },
+              select: { status: true },
+            });
+            adminStatus = admin?.status || null;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:507',message:'Queried admin fresh (no invitation)',data:{userId:user.id,adminStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+          }
+        }
+      }
+
+      let isAdminActive = hasAdminRole && adminStatus === "ACTIVE";
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:512',message:'Admin access check result',data:{userId:user.id,hasAdminRole,adminStatus,isAdminActive,hadInvitation:!!invitationToken,invitationAccepted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // If invitation was just accepted, admin should be ACTIVE - if not, force a fresh query
+      if (invitationAccepted && !isAdminActive) {
+        logger.warn(
+          {
+            correlationId,
+            userId: user.id,
+            email: user.email,
+            adminStatus,
+            hasAdminRole,
+            invitationToken,
+          },
+          "Invitation accepted but admin status check failed - forcing fresh query"
+        );
+        // Force a fresh query one more time as a last resort (handles potential race conditions)
+        const freshAdmin = await prisma.admin.findUnique({
+          where: { user_id: user.id },
+          select: { status: true },
+        });
+        const freshStatus = freshAdmin?.status || null;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cognito.routes.ts:530',message:'Force fresh query after invitation',data:{userId:user.id,previousStatus:adminStatus,freshStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        if (freshStatus === "ACTIVE") {
+          // Use the fresh status and update the check result
+          adminStatus = freshStatus;
+          isAdminActive = true;
+          logger.info(
+            {
+              correlationId,
+              userId: user.id,
+              email: user.email,
+              previousStatus: adminStatus,
+              freshStatus,
+            },
+            "Admin status confirmed ACTIVE after fresh query (invitation accepted)"
+          );
+        } else {
+          logger.error(
+            {
+              correlationId,
+              userId: user.id,
+              email: user.email,
+              adminStatus,
+              freshStatus,
+              invitationToken,
+            },
+            "Invitation accepted but admin status is still not ACTIVE after fresh query"
+          );
+        }
+      }
+
+      if (!isAdminActive) {
       logger.warn(
         {
           correlationId,
@@ -433,8 +602,10 @@ router.get("/callback", async (req: Request, res: Response) => {
           email: user.email,
           requestedRole,
           userRoles: user.roles,
+            hasAdminRole,
+            adminStatus,
         },
-        "User attempted to access admin portal without ADMIN role"
+          "User attempted to access admin portal without ADMIN role or with inactive status"
       );
 
       // Log failed admin access attempt
@@ -451,7 +622,11 @@ router.get("/callback", async (req: Request, res: Response) => {
           metadata: {
             requestedRole,
             userRoles: user.roles,
-            reason: "User does not have ADMIN role",
+              hasAdminRole,
+              adminStatus,
+              reason: !hasAdminRole 
+                ? "User does not have ADMIN role" 
+                : "Admin account is inactive",
           },
         },
       });
@@ -464,10 +639,11 @@ router.get("/callback", async (req: Request, res: Response) => {
 
       logger.info(
         { correlationId, userId: user.id, redirectUrl: logoutUrl.toString() },
-        "Logging out non-admin user from Cognito - will redirect to landing page"
+          "Logging out non-admin or inactive admin user from Cognito - will redirect to landing page"
       );
 
       return res.redirect(logoutUrl.toString());
+      }
     }
 
     logger.info(

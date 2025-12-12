@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
-import { User, UserRole, AccessLog, UserSession } from "@prisma/client";
+import { User, UserRole, AccessLog, UserSession, SecurityLog } from "@prisma/client";
 import { generateUniqueUserId } from "../../lib/user-id-generator";
+import { Prisma } from "@prisma/client";
 
 export class AuthRepository {
   /**
@@ -266,6 +267,29 @@ export class AuthRepository {
         user_id: userId,
         revoked_at: null,
         expires_at: { gt: new Date() },
+      },
+    });
+  }
+
+  /**
+   * Create security log entry
+   */
+  async createSecurityLog(data: {
+    userId: string;
+    eventType: string;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceInfo?: string;
+    metadata?: object;
+  }): Promise<SecurityLog> {
+    return prisma.securityLog.create({
+      data: {
+        user_id: data.userId,
+        event_type: data.eventType,
+        ip_address: data.ipAddress,
+        user_agent: data.userAgent,
+        device_info: data.deviceInfo,
+        metadata: data.metadata as Prisma.InputJsonValue,
       },
     });
   }

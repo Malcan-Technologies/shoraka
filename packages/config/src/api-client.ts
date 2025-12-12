@@ -13,6 +13,14 @@ import type {
   AccessLogResponse,
   ExportAccessLogsParams,
   DashboardStatsResponse,
+  GetAdminUsersParams,
+  AdminUsersResponse,
+  UpdateAdminRoleInput,
+  InviteAdminInput,
+  InviteAdminResponse,
+  AcceptInvitationInput,
+  GetSecurityLogsParams,
+  SecurityLogsResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -355,6 +363,74 @@ export class ApiClient {
     }
 
     return response.blob();
+  }
+
+  // Admin - Admin User Management
+  async getAdminUsers(
+    params: GetAdminUsersParams
+  ): Promise<ApiResponse<AdminUsersResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.roleDescription) queryParams.append("roleDescription", params.roleDescription);
+    if (params.status) queryParams.append("status", params.status);
+
+    return this.get<AdminUsersResponse>(`/v1/admin/admin-users?${queryParams.toString()}`);
+  }
+
+  async updateAdminRole(
+    id: string,
+    data: UpdateAdminRoleInput
+  ): Promise<ApiResponse<{ user: UserResponse; admin: { role_description: string } | null }> | ApiError> {
+    return this.put<{ user: UserResponse; admin: { role_description: string } | null }>(
+      `/v1/admin/admin-users/${id}/role`,
+      data
+    );
+  }
+
+  async deactivateAdmin(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+    return this.put<{ user: UserResponse }>(`/v1/admin/admin-users/${id}/deactivate`);
+  }
+
+  async reactivateAdmin(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
+    return this.put<{ user: UserResponse }>(`/v1/admin/admin-users/${id}/reactivate`);
+  }
+
+  async generateInviteLink(
+    data: InviteAdminInput
+  ): Promise<ApiResponse<{ inviteUrl: string }> | ApiError> {
+    return this.post<{ inviteUrl: string }>(`/v1/admin/generate-invite-link`, data);
+  }
+
+  async inviteAdmin(data: InviteAdminInput): Promise<ApiResponse<InviteAdminResponse> | ApiError> {
+    return this.post<InviteAdminResponse>(`/v1/admin/invite`, data);
+  }
+
+  async acceptInvitation(
+    data: AcceptInvitationInput
+  ): Promise<ApiResponse<{ user: UserResponse; admin: { role_description: string } }> | ApiError> {
+    return this.post<{ user: UserResponse; admin: { role_description: string } }>(
+      `/v1/admin/accept-invitation`,
+      data
+    );
+  }
+
+  // Admin - Security Logs
+  async getSecurityLogs(
+    params: GetSecurityLogsParams
+  ): Promise<ApiResponse<SecurityLogsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+
+    return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
   }
 }
 

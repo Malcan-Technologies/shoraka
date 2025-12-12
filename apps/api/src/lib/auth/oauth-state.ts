@@ -10,6 +10,8 @@ export interface OAuthState {
   state: string; // The original OAuth state for CSRF protection
   requestedRole: string;
   signup?: boolean;
+  invitationToken?: string; // Admin invitation token
+  invitationRole?: string; // Admin invitation role
   timestamp: number; // To enforce expiration
   stateId: string; // Unique ID for replay attack prevention
 }

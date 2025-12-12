@@ -140,3 +140,94 @@ export interface DashboardStatsResponse {
   };
   signupTrends: SignupTrendItem[];
 }
+
+// Admin Management Types
+export enum AdminRole {
+  SUPER_ADMIN = "SUPER_ADMIN",
+  COMPLIANCE_OFFICER = "COMPLIANCE_OFFICER",
+  OPERATIONS_OFFICER = "OPERATIONS_OFFICER",
+  FINANCE_OFFICER = "FINANCE_OFFICER",
+}
+
+export interface AdminUser {
+  id: string;
+  user_id: string | null;
+  first_name: string;
+  last_name: string;
+  email: string;
+  admin: {
+    role_description: AdminRole | null;
+    status: "ACTIVE" | "INACTIVE";
+    last_login: string | null;
+  } | null;
+  created_at: string;
+}
+
+export interface GetAdminUsersParams extends PaginationParams {
+  search?: string;
+  roleDescription?: AdminRole;
+  status?: "ACTIVE" | "INACTIVE";
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[];
+  pagination: PaginationResponse;
+}
+
+export interface UpdateAdminRoleInput {
+  roleDescription: AdminRole;
+}
+
+export interface InviteAdminInput {
+  email?: string;
+  roleDescription: AdminRole;
+}
+
+export interface InviteAdminResponse {
+  inviteUrl: string;
+  messageId: string;
+}
+
+export interface AcceptInvitationInput {
+  token: string;
+}
+
+// Security Logs Types
+export type SecurityEventType =
+  | "PASSWORD_CHANGED"
+  | "EMAIL_CHANGED"
+  | "ROLE_ADDED"
+  | "ROLE_SWITCHED"
+  | "PROFILE_UPDATED";
+
+export interface SecurityLogUser {
+  first_name: string;
+  last_name: string;
+  email: string;
+  roles: UserRole[];
+}
+
+export interface SecurityLogResponse {
+  id: string;
+  user_id: string;
+  user: SecurityLogUser;
+  event_type: SecurityEventType;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GetSecurityLogsParams extends PaginationParams {
+  search?: string;
+  eventType?: SecurityEventType;
+  eventTypes?: SecurityEventType[];
+  dateRange?: "24h" | "7d" | "30d" | "all";
+  userId?: string;
+}
+
+export interface SecurityLogsResponse {
+  logs: SecurityLogResponse[];
+  pagination: PaginationResponse;
+}

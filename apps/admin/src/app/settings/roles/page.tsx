@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { subDays } from "date-fns";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
 import { SystemHealthIndicator } from "../../../components/system-health-indicator";
@@ -17,25 +16,14 @@ import { RoleBadgeInfo } from "../../../components/role-badge-info";
 import { InviteAdminDialog } from "../../../components/invite-admin-dialog";
 import { AdminUsersTable } from "../../../components/admin-users-table";
 import { AdminUsersToolbar } from "../../../components/admin-users-toolbar";
+import { useAdminUsers } from "../../../hooks/use-admin-users";
 import {
   ShieldCheckIcon,
   DocumentCheckIcon,
   CogIcon,
   BanknotesIcon,
 } from "@heroicons/react/24/outline";
-
-type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
-
-interface AdminUser {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: AdminRole;
-  status: "ACTIVE" | "INACTIVE";
-  last_login: Date | null;
-  created_at: Date;
-}
+import type { AdminUser, AdminRole } from "@cashsouk/types";
 
 const roles = [
   {
@@ -103,132 +91,29 @@ const roles = [
   },
 ];
 
-// Mock admin users data - using static dates to avoid hydration errors
-const getMockAdminUsers = (): AdminUser[] => {
-  const now = new Date();
-  return [
-    {
-      id: "admin_1",
-      first_name: "Ahmad",
-      last_name: "Rahman",
-      email: "ahmad.rahman@cashsouk.com",
-      role: "SUPER_ADMIN",
-      status: "ACTIVE",
-      last_login: now,
-      created_at: subDays(now, 180),
-    },
-    {
-      id: "admin_2",
-      first_name: "Sarah",
-      last_name: "Lee",
-      email: "sarah.lee@cashsouk.com",
-      role: "COMPLIANCE_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 2),
-      created_at: subDays(now, 120),
-    },
-    {
-      id: "admin_3",
-      first_name: "Mohamed",
-      last_name: "Ibrahim",
-      email: "mohamed.ibrahim@cashsouk.com",
-      role: "OPERATIONS_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 1),
-      created_at: subDays(now, 90),
-    },
-    {
-      id: "admin_4",
-      first_name: "Priya",
-      last_name: "Sharma",
-      email: "priya.sharma@cashsouk.com",
-      role: "FINANCE_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 3),
-      created_at: subDays(now, 75),
-    },
-    {
-      id: "admin_5",
-      first_name: "David",
-      last_name: "Tan",
-      email: "david.tan@cashsouk.com",
-      role: "COMPLIANCE_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 5),
-      created_at: subDays(now, 60),
-    },
-    {
-      id: "admin_6",
-      first_name: "Nurul",
-      last_name: "Hasan",
-      email: "nurul.hasan@cashsouk.com",
-      role: "OPERATIONS_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 4),
-      created_at: subDays(now, 45),
-    },
-    {
-      id: "admin_7",
-      first_name: "Wei",
-      last_name: "Chen",
-      email: "wei.chen@cashsouk.com",
-      role: "FINANCE_OFFICER",
-      status: "INACTIVE",
-      last_login: subDays(now, 30),
-      created_at: subDays(now, 90),
-    },
-    {
-      id: "admin_8",
-      first_name: "Aisha",
-      last_name: "Malik",
-      email: "aisha.malik@cashsouk.com",
-      role: "COMPLIANCE_OFFICER",
-      status: "ACTIVE",
-      last_login: subDays(now, 1),
-      created_at: subDays(now, 30),
-    },
-  ];
-};
-
 const ITEMS_PER_PAGE = 10;
 
 export default function RolesPage() {
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
-  const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>([]);
-  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRoles, setSelectedRoles] = React.useState<AdminRole[]>([]);
   const [selectedStatuses, setSelectedStatuses] = React.useState<("ACTIVE" | "INACTIVE")[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
 
-  // Filter users
-  const filteredUsers = React.useMemo(() => {
-    return adminUsers.filter((user) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const { data, isLoading, refetch } = useAdminUsers({
+    page: currentPage,
+    pageSize: ITEMS_PER_PAGE,
+    search: searchQuery || undefined,
+    roleDescription: selectedRoles.length === 1 ? selectedRoles[0] : undefined,
+    status: selectedStatuses.length === 1 ? selectedStatuses[0] : undefined,
+  });
 
-      const matchesRole = selectedRoles.length === 0 || selectedRoles.includes(user.role);
+  const adminUsers = data?.users || [];
+  const totalPages = data?.pagination.totalPages || 0;
 
-      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(user.status);
-
-      return matchesSearch && matchesRole && matchesStatus;
-    });
-  }, [adminUsers, searchQuery, selectedRoles, selectedStatuses]);
-
-  // Paginate users
-  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  const handleUpdateUser = (userId: string, updates: Partial<AdminUser>) => {
-    setAdminUsers((prev) =>
-      prev.map((user) => (user.id === userId ? { ...user, ...updates } : user))
-    );
+  const handleUpdateUser = (_userId: string, _updates: Partial<AdminUser>) => {
+    // Optimistic update - the mutation will invalidate and refetch
+    refetch();
   };
 
   const handleClearFilters = () => {
@@ -239,17 +124,9 @@ export default function RolesPage() {
   };
 
   const handleReload = () => {
-    // Currently using mock data - in production this would refetch from API
-    setAdminUsers(getMockAdminUsers());
+    refetch();
   };
 
-  // Initialize mock data on client side to avoid hydration errors
-  React.useEffect(() => {
-    setAdminUsers(getMockAdminUsers());
-    setLoading(false);
-  }, []);
-
-  // Reset to page 1 when filters change
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedRoles, selectedStatuses]);
@@ -304,22 +181,24 @@ export default function RolesPage() {
 
           {/* Admin Users Table Section */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Admin Users</h2>
+            <h2 className="text-lg font-semibold">
+              Admin Users ({data?.pagination.totalCount || 0})
+            </h2>
             <AdminUsersToolbar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               selectedRoles={selectedRoles}
-              onRolesChange={setSelectedRoles}
+              onRolesChange={(roles) => setSelectedRoles(roles)}
               selectedStatuses={selectedStatuses}
               onStatusesChange={setSelectedStatuses}
-              totalCount={filteredUsers.length}
+              totalCount={data?.pagination.totalCount || 0}
               onClearFilters={handleClearFilters}
               onReload={handleReload}
-              isLoading={loading}
+              isLoading={isLoading}
             />
             <AdminUsersTable
-              users={paginatedUsers}
-              isLoading={loading}
+              users={adminUsers}
+              isLoading={isLoading}
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}

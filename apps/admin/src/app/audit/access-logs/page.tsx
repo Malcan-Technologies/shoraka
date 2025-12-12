@@ -20,6 +20,8 @@ const ACCESS_EVENT_TYPES: EventType[] = [
   "KYC_STATUS_UPDATED",
 ];
 
+// Security events are now in SecurityLogs - exclude them from access logs
+
 /*const mockAccessLogs: AccessLog[] = [
   {
     id: "log_1",

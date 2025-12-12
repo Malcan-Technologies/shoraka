@@ -37,7 +37,11 @@
         {
           "name": "ALLOWED_ORIGINS",
           "value": "https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com"
-        }
+        },
+		{
+			"name": "EMAIL_FROM",
+			"value": "noreply@cashsouk.com"
+		}
       ],
       "secrets": [
         {

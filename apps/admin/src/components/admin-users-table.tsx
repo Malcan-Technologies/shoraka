@@ -3,19 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@cashsouk/ui";
 import { AdminUserTableRow } from "./admin-user-table-row";
 import { Button } from "@/components/ui/button";
-
-type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
-
-interface AdminUser {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: AdminRole;
-  status: "ACTIVE" | "INACTIVE";
-  last_login: Date | null;
-  created_at: Date;
-}
+import type { AdminUser } from "@cashsouk/types";
 
 interface AdminUsersTableProps {
   users: AdminUser[];
@@ -33,6 +21,9 @@ function TableSkeleton() {
         <TableRow key={i}>
           <TableCell>
             <Skeleton className="h-5 w-32" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-20" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-48" />
@@ -73,6 +64,7 @@ export function AdminUsersTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Name</TableHead>
+                <TableHead className="text-sm font-semibold">User ID</TableHead>
                 <TableHead className="text-sm font-semibold">Email</TableHead>
                 <TableHead className="text-sm font-semibold">Role</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
@@ -85,7 +77,7 @@ export function AdminUsersTable({
                 <TableSkeleton />
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     No admin users found matching your filters.
                   </TableCell>
                 </TableRow>

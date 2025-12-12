@@ -31,7 +31,7 @@ export async function verifyToken(
  */
 export async function getUserInfo(
   getAccessToken: () => Promise<string | null>
-): Promise<{ roles: UserRole[]; email: string } | null> {
+): Promise<{ roles: UserRole[]; email: string; adminStatus?: string | null } | null> {
   try {
     const { createApiClient } = await import("@cashsouk/config");
     const apiClient = createApiClient(API_URL, getAccessToken);
@@ -45,6 +45,7 @@ export async function getUserInfo(
         last_name: string | null;
         investor_onboarding_completed: boolean;
         issuer_onboarding_completed: boolean;
+        admin: { status: string } | null;
       };
       activeRole: string | null;
       sessions: {
@@ -56,6 +57,7 @@ export async function getUserInfo(
       return {
         roles: result.data.user.roles || [],
         email: result.data.user.email || "",
+        adminStatus: result.data.user.admin?.status || null,
       };
     }
     
@@ -234,21 +236,28 @@ export function useAuth() {
           return;
         }
 
-        console.log("[useAuth] Auth valid, checking admin role");
+        console.log("[useAuth] Auth valid, checking admin role and status");
 
-        // Auth is valid - check if user has ADMIN role
+        // Auth is valid - check if user has ADMIN role AND active status
         const userInfo = await getUserInfo(getAccessToken);
         
-        if (!userInfo || !userInfo.roles.includes("ADMIN")) {
-          // User doesn't have ADMIN role - sign out and redirect to login
-          console.log("[useAuth] User lacks ADMIN role, signing out");
+        const hasAdminRole = userInfo?.roles.includes("ADMIN") ?? false;
+        const isAdminActive = userInfo?.adminStatus === "ACTIVE";
+        const canAccessAdmin = hasAdminRole && isAdminActive;
+        
+        if (!userInfo || !canAccessAdmin) {
+          // User doesn't have ADMIN role or admin is inactive - sign out and redirect to login
+          console.log("[useAuth] User lacks ADMIN role or admin is inactive, signing out", {
+            hasAdminRole,
+            adminStatus: userInfo?.adminStatus,
+            isAdminActive,
+          });
           setIsAuthenticated(false);
           setHasAdminRole(false);
           checkedRef.current = true;
           
           // Sign out from Amplify and redirect to login
-          await signOut();
-          redirectToLogin();
+          await logout(signOut, getAccessToken);
           return;
         }
 

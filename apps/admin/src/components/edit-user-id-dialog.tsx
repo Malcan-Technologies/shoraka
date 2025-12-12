@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useUpdateUserId } from "@/hooks/use-admin-users";
+import { useUpdateUserId } from "@/hooks/use-users";
 
 const schema = z.object({
   userId: z
@@ -65,12 +65,12 @@ export function EditUserIdDialog({
   }, [open, user.user_id, form]);
 
   const onSubmit = async (data: FormValues) => {
-    const newUserId = await updateUserId.mutateAsync({
+    const result = await updateUserId.mutateAsync({
       userId: user.id,
       newUserId: data.userId,
     });
     
-    onSuccess(newUserId);
+    onSuccess(result.user_id);
     onOpenChange(false);
   };
 

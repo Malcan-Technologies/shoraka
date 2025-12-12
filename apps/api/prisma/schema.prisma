@@ -14,6 +14,13 @@ enum UserRole {
   ADMIN
 }
 
+enum AdminRole {
+  SUPER_ADMIN
+  COMPLIANCE_OFFICER
+  OPERATIONS_OFFICER
+  FINANCE_OFFICER
+}
+
 enum LoanStatus {
   DRAFT
   PENDING_APPROVAL
@@ -43,10 +50,13 @@ model User {
   created_at                      DateTime   @default(now())
   updated_at                      DateTime   @updatedAt
 
-  loans          Loan[]
-  investments    Investment[]
-  access_logs    AccessLog[]
-  sessions       UserSession[]
+  loans                   Loan[]
+  investments             Investment[]
+  access_logs             AccessLog[]
+  sessions                UserSession[]
+  admin                   Admin?
+  sent_admin_invitations  AdminInvitation[]
+  security_logs           SecurityLog[]
   
   @@index([cognito_sub])
   @@index([user_id])
@@ -130,5 +140,58 @@ model UserSession {
   @@index([expires_at])
   @@index([user_id, active_role])
   @@map("user_sessions")
+}
+
+model Admin {
+  id                  String    @id @default(cuid())
+  user_id             String    @unique
+  role_description    AdminRole
+  status              String    @default("ACTIVE") // ACTIVE or INACTIVE
+  last_login          DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([status])
+  @@map("admins")
+}
+
+model AdminInvitation {
+  id                  String    @id @default(cuid())
+  email               String
+  role_description    AdminRole
+  token               String    @unique
+  expires_at          DateTime
+  accepted            Boolean   @default(false)
+  accepted_at         DateTime?
+  invited_by_user_id  String
+  created_at          DateTime  @default(now())
+  
+  invited_by User @relation(fields: [invited_by_user_id], references: [id])
+  
+  @@index([email])
+  @@index([token])
+  @@index([expires_at])
+  @@map("admin_invitations")
+}
+
+model SecurityLog {
+  id             String   @id @default(cuid())
+  user_id        String
+  event_type     String   // PASSWORD_CHANGED, EMAIL_CHANGED, ROLE_ADDED, ROLE_SWITCHED, PROFILE_UPDATED
+  ip_address     String?
+  user_agent     String?  @db.Text
+  device_info    String?
+  metadata       Json?
+  created_at     DateTime @default(now())
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@map("security_logs")
 }
 

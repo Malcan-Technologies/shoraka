@@ -12,19 +12,8 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PencilIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
-
-type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
-
-interface AdminUser {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: AdminRole;
-  status: "ACTIVE" | "INACTIVE";
-  last_login: Date | null;
-  created_at: Date;
-}
+import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
+import type { AdminUser, AdminRole } from "@cashsouk/types";
 
 interface AdminUserTableRowProps {
   user: AdminUser;
@@ -56,46 +45,103 @@ const roleConfig: Record<AdminRole, { label: string; color: string; bgColor: str
 
 export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
   const [isEditingRole, setIsEditingRole] = React.useState(false);
-  const [selectedRole, setSelectedRole] = React.useState<AdminRole>(user.role);
+  const currentRole = user.admin?.role_description || null;
+  const [selectedRole, setSelectedRole] = React.useState<AdminRole | null>(currentRole);
+  const updateRoleMutation = useUpdateAdminRole();
+  const deactivateMutation = useDeactivateAdmin();
+  const reactivateMutation = useReactivateAdmin();
 
-  const handleRoleChange = () => {
-    if (selectedRole !== user.role) {
-      onUpdate(user.id, { role: selectedRole });
+  React.useEffect(() => {
+    setSelectedRole(currentRole);
+  }, [currentRole]);
+
+  const handleRoleChange = async () => {
+    if (!selectedRole || selectedRole === currentRole) {
+      setIsEditingRole(false);
+      return;
+    }
+
+    try {
+      await updateRoleMutation.mutateAsync({
+        userId: user.id,
+        data: { roleDescription: selectedRole },
+      });
       toast.success("Role updated", {
         description: `${user.first_name} ${user.last_name} is now ${roleConfig[selectedRole].label}`,
       });
-    }
     setIsEditingRole(false);
+      onUpdate(user.id, { 
+        admin: { 
+          ...user.admin, 
+          role_description: selectedRole,
+          status: user.admin?.status || "ACTIVE",
+          last_login: user.admin?.last_login ?? null,
+        } 
+      });
+    } catch (error) {
+      toast.error("Failed to update role", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
+    }
   };
 
   const handleCancelEdit = () => {
-    setSelectedRole(user.role);
+    setSelectedRole(currentRole);
     setIsEditingRole(false);
   };
 
-  const handleToggleStatus = () => {
-    const newStatus = user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-    onUpdate(user.id, { status: newStatus });
-    toast.success(newStatus === "ACTIVE" ? "Admin activated" : "Admin deactivated", {
-      description: `${user.first_name} ${user.last_name} is now ${newStatus.toLowerCase()}`,
+  const handleToggleStatus = async () => {
+    const currentStatus = user.admin?.status || "ACTIVE";
+    const newStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    try {
+      if (newStatus === "INACTIVE") {
+        await deactivateMutation.mutateAsync(user.id);
+        toast.success("Admin deactivated", {
+          description: `${user.first_name} ${user.last_name} has been deactivated`,
+        });
+      } else {
+        await reactivateMutation.mutateAsync(user.id);
+        toast.success("Admin activated", {
+          description: `${user.first_name} ${user.last_name} has been activated`,
+        });
+      }
+      onUpdate(user.id, { 
+        admin: { 
+          ...user.admin, 
+          status: newStatus,
+          role_description: user.admin?.role_description ?? null,
+          last_login: user.admin?.last_login ?? null,
+        } 
+      });
+    } catch (error) {
+      toast.error("Failed to update status", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
     });
+    }
   };
+
+  const status = user.admin?.status || "INACTIVE";
+  const role = user.admin?.role_description;
 
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
       <TableCell className="font-medium">
         {user.first_name} {user.last_name}
       </TableCell>
+      <TableCell className="text-[15px] font-mono text-xs text-muted-foreground">
+        {user.user_id || "-"}
+      </TableCell>
       <TableCell className="text-[15px]">{user.email}</TableCell>
       <TableCell>
         {isEditingRole ? (
           <div className="flex items-center gap-2">
             <Select
-              value={selectedRole}
+              value={selectedRole || ""}
               onValueChange={(value) => setSelectedRole(value as AdminRole)}
             >
               <SelectTrigger className="w-[180px] h-9 rounded-lg">
-                <SelectValue />
+                <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(roleConfig).map(([key, config]) => (
@@ -111,6 +157,7 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
               className="h-8 w-8"
               onClick={handleRoleChange}
               title="Save changes"
+              disabled={updateRoleMutation.isPending}
             >
               <CheckIcon className="h-4 w-4 text-green-600" />
             </Button>
@@ -124,41 +171,44 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
               <XMarkIcon className="h-4 w-4 text-gray-500" />
             </Button>
           </div>
-        ) : (
+        ) : role ? (
           <button
             onClick={() => setIsEditingRole(true)}
             className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${
-              roleConfig[user.role].bgColor
-            } ${roleConfig[user.role].color} hover:shadow-sm transition-shadow`}
+              roleConfig[role].bgColor
+            } ${roleConfig[role].color} hover:shadow-sm transition-shadow`}
           >
-            {roleConfig[user.role].label}
+            {roleConfig[role].label}
             <PencilIcon className="h-3 w-3 opacity-0 group-hover:opacity-70 transition-opacity" />
           </button>
+        ) : (
+          <span className="text-muted-foreground text-xs">No role assigned</span>
         )}
       </TableCell>
       <TableCell>
         <Badge
-          variant={user.status === "ACTIVE" ? "default" : "secondary"}
+          variant={status === "ACTIVE" ? "default" : "secondary"}
           className={
-            user.status === "ACTIVE"
+            status === "ACTIVE"
               ? "bg-green-50 text-green-700 border-green-200"
               : "bg-gray-100 text-gray-600 border-gray-200"
           }
         >
-          {user.status}
+          {status}
         </Badge>
       </TableCell>
       <TableCell className="text-[15px] text-muted-foreground">
-        {user.last_login ? format(user.last_login, "MMM d, yyyy h:mm a") : "Never"}
+        {user.admin?.last_login ? format(new Date(user.admin.last_login), "MMM d, yyyy h:mm a") : "Never"}
       </TableCell>
       <TableCell>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleToggleStatus}
-          className={`text-[13px] ${user.status === "ACTIVE" ? "text-red-600 hover:text-red-100" : ""}`}
+          disabled={deactivateMutation.isPending || reactivateMutation.isPending}
+          className={`text-[13px] ${status === "ACTIVE" ? "text-red-600 hover:text-red-100" : ""}`}
         >
-          {user.status === "ACTIVE" ? "Deactivate" : "Activate"}
+          {status === "ACTIVE" ? "Deactivate" : "Activate"}
         </Button>
       </TableCell>
     </TableRow>

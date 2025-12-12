@@ -13,7 +13,7 @@ import {
   useUpdateUserKyc,
   useUpdateUserOnboarding,
   useUpdateUserProfile,
-} from "../hooks/use-admin-users";
+} from "../hooks/use-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
 import { EditUserIdDialog } from "./edit-user-id-dialog";
@@ -102,7 +102,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         if (phoneChanged) {
           profileUpdate.phone = editedUser.phone || null;
         }
-        await updateProfile.mutateAsync({ id: user.id, profile: profileUpdate });
+        await updateProfile.mutateAsync({ userId: user.id, data: profileUpdate });
       }
 
       // Update roles if changed
@@ -110,14 +110,14 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
       if (rolesChanged && editedUser.roles) {
         await updateRoles.mutateAsync({
-          id: user.id,
-          roles: { roles: editedUser.roles as UserRole[] },
+          userId: user.id,
+          data: { roles: editedUser.roles as UserRole[] },
         });
       }
 
       // Update KYC if changed
       if (editedUser.kyc_verified !== undefined && editedUser.kyc_verified !== user.kyc_verified) {
-        await updateKyc.mutateAsync({ id: user.id, kycVerified: editedUser.kyc_verified });
+        await updateKyc.mutateAsync({ userId: user.id, data: { kycVerified: editedUser.kyc_verified } });
       }
 
       // Update onboarding if changed - only send changed fields
@@ -145,8 +145,8 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         }
 
         await updateOnboarding.mutateAsync({
-          id: user.id,
-          onboarding,
+          userId: user.id,
+          data: onboarding,
         });
 
         // Backend auto-adds/removes roles based on onboarding status

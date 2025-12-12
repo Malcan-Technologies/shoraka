@@ -12,6 +12,11 @@ import {
   updateUserProfileSchema,
   updateUserIdSchema,
   exportAccessLogsQuerySchema,
+  getAdminUsersQuerySchema,
+  updateAdminRoleSchema,
+  inviteAdminSchema,
+  acceptInvitationSchema,
+  getSecurityLogsQuerySchema,
 } from "./schemas";
 
 const router = Router();
@@ -497,6 +502,286 @@ router.patch(
       });
     } catch (error) {
       next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/admin-users:
+ *   get:
+ *     summary: Get admin users list (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/admin-users",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getAdminUsersQuerySchema.parse(req.query);
+      const result = await adminService.getAdminUsers(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/admin-users/:id/role:
+ *   put:
+ *     summary: Update admin role description (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.put(
+  "/admin-users/:id/role",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = updateAdminRoleSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.updateAdminRole(req, id, validated, req.user.id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/admin-users/:id/deactivate:
+ *   put:
+ *     summary: Deactivate admin user (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.put(
+  "/admin-users/:id/deactivate",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.deactivateAdmin(req, id, req.user.id);
+
+      res.json({
+        success: true,
+        data: { user: result },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/admin-users/:id/reactivate:
+ *   put:
+ *     summary: Reactivate admin user (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.put(
+  "/admin-users/:id/reactivate",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.reactivateAdmin(req, id, req.user.id);
+
+      res.json({
+        success: true,
+        data: { user: result },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/invite/generate-url:
+ *   post:
+ *     summary: Generate invitation URL without sending email (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/invite/generate-url",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = inviteAdminSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.generateInvitationUrl(validated, req.user.id);
+
+      res.json({
+        success: true,
+        data: { inviteUrl: result.inviteUrl },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/invite:
+ *   post:
+ *     summary: Invite admin user (admin only, sends email if email provided)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/invite",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = inviteAdminSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.inviteAdmin(req, validated, req.user.id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/generate-invite-link:
+ *   post:
+ *     summary: Generate invitation link without sending email (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/generate-invite-link",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = inviteAdminSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.generateInvitationUrl(validated, req.user.id);
+
+      res.json({
+        success: true,
+        data: { inviteUrl: result.inviteUrl },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/accept-invitation:
+ *   post:
+ *     summary: Accept admin invitation (public endpoint)
+ *     tags: [Admin]
+ */
+router.post(
+  "/accept-invitation",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = acceptInvitationSchema.parse(req.body);
+      const result = await adminService.acceptInvitation(req, validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/security-logs:
+ *   get:
+ *     summary: Get security logs (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/security-logs",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getSecurityLogsQuerySchema.parse(req.query);
+      const result = await adminService.getSecurityLogs(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
 );

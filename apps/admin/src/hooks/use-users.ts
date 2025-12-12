@@ -1,22 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
-  GetAdminUsersParams,
-  UpdateAdminRoleInput,
-  InviteAdminInput,
-  InviteAdminResponse,
+  GetUsersParams,
+  UpdateUserRolesInput,
+  UpdateUserKycInput,
+  UpdateUserOnboardingInput,
+  UpdateUserProfileInput,
 } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useAdminUsers(params: GetAdminUsersParams) {
+export function useUsers(params: GetUsersParams) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  
+
   return useQuery({
-    queryKey: ["admin", "admin-users", params],
+    queryKey: ["admin", "users", params],
     queryFn: async () => {
-      const response = await apiClient.getAdminUsers(params);
+      const response = await apiClient.getUsers(params);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -27,93 +28,98 @@ export function useAdminUsers(params: GetAdminUsersParams) {
   });
 }
 
-export function useUpdateAdminRole() {
+export function useUpdateUserRoles() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, data }: { userId: string; data: UpdateAdminRoleInput }) => {
-      const response = await apiClient.updateAdminRole(userId, data);
+    mutationFn: async ({ userId, data }: { userId: string; data: UpdateUserRolesInput }) => {
+      const response = await apiClient.updateUserRoles(userId, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
 
-export function useDeactivateAdmin() {
+export function useUpdateUserKyc() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiClient.deactivateAdmin(userId);
+    mutationFn: async ({ userId, data }: { userId: string; data: UpdateUserKycInput }) => {
+      const response = await apiClient.updateUserKyc(userId, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
 
-export function useReactivateAdmin() {
+export function useUpdateUserOnboarding() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiClient.reactivateAdmin(userId);
+    mutationFn: async ({ userId, data }: { userId: string; data: UpdateUserOnboardingInput }) => {
+      const response = await apiClient.updateUserOnboarding(userId, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
 
-export function useGenerateInvitationUrl() {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-
-  return useMutation({
-    mutationFn: async (data: InviteAdminInput): Promise<{ inviteUrl: string }> => {
-      const response = await apiClient.generateInviteLink(data);
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-      return response.data;
-    },
-  });
-}
-
-export function useInviteAdmin() {
+export function useUpdateUserProfile() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: InviteAdminInput): Promise<InviteAdminResponse> => {
-      const response = await apiClient.inviteAdmin(data);
+    mutationFn: async ({ userId, data }: { userId: string; data: UpdateUserProfileInput }) => {
+      const response = await apiClient.updateUserProfile(userId, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
+
+export function useUpdateUserId() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, newUserId }: { userId: string; newUserId: string }) => {
+      const response = await apiClient.updateUserId(userId, newUserId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
+

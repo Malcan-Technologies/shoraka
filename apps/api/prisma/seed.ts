@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from "@prisma/client";
+import { PrismaClient, UserRole, AdminRole } from "@prisma/client";
 import { logger } from "../src/lib/logger";
 
 const prisma = new PrismaClient();
@@ -27,13 +27,32 @@ async function main() {
       issuer_onboarding_completed: false,
     },
     update: {
-      roles: [UserRole.ADMIN],
+      // Ensure ADMIN role is always present
+      roles: {
+        set: [UserRole.ADMIN],
+      },
       email_verified: true,
       kyc_verified: true,
     },
   });
 
   logger.info(`✅ Admin user created/updated: ${adminUser.email}`);
+
+  // Create or update Admin record with SUPER_ADMIN role
+  const adminRecord = await prisma.admin.upsert({
+    where: { user_id: adminUser.id },
+    create: {
+      user_id: adminUser.id,
+      role_description: AdminRole.SUPER_ADMIN,
+      status: "ACTIVE",
+    },
+    update: {
+      role_description: AdminRole.SUPER_ADMIN,
+      status: "ACTIVE",
+    },
+  });
+
+  logger.info(`✅ Admin record created/updated: ${adminRecord.role_description} for ${adminUser.email}`);
 
   // Create access logs for admin user
   const now = new Date();
