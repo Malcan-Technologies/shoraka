@@ -76,8 +76,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-16 items-center px-3">
-          <Logo />
+        <div className="flex h-16 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+          <div className="relative w-full">
+            <img
+              src="/shoraka_favicon.svg"
+              alt="CashSouk"
+              className="h-14 w-14 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
+            />
+            <div className="opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
+              <Logo />
+            </div>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

@@ -8,6 +8,8 @@ import {
   UpdateUserAttributesCommand,
   VerifyUserAttributeCommand,
   GetUserAttributeVerificationCodeCommand,
+  ResendConfirmationCodeCommand,
+  ConfirmSignUpCommand,
   NotAuthorizedException,
   UserNotFoundException,
   CodeMismatchException,
@@ -1340,6 +1342,87 @@ export class AuthService {
       }
 
       throw new AppError(500, "INTERNAL_ERROR", `Failed to verify email: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Resend signup confirmation code (public - for unconfirmed users)
+   */
+  async resendSignupCode(email: string): Promise<void> {
+    try {
+      const secretHash = computeSecretHash(email);
+
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: COGNITO_CLIENT_ID,
+        Username: email,
+        SecretHash: secretHash,
+      });
+
+      await cognitoClient.send(command);
+      logger.info({ email }, "Verification code resent successfully");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorName = (error as { name?: string }).name;
+      logger.error({ email, error: errorMessage }, "Failed to resend confirmation code");
+
+      if (errorName === "UserNotFoundException") {
+        throw new AppError(404, "USER_NOT_FOUND", "No account found with this email address");
+      }
+
+      if (errorName === "InvalidParameterException" && errorMessage?.includes("confirmed")) {
+        throw new AppError(400, "ALREADY_CONFIRMED", "User is already confirmed");
+      }
+
+      if (errorName === "LimitExceededException") {
+        throw new AppError(429, "TOO_MANY_REQUESTS", "Too many requests. Please try again later.");
+      }
+
+      throw new AppError(500, "INTERNAL_ERROR", `Failed to resend code: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Confirm signup with code (public - for unconfirmed users)
+   */
+  async confirmSignup(email: string, code: string): Promise<void> {
+    try {
+      const secretHash = computeSecretHash(email);
+
+      const command = new ConfirmSignUpCommand({
+        ClientId: COGNITO_CLIENT_ID,
+        Username: email,
+        ConfirmationCode: code,
+        SecretHash: secretHash,
+      });
+
+      await cognitoClient.send(command);
+      logger.info({ email }, "Email confirmed successfully");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorName = (error as { name?: string }).name;
+      logger.error({ email, error: errorMessage }, "Failed to confirm signup");
+
+      if (errorName === "UserNotFoundException") {
+        throw new AppError(404, "USER_NOT_FOUND", "No account found with this email address");
+      }
+
+      if (errorName === "CodeMismatchException") {
+        throw new AppError(400, "INVALID_CODE", "Invalid verification code");
+      }
+
+      if (errorName === "ExpiredCodeException") {
+        throw new AppError(
+          400,
+          "EXPIRED_CODE",
+          "Verification code has expired. Please request a new code."
+        );
+      }
+
+      if (errorName === "NotAuthorizedException") {
+        throw new AppError(403, "NOT_AUTHORIZED", "User cannot be confirmed in current state");
+      }
+
+      throw new AppError(500, "INTERNAL_ERROR", `Failed to confirm signup: ${errorMessage}`);
     }
   }
 }

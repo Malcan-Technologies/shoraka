@@ -67,6 +67,22 @@ export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalPro
             </div>
           </Button>
         </div>
+
+        <div className="border-t pt-4 text-center">
+          <p className="text-sm text-muted-foreground mb-2">
+            Having trouble signing in?
+          </p>
+          <Button
+            variant="link"
+            className="text-sm"
+            onClick={() => {
+              onOpenChange(false);
+              window.location.href = "/verify-email-help";
+            }}
+          >
+            Verify your email address
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   );

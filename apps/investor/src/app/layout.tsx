@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "CashSouk Investor Portal",
   description: "Invest in verified loan opportunities",
   icons: {
-    icon: "/cashsouk_favicon.svg",
+    icon: "/shoraka_favicon.svg",
   },
 };
 
@@ -26,9 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <SidebarProvider>
               <AppSidebar />
-              <SidebarInset>
-                {children}
-              </SidebarInset>
+              <SidebarInset>{children}</SidebarInset>
             </SidebarProvider>
             <Toaster />
           </AuthGuard>

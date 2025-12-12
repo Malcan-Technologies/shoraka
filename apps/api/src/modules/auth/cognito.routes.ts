@@ -222,6 +222,33 @@ router.get("/callback", async (req: Request, res: Response) => {
         return res.redirect(loginUrl.toString());
       }
 
+      // Check for unconfirmed user error from Cognito
+      // Note: This won't trigger in practice since Cognito blocks UNCONFIRMED users
+      // before redirecting to callback. Users should use the "Verify Email" help link.
+      if (
+        errorDescription?.toLowerCase().includes("not confirmed") ||
+        errorDescription?.toLowerCase().includes("user is not confirmed")
+      ) {
+        logger.warn(
+          { 
+            correlationId, 
+            error, 
+            errorDescription, 
+            requestedRole: stateData.requestedRole,
+            isSignup: stateData.signup 
+          },
+          "Unconfirmed user error detected - redirecting to help page"
+        );
+        
+        const env = getEnv();
+        
+        // Redirect to help page where user can resend verification code
+        const helpUrl = new URL(`${env.FRONTEND_URL}/verify-email-help`);
+        helpUrl.searchParams.set("redirect", stateData.requestedRole?.toLowerCase() || "investor");
+        
+        return res.redirect(helpUrl.toString());
+      }
+
       throw new AppError(
         400,
         "COGNITO_ERROR",
@@ -300,6 +327,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     const cognitoId = userInfo.sub as string;
     const email = userInfo.email as string;
+    const emailVerified = userInfo.email_verified as boolean;
     const firstName =
       (userInfo.given_name as string) || (userInfo.name as string)?.split(" ")[0] || "";
     const lastName =
@@ -311,7 +339,23 @@ router.get("/callback", async (req: Request, res: Response) => {
       throw new AppError(400, "MISSING_USER_INFO", "Missing user information in token");
     }
 
-    logger.info({ correlationId, cognitoId, email }, "User info retrieved from Cognito");
+    logger.info({ correlationId, cognitoId, email, emailVerified }, "User info retrieved from Cognito");
+
+    // Check if email is not verified - redirect to verification page
+    if (!emailVerified) {
+      logger.warn(
+        { correlationId, email, cognitoId },
+        "User email not verified - redirecting to verification page"
+      );
+
+      const env = getEnv();
+      const verifyUrl = new URL(`${env.FRONTEND_URL}/verify-email`);
+      verifyUrl.searchParams.set("email", email);
+      verifyUrl.searchParams.set("redirect", stateData.requestedRole?.toLowerCase() || "investor");
+      verifyUrl.searchParams.set("signup", "true");
+
+      return res.redirect(verifyUrl.toString());
+    }
 
     // Get requested role from decrypted state data (not session)
     const requestedRoleStr = stateData.requestedRole;

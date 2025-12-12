@@ -102,9 +102,12 @@ function GetStartedPageContent() {
             Sign in
           </button>
         </p>
-        {/* <p className="text-xs text-muted-foreground">
-          If you see an error saying "User already exists" during signup, please use the Sign in option above.
-        </p> */}
+        <p className="text-xs text-muted-foreground">
+          Can't sign in?{" "}
+          <a href="/verify-email-help" className="text-primary hover:underline font-medium">
+            Verify your email
+          </a>
+        </p>
       </div>
 
       <RoleSelectionModal open={showSignInModal} onOpenChange={setShowSignInModal} />

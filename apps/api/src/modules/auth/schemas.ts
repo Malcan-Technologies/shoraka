@@ -149,3 +149,24 @@ export const verifyEmailSchema = z.object({
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+/**
+ * Schema for resend-signup-code endpoint (public)
+ * Resends confirmation code to unconfirmed users
+ */
+export const resendSignupCodeSchema = z.object({
+  email: z.string().email("Invalid email format"),
+});
+
+export type ResendSignupCodeInput = z.infer<typeof resendSignupCodeSchema>;
+
+/**
+ * Schema for confirm-signup endpoint (public)
+ * Confirms signup with verification code
+ */
+export const confirmSignupSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  code: z.string().min(1, "Verification code is required"),
+});
+
+export type ConfirmSignupInput = z.infer<typeof confirmSignupSchema>;

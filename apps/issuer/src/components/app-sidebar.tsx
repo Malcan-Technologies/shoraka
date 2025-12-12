@@ -38,9 +38,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       <Sidebar collapsible="icon" {...props}>
         <SidebarHeader>
-          <div className="flex h-16 items-center px-3">
-            <Skeleton className="h-8 w-8 rounded" />
-            <Skeleton className="ml-2 h-4 w-16 group-data-[collapsible=icon]:hidden" />
+          <div className="flex h-16 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+            <Skeleton className="h-14 w-14 rounded group-data-[collapsible=icon]:block hidden" />
+            <div className="flex items-center group-data-[collapsible=icon]:hidden">
+              <Skeleton className="h-8 w-8 rounded" />
+              <Skeleton className="ml-2 h-4 w-16" />
+            </div>
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -91,11 +94,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-16 items-center px-3">
-          <Logo />
-          <span className="ml-2 text-xs font-medium text-muted-foreground group-data-[collapsible=icon]:hidden">
-            Issuer
-          </span>
+        <div className="flex h-16 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+          <div className="relative w-full">
+            <img
+              src="/shoraka_favicon.svg"
+              alt="CashSouk"
+              className="h-14 w-14 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
+            />
+            <div className="flex items-center opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
+              <Logo />
+              <span className="ml-2 text-xs font-medium text-muted-foreground">Issuer</span>
+            </div>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

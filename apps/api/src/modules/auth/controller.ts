@@ -17,6 +17,8 @@ import {
   verifyEmailChangeSchema,
   resendEmailVerificationSchema,
   verifyEmailSchema,
+  resendSignupCodeSchema,
+  confirmSignupSchema,
   type SyncUserInput,
   type CreateAdminUserInput,
 } from "./schemas";
@@ -295,11 +297,11 @@ router.post("/logout", requireAuth, async (req: Request, res: Response, next: Ne
  */
 router.post("/refresh-token", async (req: Request, res: Response, next: NextFunction) => {
   const correlationId = res.locals.correlationId;
-  
+
   try {
     // Delegate to service
     const result = await authService.refreshToken(req, res);
-    
+
     res.json({
       success: true,
       data: {
@@ -709,5 +711,81 @@ router.post(
     }
   }
 );
+
+/**
+ * @swagger
+ * /v1/auth/resend-signup-code:
+ *   post:
+ *     summary: Resend signup confirmation code (public)
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Confirmation code resent
+ */
+router.post("/resend-signup-code", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = resendSignupCodeSchema.parse(req.body);
+
+    await authService.resendSignupCode(email);
+
+    res.json({
+      success: true,
+      data: { message: "Verification code sent" },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/auth/confirm-signup:
+ *   post:
+ *     summary: Confirm signup with verification code (public)
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               code:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Signup confirmed
+ */
+router.post("/confirm-signup", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, code } = confirmSignupSchema.parse(req.body);
+
+    await authService.confirmSignup(email, code);
+
+    res.json({
+      success: true,
+      data: { message: "Email confirmed successfully" },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export const authRouter = router;
