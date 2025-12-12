@@ -539,6 +539,7 @@ export class AdminService {
 
   /**
    * Reactivate admin - sets status back to ACTIVE
+   * Creates admin record if it doesn't exist (for users with ADMIN role but no admin record)
    * User must already have ADMIN role (which is kept during deactivation)
    */
   async reactivateAdmin(
@@ -551,23 +552,32 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    const admin = await this.repository.getAdminByUserId(userId);
-    if (!admin) {
-      throw new AppError(404, "NOT_FOUND", "Admin record not found");
-    }
-
-    if (admin.status === "ACTIVE") {
-      throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
-    }
-
-    // Ensure user has ADMIN role (should already have it from before deactivation)
+    // Ensure user has ADMIN role
     if (!user.roles.includes(UserRole.ADMIN)) {
-      const updatedRoles = [...user.roles, UserRole.ADMIN];
-      await this.repository.updateUserRoles(userId, updatedRoles);
+      throw new AppError(400, "VALIDATION_ERROR", "User does not have ADMIN role");
     }
 
-    // Update admin status to ACTIVE
-    await this.repository.updateAdminStatus(userId, "ACTIVE");
+    // Check if admin record exists
+    let admin = await this.repository.getAdminByUserId(userId);
+    
+    // If no admin record exists, create one with SUPER_ADMIN as default role
+    // This handles cases where users have ADMIN role but no admin record
+    if (!admin) {
+      logger.info(
+        { userId, email: user.email, reactivatedBy },
+        "Admin record not found - creating new admin record with SUPER_ADMIN role"
+      );
+      admin = await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
+      // Admin record is created with ACTIVE status by default, so we're done
+    } else {
+      // Admin record exists - check status
+      if (admin.status === "ACTIVE") {
+        throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
+      }
+      
+      // Update admin status to ACTIVE
+      await this.repository.updateAdminStatus(userId, "ACTIVE");
+    }
 
     // Log ROLE_SWITCHED event (reactivating admin access)
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
