@@ -108,7 +108,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
       // Update roles if changed
       const rolesChanged =
         JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
-      if (rolesChanged && editedUser.roles) {
+      if (rolesChanged && editedUser.roles !== undefined) {
         await updateRoles.mutateAsync({
           userId: user.id,
           data: { roles: editedUser.roles as UserRole[] },

@@ -16,7 +16,7 @@ export type GetUsersQuery = z.infer<typeof getUsersQuerySchema>;
 
 // User update schemas
 export const updateUserRolesSchema = z.object({
-  roles: z.array(z.nativeEnum(UserRole)).min(1),
+  roles: z.array(z.nativeEnum(UserRole)),
 });
 
 export type UpdateUserRolesInput = z.infer<typeof updateUserRolesSchema>;

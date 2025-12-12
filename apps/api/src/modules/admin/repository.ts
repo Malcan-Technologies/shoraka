@@ -490,6 +490,7 @@ export class AdminRepository {
 
   /**
    * Get admin users with pagination and filters
+   * Shows users who have an admin record (regardless of whether they currently have ADMIN role)
    */
   async getAdminUsers(params: GetAdminUsersQuery): Promise<{
     users: (User & { admin: Admin | null })[];
@@ -498,8 +499,19 @@ export class AdminRepository {
     const { page, pageSize, search, roleDescription, status } = params;
     const skip = (page - 1) * pageSize;
 
+    // Filter by users who have an admin record (not by ADMIN role)
+    // This ensures deactivated admins still appear in the list
+    const adminWhere: Prisma.AdminWhereInput = {};
+    
+    if (roleDescription) {
+      adminWhere.role_description = roleDescription;
+    }
+    if (status) {
+      adminWhere.status = status;
+    }
+
     const where: Prisma.UserWhereInput = {
-      roles: { has: UserRole.ADMIN },
+      admin: Object.keys(adminWhere).length > 0 ? adminWhere : { isNot: null },
     };
 
     if (search) {
@@ -524,18 +536,7 @@ export class AdminRepository {
       prisma.user.count({ where }),
     ]);
 
-    // Filter by role_description and status if provided
-    let filteredUsers = users;
-    if (roleDescription) {
-      filteredUsers = filteredUsers.filter(
-        (u) => u.admin?.role_description === roleDescription
-      );
-    }
-    if (status) {
-      filteredUsers = filteredUsers.filter((u) => u.admin?.status === status);
-    }
-
-    return { users: filteredUsers, total };
+    return { users, total };
   }
 
   /**

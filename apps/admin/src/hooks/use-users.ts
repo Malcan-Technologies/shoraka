@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { toast } from "sonner";
 import type {
   GetUsersParams,
   UpdateUserRolesInput,
@@ -43,6 +44,13 @@ export function useUpdateUserRoles() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
+      toast.success("Roles updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update roles", {
+        description: error.message,
+      });
     },
   });
 }

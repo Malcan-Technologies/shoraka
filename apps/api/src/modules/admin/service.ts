@@ -76,6 +76,84 @@ export class AdminService {
       throw new Error("User not found");
     }
 
+    // Check if ADMIN role is being added or removed
+    const hadAdminRole = user.roles.includes(UserRole.ADMIN);
+    const hasAdminRole = data.roles.includes(UserRole.ADMIN);
+    const adminRoleRemoved = hadAdminRole && !hasAdminRole;
+    const adminRoleAdded = !hadAdminRole && hasAdminRole;
+
+    // If ADMIN role is being removed, deactivate the admin record (if it exists)
+    if (adminRoleRemoved) {
+      const admin = await this.repository.getAdminByUserId(userId);
+      if (admin && admin.status === "ACTIVE") {
+        logger.info(
+          { userId, email: user.email, deactivatedBy: adminUserId },
+          "ADMIN role removed - deactivating admin record"
+        );
+        await this.repository.updateAdminStatus(userId, "INACTIVE");
+        
+        // Log security event for admin deactivation via role removal
+        const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+        await this.repository.createSecurityLog({
+          userId,
+          eventType: "ROLE_SWITCHED",
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          metadata: {
+            action: "DEACTIVATED_VIA_ROLE_REMOVAL",
+            previousStatus: "ACTIVE",
+            newStatus: "INACTIVE",
+            previousRoles: user.roles,
+            newRoles: data.roles,
+            deactivatedBy: adminUserId,
+          },
+        });
+      }
+    }
+
+    // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
+    if (adminRoleAdded) {
+      let admin = await this.repository.getAdminByUserId(userId);
+      
+      if (admin) {
+        // Admin record exists - reactivate it (preserving existing role_description)
+        if (admin.status === "INACTIVE") {
+          logger.info(
+            { userId, email: user.email, roleDescription: admin.role_description, activatedBy: adminUserId },
+            "ADMIN role added - reactivating existing admin record with previous role description"
+          );
+          await this.repository.updateAdminStatus(userId, "ACTIVE");
+          
+          // Log security event for admin reactivation via role addition
+          const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+          await this.repository.createSecurityLog({
+            userId,
+            eventType: "ROLE_SWITCHED",
+            ipAddress,
+            userAgent,
+            deviceInfo,
+            metadata: {
+              action: "ACTIVATED_VIA_ROLE_ADDITION",
+              previousStatus: "INACTIVE",
+              newStatus: "ACTIVE",
+              previousRoles: user.roles,
+              newRoles: data.roles,
+              roleDescription: admin.role_description,
+              activatedBy: adminUserId,
+            },
+          });
+        }
+      } else {
+        // No admin record exists - create a new one with SUPER_ADMIN role
+        logger.info(
+          { userId, email: user.email, activatedBy: adminUserId },
+          "ADMIN role added - creating new admin record with SUPER_ADMIN role"
+        );
+        await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
+      }
+    }
+
     // Validate that user has required roles for onboarding flags
     const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
     const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
@@ -96,7 +174,7 @@ export class AdminService {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     await this.repository.createAccessLog({
       userId: adminUserId,
-      eventType: "ROLE_ADDED",
+      eventType: adminRoleRemoved ? "ROLE_REMOVED" : "ROLE_ADDED",
       portal: "admin",
       ipAddress,
       userAgent,
@@ -108,6 +186,7 @@ export class AdminService {
         targetUserEmail: user.email,
         newRoles: data.roles,
         previousRoles: user.roles,
+        adminRoleRemoved,
       },
     });
 
@@ -487,7 +566,9 @@ export class AdminService {
   }
 
   /**
-   * Deactivate admin - keeps ADMIN role but sets status to INACTIVE
+   * Deactivate admin - removes ADMIN role and sets status to INACTIVE
+   * Creates admin record if it doesn't exist (for users with ADMIN role but no admin record)
+   * Removes ADMIN role from user.roles to sync with /users page
    * User will not be able to access admin portal until reactivated
    */
   async deactivateAdmin(
@@ -500,23 +581,34 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    const admin = await this.repository.getAdminByUserId(userId);
+    // Check if admin record exists
+    let admin = await this.repository.getAdminByUserId(userId);
+    
+    // If no admin record exists, create one with SUPER_ADMIN as default role
+    // This handles cases where users have ADMIN role but no admin record
     if (!admin) {
-      throw new AppError(404, "NOT_FOUND", "Admin record not found");
-    }
-
-    if (admin.status === "INACTIVE") {
+      logger.info(
+        { userId, email: user.email, deactivatedBy },
+        "Admin record not found - creating new admin record with SUPER_ADMIN role before deactivation"
+      );
+      admin = await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
+      // Admin record is created with ACTIVE status by default, so we'll deactivate it below
+    } else if (admin.status === "INACTIVE") {
       throw new AppError(400, "VALIDATION_ERROR", "Admin is already deactivated");
     }
 
-    // Ensure user has ADMIN role (should already have it, but check to be safe)
-    if (!user.roles.includes(UserRole.ADMIN)) {
-      const updatedRoles = [...user.roles, UserRole.ADMIN];
+    // Update admin status to INACTIVE
+    await this.repository.updateAdminStatus(userId, "INACTIVE");
+
+    // Remove ADMIN role from user.roles to sync with /users page
+    if (user.roles.includes(UserRole.ADMIN)) {
+      logger.info(
+        { userId, email: user.email, deactivatedBy },
+        "Removing ADMIN role from user.roles to sync with /users page"
+      );
+      const updatedRoles = user.roles.filter((role) => role !== UserRole.ADMIN);
       await this.repository.updateUserRoles(userId, updatedRoles);
     }
-
-    // Update admin status to INACTIVE (keeps ADMIN role in user.roles)
-    await this.repository.updateAdminStatus(userId, "INACTIVE");
 
     // Log ROLE_SWITCHED event (deactivating admin access)
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
@@ -538,9 +630,9 @@ export class AdminService {
   }
 
   /**
-   * Reactivate admin - sets status back to ACTIVE
+   * Reactivate admin - sets status back to ACTIVE and adds ADMIN role
    * Creates admin record if it doesn't exist (for users with ADMIN role but no admin record)
-   * User must already have ADMIN role (which is kept during deactivation)
+   * Adds ADMIN role to user.roles to sync with /users page
    */
   async reactivateAdmin(
     req: Request,
@@ -552,9 +644,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    // Ensure user has ADMIN role
+    // Add ADMIN role to user.roles if missing (to sync with /users page)
     if (!user.roles.includes(UserRole.ADMIN)) {
-      throw new AppError(400, "VALIDATION_ERROR", "User does not have ADMIN role");
+      logger.info(
+        { userId, email: user.email, reactivatedBy },
+        "Adding ADMIN role to user.roles to sync with /users page"
+      );
+      const updatedRoles = [...user.roles, UserRole.ADMIN];
+      await this.repository.updateUserRoles(userId, updatedRoles);
     }
 
     // Check if admin record exists
