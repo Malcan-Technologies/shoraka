@@ -128,7 +128,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
         if (result.emailSent) {
           toast.success("Invitation sent!", {
             description: `An invitation has been sent via email to ${data.email}`,
-          });
+    });
         } else {
           toast.warning("Invitation link generated, but email failed to send", {
             description: result.emailError || "Please copy the link manually to share it.",

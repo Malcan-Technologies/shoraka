@@ -109,12 +109,12 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
     try {
       if (newStatus === "INACTIVE") {
         await deactivateMutation.mutateAsync(user.id);
-        toast.success("Admin deactivated", {
+        toast.success("Admin deactivated: ", {
           description: `${user.first_name} ${user.last_name} has been deactivated`,
         });
       } else {
         await reactivateMutation.mutateAsync(user.id);
-        toast.success("Admin activated", {
+        toast.success("Admin activated: ", {
           description: `${user.first_name} ${user.last_name} has been activated`,
         });
       }

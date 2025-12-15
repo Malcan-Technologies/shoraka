@@ -7,23 +7,81 @@ import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } fro
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Navbar } from "../../components/navbar";
 
+/**
+ * Logout from Cognito and redirect to landing page
+ */
+async function logoutFromCognito() {
+  if (typeof window === "undefined") return;
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
+  const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+  const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+
+  // 1. Manually clear all Cognito cookies
+  if (cognitoClientId) {
+    const cookies = document.cookie.split(';');
+    cookies.forEach(cookie => {
+      const cookieName = cookie.split('=')[0].trim();
+      if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
+        const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      }
+    });
+  }
+
+  // 2. Call backend logout endpoint (for access logging and session revocation)
+  try {
+    await fetch(`${API_URL}/v1/auth/cognito/logout?portal=admin`, {
+      method: "GET",
+      credentials: "include",
+    });
+  } catch (error) {
+    // Ignore errors - we'll still redirect
+  }
+
+  // 3. Redirect through Cognito's logout endpoint to clear hosted UI session
+  if (cognitoDomain && cognitoClientId) {
+    const cognitoDomainUrl = cognitoDomain.startsWith('http://') || cognitoDomain.startsWith('https://')
+      ? cognitoDomain
+      : `https://${cognitoDomain}`;
+    const cognitoLogoutUrl = `${cognitoDomainUrl}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(landingUrl)}`;
+    window.location.href = cognitoLogoutUrl;
+  } else {
+    window.location.href = landingUrl;
+  }
+}
+
 function AuthErrorPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const message = searchParams.get("message") || "Authentication failed. Please try again.";
-  const [countdown, setCountdown] = useState(5);
+  const wasPreviouslyAdmin = searchParams.get("wasPreviouslyAdmin") === "true";
+  const [countdown, setCountdown] = useState(wasPreviouslyAdmin ? 5 : 0);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    // Auto-redirect to home after countdown
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      router.push("/");
+    // If user was never an admin, logout immediately and redirect
+    if (!wasPreviouslyAdmin && !isLoggingOut) {
+      setIsLoggingOut(true);
+      logoutFromCognito();
+      return;
     }
-  }, [countdown, router]);
+
+    // If user was previously an admin, show countdown then logout
+    if (wasPreviouslyAdmin) {
+      if (countdown > 0) {
+        const timer = setTimeout(() => {
+          setCountdown(countdown - 1);
+        }, 1000);
+        return () => clearTimeout(timer);
+      } else if (countdown === 0 && !isLoggingOut) {
+        setIsLoggingOut(true);
+        logoutFromCognito();
+      }
+    }
+  }, [countdown, wasPreviouslyAdmin, isLoggingOut]);
 
   const handleRetryLogin = () => {
     // Redirect to get-started page to initiate new login
@@ -32,6 +90,11 @@ function AuthErrorPageContent() {
 
   const handleGoHome = () => {
     router.push("/");
+  };
+
+  const handleSignOut = async () => {
+    setIsLoggingOut(true);
+    await logoutFromCognito();
   };
 
   return (
@@ -51,16 +114,44 @@ function AuthErrorPageContent() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-2">
-                <Button onClick={handleRetryLogin} className="w-full" variant="action">
-                  Sign In Again
-                </Button>
-                <Button onClick={handleGoHome} variant="ghost" className="w-full">
-                  Return to Home
-                </Button>
+                {wasPreviouslyAdmin ? (
+                  <>
+                    <Button 
+                      onClick={handleSignOut} 
+                      className="w-full" 
+                      variant="action"
+                      disabled={isLoggingOut}
+                    >
+                      {isLoggingOut ? "Signing Out..." : "Sign Out"}
+                    </Button>
+                    <Button 
+                      onClick={handleGoHome} 
+                      variant="ghost" 
+                      className="w-full"
+                      disabled={isLoggingOut}
+                    >
+                      Return to Home
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={handleRetryLogin} className="w-full" variant="action">
+                      Sign In Again
+                    </Button>
+                    <Button onClick={handleGoHome} variant="ghost" className="w-full">
+                      Return to Home
+                    </Button>
+                  </>
+                )}
               </div>
-              {countdown > 0 && (
+              {wasPreviouslyAdmin && countdown > 0 && (
                 <p className="text-xs text-center text-muted-foreground">
-                  Redirecting automatically in {countdown} second{countdown !== 1 ? "s" : ""}...
+                  Signing out automatically in {countdown} second{countdown !== 1 ? "s" : ""}...
+                </p>
+              )}
+              {wasPreviouslyAdmin && isLoggingOut && (
+                <p className="text-xs text-center text-muted-foreground">
+                  Signing out...
                 </p>
               )}
             </CardContent>

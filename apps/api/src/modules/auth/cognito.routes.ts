@@ -786,6 +786,13 @@ router.get("/callback", async (req: Request, res: Response) => {
           "User attempted to access admin portal without ADMIN role or with inactive status"
         );
 
+        // Check if user has an admin record (even if INACTIVE) to determine if they were previously an admin
+        const adminRecord = await prisma.admin.findUnique({
+          where: { user_id: user.id },
+          select: { id: true, status: true },
+        });
+        const wasPreviouslyAdmin = !!adminRecord;
+
         // Log failed admin access attempt
         await prisma.accessLog.create({
           data: {
@@ -802,6 +809,7 @@ router.get("/callback", async (req: Request, res: Response) => {
               userRoles: user.roles,
               hasAdminRole,
               adminStatus,
+              wasPreviouslyAdmin,
               reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
             },
           },
@@ -819,6 +827,7 @@ router.get("/callback", async (req: Request, res: Response) => {
             ? "You do not have admin access. Please contact support if you believe this is an error."
             : "Your admin account is inactive. Please contact support to reactivate your account."
         );
+        errorUrl.searchParams.set("wasPreviouslyAdmin", wasPreviouslyAdmin ? "true" : "false");
 
         logger.info(
           { correlationId, userId: user.id, redirectUrl: errorUrl.toString() },
