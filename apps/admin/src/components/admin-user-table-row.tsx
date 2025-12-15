@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { PencilIcon, XMarkIcon, CheckIcon, ShieldExclamationIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
@@ -90,6 +89,19 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
     setIsEditingRole(false);
   };
 
+  const status = user.admin?.status || "INACTIVE";
+  const role = user.admin?.role_description;
+
+  const handleStartEditRole = () => {
+    if (status === "INACTIVE") {
+      toast.error("Cannot edit role", {
+        description: "Please activate the admin user before changing their role.",
+      });
+      return;
+    }
+    setIsEditingRole(true);
+  };
+
   const handleToggleStatus = async () => {
     const currentStatus = user.admin?.status || "ACTIVE";
     const newStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -120,9 +132,6 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
     });
     }
   };
-
-  const status = user.admin?.status || "INACTIVE";
-  const role = user.admin?.role_description;
 
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
@@ -173,13 +182,23 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
           </div>
         ) : role ? (
           <button
-            onClick={() => setIsEditingRole(true)}
+            onClick={handleStartEditRole}
+            disabled={status === "INACTIVE"}
             className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${
               roleConfig[role].bgColor
-            } ${roleConfig[role].color} hover:shadow-sm transition-shadow`}
+            } ${roleConfig[role].color} ${
+              status === "INACTIVE" 
+                ? "opacity-50 cursor-not-allowed" 
+                : "hover:shadow-sm transition-shadow"
+            }`}
+            title={status === "INACTIVE" ? "Activate admin to edit role" : "Click to edit role"}
           >
             {roleConfig[role].label}
-            <PencilIcon className="h-3 w-3 opacity-0 group-hover:opacity-70 transition-opacity" />
+            <PencilIcon className={`h-3 w-3 ${
+              status === "INACTIVE" 
+                ? "opacity-0" 
+                : "opacity-0 group-hover:opacity-70 transition-opacity"
+            }`} />
           </button>
         ) : (
           <span className="text-muted-foreground text-xs">No role assigned</span>
@@ -196,9 +215,6 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         >
           {status}
         </Badge>
-      </TableCell>
-      <TableCell className="text-[15px] text-muted-foreground">
-        {user.admin?.last_login ? format(new Date(user.admin.last_login), "MMM d, yyyy h:mm a") : "Never"}
       </TableCell>
       <TableCell>
         {status === "ACTIVE" ? (

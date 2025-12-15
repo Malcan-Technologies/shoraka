@@ -68,7 +68,6 @@ export function AdminUsersTable({
                 <TableHead className="text-sm font-semibold">Email</TableHead>
                 <TableHead className="text-sm font-semibold">Role</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
-                <TableHead className="text-sm font-semibold">Last Login</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
