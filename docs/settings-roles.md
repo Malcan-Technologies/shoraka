@@ -130,7 +130,9 @@ Provides filtering capabilities:
 8. Backend accepts invitation during OAuth callback
 9. User is granted ADMIN role and admin status set to ACTIVE
 
-> **Note:** Invitation links can be used by any user. If an email is specified, the system will pre-fill it during signup. If no email is specified, the user can sign up with any email address.
+> **Note:** Invitation links can be used by any user. If an email is specified, the system will pre-fill it during signup. If no email is specified, the user can sign up with any email address. The invitation URL format is: `{ADMIN_URL}/callback?invitation={token}&role={roleDescription}`
+
+> **Email Optional:** Email sending is optional. If email fails to send, the invitation link is still generated and can be shared manually. This ensures invitations are never lost due to email delivery issues.
 
 ## Database Schema
 
@@ -158,7 +160,7 @@ The `AdminInvitation` model tracks pending invitations:
 | `role_description` | AdminRole (enum) | Role to assign when invitation is accepted |
 | `token` | String (unique) | Unique invitation token |
 | `invited_by` | String (FK) | Reference to User who sent invitation |
-| `expires_at` | DateTime | Invitation expiry date (default: 7 days) |
+| `expires_at` | DateTime | Invitation expiry date (default: 24 hours, configurable via `INVITATION_TOKEN_EXPIRY_HOURS`) |
 | `accepted_at` | DateTime (nullable) | When invitation was accepted (null if pending) |
 | `created_at` | DateTime | Creation timestamp |
 
@@ -197,10 +199,11 @@ The `AdminInvitation` model tracks pending invitations:
 
 ### Invitation Security
 
-- Invitation tokens are cryptographically secure (CUID-based)
-- Invitations expire after 7 days (configurable)
+- Invitation tokens are cryptographically secure (32-byte random hex)
+- Invitations expire after 24 hours by default (configurable via `INVITATION_TOKEN_EXPIRY_HOURS` environment variable)
 - Each invitation can only be used once
 - Invitation acceptance is logged in security logs
+- Email sending failures do not prevent invitation link generation - links can be shared manually
 
 ### Audit Logging
 
@@ -294,7 +297,7 @@ All admin management actions are logged:
 ### Issue: "Invitation link doesn't work"
 
 **Possible Causes:**
-- Invitation has expired (7 days default)
+- Invitation has expired (24 hours default)
 - Invitation was revoked
 - Invitation was already accepted
 
@@ -314,6 +317,61 @@ All admin management actions are logged:
 2. Check browser console for errors
 3. Check backend logs for API errors
 
+### Issue: "Invitation email not sent"
+
+**Possible Causes:**
+- AWS SES credentials not configured (local dev) or IAM role missing permissions (production)
+- Sender email address not verified in SES
+- Recipient email not verified (if SES is in sandbox mode)
+- Email address invalid or on SES suppression list
+- Wrong SES region configured
+
+**Solution:**
+1. For local dev: Verify `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are set correctly
+2. For production: Verify ECS task role has `ses:SendEmail` permission
+3. Check AWS SES Console → Verified identities to ensure sender email is verified
+4. If in sandbox mode, verify recipient email address in SES Console
+5. Check `SES_REGION` matches your SES configuration
+6. Check backend logs for detailed error messages (includes helpful SES-specific guidance)
+7. Use invitation link method as fallback - invitation link is still generated even if email fails
+8. Check SES bounce/complaint suppression list in AWS Console
+
+> **Note:** The system uses AWS SDK v3 to send emails directly via SES API. Email sending failures are logged but do not prevent invitation creation. The invitation link is always returned and can be shared manually if email delivery fails.
+
+## Environment Variables
+
+### Backend API Environment Variables
+
+**Location:** `apps/api/.env` (development) or AWS SSM/Secrets Manager (production)
+
+| Variable | Description | Example (Development) | Example (Production) |
+|----------|-------------|------------------------|----------------------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:password@localhost:5432/cashsouk_dev` | From Secrets Manager |
+| `ADMIN_URL` | Admin portal URL (used for invitation links) | `http://localhost:3003` | `https://admin.cashsouk.com` |
+| `EMAIL_FROM` | Email sender address (must be verified in SES) | `no-reply@cashsouk.com` | `no-reply@cashsouk.com` |
+| `SES_REGION` | AWS SES region (defaults to `ap-southeast-2`) | `ap-southeast-5` | `ap-southeast-5` |
+| `AWS_ACCESS_KEY_ID` | AWS access key (local dev only) | `AKIAXXXXXXXXXXXXXXXX` | Not needed (uses IAM role) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key (local dev only) | `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` | Not needed (uses IAM role) |
+| `INVITATION_TOKEN_EXPIRY_HOURS` | Invitation expiry in hours (optional, defaults to 24) | `24` | `24` |
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID | `ap-southeast-5_Ugz3vHRnm` | `ap-southeast-5_Ugz3vHRnm` |
+| `COGNITO_CLIENT_ID` | Cognito App Client ID | `4es0361hj0r66iv7da3hhm8ftk` | From Cognito Console |
+
+### Amazon SES Implementation
+
+The system uses **AWS SDK v3** (`@aws-sdk/client-ses`) to send emails directly via the SES API. No SMTP configuration is required.
+
+**Credentials are automatically loaded from:**
+1. IAM role (in ECS/production) - **recommended**
+2. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) - for local development
+3. `~/.aws/credentials` file - for local development
+
+**Key Features:**
+- Direct SES API calls (no SMTP)
+- Automatic credential resolution
+- Helpful error messages for common SES issues
+- Email failures don't prevent invitation link generation
+- Logs message IDs and delivery information
+
 ## Best Practices
 
 - **Role Assignment:** Assign the minimum role necessary for each admin user's responsibilities
@@ -321,4 +379,7 @@ All admin management actions are logged:
 - **Invitation Security:** Share invitation links securely (e.g., via encrypted email or secure messaging)
 - **Audit Trail:** Regularly review security logs for admin management activities
 - **Access Review:** Periodically review active admin users and their roles
+- **Email Verification:** Ensure AWS SES is properly configured and sender email is verified before sending invitation emails
+- **IAM Permissions:** In production, ensure ECS task role has `ses:SendEmail` permission for the SES region
+- **SES Sandbox Mode:** In sandbox mode, verify recipient email addresses in SES Console before sending
 
