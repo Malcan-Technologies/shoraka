@@ -39,18 +39,15 @@ ARG NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com
 ARG NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com
 
 RUN rm -rf apps/investor/.next && \
-    mkdir -p apps/investor && \
-    { \
-    echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"; \
-    echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}"; \
-    echo "NEXT_PUBLIC_ISSUER_URL=${NEXT_PUBLIC_ISSUER_URL}"; \
-    echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}"; \
-    echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${NEXT_PUBLIC_COGNITO_USER_POOL_ID}"; \
-    echo "NEXT_PUBLIC_COGNITO_CLIENT_ID=${NEXT_PUBLIC_COGNITO_CLIENT_ID}"; \
-    echo "NEXT_PUBLIC_COGNITO_DOMAIN=${NEXT_PUBLIC_COGNITO_DOMAIN}"; \
-    echo "NEXT_PUBLIC_COGNITO_REGION=${NEXT_PUBLIC_COGNITO_REGION}"; \
-    echo "NEXT_PUBLIC_COOKIE_DOMAIN=${NEXT_PUBLIC_COOKIE_DOMAIN}"; \
-    } > apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_ISSUER_URL=${NEXT_PUBLIC_ISSUER_URL}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${NEXT_PUBLIC_COGNITO_USER_POOL_ID}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_CLIENT_ID=${NEXT_PUBLIC_COGNITO_CLIENT_ID}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_DOMAIN=${NEXT_PUBLIC_COGNITO_DOMAIN}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_COGNITO_REGION=${NEXT_PUBLIC_COGNITO_REGION}" >> apps/investor/.env.production && \
+    echo "NEXT_PUBLIC_COOKIE_DOMAIN=${NEXT_PUBLIC_COOKIE_DOMAIN}" >> apps/investor/.env.production && \
     echo "📝 Building investor portal..." && \
     pnpm --filter @cashsouk/investor build && \
     echo "✅ Investor portal built successfully"
