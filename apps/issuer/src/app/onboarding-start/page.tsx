@@ -117,7 +117,7 @@ function OnboardingStartPageContent() {
       });
 
       if (result.success) {
-          router.push("/");
+          window.location.replace("/");
       } else {
         console.error("Failed to complete onboarding:", result);
         setCompleting(false);

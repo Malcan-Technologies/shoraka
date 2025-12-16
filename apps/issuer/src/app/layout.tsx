@@ -8,7 +8,11 @@ import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "arial"],
+});
 
 export const metadata: Metadata = {
   title: "CashSouk Issuer Portal",

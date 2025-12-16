@@ -12,10 +12,10 @@
     "aws-amplify": "^6.0.0"
   },
   "peerDependencies": {
-    "react": "^18.2.0"
+    "react": "^19.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.45",
+    "@types/react": "^19.2.7",
     "typescript": "^5.3.3"
   }
 }

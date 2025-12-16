@@ -49,6 +49,41 @@ class TokenRefreshService {
   }
 
   /**
+   * Check if refresh token exists in cookies
+   * Used to determine if token refresh is possible
+   */
+  hasRefreshToken(): boolean {
+    try {
+      const cookies = document.cookie.split(";");
+      const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+
+      if (!clientId) {
+        return false;
+      }
+
+      // Find LastAuthUser cookie to get the user ID
+      const lastAuthUserCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
+      );
+
+      if (!lastAuthUserCookie) {
+        return false;
+      }
+
+      const userId = lastAuthUserCookie.split("=")[1].trim();
+
+      // Find refresh token cookie
+      const refreshTokenCookie = cookies.find((c) =>
+        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.refreshToken=`)
+      );
+
+      return !!refreshTokenCookie;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Read access token directly from cookies
    * This bypasses Amplify's cache which may be stale after manual refresh
    */
@@ -94,6 +129,14 @@ class TokenRefreshService {
    * Returns the new access token or null if refresh fails
    */
   async refreshToken(): Promise<string | null> {
+    // Check if refresh token exists before attempting refresh
+    // This prevents errors during initial login when cookies haven't been set yet
+    if (!this.hasRefreshToken()) {
+      // eslint-disable-next-line no-console
+      console.log("[TokenRefreshService] No refresh token found in cookies, skipping refresh");
+      return null;
+    }
+
     // If already refreshing, wait for existing refresh to complete
     if (this.isRefreshing && this.refreshPromise) {
       return this.refreshPromise;
@@ -139,7 +182,14 @@ class TokenRefreshService {
         } catch {
           // Response wasn't JSON
         }
-        console.error("[TokenRefreshService] Token refresh failed:", errorDetail);
+        
+        // Don't log as error if it's a "no session" error - this is expected during initial login
+        if (response.status === 401 && errorDetail.includes("No authentication session found")) {
+          // eslint-disable-next-line no-console
+          console.log("[TokenRefreshService] No authentication session found (expected during login)");
+        } else {
+          console.error("[TokenRefreshService] Token refresh failed:", errorDetail);
+        }
         return null;
       }
 

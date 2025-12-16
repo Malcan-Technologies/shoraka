@@ -5,7 +5,11 @@ import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import "../lib/amplify-config"; // Initialize Amplify
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "arial"],
+});
 
 export const metadata: Metadata = {
   title: "CashSouk - P2P Lending Platform",
