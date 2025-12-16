@@ -233,16 +233,16 @@ export class AuthService {
 
     const portal = getPortalFromRole(onboardingRole as UserRole);
 
-    // Create access log
-    await this.repository.createAccessLog({
+    // Create onboarding log
+    await this.repository.createOnboardingLog({
       userId: user.id,
-      eventType: "ONBOARDING",
+      role: onboardingRole as UserRole,
+      eventType: "ONBOARDING_STARTED",
       portal,
       ipAddress,
       userAgent,
       deviceInfo,
       deviceType,
-      success: true,
       metadata: {
         role: onboardingRole,
         roles: user.roles,
@@ -337,16 +337,16 @@ export class AuthService {
       "Onboarding status updated successfully"
     );
 
-    // Create access log
-    await this.repository.createAccessLog({
+    // Create onboarding log
+    await this.repository.createOnboardingLog({
       userId: updatedUser.id,
+      role,
       eventType: "ONBOARDING_COMPLETED",
       portal,
       ipAddress,
       userAgent,
       deviceInfo,
       deviceType,
-      success: true,
       metadata: {
         role,
         roleAdded: roleNeedsToBeAdded,

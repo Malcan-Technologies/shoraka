@@ -126,7 +126,7 @@ export class OrganizationService {
     }
 
     // Check if user has access (is owner or member)
-    const isMember = organization.members.some((m) => m.user_id === userId);
+    const isMember = organization.members.some((m: { user_id: string }) => m.user_id === userId);
     const isOwner = organization.owner_user_id === userId;
 
     if (!isMember && !isOwner) {
@@ -196,7 +196,7 @@ export class OrganizationService {
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
     // Only owner or directors can add members
-    const userMember = organization.members.find((m) => m.user_id === userId);
+    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
     const canManage =
       organization.owner_user_id === userId ||
       userMember?.role === OrganizationMemberRole.OWNER ||
@@ -270,7 +270,7 @@ export class OrganizationService {
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
     // Only owner or directors can remove members
-    const userMember = organization.members.find((m) => m.user_id === userId);
+    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
     const canManage =
       organization.owner_user_id === userId ||
       userMember?.role === OrganizationMemberRole.OWNER ||
@@ -286,7 +286,7 @@ export class OrganizationService {
     }
 
     // Check if target is a member
-    const targetMember = organization.members.find((m) => m.user_id === targetUserId);
+    const targetMember = organization.members.find((m: { user_id: string }) => m.user_id === targetUserId);
     if (!targetMember) {
       throw new AppError(404, "NOT_FOUND", "Member not found in organization");
     }

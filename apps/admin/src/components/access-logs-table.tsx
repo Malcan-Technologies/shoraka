@@ -44,6 +44,9 @@ function TableSkeleton() {
             <Skeleton className="h-5 w-24" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-5 w-20" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-5 w-28" />
           </TableCell>
           <TableCell>
@@ -91,6 +94,7 @@ export function AccessLogsTable({
                 <TableHead className="text-sm font-semibold">Timestamp</TableHead>
                 <TableHead className="text-sm font-semibold">User</TableHead>
                 <TableHead className="text-sm font-semibold">Event Type</TableHead>
+                <TableHead className="text-sm font-semibold">Role</TableHead>
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>
                 <TableHead className="text-sm font-semibold">Device</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
@@ -102,7 +106,7 @@ export function AccessLogsTable({
                 <TableSkeleton />
               ) : logs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No access logs found
                   </TableCell>
                 </TableRow>

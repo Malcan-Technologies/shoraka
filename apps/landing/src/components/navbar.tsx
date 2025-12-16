@@ -21,9 +21,6 @@ export function Navbar() {
               variant="ghost" 
               className="text-[15px] hover:bg-transparent hover:text-primary"
               onClick={() => {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'navbar.tsx:23',message:'Login button clicked',data:{currentPath:typeof window !== 'undefined' ? window.location.pathname : 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-                // #endregion
                 setShowLoginModal(true);
               }}
             >

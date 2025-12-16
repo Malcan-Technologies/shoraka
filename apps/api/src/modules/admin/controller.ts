@@ -18,6 +18,9 @@ import {
   acceptInvitationSchema,
   getSecurityLogsQuerySchema,
   getPendingInvitationsQuerySchema,
+  getOnboardingLogsQuerySchema,
+  exportOnboardingLogsQuerySchema,
+  exportSecurityLogsQuerySchema,
 } from "./schemas";
 
 const router = Router();
@@ -345,42 +348,6 @@ router.get(
 
 /**
  * @swagger
- * /v1/admin/access-logs/:id:
- *   get:
- *     summary: Get access log by ID (admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- */
-router.get(
-  "/access-logs/:id",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const log = await adminService.getAccessLogById(id);
-
-      if (!log) {
-        throw new AppError(404, "NOT_FOUND", "Access log not found");
-      }
-
-      res.json({
-        success: true,
-        data: { log },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : new AppError(500, "INTERNAL_ERROR", "Failed to fetch access log")
-      );
-    }
-  }
-);
-
-/**
- * @swagger
  * /v1/admin/access-logs/export:
  *   get:
  *     summary: Export access logs as CSV or JSON (admin only)
@@ -428,27 +395,79 @@ router.get(
           ),
         ].join("\n");
 
-        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
           `attachment; filename="access-logs-${new Date().toISOString().split("T")[0]}.csv"`
         );
-        res.send(csvContent);
+        res.send(Buffer.from(csvContent, "utf-8"));
       } else {
-        // JSON format
-        res.setHeader("Content-Type", "application/json");
+        // JSON format - return raw JSON array, not wrapped in API response
+        const jsonData = logs.map((log) => ({
+          id: log.id,
+          user_id: log.user_id,
+          user: {
+            first_name: log.user.first_name,
+            last_name: log.user.last_name,
+            email: log.user.email,
+            roles: log.user.roles,
+          },
+          event_type: log.event_type,
+          portal: log.portal,
+          ip_address: log.ip_address,
+          user_agent: log.user_agent,
+          device_info: log.device_info,
+          device_type: log.device_type,
+          success: log.success,
+          metadata: log.metadata,
+          created_at: log.created_at.toISOString(),
+        }));
+
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
           `attachment; filename="access-logs-${new Date().toISOString().split("T")[0]}.json"`
         );
-        res.json({
-          success: true,
-          data: { logs },
-          correlationId: res.locals.correlationId,
-        });
+        res.json(jsonData); // Return raw JSON array, not wrapped
       }
     } catch (error) {
       next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/access-logs/:id:
+ *   get:
+ *     summary: Get access log by ID (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/access-logs/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const log = await adminService.getAccessLogById(id);
+
+      if (!log) {
+        throw new AppError(404, "NOT_FOUND", "Access log not found");
+      }
+
+      res.json({
+        success: true,
+        data: { log },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : new AppError(500, "INTERNAL_ERROR", "Failed to fetch access log")
+      );
     }
   }
 );
@@ -783,6 +802,247 @@ router.get(
       });
     } catch (error) {
       next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/security-logs/export:
+ *   get:
+ *     summary: Export security logs as CSV or JSON (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/security-logs/export",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = exportSecurityLogsQuerySchema.parse(req.query);
+      const { format, ...filterParams } = validated;
+
+      const logs = await adminService.exportSecurityLogs(filterParams);
+
+      if (format === "csv") {
+        const headers = [
+          "Timestamp",
+          "User",
+          "Email",
+          "Event Type",
+          "IP Address",
+          "Device",
+          "Metadata",
+        ];
+        const rows = logs.map((log: { created_at: Date; user: { first_name: string; last_name: string; email: string }; event_type: string; ip_address: string | null; device_info: string | null; metadata: unknown }) => [
+          log.created_at.toISOString(),
+          `${log.user.first_name} ${log.user.last_name}`,
+          log.user.email,
+          log.event_type,
+          log.ip_address || "",
+          log.device_info || "",
+          JSON.stringify(log.metadata || {}),
+        ]);
+
+        const csvContent = [
+          headers.join(","),
+          ...rows.map((row: string[]) =>
+            row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+          ),
+        ].join("\n");
+
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="security-logs-${new Date().toISOString().split("T")[0]}.csv"`
+        );
+        res.send(Buffer.from(csvContent, "utf-8"));
+      } else {
+        const jsonData = logs.map((log: { id: string; user_id: string; user: { first_name: string; last_name: string; email: string; roles: UserRole[] }; event_type: string; ip_address: string | null; user_agent: string | null; device_info: string | null; metadata: unknown; created_at: Date }) => ({
+          id: log.id,
+          user_id: log.user_id,
+          user: {
+            first_name: log.user.first_name,
+            last_name: log.user.last_name,
+            email: log.user.email,
+            roles: log.user.roles,
+          },
+          event_type: log.event_type,
+          ip_address: log.ip_address,
+          user_agent: log.user_agent,
+          device_info: log.device_info,
+          metadata: log.metadata,
+          created_at: log.created_at.toISOString(),
+        }));
+
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="security-logs-${new Date().toISOString().split("T")[0]}.json"`
+        );
+        res.json(jsonData);
+      }
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-logs:
+ *   get:
+ *     summary: Get onboarding logs with pagination and filters (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/onboarding-logs",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getOnboardingLogsQuerySchema.parse(req.query);
+      const result = await adminService.listOnboardingLogs(validated);
+
+      res.json({
+        success: true,
+        data: {
+          logs: result.logs,
+          pagination: {
+            page: validated.page,
+            pageSize: validated.pageSize,
+            totalCount: result.total,
+            totalPages: Math.ceil(result.total / validated.pageSize),
+          },
+        },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-logs/export:
+ *   get:
+ *     summary: Export onboarding logs as CSV or JSON (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/onboarding-logs/export",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = exportOnboardingLogsQuerySchema.parse(req.query);
+      const { format, ...filterParams } = validated;
+
+      const logs = await adminService.exportOnboardingLogs(filterParams);
+
+      if (format === "csv") {
+        const headers = [
+          "Timestamp",
+          "User",
+          "Email",
+          "Role",
+          "Event Type",
+          "Portal",
+          "IP Address",
+          "Device",
+          "Metadata",
+        ];
+        const rows = logs.map((log) => [
+          log.created_at.toISOString(),
+          `${log.user.first_name} ${log.user.last_name}`,
+          log.user.email,
+          log.role,
+          log.event_type,
+          log.portal || "",
+          log.ip_address || "",
+          log.device_type || "",
+          JSON.stringify(log.metadata || {}),
+        ]);
+
+        const csvContent = [
+          headers.join(","),
+          ...rows.map((row) =>
+            row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+          ),
+        ].join("\n");
+
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="onboarding-logs-${new Date().toISOString().split("T")[0]}.csv"`
+        );
+        res.send(Buffer.from(csvContent, "utf-8"));
+      } else {
+        const jsonData = logs.map((log) => ({
+          id: log.id,
+          user_id: log.user_id,
+          user: {
+            first_name: log.user.first_name,
+            last_name: log.user.last_name,
+            email: log.user.email,
+            roles: log.user.roles,
+          },
+          role: log.role,
+          event_type: log.event_type,
+          portal: log.portal,
+          ip_address: log.ip_address,
+          user_agent: log.user_agent,
+          device_info: log.device_info,
+          device_type: log.device_type,
+          metadata: log.metadata,
+          created_at: log.created_at.toISOString(),
+        }));
+
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="onboarding-logs-${new Date().toISOString().split("T")[0]}.json"`
+        );
+        res.json(jsonData);
+      }
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-logs/:id:
+ *   get:
+ *     summary: Get onboarding log by ID (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.get(
+  "/onboarding-logs/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const log = await adminService.getOnboardingLogById(id);
+
+      if (!log) {
+        throw new AppError(404, "NOT_FOUND", "Onboarding log not found");
+      }
+
+      res.json({
+        success: true,
+        data: { log },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

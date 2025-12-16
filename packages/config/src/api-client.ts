@@ -21,6 +21,10 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsParams,
   SecurityLogsResponse,
+  GetOnboardingLogsParams,
+  OnboardingLogsResponse,
+  OnboardingLogResponse,
+  ExportOnboardingLogsParams,
   GetPendingInvitationsParams,
   PendingInvitationsResponse,
 } from "@cashsouk/types";
@@ -430,6 +434,62 @@ export class ApiClient {
     if (params.userId) queryParams.append("userId", params.userId);
 
     return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
+  }
+
+  // Admin - Onboarding Logs
+  async getOnboardingLogs(
+    params: GetOnboardingLogsParams
+  ): Promise<ApiResponse<OnboardingLogsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.role) queryParams.append("role", params.role);
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+
+    return this.get<OnboardingLogsResponse>(`/v1/admin/onboarding-logs?${queryParams.toString()}`);
+  }
+
+  async getOnboardingLog(id: string): Promise<ApiResponse<{ log: OnboardingLogResponse }> | ApiError> {
+    return this.get<{ log: OnboardingLogResponse }>(`/v1/admin/onboarding-logs/${id}`);
+  }
+
+  async exportOnboardingLogs(params: ExportOnboardingLogsParams): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.role) queryParams.append("role", params.role);
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+    queryParams.append("format", params.format || "json");
+
+    const url = `${this.baseUrl}/v1/admin/onboarding-logs/export?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 }
 

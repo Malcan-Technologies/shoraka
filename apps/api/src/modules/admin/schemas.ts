@@ -120,6 +120,12 @@ export const getSecurityLogsQuerySchema = z.object({
 
 export type GetSecurityLogsQuery = z.infer<typeof getSecurityLogsQuerySchema>;
 
+export const exportSecurityLogsQuerySchema = getSecurityLogsQuerySchema.extend({
+  format: z.enum(["csv", "json"]).default("json"),
+});
+
+export type ExportSecurityLogsQuery = z.infer<typeof exportSecurityLogsQuerySchema>;
+
 // Pending invitations schema
 export const getPendingInvitationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -141,3 +147,26 @@ export const revokeInvitationSchema = z.object({
 });
 
 export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>;
+
+// Onboarding logs query schema
+export const getOnboardingLogsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+  search: z.string().optional(),
+  eventType: z.string().optional(),
+  eventTypes: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(",") : undefined)),
+  role: z.nativeEnum(UserRole).optional(),
+  dateRange: z.enum(["24h", "7d", "30d", "all"]).default("all"),
+  userId: z.string().optional(),
+});
+
+export type GetOnboardingLogsQuery = z.infer<typeof getOnboardingLogsQuerySchema>;
+
+export const exportOnboardingLogsQuerySchema = getOnboardingLogsQuerySchema.extend({
+  format: z.enum(["csv", "json"]).default("json"),
+});
+
+export type ExportOnboardingLogsQuery = z.infer<typeof exportOnboardingLogsQuerySchema>;

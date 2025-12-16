@@ -8,19 +8,19 @@ async function main() {
 
   // Admin user - use environment variable for cognito_sub if provided
   const adminCognitoSub = process.env.ADMIN_COGNITO_SUB || `seed_admin_${Date.now()}`;
-  const adminCognitoUsername = "admin@cashsouk.com";
+  const adminCognitoUsername = "lucas.deng@malcan.io";
 
   // Create or update admin user
   const adminUser = await prisma.user.upsert({
     where: { cognito_sub: adminCognitoSub },
     create: {
-      email: "admin@cashsouk.com",
+      email: "lucas.deng@malcan.io",
       cognito_sub: adminCognitoSub,
       cognito_username: adminCognitoUsername,
       roles: [UserRole.ADMIN],
-      first_name: "Admin",
-      last_name: "User",
-      phone: "+60112233445",
+      first_name: "Lucas",
+      last_name: "Deng",
+      phone: "+60165584792",
       email_verified: true,
       kyc_verified: true,
       investor_onboarding_completed: false,

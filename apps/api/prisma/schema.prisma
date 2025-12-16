@@ -73,6 +73,7 @@ model User {
   admin                  Admin?
   sent_admin_invitations AdminInvitation[]
   security_logs          SecurityLog[]
+  onboarding_logs         OnboardingLog[]
 
   // Organization relations
   investor_organizations   InvestorOrganization[]
@@ -214,6 +215,30 @@ model SecurityLog {
   @@index([event_type])
   @@index([created_at])
   @@map("security_logs")
+}
+
+model OnboardingLog {
+  id                String   @id @default(cuid())
+  user_id           String
+  role              UserRole // INVESTOR, ISSUER
+  event_type        String   // ONBOARDING_STARTED, ONBOARDING_COMPLETED
+  portal            String?  // "investor", "issuer"
+  ip_address        String?
+  user_agent        String?  @db.Text
+  device_info       String?
+  device_type       String?
+  metadata          Json?    // Additional context (previous status, etc.)
+  created_at        DateTime @default(now())
+  
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([role])
+  @@index([event_type])
+  @@index([portal])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("onboarding_logs")
 }
 
 model InvestorOrganization {

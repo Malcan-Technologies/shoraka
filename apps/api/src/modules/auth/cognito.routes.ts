@@ -478,47 +478,12 @@ router.get("/callback", async (req: Request, res: Response) => {
     let invitationAccepted = false;
     if (invitationToken && requestedRole === UserRole.ADMIN) {
       try {
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "cognito.routes.ts:430",
-            message: "Before acceptInvitation",
-            data: { userId: user.id, userRoles: user.roles, invitationToken },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "A",
-          }),
-        }).catch(() => {});
-        // #endregion
         const adminService = new AdminService();
         const invitationResult = await adminService.acceptInvitation(
           req,
           { token: invitationToken },
           user
         );
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "cognito.routes.ts:433",
-            message: "After acceptInvitation",
-            data: {
-              userId: user.id,
-              adminStatus: invitationResult.admin?.status || "N/A",
-              adminRole: invitationResult.admin?.role_description || "N/A",
-              userRoles: invitationResult.user.roles,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "A",
-          }),
-        }).catch(() => {});
-        // #endregion
 
         // Verify that the invitation was actually accepted and admin status is ACTIVE
         if (invitationResult.admin?.status !== "ACTIVE") {
@@ -549,45 +514,11 @@ router.get("/callback", async (req: Request, res: Response) => {
         const updatedUser = await prisma.user.findUnique({
           where: { id: user.id },
         });
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "cognito.routes.ts:456",
-            message: "After refresh user",
-            data: { userId: updatedUser?.id, userRoles: updatedUser?.roles },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "A",
-          }),
-        }).catch(() => {});
-        // #endregion
         if (updatedUser) {
           user = updatedUser;
           invitationAccepted = true;
         }
       } catch (error) {
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "cognito.routes.ts:463",
-            message: "Error accepting invitation",
-            data: {
-              userId: user.id,
-              error: error instanceof Error ? error.message : String(error),
-              errorStack: error instanceof Error ? error.stack : "N/A",
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "B",
-          }),
-        }).catch(() => {});
-        // #endregion
         logger.error(
           {
             correlationId,
@@ -623,42 +554,12 @@ router.get("/callback", async (req: Request, res: Response) => {
             select: { status: true },
           });
           adminStatus = admin?.status || null;
-          // #region agent log
-          fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              location: "cognito.routes.ts:492",
-              message: "Queried admin fresh after invitation",
-              data: { userId: user.id, adminStatus },
-              timestamp: Date.now(),
-              sessionId: "debug-session",
-              runId: "run1",
-              hypothesisId: "A",
-            }),
-          }).catch(() => {});
-          // #endregion
         } else {
           // For normal flow, prefer admin from user object if available
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ((user as any).admin) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             adminStatus = (user as any).admin.status || null;
-            // #region agent log
-            fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: "cognito.routes.ts:499",
-                message: "Using admin from user object",
-                data: { userId: user.id, adminStatus },
-                timestamp: Date.now(),
-                sessionId: "debug-session",
-                runId: "run1",
-                hypothesisId: "C",
-              }),
-            }).catch(() => {});
-            // #endregion
           } else {
             // Fallback: query fresh if admin not in user object
             const admin = await prisma.admin.findUnique({
@@ -666,48 +567,11 @@ router.get("/callback", async (req: Request, res: Response) => {
               select: { status: true },
             });
             adminStatus = admin?.status || null;
-            // #region agent log
-            fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: "cognito.routes.ts:507",
-                message: "Queried admin fresh (no invitation)",
-                data: { userId: user.id, adminStatus },
-                timestamp: Date.now(),
-                sessionId: "debug-session",
-                runId: "run1",
-                hypothesisId: "C",
-              }),
-            }).catch(() => {});
-            // #endregion
           }
         }
       }
 
       let isAdminActive = hasAdminRole && adminStatus === "ACTIVE";
-      // #region agent log
-      fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "cognito.routes.ts:512",
-          message: "Admin access check result",
-          data: {
-            userId: user.id,
-            hasAdminRole,
-            adminStatus,
-            isAdminActive,
-            hadInvitation: !!invitationToken,
-            invitationAccepted,
-          },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "A",
-        }),
-      }).catch(() => {});
-      // #endregion
 
       // If invitation was just accepted, admin should be ACTIVE - if not, force a fresh query
       if (invitationAccepted && !isAdminActive) {
@@ -728,21 +592,6 @@ router.get("/callback", async (req: Request, res: Response) => {
           select: { status: true },
         });
         const freshStatus = freshAdmin?.status || null;
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "cognito.routes.ts:530",
-            message: "Force fresh query after invitation",
-            data: { userId: user.id, previousStatus: adminStatus, freshStatus },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "A",
-          }),
-        }).catch(() => {});
-        // #endregion
         if (freshStatus === "ACTIVE") {
           // Use the fresh status and update the check result
           adminStatus = freshStatus;

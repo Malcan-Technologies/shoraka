@@ -1,5 +1,5 @@
 import { AdminRepository } from "./repository";
-import { User, AccessLog, UserRole, Prisma, AdminRole } from "@prisma/client";
+import { User, AccessLog, UserRole, Prisma, AdminRole, OnboardingLog, SecurityLog } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
@@ -20,6 +20,7 @@ import type {
   InviteAdminInput,
   AcceptInvitationInput,
   GetSecurityLogsQuery,
+  GetOnboardingLogsQuery,
 } from "./schemas";
 
 export class AdminService {
@@ -877,29 +878,17 @@ export class AdminService {
 
     // Create or update Admin record
     let admin = await this.repository.getAdminByUserId(user.id);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'admin/service.ts:768',message:'Before admin record check',data:{userId:user.id,adminExists:!!admin,adminStatus:admin?.status || 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     if (!admin) {
       admin = await this.repository.createAdmin(user.id, invitation.role_description);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'admin/service.ts:771',message:'Created new admin record',data:{userId:user.id,adminStatus:admin.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
     } else {
       // Update role description if different
       if (admin.role_description !== invitation.role_description) {
         admin = await this.repository.updateAdminRole(user.id, invitation.role_description);
       }
       // Ensure status is ACTIVE - CRITICAL: This reactivates deactivated admins
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'admin/service.ts:777',message:'Before status update check',data:{userId:user.id,currentStatus:admin.status,needsUpdate:admin.status !== 'ACTIVE'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       if (admin.status !== "ACTIVE") {
         // Update status and use the returned updated admin object
         admin = await this.repository.updateAdminStatus(user.id, "ACTIVE");
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'admin/service.ts:779',message:'Updated admin status to ACTIVE',data:{userId:user.id,adminStatus:admin.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
       }
     }
 
@@ -926,9 +915,6 @@ export class AdminService {
     const updatedUser = await this.repository.getUserById(user.id);
     // Refresh admin to ensure we have the latest status (especially after status update)
     const refreshedAdmin = await this.repository.getAdminByUserId(user.id);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/85291801-5a79-4781-80fd-9a72660bf4b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'admin/service.ts:814',message:'Returning from acceptInvitation',data:{userId:user.id,adminStatus:refreshedAdmin?.status || 'N/A',roleDescription:refreshedAdmin?.role_description || 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     return {
       user: updatedUser!,
       admin: { 
@@ -972,6 +958,19 @@ export class AdminService {
         totalPages,
       },
     };
+  }
+
+  /**
+   * Export security logs
+   */
+  async exportSecurityLogs(
+    params: Omit<GetSecurityLogsQuery, "page" | "pageSize">
+  ): Promise<
+    (SecurityLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
+  > {
+    return this.repository.getAllSecurityLogsForExport(params);
   }
 
   /**
@@ -1122,5 +1121,37 @@ export class AdminService {
       },
       "Admin invitation revoked"
     );
+  }
+
+  /**
+   * List onboarding logs with pagination and filters
+   */
+  async listOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
+    logs: (OnboardingLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[];
+    total: number;
+  }> {
+    return this.repository.getOnboardingLogs(params);
+  }
+
+  /**
+   * Get onboarding log by ID
+   */
+  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
+    return this.repository.getOnboardingLogById(logId);
+  }
+
+  /**
+   * Export onboarding logs
+   */
+  async exportOnboardingLogs(
+    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
+  ): Promise<
+    (OnboardingLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
+  > {
+    return this.repository.getAllOnboardingLogsForExport(params);
   }
 }

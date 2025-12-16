@@ -3,10 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
-import type { EventType, AccessLogResponse } from "@cashsouk/types";
+import type { EventType, AccessLogResponse, UserRole } from "@cashsouk/types";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
+  role?: UserRole;
 }
 
 interface AccessLogTableRowProps {
@@ -14,17 +15,25 @@ interface AccessLogTableRowProps {
   onViewDetails: () => void;
 }
 
-const eventTypeColors: Partial<Record<EventType, string>> = {
+const eventTypeColors: Partial<Record<EventType | string, string>> = {
   LOGIN: "bg-blue-100 text-blue-800 border-blue-200",
   LOGOUT: "bg-gray-100 text-gray-800 border-gray-200",
   SIGNUP: "bg-green-100 text-green-800 border-green-200",
   ROLE_ADDED: "bg-purple-100 text-purple-800 border-purple-200",
   ROLE_SWITCHED: "bg-orange-100 text-orange-800 border-orange-200",
   ONBOARDING_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
+  ONBOARDING_STARTED: "bg-emerald-100 text-emerald-800 border-emerald-200",
   KYC_STATUS_UPDATED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   ONBOARDING_STATUS_UPDATED: "bg-indigo-100 text-indigo-800 border-indigo-200",
   PASSWORD_CHANGED: "bg-rose-100 text-rose-800 border-rose-200",
   EMAIL_CHANGED: "bg-cyan-100 text-cyan-800 border-cyan-200",
+};
+
+// Add this new color mapping for roles
+const roleColors: Partial<Record<UserRole, string>> = {
+  INVESTOR: "bg-blue-100 text-blue-800 border-blue-200",
+  ISSUER: "bg-purple-100 text-purple-800 border-purple-200",
+  ADMIN: "bg-red-100 text-red-800 border-red-200",
 };
 
 export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps) {
@@ -45,6 +54,15 @@ export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps
         <Badge variant="outline" className={`text-xs ${eventTypeColors[log.event_type]}`}>
           {log.event_type.replace(/_/g, " ")}
         </Badge>
+      </TableCell>
+      <TableCell>
+        {log.role ? (
+          <Badge variant="outline" className={`text-xs ${roleColors[log.role] || ""}`}>
+            {log.role}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
       </TableCell>
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}

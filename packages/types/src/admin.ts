@@ -234,6 +234,51 @@ export interface SecurityLogsResponse {
   pagination: PaginationResponse;
 }
 
+// Onboarding Logs Types
+export type OnboardingEventType = "ONBOARDING_STARTED" | "ONBOARDING_COMPLETED";
+
+export interface OnboardingLogUser {
+  first_name: string;
+  last_name: string;
+  email: string;
+  roles: UserRole[];
+}
+
+export interface OnboardingLogResponse {
+  id: string;
+  user_id: string;
+  user: OnboardingLogUser;
+  role: UserRole;
+  event_type: OnboardingEventType;
+  portal: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  device_type: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GetOnboardingLogsParams extends PaginationParams {
+  search?: string;
+  eventType?: OnboardingEventType;
+  eventTypes?: OnboardingEventType[];
+  role?: UserRole;
+  dateRange?: "24h" | "7d" | "30d" | "all";
+  userId?: string;
+}
+
+export interface OnboardingLogsResponse {
+  logs: OnboardingLogResponse[];
+  pagination: PaginationResponse;
+}
+
+export interface ExportOnboardingLogsParams
+  extends Omit<GetOnboardingLogsParams, "page" | "pageSize"> {
+  format?: "csv" | "json";
+  eventTypes?: OnboardingEventType[];
+}
+
 // Pending Invitations Types
 export interface PendingInvitation {
   id: string;

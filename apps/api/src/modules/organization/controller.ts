@@ -51,7 +51,7 @@ async function listOrganizations(
           onboardingStatus: org.onboarding_status,
           onboardedAt: org.onboarded_at,
           isOwner: org.owner_user_id === userId,
-          members: org.members.map((m) => ({
+          members: org.members.map((m: { user_id: string; user: { email: string; first_name: string; last_name: string }; role: string }) => ({
             id: m.user_id,
             email: m.user.email,
             firstName: m.user.first_name,
@@ -128,7 +128,7 @@ async function getOrganization(
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
         isOwner: organization.owner_user_id === userId,
-        members: organization.members.map((m) => ({
+        members: organization.members.map((m: { user_id: string; user: { email: string; first_name: string; last_name: string }; role: string }) => ({
           id: m.user_id,
           email: m.user.email,
           firstName: m.user.first_name,

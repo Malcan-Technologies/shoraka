@@ -8,12 +8,14 @@ import {
   AdminInvitation,
   SecurityLog,
   AdminRole,
+  OnboardingLog,
 } from "@prisma/client";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
   GetAdminUsersQuery,
   GetSecurityLogsQuery,
+  GetOnboardingLogsQuery,
 } from "./schemas";
 
 export class AdminRepository {
@@ -839,5 +841,277 @@ export class AdminRepository {
     ]);
 
     return { logs, total };
+  }
+
+  /**
+   * Create onboarding log
+   */
+  async createOnboardingLog(data: {
+    userId: string;
+    role: UserRole;
+    eventType: string;
+    portal?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceInfo?: string;
+    deviceType?: string;
+    metadata?: object;
+  }): Promise<OnboardingLog> {
+    return prisma.onboardingLog.create({
+      data: {
+        user_id: data.userId,
+        role: data.role,
+        event_type: data.eventType,
+        portal: data.portal,
+        ip_address: data.ipAddress,
+        user_agent: data.userAgent,
+        device_info: data.deviceInfo,
+        device_type: data.deviceType,
+        metadata: data.metadata as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
+   * Get onboarding logs with pagination and filters
+   */
+  async getOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
+    logs: (OnboardingLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[];
+    total: number;
+  }> {
+    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.OnboardingLogWhereInput = {};
+
+    if (userId) {
+      where.user_id = userId;
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (eventTypes && eventTypes.length > 0) {
+      where.event_type = { in: eventTypes };
+    } else if (eventType) {
+      where.event_type = eventType;
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let cutoffDate: Date;
+
+      switch (dateRange) {
+        case "24h":
+          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "7d":
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30d":
+          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+
+      where.created_at = { gte: cutoffDate };
+    }
+
+    if (search) {
+      where.user = {
+        OR: [
+          { first_name: { contains: search, mode: "insensitive" } },
+          { last_name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
+        ],
+      };
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.onboardingLog.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+              roles: true,
+            },
+          },
+        },
+      }),
+      prisma.onboardingLog.count({ where }),
+    ]);
+
+    return { logs, total };
+  }
+
+  /**
+   * Get onboarding log by ID
+   */
+  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
+    return prisma.onboardingLog.findUnique({
+      where: { id: logId },
+      include: {
+        user: true,
+      },
+    });
+  }
+
+  /**
+   * Get all onboarding logs for export (no pagination)
+   */
+  async getAllOnboardingLogsForExport(
+    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
+  ): Promise<
+    (OnboardingLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
+  > {
+    const { search, eventType, eventTypes, role, dateRange, userId } = params;
+
+    const where: Prisma.OnboardingLogWhereInput = {};
+
+    if (userId) {
+      where.user_id = userId;
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (eventTypes && eventTypes.length > 0) {
+      where.event_type = { in: eventTypes };
+    } else if (eventType) {
+      where.event_type = eventType;
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let cutoffDate: Date;
+
+      switch (dateRange) {
+        case "24h":
+          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "7d":
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30d":
+          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+
+      where.created_at = { gte: cutoffDate };
+    }
+
+    if (search) {
+      where.user = {
+        OR: [
+          { first_name: { contains: search, mode: "insensitive" } },
+          { last_name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
+        ],
+      };
+    }
+
+    return prisma.onboardingLog.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            email: true,
+            roles: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get all security logs for export (no pagination)
+   */
+  async getAllSecurityLogsForExport(
+    params: Omit<GetSecurityLogsQuery, "page" | "pageSize">
+  ): Promise<
+    (SecurityLog & {
+      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+    })[]
+  > {
+    const { search, eventType, eventTypes, dateRange, userId } = params;
+
+    const where: Prisma.SecurityLogWhereInput = {};
+
+    if (userId) {
+      where.user_id = userId;
+    }
+
+    if (eventTypes && eventTypes.length > 0) {
+      where.event_type = { in: eventTypes };
+    } else if (eventType) {
+      where.event_type = eventType;
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let cutoffDate: Date;
+
+      switch (dateRange) {
+        case "24h":
+          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "7d":
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30d":
+          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+
+      where.created_at = { gte: cutoffDate };
+    }
+
+    if (search) {
+      where.user = {
+        OR: [
+          { first_name: { contains: search, mode: "insensitive" } },
+          { last_name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
+        ],
+      };
+    }
+
+    return prisma.securityLog.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            email: true,
+            roles: true,
+          },
+        },
+      },
+    });
   }
 }

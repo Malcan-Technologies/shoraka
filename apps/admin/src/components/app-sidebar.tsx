@@ -13,6 +13,7 @@ import {
   Cog6ToothIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
+  UserCircleIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -68,6 +69,7 @@ const navPlatform = [
 const navAudit = [
   { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
   { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
+  { title: "Onboarding Logs", url: "/audit/onboarding-logs", icon: UserCircleIcon },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

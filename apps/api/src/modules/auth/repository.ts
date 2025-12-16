@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma";
-import { User, UserRole, AccessLog, UserSession, SecurityLog } from "@prisma/client";
+import { User, UserRole, AccessLog, UserSession, SecurityLog, OnboardingLog } from "@prisma/client";
 import { generateUniqueUserId } from "../../lib/user-id-generator";
 import { Prisma } from "@prisma/client";
 
@@ -291,6 +291,35 @@ export class AuthRepository {
         ip_address: data.ipAddress,
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
+        metadata: data.metadata as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
+   * Create onboarding log entry
+   */
+  async createOnboardingLog(data: {
+    userId: string;
+    role: UserRole;
+    eventType: string;
+    portal?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceInfo?: string;
+    deviceType?: string;
+    metadata?: object;
+  }): Promise<OnboardingLog> {
+    return prisma.onboardingLog.create({
+      data: {
+        user_id: data.userId,
+        role: data.role,
+        event_type: data.eventType,
+        portal: data.portal,
+        ip_address: data.ipAddress,
+        user_agent: data.userAgent,
+        device_info: data.deviceInfo,
+        device_type: data.deviceType,
         metadata: data.metadata as Prisma.InputJsonValue,
       },
     });
