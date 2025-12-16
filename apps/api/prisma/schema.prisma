@@ -32,54 +32,75 @@ enum LoanStatus {
   REJECTED
 }
 
-model User {
-  id                              String     @id @default(cuid())
-  user_id                         String?    @unique @db.VarChar(5)
-  email                           String     @unique
-  cognito_sub                     String     @unique @db.VarChar(255)
-  cognito_username                String     @db.VarChar(255)
-  roles                           UserRole[]
-  first_name                      String
-  last_name                       String
-  phone                           String?
-  email_verified                  Boolean    @default(false)
-  kyc_verified                    Boolean    @default(false)
-  investor_onboarding_completed   Boolean    @default(false)
-  issuer_onboarding_completed     Boolean    @default(false)
-  password_changed_at             DateTime?
-  created_at                      DateTime   @default(now())
-  updated_at                      DateTime   @updatedAt
+enum OrganizationType {
+  PERSONAL
+  COMPANY
+}
 
-  loans                   Loan[]
-  investments             Investment[]
-  access_logs             AccessLog[]
-  sessions                UserSession[]
-  admin                   Admin?
-  sent_admin_invitations  AdminInvitation[]
-  security_logs           SecurityLog[]
-  
+enum OnboardingStatus {
+  PENDING
+  COMPLETED
+}
+
+enum OrganizationMemberRole {
+  OWNER
+  DIRECTOR
+  MEMBER
+}
+
+model User {
+  id                            String     @id @default(cuid())
+  user_id                       String?    @unique @db.VarChar(5)
+  email                         String     @unique
+  cognito_sub                   String     @unique @db.VarChar(255)
+  cognito_username              String     @db.VarChar(255)
+  roles                         UserRole[]
+  first_name                    String
+  last_name                     String
+  phone                         String?
+  email_verified                Boolean    @default(false)
+  kyc_verified                  Boolean    @default(false)
+  investor_onboarding_completed Boolean    @default(false)
+  issuer_onboarding_completed   Boolean    @default(false)
+  password_changed_at           DateTime?
+  created_at                    DateTime   @default(now())
+  updated_at                    DateTime   @updatedAt
+
+  loans                  Loan[]
+  investments            Investment[]
+  access_logs            AccessLog[]
+  sessions               UserSession[]
+  admin                  Admin?
+  sent_admin_invitations AdminInvitation[]
+  security_logs          SecurityLog[]
+
+  // Organization relations
+  investor_organizations   InvestorOrganization[]
+  issuer_organizations     IssuerOrganization[]
+  organization_memberships OrganizationMember[]
+
   @@index([cognito_sub])
   @@index([user_id])
   @@map("users")
 }
 
 model Loan {
-  id                String     @id @default(cuid())
-  borrower_id       String
-  amount            Decimal    @db.Decimal(18, 6)
-  interest_rate     Decimal    @db.Decimal(5, 2)
-  duration_months   Int
-  purpose           String
-  status            LoanStatus @default(DRAFT)
-  funded_amount     Decimal    @default(0) @db.Decimal(18, 6)
-  created_at        DateTime   @default(now())
-  updated_at        DateTime   @updatedAt
-  approved_at       DateTime?
-  funded_at         DateTime?
-  
-  borrower     User         @relation(fields: [borrower_id], references: [id])
-  investments  Investment[]
-  
+  id              String     @id @default(cuid())
+  borrower_id     String
+  amount          Decimal    @db.Decimal(18, 6)
+  interest_rate   Decimal    @db.Decimal(5, 2)
+  duration_months Int
+  purpose         String
+  status          LoanStatus @default(DRAFT)
+  funded_amount   Decimal    @default(0) @db.Decimal(18, 6)
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  approved_at     DateTime?
+  funded_at       DateTime?
+
+  borrower    User         @relation(fields: [borrower_id], references: [id])
+  investments Investment[]
+
   @@map("loans")
 }
 
@@ -90,29 +111,29 @@ model Investment {
   amount      Decimal  @db.Decimal(18, 6)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
-  
+
   investor User @relation(fields: [investor_id], references: [id])
   loan     Loan @relation(fields: [loan_id], references: [id])
-  
+
   @@map("investments")
 }
 
 model AccessLog {
-  id             String   @id @default(cuid())
-  user_id        String
-  event_type     String   // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED, ONBOARDING
-  portal         String?  // "investor", "issuer", "admin"
-  ip_address     String?
-  user_agent     String?  @db.Text
-  device_info    String?  // Detailed device info (e.g., "Chrome 120 on Windows 10")
-  device_type    String?  // Simplified device type (e.g., "Windows Desktop", "iPhone")
-  cognito_event  Json?
-  success        Boolean  @default(true)
-  metadata       Json?    // Stores active_role, auth_method, etc.
-  created_at     DateTime @default(now())
-  
+  id            String   @id @default(cuid())
+  user_id       String
+  event_type    String // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED, ONBOARDING
+  portal        String? // "investor", "issuer", "admin"
+  ip_address    String?
+  user_agent    String?  @db.Text
+  device_info   String? // Detailed device info (e.g., "Chrome 120 on Windows 10")
+  device_type   String? // Simplified device type (e.g., "Windows Desktop", "iPhone")
+  cognito_event Json?
+  success       Boolean  @default(true)
+  metadata      Json? // Stores active_role, auth_method, etc.
+  created_at    DateTime @default(now())
+
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([event_type])
   @@index([portal])
@@ -122,19 +143,19 @@ model AccessLog {
 }
 
 model UserSession {
-  id               String    @id @default(cuid())
-  user_id          String
-  cognito_session  String    @unique @db.VarChar(512)
-  ip_address       String?
-  device_info      String?
-  active_role      UserRole?
-  last_activity    DateTime  @default(now())
-  expires_at       DateTime
-  revoked_at       DateTime?
-  created_at       DateTime  @default(now())
-  
+  id              String    @id @default(cuid())
+  user_id         String
+  cognito_session String    @unique @db.VarChar(512)
+  ip_address      String?
+  device_info     String?
+  active_role     UserRole?
+  last_activity   DateTime  @default(now())
+  expires_at      DateTime
+  revoked_at      DateTime?
+  created_at      DateTime  @default(now())
+
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([cognito_session])
   @@index([expires_at])
@@ -143,34 +164,34 @@ model UserSession {
 }
 
 model Admin {
-  id                  String    @id @default(cuid())
-  user_id             String    @unique
-  role_description    AdminRole
-  status              String    @default("ACTIVE") // ACTIVE or INACTIVE
-  last_login          DateTime?
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
-  
+  id               String    @id @default(cuid())
+  user_id          String    @unique
+  role_description AdminRole
+  status           String    @default("ACTIVE") // ACTIVE or INACTIVE
+  last_login       DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([status])
   @@map("admins")
 }
 
 model AdminInvitation {
-  id                  String    @id @default(cuid())
-  email               String
-  role_description    AdminRole
-  token               String    @unique
-  expires_at          DateTime
-  accepted            Boolean   @default(false)
-  accepted_at         DateTime?
-  invited_by_user_id  String
-  created_at          DateTime  @default(now())
-  
+  id                 String    @id @default(cuid())
+  email              String
+  role_description   AdminRole
+  token              String    @unique
+  expires_at         DateTime
+  accepted           Boolean   @default(false)
+  accepted_at        DateTime?
+  invited_by_user_id String
+  created_at         DateTime  @default(now())
+
   invited_by User @relation(fields: [invited_by_user_id], references: [id])
-  
+
   @@index([email])
   @@index([token])
   @@index([expires_at])
@@ -178,20 +199,82 @@ model AdminInvitation {
 }
 
 model SecurityLog {
-  id             String   @id @default(cuid())
-  user_id        String
-  event_type     String   // PASSWORD_CHANGED, EMAIL_CHANGED, ROLE_ADDED, ROLE_SWITCHED, PROFILE_UPDATED
-  ip_address     String?
-  user_agent     String?  @db.Text
-  device_info    String?
-  metadata       Json?
-  created_at     DateTime @default(now())
-  
+  id          String   @id @default(cuid())
+  user_id     String
+  event_type  String // PASSWORD_CHANGED, EMAIL_CHANGED, ROLE_ADDED, ROLE_SWITCHED, PROFILE_UPDATED
+  ip_address  String?
+  user_agent  String?  @db.Text
+  device_info String?
+  metadata    Json?
+  created_at  DateTime @default(now())
+
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
   @@map("security_logs")
 }
 
+model InvestorOrganization {
+  id                  String           @id @default(cuid())
+  owner_user_id       String
+  type                OrganizationType
+  name                String? // Required for COMPANY, nullable for PERSONAL
+  registration_number String? // Company registration number
+  onboarding_status   OnboardingStatus @default(PENDING)
+  onboarded_at        DateTime?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+
+  owner   User                 @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
+  members OrganizationMember[]
+
+  // Ensure only 1 PERSONAL org per user (enforced at application level)
+  @@index([owner_user_id])
+  @@index([owner_user_id, type])
+  @@index([onboarding_status])
+  @@map("investor_organizations")
+}
+
+model IssuerOrganization {
+  id                  String           @id @default(cuid())
+  owner_user_id       String
+  type                OrganizationType
+  name                String? // Required for COMPANY, nullable for PERSONAL
+  registration_number String? // Company registration number
+  onboarding_status   OnboardingStatus @default(PENDING)
+  onboarded_at        DateTime?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+
+  owner   User                 @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
+  members OrganizationMember[]
+
+  // Ensure only 1 PERSONAL org per user (enforced at application level)
+  @@index([owner_user_id])
+  @@index([owner_user_id, type])
+  @@index([onboarding_status])
+  @@map("issuer_organizations")
+}
+
+model OrganizationMember {
+  id                       String                 @id @default(cuid())
+  user_id                  String
+  investor_organization_id String?
+  issuer_organization_id   String?
+  role                     OrganizationMemberRole
+  created_at               DateTime               @default(now())
+
+  user                  User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  investor_organization InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+
+  // User can only be a member of an org once
+  @@unique([user_id, investor_organization_id])
+  @@unique([user_id, issuer_organization_id])
+  @@index([user_id])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id])
+  @@map("organization_members")
+}

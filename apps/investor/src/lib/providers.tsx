@@ -2,8 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode, useState } from "react";
-import { AuthProvider } from "@cashsouk/config";
+import { AuthProvider, OrganizationProvider } from "@cashsouk/config";
 import "../lib/amplify-config"; // Initialize Amplify
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -20,7 +22,11 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <OrganizationProvider portalType="investor" apiUrl={API_URL}>
+          {children}
+        </OrganizationProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

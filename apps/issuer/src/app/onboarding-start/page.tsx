@@ -15,21 +15,25 @@ import {
 } from "@cashsouk/ui";
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
 import { redirectToLanding } from "../../lib/auth";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
+import { AccountTypeSelector } from "../../components/account-type-selector";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
 
+type OnboardingStep = "welcome" | "account-type";
+
 function OnboardingStartPageContent() {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
+  const { isLoading: orgLoading, refreshOrganizations } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [completing, setCompleting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [step, setStep] = useState<OnboardingStep>("welcome");
 
   // Handle hydration
   useEffect(() => {
@@ -37,11 +41,9 @@ function OnboardingStartPageContent() {
   }, []);
 
   useEffect(() => {
-    // Flag to prevent duplicate API calls in Strict Mode
     let isMounted = true;
 
     const fetchUser = async () => {
-      // Get token from Amplify session
       const token = await getAccessToken();
       
       if (!token) {
@@ -55,7 +57,6 @@ function OnboardingStartPageContent() {
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
         
-        // Fetch user info
         const userResult = await apiClient.get<{
           user: {
             first_name: string;
@@ -76,7 +77,6 @@ function OnboardingStartPageContent() {
           }
         }
 
-        // Log onboarding start - only if mounted
         if (isMounted) {
           await apiClient.post("/v1/auth/start-onboarding", {
             role: "ISSUER",
@@ -93,48 +93,30 @@ function OnboardingStartPageContent() {
 
     fetchUser();
     
-    // Cleanup to prevent duplicate calls
     return () => {
       isMounted = false;
     };
   }, [router, getAccessToken]);
 
-  const handleStartOnboarding = async () => {
-    // Get token from Amplify session
-    const token = await getAccessToken();
-    
-    if (!token) {
-      redirectToLanding();
-      return;
-    }
+  const handleStartOnboarding = () => {
+    setStep("account-type");
+  };
 
-    setCompleting(true);
+  const handleBackToWelcome = () => {
+    setStep("welcome");
+  };
 
-    try {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      const result = await apiClient.post("/v1/auth/complete-onboarding", {
-        role: "ISSUER",
-      });
-
-      if (result.success) {
-          window.location.replace("/");
-      } else {
-        console.error("Failed to complete onboarding:", result);
-        setCompleting(false);
-      }
-    } catch (error) {
-      console.error("Failed to complete onboarding:", error);
-      setCompleting(false);
-    }
+  const handleOnboardingComplete = async () => {
+    await refreshOrganizations();
+    window.location.replace("/");
   };
 
   const handleSwitchPortal = () => {
-    // Simply redirect to target portal - it will auto-refresh to get access token
     window.location.href = INVESTOR_URL;
   };
 
   // Show loading state while fetching user data
-  if (loading) {
+  if (loading || orgLoading) {
     return (
       <>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -144,14 +126,10 @@ function OnboardingStartPageContent() {
         </header>
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
           <div className="w-full max-w-md">
-            {/* Logo Skeleton */}
             <div className="flex justify-center mb-8">
               <Skeleton className="h-8 w-32" />
             </div>
-
-            {/* Card Skeleton */}
             <div className="rounded-2xl border bg-card p-6 shadow-lg space-y-6">
-              {/* Header */}
               <div className="text-center space-y-3">
                 <Skeleton className="h-8 w-48 mx-auto" />
                 <div className="space-y-2">
@@ -159,11 +137,8 @@ function OnboardingStartPageContent() {
                   <Skeleton className="h-4 w-3/4 mx-auto" />
                 </div>
               </div>
-
-              {/* Buttons */}
               <div className="space-y-4 pt-2">
                 <Skeleton className="h-11 w-full rounded-md" />
-                
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-border" />
@@ -172,9 +147,7 @@ function OnboardingStartPageContent() {
                     <span className="bg-card px-2 text-muted-foreground">or</span>
                   </div>
                 </div>
-
                 <Skeleton className="h-11 w-full rounded-md" />
-                
                 <Skeleton className="h-3 w-48 mx-auto" />
               </div>
             </div>
@@ -200,55 +173,62 @@ function OnboardingStartPageContent() {
         <h1 className="text-lg font-semibold">Onboarding</h1>
       </header>
       <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md flex flex-col items-center">
           {/* Logo */}
           <div className="flex justify-center mb-8">
             <Logo />
           </div>
 
-          {/* Main Card */}
-          <Card className="rounded-2xl shadow-lg">
-            <CardHeader className="text-center space-y-2 pb-4">
-              <CardTitle className="text-2xl font-bold">Welcome {displayName}</CardTitle>
-              <CardDescription className="text-[15px] leading-7">
-                Let&apos;s set up your <strong>Issuer</strong> account to start listing financing
-                opportunities
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-2">
-              <Button
-                variant="action"
-                className="w-full h-11 text-[15px]"
-                onClick={handleStartOnboarding}
-                disabled={completing}
-              >
-                <span>{completing ? "Completing..." : "Start Onboarding"}</span>
-                {!completing && <ArrowRightIcon className="h-4 w-4 ml-2" />}
-              </Button>
+          {step === "welcome" && (
+            <Card className="rounded-2xl shadow-lg w-full">
+              <CardHeader className="text-center space-y-2 pb-4">
+                <CardTitle className="text-2xl font-bold">Welcome {displayName}</CardTitle>
+                <CardDescription className="text-[15px] leading-7">
+                  Let&apos;s set up your <strong>Issuer</strong> account to start listing financing
+                  opportunities
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                <Button
+                  variant="action"
+                  className="w-full h-11 text-[15px]"
+                  onClick={handleStartOnboarding}
+                >
+                  <span>Start Onboarding</span>
+                  <ArrowRightIcon className="h-4 w-4 ml-2" />
+                </Button>
 
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
-                </div>
-              </div>
 
-              <Button
-                variant="ghost"
-                className="w-full h-11 text-[15px] hover:bg-transparent hover:text-primary"
-                onClick={handleSwitchPortal}
-              >
-                <ArrowsRightLeftIcon className="h-4 w-4 mr-2" />
-                <span>Switch to Investor Portal</span>
-              </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full h-11 text-[15px] hover:bg-transparent hover:text-primary"
+                  onClick={handleSwitchPortal}
+                >
+                  <ArrowsRightLeftIcon className="h-4 w-4 mr-2" />
+                  <span>Switch to Investor Portal</span>
+                </Button>
 
-              <p className="text-xs text-center text-muted-foreground pt-2">
-                Complete your onboarding to access your issuer dashboard
-              </p>
-            </CardContent>
-          </Card>
+                <p className="text-xs text-center text-muted-foreground pt-2">
+                  Complete your onboarding to access your issuer dashboard
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === "account-type" && (
+            <AccountTypeSelector
+              onBack={handleBackToWelcome}
+              onComplete={handleOnboardingComplete}
+            />
+          )}
         </div>
       </div>
     </>

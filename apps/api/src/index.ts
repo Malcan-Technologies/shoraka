@@ -1,3 +1,7 @@
+// Load environment variables from .env files in development
+// In production, env vars are injected by ECS/container orchestration
+import "dotenv/config";
+
 import { createApp } from "./app";
 import { logger } from "./lib/logger";
 

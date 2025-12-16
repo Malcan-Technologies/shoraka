@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
-import { APP_VERSION } from "@cashsouk/config";
-import { HomeIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { APP_VERSION, useOrganization } from "@cashsouk/config";
+import { HomeIcon, PlusIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -26,7 +27,10 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const isOnboarding = pathname === "/onboarding-start";
+  const { isOnboarded, organizations } = useOrganization();
+  const isOnboardingPage = pathname === "/onboarding-start";
+  // Disable navigation if on onboarding page OR if active org is not onboarded
+  const isDisabled = isOnboardingPage || (organizations.length > 0 && !isOnboarded);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -94,12 +98,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-16 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
           <div className="relative w-full">
             <img
               src="/shoraka_favicon.svg"
               alt="CashSouk"
-              className="h-14 w-14 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
+              className="h-10 w-10 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
             />
             <div className="flex items-center opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
               <Logo />
@@ -107,6 +111,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
         </div>
+        <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
         {/* Quick Action */}
@@ -114,7 +119,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                {isOnboarding ? (
+                {isDisabled ? (
                   <SidebarMenuButton
                     disabled
                     tooltip="Complete onboarding to access"
@@ -149,7 +154,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                {isOnboarding ? (
+                {isDisabled ? (
                   <SidebarMenuButton
                     disabled
                     tooltip="Complete onboarding to access"
@@ -163,6 +168,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/">
                       <HomeIcon className="h-4 w-4" />
                       <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <UserCircleIcon className="h-4 w-4" />
+                    <span>Account</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton asChild isActive={pathname === "/account"} tooltip="Account">
+                    <Link href="/account">
+                      <UserCircleIcon className="h-4 w-4" />
+                      <span>Account</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

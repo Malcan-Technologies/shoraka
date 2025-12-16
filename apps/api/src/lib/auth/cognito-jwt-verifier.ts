@@ -1,18 +1,30 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
+import type { CognitoJwtVerifierSingleUserPool } from "aws-jwt-verify/cognito-verifier";
 import { getEnv } from "../../config/env";
 
-const env = getEnv();
+// Lazy-initialized verifier singleton
+// This avoids calling getEnv() at module load time, which would fail
+// before dotenv has loaded environment variables
+let verifier: CognitoJwtVerifierSingleUserPool<{
+  userPoolId: string;
+  tokenUse: "access";
+  clientId: string;
+}> | null = null;
 
 /**
- * Create and configure the Cognito JWT verifier
- * This verifier is instantiated once and reused across requests (singleton pattern)
- * It caches the JWKS (JSON Web Key Set) for performance
+ * Get or create the Cognito JWT verifier (lazy singleton)
  */
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: env.COGNITO_USER_POOL_ID,
-  tokenUse: "access", // We're verifying access tokens
-  clientId: env.COGNITO_CLIENT_ID,
-});
+function getVerifier() {
+  if (!verifier) {
+    const env = getEnv();
+    verifier = CognitoJwtVerifier.create({
+      userPoolId: env.COGNITO_USER_POOL_ID,
+      tokenUse: "access", // We're verifying access tokens
+      clientId: env.COGNITO_CLIENT_ID,
+    });
+  }
+  return verifier;
+}
 
 /**
  * Verify a Cognito access token
@@ -24,7 +36,7 @@ const verifier = CognitoJwtVerifier.create({
  */
 export async function verifyCognitoAccessToken(token: string) {
   try {
-    const payload = await verifier.verify(token);
+    const payload = await getVerifier().verify(token);
     return payload;
   } catch (error) {
     // Re-throw with more context
@@ -41,7 +53,7 @@ export async function verifyCognitoAccessToken(token: string) {
  */
 export async function hydrateVerifier() {
   try {
-    await verifier.hydrate();
+    await getVerifier().hydrate();
     console.log("✅ Cognito JWT verifier hydrated successfully");
   } catch (error) {
     console.error(

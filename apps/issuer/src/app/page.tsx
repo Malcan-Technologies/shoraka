@@ -4,66 +4,32 @@ import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { useOrganization } from "@cashsouk/config";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 function IssuerDashboardContent() {
   const { isAuthenticated } = useAuth();
-  const { getAccessToken } = useAuthToken();
   const router = useRouter();
+  const { activeOrganization, isLoading: isOrgLoading, isOnboarded } = useOrganization();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-  const [userName, setUserName] = useState<string>("");
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
-    if (isAuthenticated) {
-      const checkOnboarding = async () => {
-        try {
-          const apiClient = createApiClient(API_URL, getAccessToken);
-          const result = await apiClient.get<{
-            user: {
-              first_name: string | null;
-              last_name: string | null;
-              issuer_onboarding_completed: boolean;
-            };
-            activeRole: string | null;
-            sessions: {
-              active: number;
-            };
-          }>("/v1/auth/me");
-
-          if (result.success && result.data) {
-            const user = result.data.user;
-            
-            // Set user name for welcome message
-            const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
-            setUserName(name || "Issuer");
-            
-            // Check if issuer onboarding is completed
-            if (!user.issuer_onboarding_completed) {
-              // Redirect to onboarding if not completed
-              router.push("/onboarding-start");
-              return;
-            }
-          }
-        } catch (error) {
-          console.error("Failed to check onboarding status:", error);
-        } finally {
-          setCheckingOnboarding(false);
-        }
-      };
-
-      checkOnboarding();
+    if (isAuthenticated && !isOrgLoading) {
+      // If no active organization or not onboarded, redirect to onboarding
+      if (!activeOrganization || !isOnboarded) {
+        router.push("/onboarding-start");
+        return;
+      }
+      setCheckingOnboarding(false);
     } else if (isAuthenticated === false) {
       setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, router, getAccessToken]);
+  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, router]);
 
   // Show loading while checking auth or onboarding
-  if (isAuthenticated === null || checkingOnboarding) {
+  if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
@@ -79,6 +45,17 @@ function IssuerDashboardContent() {
     return null;
   }
 
+  // Get organization display name
+  const getOrgDisplayName = () => {
+    if (!activeOrganization) return "";
+    if (activeOrganization.type === "PERSONAL") {
+      return "Personal Account";
+    }
+    return activeOrganization.name || "Company Account";
+  };
+
+  const orgName = getOrgDisplayName();
+
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -90,8 +67,8 @@ function IssuerDashboardContent() {
         <div className="space-y-8 p-2 md:p-4">
           {/* Welcome Section */}
           <section>
-            <h2 className="text-2xl font-bold mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h2>
-        <p className="text-[17px] leading-7 text-muted-foreground">
+            <h2 className="text-2xl font-bold mb-2">Welcome back{orgName ? `, ${orgName}` : ""}!</h2>
+            <p className="text-[17px] leading-7 text-muted-foreground">
               Manage your financing requests and track your applications from your dashboard.
             </p>
           </section>

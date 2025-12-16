@@ -4,6 +4,7 @@ import { swaggerSpec } from "./lib/swagger";
 import { authRouter } from "./modules/auth/controller";
 import cognitoAuthRouter from "./modules/auth/cognito.routes";
 import { adminRouter } from "./modules/admin/controller";
+import { createOrganizationRouter } from "./modules/organization/controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -58,6 +59,9 @@ export function registerRoutes(app: Application): void {
   
   // Cognito OAuth routes under v1 (for consistency with versioned API)
   v1Router.use("/auth/cognito", cognitoAuthRouter);
+  
+  // Organization routes
+  v1Router.use("/organizations", createOrganizationRouter());
   
   // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
