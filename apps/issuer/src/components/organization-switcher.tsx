@@ -84,8 +84,11 @@ export function OrganizationSwitcher() {
   const handleSelectOrganization = (org: Organization) => {
     switchOrganization(org.id);
     // If selecting an onboarded organization, redirect to dashboard
+    // Use replace to avoid adding to history stack and setTimeout to ensure state propagates
     if (org.onboardingStatus === "COMPLETED") {
-      router.push("/");
+      setTimeout(() => {
+        router.replace("/");
+      }, 50);
     }
   };
 

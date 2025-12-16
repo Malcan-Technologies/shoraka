@@ -82,6 +82,8 @@ export function OrganizationProvider({
   const [isLoading, setIsLoading] = useState(true);
 
   const storageKey = `${ACTIVE_ORG_KEY_PREFIX}${portalType}`;
+  // Track if initial fetch has completed
+  const [hasFetched, setHasFetched] = useState(false);
 
   /**
    * Find the active organization from the list
@@ -97,6 +99,20 @@ export function OrganizationProvider({
   const isOnboarded = useMemo(() => {
     return activeOrganization?.onboardingStatus === "COMPLETED";
   }, [activeOrganization]);
+
+  /**
+   * Compute true loading state - we're loading if:
+   * 1. We haven't fetched yet, OR
+   * 2. We're in the middle of a fetch, OR
+   * 3. We have organizations but activeOrganization hasn't been computed yet
+   */
+  const trueIsLoading = useMemo(() => {
+    if (!hasFetched) return true;
+    if (isLoading) return true;
+    // If we have organizations but no active one selected yet, still loading
+    if (organizations.length > 0 && !activeOrganization && activeOrganizationId) return true;
+    return false;
+  }, [hasFetched, isLoading, organizations.length, activeOrganization, activeOrganizationId]);
 
   /**
    * Fetch organizations from API
@@ -146,6 +162,7 @@ export function OrganizationProvider({
       console.error("[OrganizationProvider] Failed to fetch organizations:", error);
     } finally {
       setIsLoading(false);
+      setHasFetched(true);
     }
   }, [isAuthenticated, apiUrl, getAccessToken, portalType, storageKey]);
 
@@ -256,7 +273,7 @@ export function OrganizationProvider({
       value={{
         activeOrganization,
         organizations,
-        isLoading,
+        isLoading: trueIsLoading,
         hasPersonalOrganization,
         switchOrganization,
         refreshOrganizations,

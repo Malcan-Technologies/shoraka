@@ -29,7 +29,7 @@ type OnboardingStep = "welcome" | "account-type";
 function OnboardingStartPageContent() {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { isLoading: orgLoading, refreshOrganizations } = useOrganization();
+  const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -107,8 +107,10 @@ function OnboardingStartPageContent() {
   };
 
   const handleOnboardingComplete = async () => {
-    await refreshOrganizations();
-    window.location.replace("/");
+    // The organization state is already updated locally by createOrganization and completeOnboarding
+    // Use router.replace for client-side navigation to preserve React state
+    // This avoids a full page reload which would cause state loss in production
+    router.replace("/");
   };
 
   const handleSwitchPortal = () => {

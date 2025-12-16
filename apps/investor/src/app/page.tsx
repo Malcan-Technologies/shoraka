@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { useOrganization } from "@cashsouk/config";
@@ -11,22 +11,60 @@ import { Separator } from "../components/ui/separator";
 function InvestorDashboardContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const { activeOrganization, isLoading: isOrgLoading, isOnboarded } = useOrganization();
+  const { activeOrganization, isLoading: isOrgLoading, isOnboarded, organizations } = useOrganization();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const hasRedirected = useRef(false);
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
     if (isAuthenticated && !isOrgLoading) {
-      // If no active organization or not onboarded, redirect to onboarding
-      if (!activeOrganization || !isOnboarded) {
-        router.push("/onboarding-start");
+      // If no organizations at all, redirect to onboarding
+      if (organizations.length === 0) {
+        if (!hasRedirected.current) {
+          hasRedirected.current = true;
+          router.push("/onboarding-start");
+        }
         return;
       }
-      setCheckingOnboarding(false);
+      
+      // If active organization exists and is onboarded, show dashboard
+      if (activeOrganization && isOnboarded) {
+        setCheckingOnboarding(false);
+        hasRedirected.current = false;
+        return;
+      }
+      
+      // If active organization exists but not onboarded, redirect to onboarding
+      if (activeOrganization && !isOnboarded) {
+        if (!hasRedirected.current) {
+          hasRedirected.current = true;
+          router.push("/onboarding-start");
+        }
+        return;
+      }
+      
+      // No active organization but has organizations
+      // This can happen when state is still settling or there's a mismatch
+      // Check if any organization is onboarded and show dashboard if so
+      if (!activeOrganization && organizations.length > 0) {
+        const anyOnboarded = organizations.some(org => org.onboardingStatus === "COMPLETED");
+        if (anyOnboarded) {
+          // There's an onboarded org but no active one selected yet
+          // The context should auto-select one, just wait a bit
+          return;
+        } else {
+          // No onboarded orgs, redirect to onboarding
+          if (!hasRedirected.current) {
+            hasRedirected.current = true;
+            router.push("/onboarding-start");
+          }
+          return;
+        }
+      }
     } else if (isAuthenticated === false) {
       setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, router]);
+  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, organizations, router]);
 
   // Show loading while checking auth or onboarding
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
