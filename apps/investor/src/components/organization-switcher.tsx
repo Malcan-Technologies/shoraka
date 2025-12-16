@@ -29,6 +29,16 @@ function getOrgDisplayName(org: Organization): string {
   return org.name || "Company Account";
 }
 
+function sortOrganizations(orgs: Organization[]): Organization[] {
+  return [...orgs].sort((a, b) => {
+    // Personal accounts always come first
+    if (a.type === "PERSONAL" && b.type !== "PERSONAL") return -1;
+    if (a.type !== "PERSONAL" && b.type === "PERSONAL") return 1;
+    // Otherwise maintain original order (by creation date)
+    return 0;
+  });
+}
+
 function getOrgIcon(org: Organization) {
   if (org.type === "PERSONAL") {
     return <UserIcon className="h-4 w-4" />;
@@ -69,9 +79,12 @@ export function OrganizationSwitcher() {
 
   const isOnboardingPage = pathname === "/onboarding-start";
   
-  // Get onboarded organizations for showing in switcher
-  const onboardedOrganizations = organizations.filter(
-    (org) => org.onboardingStatus === "COMPLETED"
+  // Sort organizations with personal account first
+  const sortedOrganizations = sortOrganizations(organizations);
+  
+  // Get onboarded organizations for showing in switcher (also sorted)
+  const onboardedOrganizations = sortOrganizations(
+    organizations.filter((org) => org.onboardingStatus === "COMPLETED")
   );
   
   // Check if there are any onboarded organizations to go back to
@@ -248,7 +261,7 @@ export function OrganizationSwitcher() {
             <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your Accounts
             </DropdownMenuLabel>
-            {organizations.map((org) => (
+            {sortedOrganizations.map((org) => (
               <DropdownMenuItem
                 key={org.id}
                 onClick={() => handleSelectOrganization(org)}
