@@ -10,13 +10,11 @@ import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
 import { useAccessLogs } from "../../../hooks/use-access-logs";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
-// Access/Authentication event types (excludes security events which are in Security Logs)
+// Access/Authentication event types (excludes security events which are in Security Logs, and onboarding events which are in Onboarding Logs)
 const ACCESS_EVENT_TYPES: EventType[] = [
   "LOGIN",
   "LOGOUT",
   "SIGNUP",
-  "ONBOARDING_COMPLETED",
-  "ONBOARDING_STATUS_UPDATED",
   "KYC_STATUS_UPDATED",
 ];
 

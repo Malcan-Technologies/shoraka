@@ -275,28 +275,48 @@ export class AdminService {
       rolesChanged ? updatedRoles : undefined
     );
 
-    // Create access log for admin action
+    // Create onboarding logs for the target user(s) when their onboarding status is updated
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "ONBOARDING_STATUS_UPDATED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        investorOnboarded: data.investorOnboarded,
-        issuerOnboarded: data.issuerOnboarded,
-        previousInvestorOnboarded: user.investor_onboarding_completed,
-        previousIssuerOnboarded: user.issuer_onboarding_completed,
-        rolesRemoved: rolesChanged ? user.roles.filter((r) => !updatedRoles.includes(r)) : [],
-        newRoles: rolesChanged ? updatedRoles : user.roles,
-      },
-    });
+    
+    // Create onboarding log for investor if status changed
+    if (data.investorOnboarded !== undefined && data.investorOnboarded !== user.investor_onboarding_completed) {
+      await this.repository.createOnboardingLog({
+        userId: userId,
+        role: UserRole.INVESTOR,
+        eventType: "ONBOARDING_STATUS_UPDATED",
+        portal: "investor",
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        metadata: {
+          updatedBy: adminUserId,
+          previousStatus: user.investor_onboarding_completed,
+          newStatus: data.investorOnboarded,
+          adminAction: true,
+        },
+      });
+    }
+
+    // Create onboarding log for issuer if status changed
+    if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== user.issuer_onboarding_completed) {
+      await this.repository.createOnboardingLog({
+        userId: userId,
+        role: UserRole.ISSUER,
+        eventType: "ONBOARDING_STATUS_UPDATED",
+        portal: "issuer",
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        metadata: {
+          updatedBy: adminUserId,
+          previousStatus: user.issuer_onboarding_completed,
+          newStatus: data.issuerOnboarded,
+          adminAction: true,
+        },
+      });
+    }
 
     return updatedUser;
   }

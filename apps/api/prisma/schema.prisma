@@ -221,7 +221,7 @@ model OnboardingLog {
   id                String   @id @default(cuid())
   user_id           String
   role              UserRole // INVESTOR, ISSUER
-  event_type        String   // ONBOARDING_STARTED, ONBOARDING_COMPLETED
+  event_type        String   // ONBOARDING_STARTED, ONBOARDING_COMPLETED, ONBOARDING_STATUS_UPDATED
   portal            String?  // "investor", "issuer"
   ip_address        String?
   user_agent        String?  @db.Text

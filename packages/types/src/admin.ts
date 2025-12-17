@@ -235,7 +235,7 @@ export interface SecurityLogsResponse {
 }
 
 // Onboarding Logs Types
-export type OnboardingEventType = "ONBOARDING_STARTED" | "ONBOARDING_COMPLETED";
+export type OnboardingEventType = "ONBOARDING_STARTED" | "ONBOARDING_COMPLETED" | "ONBOARDING_STATUS_UPDATED";
 
 export interface OnboardingLogUser {
   first_name: string;
