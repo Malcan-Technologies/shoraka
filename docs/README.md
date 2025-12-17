@@ -36,6 +36,12 @@ Production deployment and operations:
 - **[AWS Infrastructure](./deployment/manual-aws-console-setup.md)** - AWS setup (DevOps)
 - **[Optimization Guide](./deployment/deployment-optimization.md)** - Speed improvements
 
+### 🔗 Integrations
+
+Third-party service integrations:
+
+- **[RegTank KYC Integration](./integrations/regtank-kyc-integration.md)** - KYC/KYB onboarding via RegTank
+
 ### 🎨 Design
 
 UI and branding guidelines:

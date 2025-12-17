@@ -49,8 +49,12 @@ class TokenRefreshService {
   }
 
   /**
-   * Check if refresh token exists in cookies
-   * Used to determine if token refresh is possible
+   * Check if user has an authentication session
+   * Used to determine if token refresh should be attempted
+   *
+   * Note: We check for LastAuthUser cookie instead of refreshToken because
+   * the refresh token is set with httpOnly=true and cannot be read via JavaScript.
+   * If LastAuthUser exists, the refresh token should also exist (both set during login).
    */
   hasRefreshToken(): boolean {
     try {
@@ -61,23 +65,14 @@ class TokenRefreshService {
         return false;
       }
 
-      // Find LastAuthUser cookie to get the user ID
+      // Find LastAuthUser cookie - if this exists, user has a session
+      // The refresh token is httpOnly so we can't check it directly,
+      // but if LastAuthUser is set, refresh token was set at the same time during login
       const lastAuthUserCookie = cookies.find((c) =>
         c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
       );
 
-      if (!lastAuthUserCookie) {
-        return false;
-      }
-
-      const userId = lastAuthUserCookie.split("=")[1].trim();
-
-      // Find refresh token cookie
-      const refreshTokenCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.refreshToken=`)
-      );
-
-      return !!refreshTokenCookie;
+      return !!lastAuthUserCookie;
     } catch {
       return false;
     }
@@ -182,11 +177,13 @@ class TokenRefreshService {
         } catch {
           // Response wasn't JSON
         }
-        
+
         // Don't log as error if it's a "no session" error - this is expected during initial login
         if (response.status === 401 && errorDetail.includes("No authentication session found")) {
           // eslint-disable-next-line no-console
-          console.log("[TokenRefreshService] No authentication session found (expected during login)");
+          console.log(
+            "[TokenRefreshService] No authentication session found (expected during login)"
+          );
         } else {
           console.error("[TokenRefreshService] Token refresh failed:", errorDetail);
         }
