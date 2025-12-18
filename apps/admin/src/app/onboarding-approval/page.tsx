@@ -22,7 +22,10 @@ import {
   XMarkIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import type { OnboardingApplication, OnboardingApprovalStatus } from "../../components/onboarding-queue-table";
+import type {
+  OnboardingApplication,
+  OnboardingApprovalStatus,
+} from "../../components/onboarding-queue-table";
 
 // Mock data for demonstration
 const MOCK_APPLICATIONS: OnboardingApplication[] = [
@@ -97,6 +100,7 @@ const MOCK_APPLICATIONS: OnboardingApplication[] = [
     regtankRequestId: "rt-mno345",
     status: "APPROVED",
     submittedAt: new Date("2024-12-10T08:20:00"),
+    approvedAt: new Date("2024-12-12T14:45:00"),
   },
   {
     id: "app-006",
@@ -108,6 +112,7 @@ const MOCK_APPLICATIONS: OnboardingApplication[] = [
     regtankRequestId: "rt-pqr678",
     status: "REJECTED",
     submittedAt: new Date("2024-12-08T15:10:00"),
+    approvedAt: new Date("2024-12-09T10:30:00"),
   },
   {
     id: "app-007",
@@ -198,10 +203,7 @@ export default function OnboardingApprovalPage() {
   };
 
   const hasFilters =
-    searchQuery !== "" ||
-    portalFilter !== "all" ||
-    typeFilter !== "all" ||
-    statusFilter !== "all";
+    searchQuery !== "" || portalFilter !== "all" || typeFilter !== "all" || statusFilter !== "all";
 
   // Pagination
   const totalApplications = filteredApplications.length;
@@ -240,8 +242,9 @@ export default function OnboardingApprovalPage() {
           <div className="rounded-2xl border bg-card p-6">
             <h2 className="text-xl font-semibold mb-2">KYC/KYB Approval Queue</h2>
             <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Review and approve user onboarding applications. Personal applications go directly to RegTank for approval.
-              Company applications require SSM verification on our side before proceeding to RegTank.
+              Review and approve user onboarding applications. Personal applications go directly to
+              RegTank for approval. Company applications require SSM verification on our side before
+              proceeding to RegTank.
             </p>
           </div>
 
@@ -326,9 +329,13 @@ export default function OnboardingApprovalPage() {
                   onValueChange={(v) => setStatusFilter(v as StatusFilter)}
                 >
                   <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">Pending SSM Review</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
+                    Pending SSM Review
+                  </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="SSM_APPROVED">SSM Approved</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">Pending Onboarding</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">
+                    Pending Onboarding
+                  </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
@@ -376,4 +383,3 @@ export default function OnboardingApprovalPage() {
     </>
   );
 }
-

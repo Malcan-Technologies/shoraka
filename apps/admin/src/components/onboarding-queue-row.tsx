@@ -125,6 +125,15 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
             {formatDate(application.submittedAt)}
           </span>
         </TableCell>
+        <TableCell>
+          {application.approvedAt ? (
+            <span className="text-sm text-muted-foreground">
+              {formatDate(application.approvedAt)}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground/50">—</span>
+          )}
+        </TableCell>
         <TableCell>{getStatusBadge(application.status)}</TableCell>
         <TableCell>
           <Button

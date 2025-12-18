@@ -31,6 +31,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -45,6 +46,7 @@ const navActions = [
     title: "Onboarding Approval",
     url: "/onboarding-approval",
     icon: CheckBadgeIcon,
+    badge: 5, // Placeholder: pending approvals count
   },
   {
     title: "Note Approval",
@@ -147,6 +149,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                        {item.badge}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 );
               })}

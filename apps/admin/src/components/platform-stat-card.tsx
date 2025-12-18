@@ -53,7 +53,7 @@ export function PlatformStatCard({
             <span
               className={cn(
                 "inline-flex items-center gap-0.5 text-sm font-medium",
-                isPositive ? "text-green-600" : "text-red-600"
+                isPositive ? "text-green-600" : "text-primary"
               )}
             >
               {isPositive ? (

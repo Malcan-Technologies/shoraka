@@ -2,21 +2,42 @@
 
 import * as React from "react";
 import { QuickActionCard } from "./quick-action-card";
-import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { Button } from "./ui/button";
+import { ClipboardDocumentCheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export function QuickActionsSection({ loading = false }: QuickActionsSectionProps) {
+export function QuickActionsSection({
+  loading = false,
+  onRefresh,
+  isRefreshing = false,
+}: QuickActionsSectionProps) {
   // Placeholder data for pending onboarding approvals
   const pendingOnboardingCount = 5;
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Quick Actions</h2>
-        <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Quick Actions (Placeholder)</h2>
+          <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
+        </div>
+        {onRefresh && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-8 w-8 p-0 shrink-0"
+            title="Refresh quick actions"
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <QuickActionCard
