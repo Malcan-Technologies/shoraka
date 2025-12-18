@@ -69,6 +69,7 @@ export class AuthService {
       firstName?: string;
       lastName?: string;
       phone?: string;
+      emailVerified?: boolean;
     }
   ): Promise<{
     user: User;
@@ -88,6 +89,7 @@ export class AuthService {
       firstName: data.firstName,
       lastName: data.lastName,
       phone: data.phone,
+      emailVerified: data.emailVerified,
     });
 
     // Create access log for audit trail
@@ -690,6 +692,7 @@ export class AuthService {
       roles: [UserRole.ADMIN],
       firstName: data.firstName,
       lastName: data.lastName,
+      emailVerified: true,
     });
 
     return {
@@ -956,6 +959,12 @@ export class AuthService {
 
       await cognitoClient.send(updateVerifiedCommand);
 
+      // Update email_verified in database
+      await prisma.user.update({
+        where: { user_id: userId },
+        data: { email_verified: true },
+      });
+
       // Log successful verification (SecurityLog)
       await this.repository.createSecurityLog({
         userId,
@@ -1073,6 +1082,16 @@ export class AuthService {
 
       await cognitoClient.send(command);
       logger.info({ email }, "Email confirmed successfully");
+
+      // Update email_verified in database if user exists
+      const user = await this.repository.findUserByEmail(email);
+      if (user) {
+        await prisma.user.update({
+          where: { user_id: user.user_id },
+          data: { email_verified: true },
+        });
+        logger.info({ email, userId: user.user_id }, "Email verified updated in database after signup confirmation");
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorName = (error as { name?: string }).name;

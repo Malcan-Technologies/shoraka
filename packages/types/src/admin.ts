@@ -24,6 +24,7 @@ export interface UserResponse {
   id: string;
   user_id: string | null;
   email: string;
+  email_verified: boolean;
   cognito_sub: string;
   cognito_username: string;
   roles: UserRole[];
@@ -32,6 +33,7 @@ export interface UserResponse {
   phone: string | null;
   investor_account: string[];
   issuer_account: string[];
+  password_changed_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -54,6 +54,7 @@ model User {
   last_name          String
   phone              String?
   email              String     @unique
+  email_verified     Boolean    @default(false)
   roles              UserRole[]
   cognito_sub        String     @unique @db.VarChar(255)
   cognito_username   String     @db.VarChar(255)
@@ -225,9 +226,9 @@ model OnboardingLog {
   device_type String?
   metadata    Json? // Additional context (previous status, etc.)
   created_at  DateTime @default(now())
-
+  
   user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
+  
   @@index([user_id])
   @@index([role])
   @@index([event_type])

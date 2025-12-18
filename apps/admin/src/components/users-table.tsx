@@ -16,17 +16,18 @@ type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
 
 interface User {
   user_id: string;
-  email: string;
-  cognito_sub: string;
-  cognito_username: string;
-  roles: UserRole[];
   first_name: string;
   last_name: string;
   phone: string | null;
+  email: string;
+  roles: UserRole[];
   investor_account: string[];
   issuer_account: string[];
+  password_changed_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  cognito_sub: string;
+  cognito_username: string;
 }
 
 interface UsersTableProps {
@@ -51,22 +52,28 @@ function TableSkeleton() {
             <Skeleton className="h-5 w-32" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-32" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-28" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-5 w-48" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-5 w-24" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-5" />
+            <Skeleton className="h-5 w-20" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-5" />
+            <Skeleton className="h-5 w-20" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-5" />
+            <Skeleton className="h-5 w-24" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-24" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-24" />
@@ -118,13 +125,16 @@ export function UsersTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">User ID</TableHead>
-                <TableHead className="text-sm font-semibold">Name</TableHead>
-                <TableHead className="text-sm font-semibold">Email</TableHead>
+                <TableHead className="text-sm font-semibold">First Name</TableHead>
+                <TableHead className="text-sm font-semibold">Last Name</TableHead>
                 <TableHead className="text-sm font-semibold">Phone</TableHead>
+                <TableHead className="text-sm font-semibold">Email</TableHead>
                 <TableHead className="text-sm font-semibold">Roles</TableHead>
                 <TableHead className="text-sm font-semibold">Investor</TableHead>
                 <TableHead className="text-sm font-semibold">Issuer</TableHead>
+                <TableHead className="text-sm font-semibold">Pwd Changed</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
+                <TableHead className="text-sm font-semibold">Updated</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -133,7 +143,7 @@ export function UsersTable({
                 <TableSkeleton />
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>

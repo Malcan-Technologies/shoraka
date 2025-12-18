@@ -117,6 +117,7 @@ export default function UsersPage() {
             users={users
               .filter((u) => u.user_id) // Filter out users without user_id
               .map((u) => ({
+                password_changed_at: u.password_changed_at ? new Date(u.password_changed_at) : null,
                 ...u,
                 user_id: u.user_id!, // Assert non-null since we filtered
                 created_at: new Date(u.created_at),

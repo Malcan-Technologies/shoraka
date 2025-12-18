@@ -327,7 +327,13 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     const cognitoId = userInfo.sub as string;
     const email = userInfo.email as string;
-    const emailVerified = userInfo.email_verified as boolean;
+    // Cognito returns email_verified as string "true"/"false" or boolean, convert to boolean
+    const emailVerifiedRaw = userInfo.email_verified as unknown;
+    const emailVerified =
+      emailVerifiedRaw === "true" ||
+      emailVerifiedRaw === true ||
+      emailVerifiedRaw === "1" ||
+      false;
     const firstName =
       (userInfo.given_name as string) || (userInfo.name as string)?.split(" ")[0] || "";
     const lastName =
@@ -452,6 +458,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       roles: rolesToUse,
       firstName,
       lastName,
+      emailVerified,
     });
 
     logger.info(

@@ -6,9 +6,21 @@ import {
   OrganizationMemberRole,
   InvestorOrganization,
   IssuerOrganization,
+  UserRole,
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
+import {
+  CognitoIdentityProviderClient,
+  AdminUpdateUserAttributesCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
+import { formatRolesForCognito } from "../../lib/auth/cognito";
+
+const cognitoClient = new CognitoIdentityProviderClient({
+  region: process.env.AWS_REGION || "ap-southeast-5",
+});
+const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
 
 export class OrganizationService {
   private repository: OrganizationRepository;
@@ -91,6 +103,77 @@ export class OrganizationService {
       { organizationId: organization.id, portalType },
       "Organization created successfully"
     );
+
+    // Update user: add role if not present, and append 'temp' to account array
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    // Determine the role based on portal type
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+    // Add role if not present
+    const roleNeedsToBeAdded = !user.roles.includes(role);
+    const updatedRoles = roleNeedsToBeAdded ? [...user.roles, role] : user.roles;
+    
+    // Get current account array and append a new 'temp' entry
+    const currentAccountArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+    
+    const updateData: {
+      roles: UserRole[];
+      investor_account?: { set: string[] };
+      issuer_account?: { set: string[] };
+    } = {
+      roles: updatedRoles,
+    };
+
+    if (portalType === "investor") {
+      // Append a new 'temp' to the array (one per organization)
+      updateData.investor_account = { set: [...currentAccountArray, "temp"] };
+    } else {
+      // Append a new 'temp' to the array (one per organization)
+      updateData.issuer_account = { set: [...currentAccountArray, "temp"] };
+    }
+
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: updateData,
+    });
+
+    logger.info(
+      { userId, role, portalType, roleAdded: roleNeedsToBeAdded, accountArrayLength: updateData.investor_account?.set.length || updateData.issuer_account?.set.length },
+      "User roles and account arrays updated after organization creation"
+    );
+
+    // Update Cognito custom:roles attribute if role was added
+    if (roleNeedsToBeAdded && user.cognito_sub) {
+      try {
+        const rolesString = formatRolesForCognito(updatedRoles);
+
+        const command = new AdminUpdateUserAttributesCommand({
+          UserPoolId: COGNITO_USER_POOL_ID,
+          Username: user.cognito_sub,
+          UserAttributes: [
+            {
+              Name: "custom:roles",
+              Value: rolesString,
+            },
+          ],
+        });
+
+        await cognitoClient.send(command);
+        logger.info({ userId, updatedRoles }, "Cognito roles updated successfully");
+      } catch (error) {
+        logger.warn(
+          { error: error instanceof Error ? error.message : String(error), userId },
+          "Failed to update Cognito custom:roles attribute"
+        );
+      }
+    }
 
     return organization;
   }

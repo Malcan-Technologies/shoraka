@@ -18,17 +18,18 @@ import { EditUserDialog } from "./edit-user-dialog";
 
 interface User {
   user_id: string;
-  email: string;
-  cognito_sub: string;
-  cognito_username: string;
-  roles: UserRole[];
   first_name: string;
   last_name: string;
   phone: string | null;
+  email: string;
+  roles: UserRole[];
   investor_account: string[];
   issuer_account: string[];
+  password_changed_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  cognito_sub: string;
+  cognito_username: string;
 }
 
 interface UserTableRowProps {
@@ -189,6 +190,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     return (
       <>
         <TableRow className="bg-muted/30">
+          {/* User ID */}
           <TableCell className="font-mono text-sm">
             <Input
               value={editedUser.user_id || ""}
@@ -201,22 +203,34 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               maxLength={5}
             />
           </TableCell>
+          {/* First Name */}
           <TableCell>
-            <div className="flex gap-2">
-              <Input
-                value={editedUser.first_name || ""}
-                onChange={(e) => setEditedUser({ ...editedUser, first_name: e.target.value })}
-                className="h-9 text-sm"
-                placeholder="First name"
-              />
-              <Input
-                value={editedUser.last_name || ""}
-                onChange={(e) => setEditedUser({ ...editedUser, last_name: e.target.value })}
-                className="h-9 text-sm"
-                placeholder="Last name"
-              />
-            </div>
+            <Input
+              value={editedUser.first_name || ""}
+              onChange={(e) => setEditedUser({ ...editedUser, first_name: e.target.value })}
+              className="h-9 text-sm"
+              placeholder="First name"
+            />
           </TableCell>
+          {/* Last Name */}
+          <TableCell>
+            <Input
+              value={editedUser.last_name || ""}
+              onChange={(e) => setEditedUser({ ...editedUser, last_name: e.target.value })}
+              className="h-9 text-sm"
+              placeholder="Last name"
+            />
+          </TableCell>
+          {/* Phone */}
+          <TableCell>
+            <Input
+              value={editedUser.phone || ""}
+              onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
+              className="h-9 text-sm"
+              placeholder="+60..."
+            />
+          </TableCell>
+          {/* Email */}
           <TableCell>
             <Input
               value={editedUser.email || ""}
@@ -226,14 +240,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               disabled
             />
           </TableCell>
-          <TableCell>
-            <Input
-              value={editedUser.phone || ""}
-              onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
-              className="h-9 text-sm"
-              placeholder="+60..."
-            />
-          </TableCell>
+          {/* Roles */}
           <TableCell>
             <div className="flex flex-wrap gap-1">
               {(["INVESTOR", "ISSUER", "ADMIN"] as UserRole[]).map((role) => (
@@ -249,6 +256,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               ))}
             </div>
           </TableCell>
+          {/* Investor Account */}
           <TableCell>
             <Switch
               checked={(editedUser.investor_account?.length ?? 0) > 0}
@@ -257,6 +265,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               }
             />
           </TableCell>
+          {/* Issuer Account */}
           <TableCell>
             <Switch
               checked={(editedUser.issuer_account?.length ?? 0) > 0}
@@ -265,9 +274,21 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               }
             />
           </TableCell>
+          {/* Password Changed */}
+          <TableCell className="text-sm text-muted-foreground">
+            {user.password_changed_at
+              ? formatDistanceToNow(user.password_changed_at, { addSuffix: true })
+              : "Never"}
+          </TableCell>
+          {/* Created */}
           <TableCell className="text-sm text-muted-foreground">
             {formatDistanceToNow(user.created_at, { addSuffix: true })}
           </TableCell>
+          {/* Updated */}
+          <TableCell className="text-sm text-muted-foreground">
+            {formatDistanceToNow(user.updated_at, { addSuffix: true })}
+          </TableCell>
+          {/* Actions */}
           <TableCell>
             <div className="flex flex-col gap-1">
               <Button
@@ -310,14 +331,19 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   return (
     <>
       <TableRow className="hover:bg-muted/50">
+        {/* User ID */}
         <TableCell className="font-mono text-sm">
           {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
         </TableCell>
-        <TableCell className="font-medium text-[15px]">
-          {user.first_name} {user.last_name}
-        </TableCell>
-        <TableCell className="text-[15px]">{user.email}</TableCell>
+        {/* First Name */}
+        <TableCell className="font-medium text-[15px]">{user.first_name}</TableCell>
+        {/* Last Name */}
+        <TableCell className="font-medium text-[15px]">{user.last_name}</TableCell>
+        {/* Phone */}
         <TableCell className="text-[15px]">{user.phone || "—"}</TableCell>
+        {/* Email */}
+        <TableCell className="text-[15px]">{user.email}</TableCell>
+        {/* Roles */}
         <TableCell>
           <div className="flex flex-wrap gap-1">
             {user.roles.map((role) => (
@@ -327,23 +353,41 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
             ))}
           </div>
         </TableCell>
+        {/* Investor Account */}
         <TableCell>
           {user.investor_account.length > 0 ? (
-            <CheckIcon className="h-5 w-5 text-green-600" />
+            <span className="text-sm text-muted-foreground">
+              {user.investor_account.length} account{user.investor_account.length !== 1 ? "s" : ""}
+            </span>
           ) : (
-            <XMarkIcon className="h-5 w-5 text-gray-400" />
+            <span className="text-sm text-muted-foreground">—</span>
           )}
         </TableCell>
+        {/* Issuer Account */}
         <TableCell>
           {user.issuer_account.length > 0 ? (
-            <CheckIcon className="h-5 w-5 text-green-600" />
+            <span className="text-sm text-muted-foreground">
+              {user.issuer_account.length} account{user.issuer_account.length !== 1 ? "s" : ""}
+            </span>
           ) : (
-            <XMarkIcon className="h-5 w-5 text-gray-400" />
+            <span className="text-sm text-muted-foreground">—</span>
           )}
         </TableCell>
+        {/* Password Changed */}
+        <TableCell className="text-sm text-muted-foreground">
+          {user.password_changed_at
+            ? formatDistanceToNow(user.password_changed_at, { addSuffix: true })
+            : "Never"}
+        </TableCell>
+        {/* Created */}
         <TableCell className="text-sm text-muted-foreground">
           {formatDistanceToNow(user.created_at, { addSuffix: true })}
         </TableCell>
+        {/* Updated */}
+        <TableCell className="text-sm text-muted-foreground">
+          {formatDistanceToNow(user.updated_at, { addSuffix: true })}
+        </TableCell>
+        {/* Actions */}
         <TableCell>
           <Button size="sm" variant="ghost" onClick={onEdit} className="h-8">
             <PencilIcon className="h-4 w-4 mr-1" />

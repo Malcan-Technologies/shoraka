@@ -325,14 +325,25 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      placeholder="Enter your first name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
-                      className={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}
-                    />
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="firstName"
+                        placeholder="Enter your first name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
+                        className={`flex-1 ${!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}`}
+                      />
+                      {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-200"
+                        >
+                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
                     {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
                       <p className="text-[0.8rem] text-muted-foreground">
                         Names cannot be changed after completing onboarding. Please contact support if you need to update your name.
@@ -341,14 +352,25 @@ export default function ProfilePage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Enter your last name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
-                      className={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}
-                    />
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="lastName"
+                        placeholder="Enter your last name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
+                        className={`flex-1 ${!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}`}
+                      />
+                      {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-200"
+                        >
+                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
 

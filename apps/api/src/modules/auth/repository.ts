@@ -33,6 +33,7 @@ export class AuthRepository {
     firstName?: string;
     lastName?: string;
     phone?: string;
+    emailVerified?: boolean;
   }): Promise<User> {
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -49,6 +50,7 @@ export class AuthRepository {
         cognito_sub: data.cognitoSub,
         cognito_username: data.cognitoUsername,
         email: data.email,
+        email_verified: data.emailVerified ?? false,
         roles: data.roles,
         first_name: data.firstName || "",
         last_name: data.lastName || "",
@@ -58,6 +60,7 @@ export class AuthRepository {
       update: {
         cognito_username: data.cognitoUsername,
         email: data.email,
+        email_verified: data.emailVerified ?? undefined,
         roles: data.roles,
         ...(data.firstName && { first_name: data.firstName }),
         ...(data.lastName && { last_name: data.lastName }),
