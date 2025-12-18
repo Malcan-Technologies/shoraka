@@ -7,7 +7,6 @@ import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
   updateUserRolesSchema,
-  updateUserKycSchema,
   updateUserOnboardingSchema,
   updateUserProfileSchema,
   updateUserIdSchema,
@@ -21,6 +20,7 @@ import {
   getOnboardingLogsQuerySchema,
   exportOnboardingLogsQuerySchema,
   exportSecurityLogsQuerySchema,
+  resetOnboardingSchema,
 } from "./schemas";
 
 const router = Router();
@@ -137,7 +137,7 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.id);
+      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -152,48 +152,6 @@ router.patch(
               400,
               "VALIDATION_ERROR",
               error instanceof Error ? error.message : "Failed to update user roles"
-            )
-      );
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/admin/users/:id/kyc:
- *   patch:
- *     summary: Update user KYC status (admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- */
-router.patch(
-  "/users/:id/kyc",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const validated = updateUserKycSchema.parse(req.body);
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const updatedUser = await adminService.updateUserKyc(req, id, validated, req.user.id);
-
-      res.json({
-        success: true,
-        data: { user: updatedUser },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : new AppError(
-              400,
-              "VALIDATION_ERROR",
-              error instanceof Error ? error.message : "Failed to update KYC status"
             )
       );
     }
@@ -221,7 +179,7 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserOnboarding(req, id, validated, req.user.id);
+      const updatedUser = await adminService.updateUserOnboarding(req, id, validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -263,7 +221,7 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserProfile(req, id, validated, req.user.id);
+      const updatedUser = await adminService.updateUserProfile(req, id, validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -575,7 +533,7 @@ router.put(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.updateAdminRole(req, id, validated, req.user.id);
+      const result = await adminService.updateAdminRole(req, id, validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -608,7 +566,7 @@ router.put(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.deactivateAdmin(req, id, req.user.id);
+      const result = await adminService.deactivateAdmin(req, id, req.user.user_id);
 
       res.json({
         success: true,
@@ -641,7 +599,7 @@ router.put(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.reactivateAdmin(req, id, req.user.id);
+      const result = await adminService.reactivateAdmin(req, id, req.user.user_id);
 
       res.json({
         success: true,
@@ -674,7 +632,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.generateInvitationUrl(validated, req.user.id);
+      const result = await adminService.generateInvitationUrl(validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -707,7 +665,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.inviteAdmin(req, validated, req.user.id);
+      const result = await adminService.inviteAdmin(req, validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -740,7 +698,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.generateInvitationUrl(validated, req.user.id);
+      const result = await adminService.generateInvitationUrl(validated, req.user.user_id);
 
       res.json({
         success: true,
@@ -1095,7 +1053,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.resendInvitation(req, id, req.user.id);
+      const result = await adminService.resendInvitation(req, id, req.user.user_id);
 
       res.json({
         success: true,
@@ -1128,11 +1086,45 @@ router.delete(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      await adminService.revokeInvitation(req, id, req.user.id);
+      await adminService.revokeInvitation(req, id, req.user.user_id);
 
       res.json({
         success: true,
         data: { message: "Invitation revoked successfully" },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/users/:id/reset-onboarding:
+ *   post:
+ *     summary: Reset onboarding for a user (admin only, temporary feature for testing)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/users/:id/reset-onboarding",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = resetOnboardingSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const updatedUser = await adminService.resetOnboarding(req, id, validated, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: { user: updatedUser },
         correlationId: res.locals.correlationId,
       });
     } catch (error) {

@@ -20,11 +20,13 @@ import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { AccountTypeSelector } from "../../components/account-type-selector";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_URL = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001";
 
-type OnboardingStep = "welcome" | "account-type";
+type OnboardingStep = "welcome" | "name-input" | "account-type";
 
 function OnboardingStartPageContent() {
   const router = useRouter();
@@ -34,6 +36,8 @@ function OnboardingStartPageContent() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("welcome");
+  const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
+  const [savingName, setSavingName] = useState(false);
 
   // Handle hydration
   useEffect(() => {
@@ -69,18 +73,33 @@ function OnboardingStartPageContent() {
         }>("/v1/auth/me");
         
         if (userResult.success && userResult.data) {
+          const firstName = userResult.data.user.first_name || "";
+          const lastName = userResult.data.user.last_name || "";
+          
           if (isMounted) {
             setUser({
-              firstName: userResult.data.user.first_name || "",
-              lastName: userResult.data.user.last_name || "",
+              firstName,
+              lastName,
             });
+            
+            // Check if names are missing - if so, show name input step
+            if (!firstName.trim() || !lastName.trim()) {
+              setNameForm({ firstName, lastName });
+              setStep("name-input");
+            } else {
+              // Names exist, proceed to start onboarding
+              try {
+                await apiClient.post("/v1/auth/start-onboarding", {
+                  role: "INVESTOR",
+                });
+              } catch (error: any) {
+                // If backend also rejects due to missing names, show name input
+                if (error?.response?.data?.error === "NAMES_REQUIRED") {
+                  setStep("name-input");
+                }
+              }
+            }
           }
-        }
-
-        if (isMounted) {
-          await apiClient.post("/v1/auth/start-onboarding", {
-            role: "INVESTOR",
-          });
         }
       } catch (error) {
         console.error("Failed to fetch user or log onboarding:", error);
@@ -98,8 +117,59 @@ function OnboardingStartPageContent() {
     };
   }, [router, getAccessToken]);
 
-  const handleStartOnboarding = () => {
-    setStep("account-type");
+  const handleStartOnboarding = async () => {
+    // Check if names are missing before proceeding
+    if (!user?.firstName?.trim() || !user?.lastName?.trim()) {
+      setStep("name-input");
+      return;
+    }
+    
+    // Try to start onboarding - backend will validate names
+    try {
+      const apiClient = createApiClient(API_URL, getAccessToken);
+      await apiClient.post("/v1/auth/start-onboarding", {
+        role: "INVESTOR",
+      });
+      setStep("account-type");
+    } catch (error: any) {
+      if (error?.response?.data?.error === "NAMES_REQUIRED") {
+        setStep("name-input");
+      } else {
+        console.error("Failed to start onboarding:", error);
+      }
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!nameForm.firstName.trim() || !nameForm.lastName.trim()) {
+      return;
+    }
+
+    setSavingName(true);
+    try {
+      const apiClient = createApiClient(API_URL, getAccessToken);
+      await apiClient.patch("/v1/auth/profile", {
+        firstName: nameForm.firstName.trim(),
+        lastName: nameForm.lastName.trim(),
+      });
+
+      // Update local user state
+      setUser({
+        firstName: nameForm.firstName.trim(),
+        lastName: nameForm.lastName.trim(),
+      });
+
+      // Now proceed to start onboarding
+      await apiClient.post("/v1/auth/start-onboarding", {
+        role: "INVESTOR",
+      });
+
+      setStep("account-type");
+    } catch (error) {
+      console.error("Failed to save name:", error);
+    } finally {
+      setSavingName(false);
+    }
   };
 
   const handleBackToWelcome = () => {
@@ -221,6 +291,56 @@ function OnboardingStartPageContent() {
                 <p className="text-xs text-center text-muted-foreground pt-2">
                   Complete your onboarding to access your investor dashboard
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === "name-input" && (
+            <Card className="rounded-2xl shadow-lg w-full">
+              <CardHeader className="text-center space-y-2 pb-4">
+                <CardTitle className="text-2xl font-bold">Enter Your Name</CardTitle>
+                <CardDescription className="text-[15px] leading-7">
+                  We need your first and last name to proceed with onboarding
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={nameForm.firstName}
+                    onChange={(e) => setNameForm({ ...nameForm, firstName: e.target.value })}
+                    placeholder="Enter your first name"
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={nameForm.lastName}
+                    onChange={(e) => setNameForm({ ...nameForm, lastName: e.target.value })}
+                    placeholder="Enter your last name"
+                    className="h-11"
+                  />
+                </div>
+                <Button
+                  variant="action"
+                  className="w-full h-11 text-[15px]"
+                  onClick={handleSaveName}
+                  disabled={savingName || !nameForm.firstName.trim() || !nameForm.lastName.trim()}
+                >
+                  {savingName ? "Saving..." : "Continue"}
+                  <ArrowRightIcon className="h-4 w-4 ml-2" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full h-11 text-[15px]"
+                  onClick={handleBackToWelcome}
+                  disabled={savingName}
+                >
+                  Back
+                </Button>
               </CardContent>
             </Card>
           )}

@@ -43,10 +43,9 @@ interface UserData {
   first_name: string;
   last_name: string;
   phone: string | null;
-  email_verified: boolean;
   roles: string[];
-  investor_onboarding_completed: boolean;
-  issuer_onboarding_completed: boolean;
+  investor_account: string[];
+  issuer_account: string[];
   password_changed_at: string | null;
 }
 
@@ -262,7 +261,7 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <Label className="text-base font-medium">Onboarding Status</Label>
                 <div className="flex flex-wrap gap-2">
-                  {userData?.investor_onboarding_completed ? (
+                  {(userData?.investor_account?.length ?? 0) > 0 ? (
                     <Badge
                       variant="outline"
                       className="bg-green-50 text-green-700 border-green-200"
@@ -276,7 +275,7 @@ export default function ProfilePage() {
                       Investor
                     </Badge>
                   )}
-                  {userData?.issuer_onboarding_completed ? (
+                  {(userData?.issuer_account?.length ?? 0) > 0 ? (
                     <Badge
                       variant="outline"
                       className="bg-green-50 text-green-700 border-green-200"
@@ -331,9 +330,14 @@ export default function ProfilePage() {
                       placeholder="Enter your first name"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      disabled={!isEditing}
-                      className={!isEditing ? "bg-muted" : ""}
+                      disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
+                      className={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}
                     />
+                    {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                      <p className="text-[0.8rem] text-muted-foreground">
+                        Names cannot be changed after completing onboarding. Please contact support if you need to update your name.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name</Label>
@@ -342,8 +346,8 @@ export default function ProfilePage() {
                       placeholder="Enter your last name"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      disabled={!isEditing}
-                      className={!isEditing ? "bg-muted" : ""}
+                      disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
+                      className={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}
                     />
                   </div>
                 </div>

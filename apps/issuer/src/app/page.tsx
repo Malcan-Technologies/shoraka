@@ -17,9 +17,20 @@ function IssuerDashboardContent() {
 
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
+    // Debug logging
+    console.log("[IssuerDashboard] State check:", {
+      isAuthenticated,
+      isOrgLoading,
+      organizationsCount: organizations.length,
+      hasActiveOrg: !!activeOrganization,
+      isOnboarded,
+      checkingOnboarding,
+    });
+
     if (isAuthenticated && !isOrgLoading) {
       // If no organizations at all, redirect to onboarding
       if (organizations.length === 0) {
+        console.log("[IssuerDashboard] No organizations - redirecting to onboarding");
         if (!hasRedirected.current) {
           hasRedirected.current = true;
           router.push("/onboarding-start");
@@ -29,6 +40,7 @@ function IssuerDashboardContent() {
       
       // If active organization exists and is onboarded, show dashboard
       if (activeOrganization && isOnboarded) {
+        console.log("[IssuerDashboard] Active org onboarded - showing dashboard");
         setCheckingOnboarding(false);
         hasRedirected.current = false;
         return;
@@ -36,6 +48,7 @@ function IssuerDashboardContent() {
       
       // If active organization exists but not onboarded, redirect to onboarding
       if (activeOrganization && !isOnboarded) {
+        console.log("[IssuerDashboard] Active org not onboarded - redirecting to onboarding");
         if (!hasRedirected.current) {
           hasRedirected.current = true;
           router.push("/onboarding-start");
@@ -48,12 +61,20 @@ function IssuerDashboardContent() {
       // Check if any organization is onboarded and show dashboard if so
       if (!activeOrganization && organizations.length > 0) {
         const anyOnboarded = organizations.some(org => org.onboardingStatus === "COMPLETED");
+        console.log("[IssuerDashboard] No active org, but has organizations. Any onboarded:", anyOnboarded);
         if (anyOnboarded) {
           // There's an onboarded org but no active one selected yet
-          // The context should auto-select one, just wait a bit
-          return;
+          // The context should auto-select one, but if it doesn't after a short delay,
+          // stop checking to prevent infinite loop and show dashboard anyway
+          const timeoutId = setTimeout(() => {
+            console.log("[IssuerDashboard] Timeout reached - showing dashboard despite no active org");
+            setCheckingOnboarding(false);
+            hasRedirected.current = false;
+          }, 1500);
+          return () => clearTimeout(timeoutId);
         } else {
           // No onboarded orgs, redirect to onboarding
+          console.log("[IssuerDashboard] No onboarded orgs - redirecting to onboarding");
           if (!hasRedirected.current) {
             hasRedirected.current = true;
             router.push("/onboarding-start");
@@ -61,10 +82,32 @@ function IssuerDashboardContent() {
           return;
         }
       }
+      
+      // Fallback: If we've checked all conditions and nothing matched,
+      // stop checking to prevent infinite loading
+      console.log("[IssuerDashboard] Fallback - stopping check");
+      setCheckingOnboarding(false);
     } else if (isAuthenticated === false) {
+      console.log("[IssuerDashboard] Not authenticated - stopping check");
       setCheckingOnboarding(false);
     }
   }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, organizations, router]);
+
+  // Safety timeout: If we've been checking for more than 3 seconds, stop checking
+  useEffect(() => {
+    if (checkingOnboarding) {
+      const safetyTimeout = setTimeout(() => {
+        console.warn("[IssuerDashboard] Safety timeout (3s) - forcing dashboard display", {
+          isAuthenticated,
+          isOrgLoading,
+          organizationsCount: organizations.length,
+          hasActiveOrg: !!activeOrganization,
+        });
+        setCheckingOnboarding(false);
+      }, 3000);
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [checkingOnboarding, isAuthenticated, isOrgLoading, organizations.length, activeOrganization]);
 
   // Show loading while checking auth or onboarding
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
@@ -72,7 +115,7 @@ function IssuerDashboardContent() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Verifying access...</p>
         </div>
       </div>
     );

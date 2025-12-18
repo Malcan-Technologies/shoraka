@@ -9,18 +9,15 @@ import { Button } from "@/components/ui/button";
 import { PencilIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
 import {
-  useUpdateUserRoles,
-  useUpdateUserKyc,
   useUpdateUserOnboarding,
   useUpdateUserProfile,
+  useUpdateUserId,
 } from "../hooks/use-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
-import { EditUserIdDialog } from "./edit-user-id-dialog";
 
 interface User {
-  id: string;
-  user_id?: string | null;
+  user_id: string;
   email: string;
   cognito_sub: string;
   cognito_username: string;
@@ -28,10 +25,8 @@ interface User {
   first_name: string;
   last_name: string;
   phone: string | null;
-  email_verified: boolean;
-  kyc_verified: boolean;
-  investor_onboarding_completed: boolean;
-  issuer_onboarding_completed: boolean;
+  investor_account: string[];
+  issuer_account: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -54,15 +49,17 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   const [editedUser, setEditedUser] = React.useState<Partial<User>>(user);
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [isConfirming, setIsConfirming] = React.useState(false);
-  const [showEditUserIdDialog, setShowEditUserIdDialog] = React.useState(false);
-  const updateRoles = useUpdateUserRoles();
-  const updateKyc = useUpdateUserKyc();
   const updateOnboarding = useUpdateUserOnboarding();
   const updateProfile = useUpdateUserProfile();
+  const updateUserId = useUpdateUserId();
 
   React.useEffect(() => {
     if (isEditing) {
-      setEditedUser(user);
+      setEditedUser({
+        ...user,
+        investor_account: user.investor_account || [],
+        issuer_account: user.issuer_account || [],
+      });
       // Reset dialog state when entering edit mode
       setShowConfirmDialog(false);
       setIsConfirming(false);
@@ -84,6 +81,16 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
   const handleConfirmSave = async () => {
     setIsConfirming(true);
     try {
+      // Update user_id if changed
+      const userIdChanged =
+        editedUser.user_id !== undefined && editedUser.user_id !== user.user_id;
+      if (userIdChanged && editedUser.user_id) {
+        await updateUserId.mutateAsync({
+          userId: user.user_id,
+          newUserId: editedUser.user_id,
+        });
+      }
+
       // Update profile (name, phone) if changed
       const firstNameChanged =
         editedUser.first_name !== undefined && editedUser.first_name !== user.first_name;
@@ -102,50 +109,32 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         if (phoneChanged) {
           profileUpdate.phone = editedUser.phone || null;
         }
-        await updateProfile.mutateAsync({ userId: user.id, data: profileUpdate });
-      }
-
-      // Update roles if changed
-      const rolesChanged =
-        JSON.stringify(editedUser.roles?.sort()) !== JSON.stringify(user.roles.sort());
-      if (rolesChanged && editedUser.roles !== undefined) {
-        await updateRoles.mutateAsync({
-          userId: user.id,
-          data: { roles: editedUser.roles as UserRole[] },
-        });
-      }
-
-      // Update KYC if changed
-      if (editedUser.kyc_verified !== undefined && editedUser.kyc_verified !== user.kyc_verified) {
-        await updateKyc.mutateAsync({ userId: user.id, data: { kycVerified: editedUser.kyc_verified } });
+        await updateProfile.mutateAsync({ userId: user.user_id, data: profileUpdate });
       }
 
       // Update onboarding if changed - only send changed fields
-      // Normalize null/undefined to false for comparison (switches use ?? false)
-      const normalizeBoolean = (val: boolean | null | undefined) => val ?? false;
-
+      // Note: Roles are now read-only badges, managed elsewhere
+      // Compare array lengths to determine if onboarding status changed
       const investorChanged =
-        editedUser.investor_onboarding_completed !== undefined &&
-        normalizeBoolean(editedUser.investor_onboarding_completed) !==
-          normalizeBoolean(user.investor_onboarding_completed);
+        editedUser.investor_account !== undefined &&
+        editedUser.investor_account.length !== user.investor_account.length;
       const issuerChanged =
-        editedUser.issuer_onboarding_completed !== undefined &&
-        normalizeBoolean(editedUser.issuer_onboarding_completed) !==
-          normalizeBoolean(user.issuer_onboarding_completed);
+        editedUser.issuer_account !== undefined &&
+        editedUser.issuer_account.length !== user.issuer_account.length;
 
       if (investorChanged || issuerChanged) {
         const onboarding: { investorOnboarded?: boolean; issuerOnboarded?: boolean } = {};
 
         // Only include fields that actually changed
         if (investorChanged) {
-          onboarding.investorOnboarded = editedUser.investor_onboarding_completed;
+          onboarding.investorOnboarded = (editedUser.investor_account?.length ?? 0) > 0;
         }
         if (issuerChanged) {
-          onboarding.issuerOnboarded = editedUser.issuer_onboarding_completed;
+          onboarding.issuerOnboarded = (editedUser.issuer_account?.length ?? 0) > 0;
         }
 
         await updateOnboarding.mutateAsync({
-          userId: user.id,
+          userId: user.user_id,
           data: onboarding,
         });
 
@@ -188,19 +177,10 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     }
   };
 
-  const toggleRole = (role: UserRole) => {
-    const currentRoles = editedUser.roles || user.roles;
-    const newRoles = currentRoles.includes(role)
-      ? currentRoles.filter((r) => r !== role)
-      : [...currentRoles, role];
-    setEditedUser({ ...editedUser, roles: newRoles });
-  };
-
   const isSaving =
-    updateRoles.isPending ||
-    updateKyc.isPending ||
     updateOnboarding.isPending ||
-    updateProfile.isPending;
+    updateProfile.isPending ||
+    updateUserId.isPending;
 
   const userName =
     user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email;
@@ -210,7 +190,16 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
       <>
         <TableRow className="bg-muted/30">
           <TableCell className="font-mono text-sm">
-            {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
+            <Input
+              value={editedUser.user_id || ""}
+              onChange={(e) => {
+                const value = e.target.value.toUpperCase().slice(0, 5);
+                setEditedUser({ ...editedUser, user_id: value });
+              }}
+              className="h-9 text-sm font-mono"
+              placeholder="ABCDE"
+              maxLength={5}
+            />
           </TableCell>
           <TableCell>
             <div className="flex gap-2">
@@ -251,10 +240,9 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
                 <Badge
                   key={role}
                   variant="outline"
-                  className={`cursor-pointer text-xs ${
+                  className={`text-xs ${
                     editedUser.roles?.includes(role) ? roleColors[role] : "opacity-40"
                   }`}
-                  onClick={() => toggleRole(role)}
                 >
                   {role}
                 </Badge>
@@ -263,23 +251,17 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           </TableCell>
           <TableCell>
             <Switch
-              checked={editedUser.kyc_verified ?? false}
-              onCheckedChange={(checked) => setEditedUser({ ...editedUser, kyc_verified: checked })}
-            />
-          </TableCell>
-          <TableCell>
-            <Switch
-              checked={editedUser.investor_onboarding_completed ?? false}
+              checked={(editedUser.investor_account?.length ?? 0) > 0}
               onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, investor_onboarding_completed: checked })
+                setEditedUser({ ...editedUser, investor_account: checked ? ["temp"] : [] })
               }
             />
           </TableCell>
           <TableCell>
             <Switch
-              checked={editedUser.issuer_onboarding_completed ?? false}
+              checked={(editedUser.issuer_account?.length ?? 0) > 0}
               onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, issuer_onboarding_completed: checked })
+                setEditedUser({ ...editedUser, issuer_account: checked ? ["temp"] : [] })
               }
             />
           </TableCell>
@@ -329,19 +311,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
     <>
       <TableRow className="hover:bg-muted/50">
         <TableCell className="font-mono text-sm">
-          <div className="flex items-center gap-2">
-            <span>
-              {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowEditUserIdDialog(true)}
-              className="h-6 px-2 text-xs"
-            >
-              Change
-            </Button>
-          </div>
+          {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
         </TableCell>
         <TableCell className="font-medium text-[15px]">
           {user.first_name} {user.last_name}
@@ -358,21 +328,14 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           </div>
         </TableCell>
         <TableCell>
-          {user.kyc_verified ? (
+          {user.investor_account.length > 0 ? (
             <CheckIcon className="h-5 w-5 text-green-600" />
           ) : (
             <XMarkIcon className="h-5 w-5 text-gray-400" />
           )}
         </TableCell>
         <TableCell>
-          {user.investor_onboarding_completed ? (
-            <CheckIcon className="h-5 w-5 text-green-600" />
-          ) : (
-            <XMarkIcon className="h-5 w-5 text-gray-400" />
-          )}
-        </TableCell>
-        <TableCell>
-          {user.issuer_onboarding_completed ? (
+          {user.issuer_account.length > 0 ? (
             <CheckIcon className="h-5 w-5 text-green-600" />
           ) : (
             <XMarkIcon className="h-5 w-5 text-gray-400" />
@@ -388,21 +351,6 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           </Button>
         </TableCell>
       </TableRow>
-
-      <EditUserIdDialog
-        user={{
-          id: user.id,
-          user_id: user.user_id || null,
-          first_name: user.first_name,
-          last_name: user.last_name,
-        }}
-        open={showEditUserIdDialog}
-        onOpenChange={setShowEditUserIdDialog}
-        onSuccess={(newUserId: string) => {
-          // Update user_id through parent callback to maintain React state
-          onSave({ user_id: newUserId });
-        }}
-      />
     </>
   );
 }

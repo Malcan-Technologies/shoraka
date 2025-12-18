@@ -12,7 +12,6 @@ import type {
   GetUsersQuery,
   GetAccessLogsQuery,
   UpdateUserRolesInput,
-  UpdateUserKycInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
   GetAdminUsersQuery,
@@ -21,6 +20,7 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsQuery,
   GetOnboardingLogsQuery,
+  ResetOnboardingInput,
 } from "./schemas";
 
 export class AdminService {
@@ -162,11 +162,11 @@ export class AdminService {
     // If removing INVESTOR role, reset investor onboarding
     // If removing ISSUER role, reset issuer onboarding
     const updateData: Prisma.UserUpdateInput = { roles: { set: data.roles } };
-    if (!hasInvestorRole && user.investor_onboarding_completed) {
-      updateData.investor_onboarding_completed = false;
+    if (!hasInvestorRole && user.investor_account.length > 0) {
+      updateData.investor_account = { set: [] };
     }
-    if (!hasIssuerRole && user.issuer_onboarding_completed) {
-      updateData.issuer_onboarding_completed = false;
+    if (!hasIssuerRole && user.issuer_account.length > 0) {
+      updateData.issuer_account = { set: [] };
     }
 
     const updatedUser = await this.repository.updateUserRoles(userId, data.roles);
@@ -188,44 +188,6 @@ export class AdminService {
         newRoles: data.roles,
         previousRoles: user.roles,
         adminRoleRemoved,
-      },
-    });
-
-    return updatedUser;
-  }
-
-  /**
-   * Update user KYC status
-   */
-  async updateUserKyc(
-    req: Request,
-    userId: string,
-    data: UpdateUserKycInput,
-    adminUserId: string
-  ): Promise<User> {
-    const user = await this.repository.getUserById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const updatedUser = await this.repository.updateUserKyc(userId, data.kycVerified);
-
-    // Create access log for admin action
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "KYC_STATUS_UPDATED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        kycVerified: data.kycVerified,
-        previousKycVerified: user.kyc_verified,
       },
     });
 
@@ -279,7 +241,8 @@ export class AdminService {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     
     // Create onboarding log for investor if status changed
-    if (data.investorOnboarded !== undefined && data.investorOnboarded !== user.investor_onboarding_completed) {
+    const previousInvestorOnboarded = user.investor_account.length > 0;
+    if (data.investorOnboarded !== undefined && data.investorOnboarded !== previousInvestorOnboarded) {
       await this.repository.createOnboardingLog({
         userId: userId,
         role: UserRole.INVESTOR,
@@ -291,7 +254,7 @@ export class AdminService {
         deviceType,
         metadata: {
           updatedBy: adminUserId,
-          previousStatus: user.investor_onboarding_completed,
+          previousStatus: previousInvestorOnboarded,
           newStatus: data.investorOnboarded,
           adminAction: true,
         },
@@ -299,7 +262,8 @@ export class AdminService {
     }
 
     // Create onboarding log for issuer if status changed
-    if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== user.issuer_onboarding_completed) {
+    const previousIssuerOnboarded = user.issuer_account.length > 0;
+    if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== previousIssuerOnboarded) {
       await this.repository.createOnboardingLog({
         userId: userId,
         role: UserRole.ISSUER,
@@ -311,7 +275,7 @@ export class AdminService {
         deviceType,
         metadata: {
           updatedBy: adminUserId,
-          previousStatus: user.issuer_onboarding_completed,
+          previousStatus: previousIssuerOnboarded,
           newStatus: data.issuerOnboarded,
           adminAction: true,
         },
@@ -334,6 +298,11 @@ export class AdminService {
     if (!user) {
       throw new Error("User not found");
     }
+
+    // Admins can always edit names (no restrictions)
+    // Note: This is the admin service, so admins can edit any user's name
+    const isChangingName = data.firstName !== undefined || data.lastName !== undefined;
+    const hasCompletedOnboarding = user.investor_account.length > 0 || user.issuer_account.length > 0;
 
     const updatedUser = await this.repository.updateUserProfile(userId, data);
 
@@ -359,8 +328,31 @@ export class AdminService {
           lastName: user.last_name,
           phone: user.phone,
         },
+        nameLockedOverride: hasCompletedOnboarding && isChangingName,
       },
     });
+
+    // Create security log if admin changed name of onboarded user
+    if (hasCompletedOnboarding && isChangingName) {
+      await this.repository.createSecurityLog({
+        userId: userId,
+        eventType: "PROFILE_UPDATED",
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        metadata: {
+          updatedBy: adminUserId,
+          updatedFields: Object.keys(data).filter(
+            (k) => data[k as keyof UpdateUserProfileInput] !== undefined
+          ),
+          previousValues: {
+            firstName: user.first_name,
+            lastName: user.last_name,
+          },
+          adminOverride: true,
+        },
+      });
+    }
 
     return updatedUser;
   }
@@ -488,7 +480,7 @@ export class AdminService {
    */
   async updateUserId(userId: string, newUserId: string): Promise<{ user_id: string }> {
     // Check if user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
@@ -496,7 +488,7 @@ export class AdminService {
     // Update user_id and let database unique constraint handle conflicts
     try {
       const updatedUser = await prisma.user.update({
-        where: { id: userId },
+        where: { user_id: userId },
         data: { user_id: newUserId },
       });
 
@@ -893,22 +885,22 @@ export class AdminService {
     const updatedRoles = [...user.roles];
     if (!updatedRoles.includes(UserRole.ADMIN)) {
       updatedRoles.push(UserRole.ADMIN);
-      await this.repository.updateUserRoles(user.id, updatedRoles);
+      await this.repository.updateUserRoles(user.user_id, updatedRoles);
     }
 
     // Create or update Admin record
-    let admin = await this.repository.getAdminByUserId(user.id);
+    let admin = await this.repository.getAdminByUserId(user.user_id);
     if (!admin) {
-      admin = await this.repository.createAdmin(user.id, invitation.role_description);
+      admin = await this.repository.createAdmin(user.user_id, invitation.role_description);
     } else {
       // Update role description if different
       if (admin.role_description !== invitation.role_description) {
-        admin = await this.repository.updateAdminRole(user.id, invitation.role_description);
+        admin = await this.repository.updateAdminRole(user.user_id, invitation.role_description);
       }
       // Ensure status is ACTIVE - CRITICAL: This reactivates deactivated admins
       if (admin.status !== "ACTIVE") {
         // Update status and use the returned updated admin object
-        admin = await this.repository.updateAdminStatus(user.id, "ACTIVE");
+        admin = await this.repository.updateAdminStatus(user.user_id, "ACTIVE");
       }
     }
 
@@ -918,7 +910,7 @@ export class AdminService {
     // Log ROLE_ADDED event
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     await this.repository.createSecurityLog({
-      userId: user.id,
+      userId: user.user_id,
       eventType: "ROLE_ADDED",
       ipAddress,
       userAgent,
@@ -932,9 +924,9 @@ export class AdminService {
     });
 
     // Refresh user to get updated roles
-    const updatedUser = await this.repository.getUserById(user.id);
+    const updatedUser = await this.repository.getUserById(user.user_id);
     // Refresh admin to ensure we have the latest status (especially after status update)
-    const refreshedAdmin = await this.repository.getAdminByUserId(user.id);
+    const refreshedAdmin = await this.repository.getAdminByUserId(user.user_id);
     return {
       user: updatedUser!,
       admin: { 
@@ -1173,5 +1165,83 @@ export class AdminService {
     })[]
   > {
     return this.repository.getAllOnboardingLogsForExport(params);
+  }
+
+  /**
+   * Reset onboarding for a user (admin only - temporary feature for testing)
+   */
+  async resetOnboarding(
+    req: Request,
+    userId: string,
+    data: ResetOnboardingInput,
+    adminUserId: string
+  ): Promise<User> {
+    const user = await this.repository.getUserById(userId);
+    if (!user) {
+      throw new AppError(404, "NOT_FOUND", "User not found");
+    }
+
+    const updateData: { investorOnboarded?: boolean; issuerOnboarded?: boolean } = {};
+
+    if (data.portal === "investor") {
+      if (user.investor_account.length === 0) {
+        throw new AppError(400, "BAD_REQUEST", "User has not completed investor onboarding");
+      }
+      updateData.investorOnboarded = false;
+    } else if (data.portal === "issuer") {
+      if (user.issuer_account.length === 0) {
+        throw new AppError(400, "BAD_REQUEST", "User has not completed issuer onboarding");
+      }
+      updateData.issuerOnboarded = false;
+    }
+
+    const updatedUser = await this.repository.updateUserOnboarding(userId, updateData);
+
+    // Create onboarding log
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await this.repository.createOnboardingLog({
+      userId: userId,
+      role: data.portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+      eventType: "ONBOARDING_RESET",
+      portal: data.portal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      metadata: {
+        resetBy: adminUserId,
+        previousStatus: true,
+        newStatus: false,
+        adminAction: true,
+      },
+    });
+
+    // Create access log for admin action
+    await this.repository.createAccessLog({
+      userId: adminUserId,
+      eventType: "ONBOARDING_RESET",
+      portal: "admin",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        targetUserId: userId,
+        targetUserEmail: user.email,
+        portal: data.portal,
+      },
+    });
+
+    logger.info(
+      {
+        userId,
+        portal: data.portal,
+        resetBy: adminUserId,
+      },
+      "Onboarding reset by admin"
+    );
+
+    return updatedUser;
   }
 }

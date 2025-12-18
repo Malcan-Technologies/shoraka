@@ -99,6 +99,17 @@ export function requireRole(...roles: UserRole[]) {
       return;
     }
 
+    // For INVESTOR/ISSUER roles, also check onboarding completion (array length > 0)
+    if (roles.includes(UserRole.INVESTOR) && req.user.investor_account.length === 0) {
+      next(new AppError(403, "FORBIDDEN", "Investor onboarding must be completed to access this resource"));
+      return;
+    }
+
+    if (roles.includes(UserRole.ISSUER) && req.user.issuer_account.length === 0) {
+      next(new AppError(403, "FORBIDDEN", "Issuer onboarding must be completed to access this resource"));
+      return;
+    }
+
     next();
   };
 }

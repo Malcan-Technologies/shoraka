@@ -61,15 +61,21 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
     }
 
     try {
+      if (!user.user_id) {
+        toast.error("Invalid user", {
+          description: "User ID is missing",
+        });
+        return;
+      }
       await updateRoleMutation.mutateAsync({
-        userId: user.id,
+        userId: user.user_id,
         data: { roleDescription: selectedRole },
       });
       toast.success("Role updated", {
         description: `${user.first_name} ${user.last_name} is now ${roleConfig[selectedRole].label}`,
       });
     setIsEditingRole(false);
-      onUpdate(user.id, { 
+      onUpdate(user.user_id, { 
         admin: { 
           ...user.admin, 
           role_description: selectedRole,
@@ -107,18 +113,24 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
     const newStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
 
     try {
+      if (!user.user_id) {
+        toast.error("Invalid user", {
+          description: "User ID is missing",
+        });
+        return;
+      }
       if (newStatus === "INACTIVE") {
-        await deactivateMutation.mutateAsync(user.id);
+        await deactivateMutation.mutateAsync(user.user_id);
         toast.success("Admin deactivated: ", {
           description: `${user.first_name} ${user.last_name} has been deactivated`,
         });
       } else {
-        await reactivateMutation.mutateAsync(user.id);
+        await reactivateMutation.mutateAsync(user.user_id);
         toast.success("Admin activated: ", {
           description: `${user.first_name} ${user.last_name} has been activated`,
         });
       }
-      onUpdate(user.id, { 
+      onUpdate(user.user_id, { 
         admin: { 
           ...user.admin, 
           status: newStatus,

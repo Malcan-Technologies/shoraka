@@ -117,7 +117,7 @@ router.post("/sync-user", async (req: Request, res: Response, next: NextFunction
 router.post("/add-role", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = addRoleSchema.parse(req.body);
-    const user = await authService.addRole(req, req.user!.id, req.cognitoSub!, validated.role);
+    const user = await authService.addRole(req, req.user!.user_id, req.cognitoSub!, validated.role);
 
     res.json({
       success: true,
@@ -160,7 +160,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = checkOnboardingSchema.parse(req.body);
-      const result = await authService.checkOnboarding(req.user!.id, validated.role);
+      const result = await authService.checkOnboarding(req.user!.user_id, validated.role);
 
       res.json({
         success: true,
@@ -200,7 +200,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = startOnboardingSchema.parse(req.body);
-      const result = await authService.startOnboarding(req, req.user!.id, validated.role);
+      const result = await authService.startOnboarding(req, req.user!.user_id, validated.role);
 
       res.json({
         success: true,
@@ -241,7 +241,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = completeOnboardingSchema.parse(req.body);
-      const result = await authService.completeOnboarding(req, req.user!.id, validated.role);
+      const result = await authService.completeOnboarding(req, req.user!.user_id, validated.role);
 
       res.json({
         success: true,
@@ -268,7 +268,7 @@ router.post(
  */
 router.post("/logout", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await authService.logout(req, req.user!.id);
+    const result = await authService.logout(req, req.user!.user_id);
 
     res.json({
       success: true,
@@ -368,7 +368,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
 router.patch("/profile", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = updateProfileSchema.parse(req.body);
-    const updatedUser = await authService.updateProfile(req, req.user!.id, validated);
+    const updatedUser = await authService.updateProfile(req, req.user!.user_id, validated);
 
     res.json({
       success: true,
@@ -415,7 +415,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = changePasswordSchema.parse(req.body);
-      const result = await authService.changePassword(req, req.user!.id, validated);
+      const result = await authService.changePassword(req, req.user!.user_id, validated);
 
       res.json({
         success: true,
@@ -463,7 +463,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = verifyEmailSchema.parse(req.body);
-      const result = await authService.verifyEmail(req, req.user!.id, validated);
+      const result = await authService.verifyEmail(req, req.user!.user_id, validated);
 
       res.json({
         success: true,

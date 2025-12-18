@@ -49,22 +49,19 @@ enum OrganizationMemberRole {
 }
 
 model User {
-  id                            String     @id @default(cuid())
-  user_id                       String?    @unique @db.VarChar(5)
-  email                         String     @unique
-  cognito_sub                   String     @unique @db.VarChar(255)
-  cognito_username              String     @db.VarChar(255)
-  roles                         UserRole[]
-  first_name                    String
-  last_name                     String
-  phone                         String?
-  email_verified                Boolean    @default(false)
-  kyc_verified                  Boolean    @default(false)
-  investor_onboarding_completed Boolean    @default(false)
-  issuer_onboarding_completed   Boolean    @default(false)
-  password_changed_at           DateTime?
-  created_at                    DateTime   @default(now())
-  updated_at                    DateTime   @updatedAt
+  user_id            String     @id @unique @db.VarChar(5)
+  first_name         String
+  last_name          String
+  phone              String?
+  email              String     @unique
+  roles              UserRole[]
+  cognito_sub        String     @unique @db.VarChar(255)
+  cognito_username   String     @db.VarChar(255)
+  investor_account   String[]   @default([])
+  issuer_account     String[]   @default([])
+  password_changed_at DateTime?
+  created_at         DateTime   @default(now())
+  updated_at         DateTime   @updatedAt
 
   loans                  Loan[]
   investments            Investment[]
@@ -73,7 +70,7 @@ model User {
   admin                  Admin?
   sent_admin_invitations AdminInvitation[]
   security_logs          SecurityLog[]
-  onboarding_logs         OnboardingLog[]
+  onboarding_logs        OnboardingLog[]
 
   // Organization relations
   investor_organizations   InvestorOrganization[]
@@ -81,7 +78,6 @@ model User {
   organization_memberships OrganizationMember[]
 
   @@index([cognito_sub])
-  @@index([user_id])
   @@map("users")
 }
 
@@ -99,7 +95,7 @@ model Loan {
   approved_at     DateTime?
   funded_at       DateTime?
 
-  borrower    User         @relation(fields: [borrower_id], references: [id])
+  borrower    User         @relation(fields: [borrower_id], references: [user_id])
   investments Investment[]
 
   @@map("loans")
@@ -113,7 +109,7 @@ model Investment {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  investor User @relation(fields: [investor_id], references: [id])
+  investor User @relation(fields: [investor_id], references: [user_id])
   loan     Loan @relation(fields: [loan_id], references: [id])
 
   @@map("investments")
@@ -133,7 +129,7 @@ model AccessLog {
   metadata      Json? // Stores active_role, auth_method, etc.
   created_at    DateTime @default(now())
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
@@ -155,7 +151,7 @@ model UserSession {
   revoked_at      DateTime?
   created_at      DateTime  @default(now())
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([cognito_session])
@@ -173,7 +169,7 @@ model Admin {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([status])
@@ -191,7 +187,7 @@ model AdminInvitation {
   invited_by_user_id String
   created_at         DateTime  @default(now())
 
-  invited_by User @relation(fields: [invited_by_user_id], references: [id])
+  invited_by User @relation(fields: [invited_by_user_id], references: [user_id])
 
   @@index([email])
   @@index([token])
@@ -209,7 +205,7 @@ model SecurityLog {
   metadata    Json?
   created_at  DateTime @default(now())
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
@@ -218,20 +214,20 @@ model SecurityLog {
 }
 
 model OnboardingLog {
-  id                String   @id @default(cuid())
-  user_id           String
-  role              UserRole // INVESTOR, ISSUER
-  event_type        String   // ONBOARDING_STARTED, ONBOARDING_COMPLETED, ONBOARDING_STATUS_UPDATED
-  portal            String?  // "investor", "issuer"
-  ip_address        String?
-  user_agent        String?  @db.Text
-  device_info       String?
-  device_type       String?
-  metadata          Json?    // Additional context (previous status, etc.)
-  created_at        DateTime @default(now())
-  
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+  id          String   @id @default(cuid())
+  user_id     String
+  role        UserRole // INVESTOR, ISSUER
+  event_type  String // ONBOARDING_STARTED, ONBOARDING_COMPLETED, ONBOARDING_STATUS_UPDATED
+  portal      String? // "investor", "issuer"
+  ip_address  String?
+  user_agent  String?  @db.Text
+  device_info String?
+  device_type String?
+  metadata    Json? // Additional context (previous status, etc.)
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
   @@index([user_id])
   @@index([role])
   @@index([event_type])
@@ -252,7 +248,7 @@ model InvestorOrganization {
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
 
-  owner   User                 @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
+  owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
@@ -273,7 +269,7 @@ model IssuerOrganization {
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
 
-  owner   User                 @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
+  owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
@@ -291,7 +287,7 @@ model OrganizationMember {
   role                     OrganizationMemberRole
   created_at               DateTime               @default(now())
 
-  user                  User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                  User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   investor_organization InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
 

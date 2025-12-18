@@ -84,7 +84,6 @@ export class AuthService {
       cognitoSub: data.cognitoSub,
       cognitoUsername: data.email, // Default to email
       email: data.email,
-      emailVerified: true, // If they completed OAuth, email is verified
       roles: data.roles,
       firstName: data.firstName,
       lastName: data.lastName,
@@ -98,7 +97,7 @@ export class AuthService {
     // - Callback log: Records LOGIN/SIGNUP event (with portal context)
     // Both are needed for complete audit trail
     await this.repository.createAccessLog({
-      userId: user.id,
+      userId: user.user_id,
       eventType: "LOGIN",
       ipAddress,
       userAgent,
@@ -113,8 +112,8 @@ export class AuthService {
 
     // Check onboarding status
     const requiresOnboarding = {
-      investor: data.roles.includes(UserRole.INVESTOR) && !user.investor_onboarding_completed,
-      issuer: data.roles.includes(UserRole.ISSUER) && !user.issuer_onboarding_completed,
+      investor: data.roles.includes(UserRole.INVESTOR) && user.investor_account.length === 0,
+      issuer: data.roles.includes(UserRole.ISSUER) && user.issuer_account.length === 0,
     };
 
     return { user, requiresOnboarding };
@@ -181,9 +180,9 @@ export class AuthService {
     let completed = true;
 
     if (role === UserRole.INVESTOR) {
-      completed = user.investor_onboarding_completed;
+      completed = user.investor_account.length > 0;
     } else if (role === UserRole.ISSUER) {
-      completed = user.issuer_onboarding_completed;
+      completed = user.issuer_account.length > 0;
     }
 
     return {
@@ -204,11 +203,20 @@ export class AuthService {
 
     // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { user_id: userId },
     });
 
     if (!user) {
       throw new Error("User not found");
+    }
+
+    // Validate that user has first name and last name before starting onboarding
+    if (!user.first_name || !user.last_name || user.first_name.trim() === "" || user.last_name.trim() === "") {
+      throw new AppError(
+        400,
+        "NAMES_REQUIRED",
+        "First name and last name are required before starting onboarding. Please update your profile first."
+      );
     }
 
     let onboardingRole = role;
@@ -235,7 +243,7 @@ export class AuthService {
 
     // Create onboarding log
     await this.repository.createOnboardingLog({
-      userId: user.id,
+      userId: user.user_id,
       role: onboardingRole as UserRole,
       eventType: "ONBOARDING_STARTED",
       portal,
@@ -264,9 +272,9 @@ export class AuthService {
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const portal = getPortalFromRole(role);
 
-    // Get current user by database ID (userId is the database user ID, not cognito_sub)
+    // Get current user by database ID (userId is the database user_id, not cognito_sub)
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { user_id: userId },
     });
 
     if (!user) {
@@ -275,12 +283,12 @@ export class AuthService {
 
     logger.info(
       {
-        userId: user.id,
+        userId: user.user_id,
         email: user.email,
         currentRoles: user.roles,
         requestedRole: role,
-        investorOnboarding: user.investor_onboarding_completed,
-        issuerOnboarding: user.issuer_onboarding_completed,
+        investorOnboarding: user.investor_account.length > 0,
+        issuerOnboarding: user.issuer_account.length > 0,
       },
       "Complete onboarding - current user state"
     );
@@ -291,7 +299,7 @@ export class AuthService {
     // Add role if user doesn't have it yet
     if (roleNeedsToBeAdded) {
       logger.info({ role }, "Adding role to user");
-      updatedUser = await this.repository.addRoleToUser(user.id, role);
+      updatedUser = await this.repository.addRoleToUser(user.user_id, role);
       logger.info({ updatedRoles: updatedUser.roles }, "Role added successfully");
 
       // Update Cognito custom:roles attribute if not ADMIN
@@ -327,19 +335,19 @@ export class AuthService {
 
     // Update onboarding status - this should always run regardless of whether role was added
     logger.info({ role }, "Updating onboarding status for role");
-    updatedUser = await this.repository.updateOnboardingStatus(updatedUser.id, role, true);
+    updatedUser = await this.repository.updateOnboardingStatus(updatedUser.user_id, role, true);
     logger.info(
       {
         roles: updatedUser.roles,
-        investorOnboarding: updatedUser.investor_onboarding_completed,
-        issuerOnboarding: updatedUser.issuer_onboarding_completed,
+        investorOnboarding: updatedUser.investor_account.length > 0,
+        issuerOnboarding: updatedUser.issuer_account.length > 0,
       },
       "Onboarding status updated successfully"
     );
 
     // Create onboarding log
     await this.repository.createOnboardingLog({
-      userId: updatedUser.id,
+      userId: updatedUser.user_id,
       role,
       eventType: "ONBOARDING_COMPLETED",
       portal,
@@ -430,8 +438,8 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    const activeSession = await this.repository.findActiveSession(user.id);
-    const activeSessionsCount = await this.repository.countActiveSessions(user.id);
+    const activeSession = await this.repository.findActiveSession(user.user_id);
+    const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
 
     return {
       user,
@@ -466,7 +474,7 @@ export class AuthService {
     }
 
     // Update active session
-    const session = await this.repository.findActiveSession(user.id);
+    const session = await this.repository.findActiveSession(user.user_id);
 
     if (session) {
       await this.repository.updateSessionActiveRole(session.id, role);
@@ -474,7 +482,7 @@ export class AuthService {
 
     // Create security log (ROLE_SWITCHED is a security event)
     await this.repository.createSecurityLog({
-      userId: user.id,
+      userId: user.user_id,
       eventType: "ROLE_SWITCHED",
       ipAddress,
       userAgent,
@@ -676,7 +684,6 @@ export class AuthService {
       cognitoSub,
       cognitoUsername: data.email,
       email: data.email,
-      emailVerified: true,
       roles: [UserRole.ADMIN],
       firstName: data.firstName,
       lastName: data.lastName,
@@ -704,9 +711,21 @@ export class AuthService {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Verify user exists before proceeding
-    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    const currentUser = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!currentUser) {
       throw new Error("User not found");
+    }
+
+    // Check if user has completed onboarding - if so, lock name changes
+    // Admins can always edit names (for corrections)
+    const isAdmin = currentUser.roles.includes(UserRole.ADMIN);
+    const hasCompletedOnboarding = currentUser.investor_account.length > 0 || currentUser.issuer_account.length > 0;
+    if (!isAdmin && hasCompletedOnboarding && (data.firstName !== undefined || data.lastName !== undefined)) {
+      throw new AppError(
+        403,
+        "NAME_LOCKED",
+        "Names cannot be changed after completing onboarding. Please contact support if you need to update your name."
+      );
     }
 
     const updatedUser = await this.repository.updateUserProfile(userId, data);
@@ -746,7 +765,7 @@ export class AuthService {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Get user to find their email (used as Cognito username)
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
@@ -893,14 +912,9 @@ export class AuthService {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
     // Get user
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
-    }
-
-    // Check if email is already verified
-    if (user.email_verified) {
-      throw new AppError(400, "ALREADY_VERIFIED", "Email is already verified");
     }
 
     try {
@@ -938,12 +952,6 @@ export class AuthService {
       });
 
       await cognitoClient.send(updateVerifiedCommand);
-
-      // Update email_verified in database
-      await prisma.user.update({
-        where: { id: userId },
-        data: { email_verified: true },
-      });
 
       // Log successful verification (SecurityLog)
       await this.repository.createSecurityLog({

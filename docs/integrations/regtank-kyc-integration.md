@@ -4,15 +4,37 @@ This document summarizes our understanding of the RegTank API for KYC/KYB onboar
 
 ## Quick Start (Testing with Postman)
 
-RegTank has provided Postman collection files. To test immediately:
+### Digital Onboarding (Manual Testing)
 
-1. Import the provided JSON files into Postman
-2. Use these sandbox settings:
-   - OAuth URL: `https://crm-server.regtank.com`
-   - API URL: `https://shoraka-trial-server.regtank.com`
-   - Client ID & Secret: See AWS Secrets Manager or contact team lead
-3. Try the manual onboarding flow: https://shoraka-trial-onboarding.regtank.com/BaseInfo/emailVerify
-4. View results in admin portal: https://shoraka-trial.regtank.com
+For manual testing of the digital onboarding flow:
+
+1. **Verify Email and Fill Personal Information**: Visit the manual onboarding portal:
+   - **Trial/Sandbox**: https://shoraka-trial-onboarding.regtank.com/BaseInfo/emailVerify
+   - **Production**: https://shoraka-onboarding.regtank.com/BaseInfo/emailVerify
+
+2. **Complete Onboarding Process**: Follow the on-screen instructions to complete the entire onboarding flow (ID upload + liveness check)
+
+3. **View Results**: After successful submission, view the onboarding results and details in the RegTank Client Portal:
+   - **Trial/Sandbox**: https://shoraka-trial.regtank.com
+   - **Production**: https://shoraka.regtank.com
+
+### API Testing with Postman
+
+RegTank has provided Postman collection files. To test the API:
+
+1. **Import Postman Collections**: Import the 2 JSON files into Postman
+
+2. **Configure Postman Environment** with these sandbox settings:
+   - **RegTank OAuth URL**: `https://crm-server.regtank.com`
+   - **RegTank API URL**: `https://shoraka-trial-server.regtank.com`
+   - **Company-specific RegTank server URL**: `https://shoraka-trial-server.regtank.com`
+   - **RegTank Onboarding server URL**: `https://shoraka-trial-onboarding-proxy.regtank.com`
+   - **Client ID**: `6c3eb4f4-3402-45a3-8707-a365059e7581`
+   - **Client Secret**: `88b2d5fe7d5ac366f0d7b59f67bf9ee4`
+
+3. **Test API Endpoints**: Use the imported collections to test OAuth authentication and onboarding request creation
+
+For detailed instructions, refer to [RegTank API Documentation](https://regtank.gitbook.io/regtank-api-docs/).
 
 ## Overview
 
@@ -37,41 +59,69 @@ For CashSouk, we primarily need:
 └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
          │                       │                       │
          │ 1. Click "Start KYC"  │                       │
+         │    Choose Personal/   │                       │
+         │    Company            │                       │
          │──────────────────────>│                       │
-         │                       │ 2. Create onboarding  │
+         │                       │                       │
+         │                       │ 2. Server-to-Server   │
+         │                       │    OAuth: Get token   │
+         │                       │    (Backend auth only)│
          │                       │──────────────────────>│
-         │                       │ 3. Return verifyLink  │
+         │                       │ 3. Return access_token│
          │                       │<──────────────────────│
-         │ 4. Redirect to URL    │                       │
+         │                       │                       │
+         │                       │ 4. Create onboarding │
+         │                       │    Parse firstName/   │
+         │                       │    lastName from DB   │
+         │                       │    Include webhook URL│
+         │                       │──────────────────────>│
+         │                       │ 5. Return verifyLink  │
+         │                       │<──────────────────────│
+         │                       │                       │
+         │ 6. Redirect to        │                       │
+         │    RegTank site       │                       │
          │<──────────────────────│                       │
          │                       │                       │
-         │ 5. User completes     │                       │
+         │ 7. User completes     │                       │
          │    entire flow        ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─>│
          │    (ID + liveness)    │                       │
+         │    (No login required)│                       │
          │                       │                       │
-         │                       │ 6. Webhooks: progress │
+         │                       │ 8. Webhooks: progress │
          │                       │<─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│ (log only)
          │                       │                       │
-         │                       │ 7. Webhook: APPROVED  │
+         │                       │ 9. Webhook: APPROVED  │
          │                       │<──────────────────────│
          │                       │                       │
-         │                       │ 8. Get full details   │
+         │                       │ 10. Get full details  │
          │                       │──────────────────────>│
          │                       │<──────────────────────│
          │                       │                       │
-         │ 9. Show verified      │                       │
+         │ 11. Redirect back     │                       │
+         │     to our site       │                       │
+         │     (mechanism TBD)   │                       │
+         │<──────────────────────│                       │
+         │                       │                       │
+         │ 12. Show verified     │                       │
          │<──────────────────────│                       │
 ```
 
 **Flow Summary:**
 
-1. User initiates KYC from our portal
-2. We create onboarding session via RegTank API, get a `verifyLink`
-3. User is redirected to RegTank's hosted onboarding flow
-4. User completes ID upload + liveness check entirely on RegTank's side
-5. We receive progress webhooks (for monitoring/logging only)
-6. When we receive `APPROVED` or `REJECTED` webhook, we call Get Detail API to pull the full verified profile
-7. Update our database with verified user data
+1. **User Initiates**: User clicks "Start KYC" and chooses **Personal** or **Company** onboarding type
+2. **Server-to-Server OAuth**: Backend automatically authenticates with RegTank OAuth server (using client credentials) to obtain `access_token`. **Important**: Users do NOT log into RegTank - this is backend-only authentication.
+3. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
+   - User's `firstName` and `lastName` (parsed from our user database fields `first_name` and `last_name`)
+   - Webhook URL for status updates (configured/sent during request creation)
+   - `referenceId` (our internal user ID) for webhook matching
+4. **Get Verify Link**: RegTank returns a `verifyLink` URL
+5. **Redirect to RegTank**: User is redirected to RegTank's hosted onboarding flow (no login required)
+6. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
+7. **Progress Webhooks**: We receive progress webhooks for status changes (for monitoring/logging only)
+8. **Final Status**: When we receive `APPROVED` or `REJECTED` webhook, we call Get Detail API to pull the full verified profile
+9. **Redirect Back**: User is redirected back to our portal (return URL mechanism - see Open Questions #7)
+10. **Update Database**: Update our database with verified user data from RegTank
+11. **Show Status**: Display verified status to user in our application
 
 ## Environment Configuration
 
@@ -101,11 +151,21 @@ RegTank has provided us with both **Production** and **Trial/Sandbox** environme
 
 **All config (URLs + credentials):** Stored in AWS Secrets Manager at `cashsouk/staging/regtank`
 
+**Trial/Sandbox Credentials:**
+- **Client ID**: `6c3eb4f4-3402-45a3-8707-a365059e7581`
+- **Client Secret**: `88b2d5fe7d5ac366f0d7b59f67bf9ee4`
+
 > **Note:** OAuth URL (`crm-server.regtank.com`) is the same for both environments. The API server URL differs.
 
 ## Authentication
 
-RegTank uses OAuth2 client credentials flow.
+RegTank uses OAuth2 client credentials flow. This is **server-to-server authentication** - our backend authenticates with RegTank, not the end users.
+
+**Key Points:**
+- **Backend-only authentication**: Users never log into RegTank directly
+- **Automatic**: OAuth happens automatically in our backend when a user initiates KYC
+- **No user interaction**: Users are not involved in the authentication process
+- **Secure**: Client credentials are stored securely in AWS Secrets Manager
 
 **Endpoint:** `POST https://crm-server.regtank.com/oauth/token`
 
@@ -132,14 +192,40 @@ client_secret: <from secrets manager>
 }
 ```
 
-**Notes:**
+**Implementation Notes:**
 
-- Token expires in ~1 hour
+- Token expires in ~1 hour - implement token caching/refresh in RegTank service
 - Use `Authorization: Bearer <access_token>` header for subsequent requests
 - Client credentials must be kept secret (store in SSM/Secrets Manager)
 - Same OAuth server for both environments; credentials differ
+- **This is server-to-server authentication** - users do NOT log in to RegTank directly
+- OAuth happens automatically in backend when user initiates KYC
+- After obtaining access token, backend creates onboarding request and redirects user to RegTank's hosted flow (no login required)
+
+## Integration Flow Overview
+
+Based on our implementation plan, the flow works as follows:
+
+1. **User Initiates**: User clicks "Start KYC" and selects **Personal** or **Company** onboarding type
+2. **Server-to-Server OAuth Authentication**: Backend automatically authenticates with RegTank OAuth server using client credentials to obtain `access_token`. **Critical**: This is server-to-server authentication - users never log into RegTank directly.
+3. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
+   - User's `firstName` and `lastName` (parsed from our user database fields `first_name` and `last_name`)
+   - Webhook URL for status updates (configured/sent during onboarding request creation)
+   - `referenceId` (our internal user ID) for webhook matching
+4. **Redirect to RegTank**: User is redirected to RegTank's `verifyLink` (no login required)
+5. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
+6. **Webhook Updates**: We receive webhook notifications for status changes (progress updates logged, final status triggers action)
+7. **Redirect Back**: User is redirected back to our portal (return URL mechanism - **needs clarification from RegTank** - see Open Questions #7)
+8. **Update Database**: When `APPROVED` or `REJECTED` webhook received, we pull full details via Get Detail API and update user record
 
 ## Individual Onboarding Flow
+
+### Prerequisites
+
+Before creating an onboarding request, ensure:
+1. **OAuth Authentication**: Backend authenticates with RegTank OAuth server to obtain `access_token` (server-to-server, no user login)
+2. **User Data Parsing**: Parse user's `firstName` and `lastName` from our database fields (`user.first_name` → `forename`, `user.last_name` → `surname`)
+3. **Webhook Configuration**: Webhook URL is configured/sent when creating the onboarding request (one-time setup per environment, but URL is included in each request)
 
 ### 1. Create Onboarding Request
 
@@ -160,8 +246,8 @@ Content-Type: application/json; charset=utf-8
 ```json
 {
   "email": "user@example.com", // Required
-  "surname": "Doe", // Required - last name
-  "forename": "John", // Required - first name
+  "surname": "Doe", // Required - last name (parsed from our user.last_name)
+  "forename": "John", // Required - first name (parsed from our user.first_name)
   "middleName": "William", // Optional
   "referenceId": "cashsouk-user-123", // Our internal user ID - IMPORTANT for webhook matching
   "countryOfResidence": "MY", // ISO 3166 code
@@ -180,6 +266,12 @@ Content-Type: application/json; charset=utf-8
   "tags": ["investor", "tier1"]
 }
 ```
+
+**Key Implementation Notes:**
+- **Data Parsing**: `forename` and `surname` must be parsed from our user database fields (`user.first_name` → `forename`, `user.last_name` → `surname`)
+- **Webhook Configuration**: Webhook URL is included/configured when creating the onboarding request (see Webhooks section for one-time setup)
+- **Reference ID**: `referenceId` must be our internal user ID to match webhook payloads to users
+- **Server-to-Server**: OAuth authentication happens automatically in backend before this request (users never log into RegTank)
 
 **Response:**
 
@@ -208,6 +300,8 @@ User visits `verifyLink` and:
 4. System compares face on ID with selfie
 5. Document undergoes IDV (authenticity check)
 6. If enabled, KYC screening runs against sanctions databases
+
+**After completion:** User should be redirected back to our portal (return URL mechanism - see Open Questions #7)
 
 ### 3. Get Onboarding Details (Polling)
 
@@ -438,8 +532,9 @@ _Endpoint details: See sections 2.8-2.10 in RegTank docs_
   - Idempotency handling
 
 - [ ] **KYC Controller** (`src/modules/kyc/kyc.controller.ts`)
-  - `POST /v1/kyc/start` - Initiate onboarding, return verifyLink
+  - `POST /v1/kyc/start` - Initiate onboarding (choose Personal/Company), authenticate with RegTank OAuth, create onboarding request, return verifyLink
   - `GET /v1/kyc/status` - Check current status
+  - Handle return from RegTank (redirect callback after completion)
 
 - [ ] **Database**
   - Store `regtankRequestId` on user record
@@ -492,8 +587,11 @@ _Endpoint details: See sections 2.8-2.10 in RegTank docs_
 
 - [ ] **Start KYC Flow**
   - Button to initiate verification
+  - User selects **Personal** or **Company** onboarding type
+  - Backend handles OAuth authentication with RegTank
+  - Backend creates onboarding request with user's firstName/lastName
   - Redirect to RegTank verifyLink
-  - Handle return from RegTank
+  - Handle return from RegTank (redirect callback)
 
 - [ ] **KYC Required Guard**
   - Block certain actions until KYC approved
@@ -553,7 +651,15 @@ enum KycStatus {
 
 6. **Retry Behavior**: If a user fails liveness, can they retry indefinitely or is there a limit? (`exceedDeclinedLimit` suggests 3 times)
 
-7. **Return URL**: Can we configure a URL to redirect users back to our portal after completing/abandoning the flow?
+7. **Return URL**: ⚠️ **CRITICAL** - How do users get redirected back to our portal after completing or abandoning the KYC flow? We need to understand the redirect mechanism:
+   - **Option A**: Is it a query parameter in the `verifyLink`? (e.g., `verifyLink?returnUrl=https://oursite.com/kyc/callback`)
+   - **Option B**: Is it a field in the onboarding request body when creating the request? (e.g., `{"returnUrl": "https://oursite.com/kyc/callback", ...}`)
+   - **Option C**: Is it configured globally in the RegTank admin portal per environment?
+   - **Option D**: Is there another mechanism? (Please specify)
+   - **Additional questions**: 
+     - What happens if user abandons the flow mid-way?
+     - Can we pass custom parameters in the return URL (e.g., user ID, session token)?
+     - Is the redirect automatic or does user need to click a button?
 
 8. **Embedding**: Can we embed the onboarding flow in an iframe, or must we redirect? Are there X-Frame-Options restrictions?
 

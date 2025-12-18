@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole, AdminRole } from "@prisma/client";
 import { logger } from "../src/lib/logger";
+import { generateUniqueUserId } from "../src/lib/user-id-generator";
 
 const prisma = new PrismaClient();
 
@@ -9,40 +10,64 @@ async function main() {
   // Admin user - use environment variable for cognito_sub if provided
   const adminCognitoSub = process.env.ADMIN_COGNITO_SUB || `seed_admin_${Date.now()}`;
   const adminCognitoUsername = "lucas.deng@malcan.io";
+  const adminEmail = "lucas.deng@malcan.io";
+
+  // Check if user already exists by email or cognito_sub
+  let existingUser = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+
+  if (!existingUser) {
+    existingUser = await prisma.user.findUnique({
+      where: { cognito_sub: adminCognitoSub },
+    });
+  }
+
+  // Generate user_id only if user doesn't exist
+  const userId = existingUser?.user_id || (await generateUniqueUserId());
 
   // Create or update admin user
-  const adminUser = await prisma.user.upsert({
-    where: { cognito_sub: adminCognitoSub },
-    create: {
-      email: "lucas.deng@malcan.io",
-      cognito_sub: adminCognitoSub,
-      cognito_username: adminCognitoUsername,
-      roles: [UserRole.ADMIN],
-      first_name: "Lucas",
-      last_name: "Deng",
-      phone: "+60165584792",
-      email_verified: true,
-      kyc_verified: true,
-      investor_onboarding_completed: false,
-      issuer_onboarding_completed: false,
-    },
-    update: {
-      // Ensure ADMIN role is always present
-      roles: {
-        set: [UserRole.ADMIN],
+  let adminUser: typeof existingUser;
+  if (existingUser) {
+    // Update existing user
+    adminUser = await prisma.user.update({
+      where: { user_id: existingUser.user_id },
+      data: {
+        // Ensure ADMIN role is always present
+        roles: {
+          set: [UserRole.ADMIN],
+        },
+        // Ensure user_id exists if it was missing
+        ...(existingUser.user_id ? {} : { user_id: userId }),
+        // Update cognito_sub if it changed
+        ...(existingUser.cognito_sub !== adminCognitoSub && { cognito_sub: adminCognitoSub }),
       },
-      email_verified: true,
-      kyc_verified: true,
-    },
-  });
+    });
+  } else {
+    // Create new user
+    adminUser = await prisma.user.create({
+      data: {
+        user_id: userId,
+        email: adminEmail,
+        cognito_sub: adminCognitoSub,
+        cognito_username: adminCognitoUsername,
+        roles: [UserRole.ADMIN],
+        first_name: "Lucas",
+        last_name: "Deng",
+        phone: "+60165584792",
+          investor_account: [],
+          issuer_account: [],
+      },
+    });
+  }
 
   logger.info(`✅ Admin user created/updated: ${adminUser.email}`);
 
   // Create or update Admin record with SUPER_ADMIN role
   const adminRecord = await prisma.admin.upsert({
-    where: { user_id: adminUser.id },
+    where: { user_id: adminUser.user_id },
     create: {
-      user_id: adminUser.id,
+      user_id: adminUser.user_id,
       role_description: AdminRole.SUPER_ADMIN,
       status: "ACTIVE",
     },
@@ -60,7 +85,7 @@ async function main() {
 
   // Admin user logs
   accessLogs.push({
-    user_id: adminUser.id,
+    user_id: adminUser.user_id,
     event_type: "LOGIN",
     portal: "admin",
     ip_address: "192.168.1.100",
@@ -73,7 +98,7 @@ async function main() {
   });
 
   accessLogs.push({
-    user_id: adminUser.id,
+    user_id: adminUser.user_id,
     event_type: "LOGOUT",
     portal: "admin",
     ip_address: "192.168.1.100",
@@ -88,7 +113,18 @@ async function main() {
   // Insert access logs
   for (const log of accessLogs) {
     await prisma.accessLog.create({
-      data: log,
+      data: {
+        user_id: log.user_id,
+        event_type: log.event_type,
+        portal: log.portal,
+        ip_address: log.ip_address,
+        user_agent: log.user_agent,
+        device_info: log.device_info,
+        device_type: log.device_type,
+        success: log.success,
+        metadata: log.metadata,
+        created_at: log.created_at,
+      },
     });
   }
 

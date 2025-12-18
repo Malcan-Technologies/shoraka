@@ -7,7 +7,6 @@ export const getUsersQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
   role: z.nativeEnum(UserRole).optional(),
-  kycVerified: z.coerce.boolean().optional(),
   investorOnboarded: z.coerce.boolean().optional(),
   issuerOnboarded: z.coerce.boolean().optional(),
 });
@@ -21,18 +20,18 @@ export const updateUserRolesSchema = z.object({
 
 export type UpdateUserRolesInput = z.infer<typeof updateUserRolesSchema>;
 
-export const updateUserKycSchema = z.object({
-  kycVerified: z.boolean(),
-});
-
-export type UpdateUserKycInput = z.infer<typeof updateUserKycSchema>;
-
 export const updateUserOnboardingSchema = z.object({
   investorOnboarded: z.boolean().optional(),
   issuerOnboarded: z.boolean().optional(),
 });
 
 export type UpdateUserOnboardingInput = z.infer<typeof updateUserOnboardingSchema>;
+
+export const resetOnboardingSchema = z.object({
+  portal: z.enum(["investor", "issuer"]),
+});
+
+export type ResetOnboardingInput = z.infer<typeof resetOnboardingSchema>;
 
 export const updateUserProfileSchema = z.object({
   firstName: z.string().min(1).max(100).optional(),

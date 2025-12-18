@@ -16,11 +16,11 @@ const organizationService = new OrganizationService();
  * Get authenticated user ID from request
  */
 function getUserId(req: Request): string {
-  const user = (req as Request & { user?: { id: string } }).user;
-  if (!user?.id) {
+  const user = (req as Request & { user?: { user_id: string } }).user;
+  if (!user?.user_id) {
     throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
   }
-  return user.id;
+  return user.user_id;
 }
 
 /**

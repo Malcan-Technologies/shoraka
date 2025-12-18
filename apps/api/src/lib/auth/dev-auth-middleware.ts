@@ -32,7 +32,7 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
     // If no admin user exists, create a mock one (won't persist, just for req.user)
     if (!adminUser) {
       adminUser = {
-        id: "dev-admin-user",
+        user_id: "DEVAD",
         email: "admin@cashsouk.com",
         cognito_sub: "dev-admin-sub",
         cognito_username: "dev-admin",
@@ -40,26 +40,25 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
         first_name: "Dev",
         last_name: "Admin",
         phone: null,
-        email_verified: true,
-        kyc_verified: true,
-        investor_onboarding_completed: false,
-        issuer_onboarding_completed: false,
+        investor_account: [],
+        issuer_account: [],
+        password_changed_at: null,
         created_at: new Date(),
         updated_at: new Date(),
-      } as User;
+      } as unknown as User;
     }
 
     // Ensure adminUser is not null (convert null to undefined for req.user type)
     // After the if check above, adminUser is guaranteed to be non-null
     req.user = adminUser ?? undefined;
-    req.cognitoSub = adminUser!.cognito_sub;
+    req.cognitoSub = adminUser!.cognito_sub ?? undefined;
     req.activeRole = UserRole.ADMIN;
 
     next();
   } catch (error) {
     // If database query fails, still allow through with mock user
     req.user = {
-      id: "dev-admin-user",
+      user_id: "DEVAD",
       email: "admin@cashsouk.com",
       cognito_sub: "dev-admin-sub",
       cognito_username: "dev-admin",
@@ -67,13 +66,12 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
       first_name: "Dev",
       last_name: "Admin",
       phone: null,
-      email_verified: true,
-      kyc_verified: true,
-      investor_onboarding_completed: false,
-      issuer_onboarding_completed: false,
+      investor_account: [],
+      issuer_account: [],
+      password_changed_at: null,
       created_at: new Date(),
       updated_at: new Date(),
-    } as User;
+    } as unknown as User;
     req.cognitoSub = "dev-admin-sub";
     req.activeRole = UserRole.ADMIN;
     next();

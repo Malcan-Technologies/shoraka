@@ -420,12 +420,12 @@ router.get("/callback", async (req: Request, res: Response) => {
 
       if (existingUser) {
         logger.info(
-          { correlationId, userId: existingUser.id, email },
+          { correlationId, userId: existingUser.user_id, email },
           "User found by email (migration scenario), updating cognito_sub"
         );
         // Update the cognito_sub for this user
         existingUser = await prisma.user.update({
-          where: { id: existingUser.id },
+          where: { user_id: existingUser.user_id },
           data: { cognito_sub: cognitoId },
         });
       }
@@ -449,7 +449,6 @@ router.get("/callback", async (req: Request, res: Response) => {
       cognitoSub: cognitoId,
       cognitoUsername: email,
       email,
-      emailVerified: true,
       roles: rolesToUse,
       firstName,
       lastName,
@@ -458,10 +457,9 @@ router.get("/callback", async (req: Request, res: Response) => {
     logger.info(
       {
         correlationId,
-        userId: user.id,
+        userId: user.user_id,
         email,
         roles: user.roles,
-        hasUserId: !!user.user_id,
         requestedRole,
         isSignup,
         wasMigration: !!existingUser && !existingUser.cognito_sub,
@@ -490,7 +488,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           logger.error(
             {
               correlationId,
-              userId: user.id,
+              userId: user.user_id,
               email: user.email,
               invitationToken,
               returnedStatus: invitationResult.admin?.status,
@@ -502,7 +500,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         logger.info(
           {
             correlationId,
-            userId: user.id,
+            userId: user.user_id,
             email: user.email,
             invitationToken,
             adminStatus: invitationResult.admin?.status,
@@ -512,7 +510,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         );
         // Refresh user to get updated roles (admin status will be queried fresh in access check)
         const updatedUser = await prisma.user.findUnique({
-          where: { id: user.id },
+          where: { user_id: user.user_id },
         });
         if (updatedUser) {
           user = updatedUser;
@@ -522,7 +520,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         logger.error(
           {
             correlationId,
-            userId: user.id,
+            userId: user.user_id,
             error: error instanceof Error ? error.message : String(error),
             errorStack: error instanceof Error ? error.stack : undefined,
           },
@@ -550,7 +548,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           // If invitation was just accepted, ALWAYS query fresh to get the updated status
           // This ensures we don't use stale cached data
           const admin = await prisma.admin.findUnique({
-            where: { user_id: user.id },
+            where: { user_id: user.user_id },
             select: { status: true },
           });
           adminStatus = admin?.status || null;
@@ -563,7 +561,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           } else {
             // Fallback: query fresh if admin not in user object
             const admin = await prisma.admin.findUnique({
-              where: { user_id: user.id },
+              where: { user_id: user.user_id },
               select: { status: true },
             });
             adminStatus = admin?.status || null;
@@ -578,7 +576,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         logger.warn(
           {
             correlationId,
-            userId: user.id,
+            userId: user.user_id,
             email: user.email,
             adminStatus,
             hasAdminRole,
@@ -588,7 +586,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         );
         // Force a fresh query one more time as a last resort (handles potential race conditions)
         const freshAdmin = await prisma.admin.findUnique({
-          where: { user_id: user.id },
+          where: { user_id: user.user_id },
           select: { status: true },
         });
         const freshStatus = freshAdmin?.status || null;
@@ -599,7 +597,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           logger.info(
             {
               correlationId,
-              userId: user.id,
+              userId: user.user_id,
               email: user.email,
               previousStatus: adminStatus,
               freshStatus,
@@ -610,7 +608,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           logger.error(
             {
               correlationId,
-              userId: user.id,
+              userId: user.user_id,
               email: user.email,
               adminStatus,
               freshStatus,
@@ -625,7 +623,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         logger.warn(
           {
             correlationId,
-            userId: user.id,
+            userId: user.user_id,
             email: user.email,
             requestedRole,
             userRoles: user.roles,
@@ -637,7 +635,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
         // Check if user has an admin record (even if INACTIVE) to determine if they were previously an admin
         const adminRecord = await prisma.admin.findUnique({
-          where: { user_id: user.id },
+          where: { user_id: user.user_id },
           select: { id: true, status: true },
         });
         const wasPreviouslyAdmin = !!adminRecord;
@@ -645,7 +643,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         // Log failed admin access attempt
         await prisma.accessLog.create({
           data: {
-            user_id: user.id,
+            user_id: user.user_id,
             event_type: "LOGIN",
             portal: "admin",
             ip_address: ipAddress,
@@ -679,7 +677,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         errorUrl.searchParams.set("wasPreviouslyAdmin", wasPreviouslyAdmin ? "true" : "false");
 
         logger.info(
-          { correlationId, userId: user.id, redirectUrl: errorUrl.toString() },
+          { correlationId, userId: user.user_id, redirectUrl: errorUrl.toString() },
           "Redirecting non-admin or inactive admin user to landing page with error"
         );
 
@@ -704,7 +702,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Create access log
     await prisma.accessLog.create({
       data: {
-        user_id: user.id,
+        user_id: user.user_id,
         event_type: isSignup ? "SIGNUP" : "LOGIN",
         portal,
         ip_address: ipAddress,
@@ -729,13 +727,13 @@ router.get("/callback", async (req: Request, res: Response) => {
     logger.info(
       {
         correlationId,
-        userId: user.id,
+        userId: user.user_id,
         activeRole,
         requestedRole,
         userRoles: user.roles,
         hasRole: user.roles.includes(activeRole),
-        investorOnboarding: user.investor_onboarding_completed,
-        issuerOnboarding: user.issuer_onboarding_completed,
+        investorOnboarding: user.investor_account.length > 0,
+        issuerOnboarding: user.issuer_account.length > 0,
       },
       "Authentication successful - setting Amplify cookies"
     );
@@ -816,7 +814,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     logger.info(
       {
         correlationId,
-        userId: user.id,
+        userId: user.user_id,
         cognitoId,
         cookieDomain,
         cookiesSet: ["accessToken", "idToken", "refreshToken", "LastAuthUser", "clockDrift"],
@@ -850,8 +848,8 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     // Check onboarding status for the active role
     const onboardingCompleted =
-      (activeRole === UserRole.INVESTOR && user.investor_onboarding_completed) ||
-      (activeRole === UserRole.ISSUER && user.issuer_onboarding_completed) ||
+      (activeRole === UserRole.INVESTOR && user.investor_account.length > 0) ||
+      (activeRole === UserRole.ISSUER && user.issuer_account.length > 0) ||
       activeRole === UserRole.ADMIN;
 
     // Pass onboarding flag if user needs to complete onboarding
@@ -862,7 +860,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     logger.info(
       {
         correlationId,
-        userId: user.id,
+        userId: user.user_id,
         redirectUrl: redirectUrl.toString(),
         activeRole: activeRole.toString(),
         requestedRole,
@@ -964,11 +962,11 @@ router.get("/logout", async (req: Request, res: Response) => {
       // Get user from database
       const user = await prisma.user.findUnique({
         where: { cognito_sub: cognitoPayload.sub },
-        select: { id: true, roles: true },
+        select: { user_id: true, roles: true },
       });
 
       if (user) {
-        userId = user.id;
+        userId = user.user_id;
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
         // Determine portal from user's roles if not detected from referer
@@ -979,7 +977,7 @@ router.get("/logout", async (req: Request, res: Response) => {
         // Create access log before signing out
         await prisma.accessLog.create({
           data: {
-            user_id: user.id,
+            user_id: user.user_id,
             event_type: "LOGOUT",
             portal: portal || null,
             ip_address: ipAddress,
@@ -993,7 +991,7 @@ router.get("/logout", async (req: Request, res: Response) => {
           },
         });
 
-        logger.info({ correlationId, userId: user.id, portal }, "Logout access log created");
+        logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");
       }
     } catch (error) {
       // If token is invalid/expired, log warning but continue with logout

@@ -11,7 +11,7 @@ import {
 export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization) & {
   members: (OrganizationMember & {
     user: {
-      id: string;
+      user_id: string;
       email: string;
       first_name: string;
       last_name: string;
@@ -90,7 +90,7 @@ export class OrganizationRepository {
           include: {
             user: {
               select: {
-                id: true,
+                user_id: true,
                 email: true,
                 first_name: true,
                 last_name: true,
@@ -113,7 +113,7 @@ export class OrganizationRepository {
           include: {
             user: {
               select: {
-                id: true,
+                user_id: true,
                 email: true,
                 first_name: true,
                 last_name: true,
@@ -141,7 +141,7 @@ export class OrganizationRepository {
           include: {
             user: {
               select: {
-                id: true,
+                user_id: true,
                 email: true,
                 first_name: true,
                 last_name: true,
@@ -170,7 +170,7 @@ export class OrganizationRepository {
           include: {
             user: {
               select: {
-                id: true,
+                user_id: true,
                 email: true,
                 first_name: true,
                 last_name: true,
@@ -248,7 +248,7 @@ export class OrganizationRepository {
     return prisma.user.findUnique({
       where: { email },
       select: {
-        id: true,
+        user_id: true,
         email: true,
         first_name: true,
         last_name: true,

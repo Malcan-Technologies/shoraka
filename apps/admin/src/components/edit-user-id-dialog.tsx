@@ -34,8 +34,7 @@ type FormValues = z.infer<typeof schema>;
 
 interface EditUserIdDialogProps {
   user: {
-    id: string;
-    user_id: string | null;
+    user_id: string;
     first_name: string;
     last_name: string;
   };
@@ -66,7 +65,7 @@ export function EditUserIdDialog({
 
   const onSubmit = async (data: FormValues) => {
     const result = await updateUserId.mutateAsync({
-      userId: user.id,
+      userId: user.user_id,
       newUserId: data.userId,
     });
     

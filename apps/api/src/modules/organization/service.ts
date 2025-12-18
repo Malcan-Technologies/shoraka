@@ -215,8 +215,8 @@ export class OrganizationService {
     // Check if user is already a member
     const isMember =
       portalType === "investor"
-        ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.id)
-        : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.id);
+        ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.user_id)
+        : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.user_id);
 
     if (isMember) {
       throw new AppError(400, "ALREADY_MEMBER", "User is already a member of this organization");
@@ -228,20 +228,20 @@ export class OrganizationService {
         : OrganizationMemberRole.MEMBER;
 
     logger.info(
-      { organizationId, targetUserId: targetUser.id, role },
+      { organizationId, targetUserId: targetUser.user_id, role },
       "Adding member to organization"
     );
 
     // Add the member
     if (portalType === "investor") {
       await this.repository.addOrganizationMember({
-        userId: targetUser.id,
+        userId: targetUser.user_id,
         investorOrganizationId: organizationId,
         role,
       });
     } else {
       await this.repository.addOrganizationMember({
-        userId: targetUser.id,
+        userId: targetUser.user_id,
         issuerOrganizationId: organizationId,
         role,
       });
@@ -250,7 +250,7 @@ export class OrganizationService {
     return {
       success: true,
       member: {
-        id: targetUser.id,
+        id: targetUser.user_id,
         email: targetUser.email,
         role: input.role,
       },

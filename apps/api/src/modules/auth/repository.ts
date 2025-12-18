@@ -29,7 +29,6 @@ export class AuthRepository {
     cognitoSub: string;
     cognitoUsername: string;
     email: string;
-    emailVerified: boolean;
     roles: UserRole[];
     firstName?: string;
     lastName?: string;
@@ -50,7 +49,6 @@ export class AuthRepository {
         cognito_sub: data.cognitoSub,
         cognito_username: data.cognitoUsername,
         email: data.email,
-        email_verified: data.emailVerified,
         roles: data.roles,
         first_name: data.firstName || "",
         last_name: data.lastName || "",
@@ -60,7 +58,6 @@ export class AuthRepository {
       update: {
         cognito_username: data.cognitoUsername,
         email: data.email,
-        email_verified: data.emailVerified,
         roles: data.roles,
         ...(data.firstName && { first_name: data.firstName }),
         ...(data.lastName && { last_name: data.lastName }),
@@ -75,7 +72,7 @@ export class AuthRepository {
    * Add role to user
    */
   async addRoleToUser(userId: string, role: UserRole): Promise<User> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { user_id: userId } });
 
     if (!user) {
       throw new Error("User not found");
@@ -87,7 +84,7 @@ export class AuthRepository {
 
     // Prisma doesn't support push for arrays - need to use set with full array
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: {
         roles: {
           set: [...user.roles, role],
@@ -100,16 +97,24 @@ export class AuthRepository {
    * Update onboarding status for a specific role
    */
   async updateOnboardingStatus(userId: string, role: UserRole, completed: boolean): Promise<User> {
-    const updateData: Record<string, boolean> = {};
+    const updateData: Prisma.UserUpdateInput = {};
 
     if (role === UserRole.INVESTOR) {
-      updateData.investor_onboarding_completed = completed;
+      if (completed) {
+        updateData.investor_account = { set: ["temp"] };
+      } else {
+        updateData.investor_account = { set: [] };
+      }
     } else if (role === UserRole.ISSUER) {
-      updateData.issuer_onboarding_completed = completed;
+      if (completed) {
+        updateData.issuer_account = { set: ["temp"] };
+      } else {
+        updateData.issuer_account = { set: [] };
+      }
     } else if (role === UserRole.ADMIN) {
       // ADMIN doesn't require onboarding, but we'll still log it
       // No database field to update for ADMIN
-      return prisma.user.findUniqueOrThrow({ where: { id: userId } });
+      return prisma.user.findUniqueOrThrow({ where: { user_id: userId } });
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -117,7 +122,7 @@ export class AuthRepository {
     }
 
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: updateData,
     });
   }
@@ -142,7 +147,7 @@ export class AuthRepository {
     }
 
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: updateData,
     });
   }
@@ -152,7 +157,7 @@ export class AuthRepository {
    */
   async updatePasswordChangedAt(userId: string): Promise<User> {
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: { password_changed_at: new Date() },
     });
   }

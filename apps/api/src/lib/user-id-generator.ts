@@ -26,7 +26,7 @@ export async function generateUniqueUserId(): Promise<string> {
     // Check if ID already exists
     const existing = await prisma.user.findUnique({
       where: { user_id: userId },
-      select: { id: true },
+      select: { user_id: true },
     });
 
     if (!existing) {

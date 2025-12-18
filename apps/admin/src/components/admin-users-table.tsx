@@ -81,9 +81,11 @@ export function AdminUsersTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((user) => (
-                  <AdminUserTableRow key={user.id} user={user} onUpdate={onUpdateUser} />
-                ))
+                users
+                  .filter((user) => user.user_id) // Filter out users without user_id
+                  .map((user) => (
+                    <AdminUserTableRow key={user.user_id!} user={user} onUpdate={onUpdateUser} />
+                  ))
               )}
             </TableBody>
           </Table>

@@ -30,10 +30,8 @@ export interface UserResponse {
   first_name: string;
   last_name: string;
   phone: string | null;
-  email_verified: boolean;
-  kyc_verified: boolean;
-  investor_onboarding_completed: boolean;
-  issuer_onboarding_completed: boolean;
+  investor_account: string[];
+  issuer_account: string[];
   created_at: string;
   updated_at: string;
 }

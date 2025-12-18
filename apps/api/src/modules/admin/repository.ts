@@ -26,7 +26,7 @@ export class AdminRepository {
     users: User[];
     total: number;
   }> {
-    const { page, pageSize, search, role, kycVerified, investorOnboarded, issuerOnboarded } =
+    const { page, pageSize, search, role, investorOnboarded, issuerOnboarded } =
       params;
     const skip = (page - 1) * pageSize;
 
@@ -46,16 +46,20 @@ export class AdminRepository {
       where.roles = { has: role };
     }
 
-    if (kycVerified !== undefined) {
-      where.kyc_verified = kycVerified;
-    }
-
     if (investorOnboarded !== undefined) {
-      where.investor_onboarding_completed = investorOnboarded;
+      if (investorOnboarded) {
+        where.investor_account = { isEmpty: false };
+      } else {
+        where.investor_account = { isEmpty: true };
+      }
     }
 
     if (issuerOnboarded !== undefined) {
-      where.issuer_onboarding_completed = issuerOnboarded;
+      if (issuerOnboarded) {
+        where.issuer_account = { isEmpty: false };
+      } else {
+        where.issuer_account = { isEmpty: true };
+      }
     }
 
     const [users, total] = await Promise.all([
@@ -76,7 +80,7 @@ export class AdminRepository {
    */
   async getUserById(userId: string): Promise<User | null> {
     return prisma.user.findUnique({
-      where: { id: userId },
+      where: { user_id: userId },
       include: {
         _count: {
           select: {
@@ -94,18 +98,8 @@ export class AdminRepository {
    */
   async updateUserRoles(userId: string, roles: UserRole[]): Promise<User> {
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: { roles: { set: roles } },
-    });
-  }
-
-  /**
-   * Update user KYC status
-   */
-  async updateUserKyc(userId: string, kycVerified: boolean): Promise<User> {
-    return prisma.user.update({
-      where: { id: userId },
-      data: { kyc_verified: kycVerified },
     });
   }
 
@@ -120,10 +114,22 @@ export class AdminRepository {
     const updateData: Prisma.UserUpdateInput = {};
 
     if (data.investorOnboarded !== undefined) {
-      updateData.investor_onboarding_completed = data.investorOnboarded;
+      if (data.investorOnboarded) {
+        // Set to ['temp'] if not already set (temporary placeholder)
+        updateData.investor_account = { set: ["temp"] };
+      } else {
+        // Clear array
+        updateData.investor_account = { set: [] };
+      }
     }
     if (data.issuerOnboarded !== undefined) {
-      updateData.issuer_onboarding_completed = data.issuerOnboarded;
+      if (data.issuerOnboarded) {
+        // Set to ['temp'] if not already set (temporary placeholder)
+        updateData.issuer_account = { set: ["temp"] };
+      } else {
+        // Clear array
+        updateData.issuer_account = { set: [] };
+      }
     }
 
     if (roles !== undefined) {
@@ -131,7 +137,7 @@ export class AdminRepository {
     }
 
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: updateData,
     });
   }
@@ -156,7 +162,7 @@ export class AdminRepository {
     }
 
     return prisma.user.update({
-      where: { id: userId },
+      where: { user_id: userId },
       data: updateData,
     });
   }
@@ -383,13 +389,13 @@ export class AdminRepository {
       prisma.user.count({
         where: {
           ...where,
-          investor_onboarding_completed: true,
+          investor_account: { isEmpty: false },
         },
       }),
       prisma.user.count({
         where: {
           ...where,
-          issuer_onboarding_completed: true,
+          issuer_account: { isEmpty: false },
         },
       }),
     ]);
@@ -421,8 +427,8 @@ export class AdminRepository {
       },
       select: {
         created_at: true,
-        investor_onboarding_completed: true,
-        issuer_onboarding_completed: true,
+        investor_account: true,
+        issuer_account: true,
       },
     });
 
@@ -454,10 +460,10 @@ export class AdminRepository {
       const existing = trendMap.get(dateKey);
       if (existing) {
         existing.totalSignups++;
-        if (user.investor_onboarding_completed) {
+        if (user.investor_account.length > 0) {
           existing.investorsOnboarded++;
         }
-        if (user.issuer_onboarding_completed) {
+        if (user.issuer_account.length > 0) {
           existing.issuersOnboarded++;
         }
       }

@@ -18,8 +18,6 @@ interface UsersTableToolbarProps {
   onSearchChange: (value: string) => void;
   roleFilter: string;
   onRoleFilterChange: (value: string) => void;
-  kycFilter: string;
-  onKycFilterChange: (value: string) => void;
   investorOnboardedFilter: string;
   onInvestorOnboardedFilterChange: (value: string) => void;
   issuerOnboardedFilter: string;
@@ -36,8 +34,6 @@ export function UsersTableToolbar({
   onSearchChange,
   roleFilter,
   onRoleFilterChange,
-  kycFilter,
-  onKycFilterChange,
   investorOnboardedFilter,
   onInvestorOnboardedFilterChange,
   issuerOnboardedFilter,
@@ -53,13 +49,11 @@ export function UsersTableToolbar({
   const hasFilters =
     searchQuery !== "" ||
     roleFilter !== "all" ||
-    kycFilter !== "all" ||
     investorOnboardedFilter !== "all" ||
     issuerOnboardedFilter !== "all";
 
   const activeFilterCount = [
     roleFilter !== "all",
-    kycFilter !== "all",
     investorOnboardedFilter !== "all",
     issuerOnboardedFilter !== "all",
   ].filter(Boolean).length;
@@ -105,14 +99,6 @@ export function UsersTableToolbar({
             <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>KYC Status</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={kycFilter} onValueChange={onKycFilterChange}>
-            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="verified">Verified</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="not_verified">Not Verified</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
 
           <DropdownMenuSeparator />
