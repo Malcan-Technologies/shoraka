@@ -741,8 +741,11 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Set Cognito tokens as cookies for Amplify to read
     // Amplify expects these cookie names for its session management
     const env = getEnv();
-    const cookieDomain = process.env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost";
-    const isSecure = process.env.NODE_ENV === "production";
+    // Use COOKIE_DOMAIN from env (AWS Secrets Manager in production)
+    // Fallback to localhost for development if not set
+    const cookieDomain =
+      env.COOKIE_DOMAIN || (env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost");
+    const isSecure = env.NODE_ENV === "production";
 
     // Set access token cookie (Amplify format)
     res.cookie(`CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`, cognitoId, {

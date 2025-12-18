@@ -585,7 +585,10 @@ export class AuthService {
     };
 
     // Update cookies with new tokens
-    const cookieDomain = env.COOKIE_DOMAIN;
+    // Use COOKIE_DOMAIN from env (AWS Secrets Manager in production)
+    // Fallback to localhost for development if not set
+    const cookieDomain =
+      env.COOKIE_DOMAIN || (env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost");
     const isSecure = env.NODE_ENV === "production";
 
     // Set new access token
