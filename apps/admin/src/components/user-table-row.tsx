@@ -3,11 +3,10 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PencilIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { formatDistanceToNow } from "date-fns";
+import { PencilIcon, CheckIcon, XMarkIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { formatDistanceToNow, format } from "date-fns";
 import {
   useUpdateUserOnboarding,
   useUpdateUserProfile,
@@ -15,6 +14,7 @@ import {
 } from "../hooks/use-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
+import { cn } from "@/lib/utils";
 
 interface User {
   user_id: string;
@@ -42,10 +42,17 @@ interface UserTableRowProps {
   onCancel: () => void;
 }
 
-const roleColors: Record<string, string> = {
-  INVESTOR: "bg-blue-100 text-blue-800 border-blue-200",
-  ISSUER: "bg-purple-100 text-purple-800 border-purple-200",
-  ADMIN: "bg-red-100 text-red-800 border-red-200",
+const getRoleBadgeClasses = (role: UserRole): string => {
+  switch (role) {
+    case "INVESTOR":
+      return "border-primary/30 text-primary";
+    case "ISSUER":
+      return "border-accent/30 text-accent";
+    case "ADMIN":
+      return "border-purple-500/30 text-purple-600 bg-purple-500/10";
+    default:
+      return "";
+  }
 };
 
 export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: UserTableRowProps) {
@@ -242,39 +249,33 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               disabled
             />
           </TableCell>
-          {/* Roles */}
+          {/* Roles - Read Only */}
           <TableCell>
-            <div className="flex flex-wrap gap-1">
-              {(["INVESTOR", "ISSUER", "ADMIN"] as UserRole[]).map((role) => (
-                <Badge
-                  key={role}
-                  variant="outline"
-                  className={`text-xs ${
-                    editedUser.roles?.includes(role) ? roleColors[role] : "opacity-40"
-                  }`}
-                >
-                  {role}
+            <div className="flex flex-col gap-1">
+              {(editedUser.roles || user.roles).map((role) => (
+                <Badge key={role} variant="outline" className={cn("text-xs w-fit capitalize", getRoleBadgeClasses(role))}>
+                  {role.toLowerCase()}
                 </Badge>
               ))}
             </div>
           </TableCell>
-          {/* Investor Account */}
+          {/* Investor Orgs - Read Only */}
           <TableCell>
-            <Switch
-              checked={(editedUser.investor_account?.length ?? 0) > 0}
-              onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, investor_account: checked ? ["temp"] : [] })
-              }
-            />
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <BuildingOffice2Icon className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {user.investor_organization_count ?? user.investor_account?.length ?? 0}
+              </span>
+            </div>
           </TableCell>
-          {/* Issuer Account */}
+          {/* Issuer Orgs - Read Only */}
           <TableCell>
-            <Switch
-              checked={(editedUser.issuer_account?.length ?? 0) > 0}
-              onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, issuer_account: checked ? ["temp"] : [] })
-              }
-            />
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <BuildingOffice2Icon className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {user.issuer_organization_count ?? user.issuer_account?.length ?? 0}
+              </span>
+            </div>
           </TableCell>
           {/* Password Changed */}
           <TableCell className="text-sm text-muted-foreground">
@@ -282,39 +283,39 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               ? formatDistanceToNow(user.password_changed_at, { addSuffix: true })
               : "Never"}
           </TableCell>
-          {/* Created */}
-          <TableCell className="text-sm text-muted-foreground">
-            {formatDistanceToNow(user.created_at, { addSuffix: true })}
-          </TableCell>
-          {/* Updated */}
-          <TableCell className="text-sm text-muted-foreground">
-            {formatDistanceToNow(user.updated_at, { addSuffix: true })}
-          </TableCell>
-          {/* Actions */}
-          <TableCell>
-            <div className="flex flex-col gap-1">
-              <Button
-                size="sm"
-                onClick={handleSaveClick}
-                className="h-7 text-xs"
-                disabled={isSaving}
-              >
-                <CheckIcon className="h-3.5 w-3.5 mr-1" />
-                {isSaving ? "Saving..." : "Save"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCancel}
-                className="h-7 text-xs"
-                disabled={isSaving}
-              >
-                <XMarkIcon className="h-3.5 w-3.5 mr-1" />
-                Cancel
-              </Button>
-            </div>
-          </TableCell>
-        </TableRow>
+        {/* Created */}
+        <TableCell className="text-sm text-muted-foreground">
+          {format(new Date(user.created_at), "dd MMM yyyy")}
+        </TableCell>
+        {/* Updated */}
+        <TableCell className="text-sm text-muted-foreground">
+          {formatDistanceToNow(user.updated_at, { addSuffix: true })}
+        </TableCell>
+        {/* Actions */}
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            <Button
+              size="sm"
+              onClick={handleSaveClick}
+              className="h-7 text-xs"
+              disabled={isSaving}
+            >
+              <CheckIcon className="h-3.5 w-3.5 mr-1" />
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCancel}
+              className="h-7 text-xs"
+              disabled={isSaving}
+            >
+              <XMarkIcon className="h-3.5 w-3.5 mr-1" />
+              Cancel
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
         <EditUserDialog
           open={showConfirmDialog}
           onOpenChange={(open) => {
@@ -347,41 +348,31 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         <TableCell className="text-[15px]">{user.email}</TableCell>
         {/* Roles */}
         <TableCell>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-col gap-1">
             {user.roles.map((role) => (
-              <Badge key={role} variant="outline" className={`text-xs ${roleColors[role]}`}>
-                {role}
+              <Badge key={role} variant="outline" className={cn("text-xs w-fit capitalize", getRoleBadgeClasses(role))}>
+                {role.toLowerCase()}
               </Badge>
             ))}
           </div>
         </TableCell>
-        {/* Investor Account */}
+        {/* Investor Orgs */}
         <TableCell>
-          {user.investor_organization_count !== undefined && user.investor_organization_count > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {user.investor_organization_count} account{user.investor_organization_count !== 1 ? "s" : ""}
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <BuildingOffice2Icon className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {user.investor_organization_count ?? user.investor_account?.length ?? 0}
             </span>
-          ) : user.investor_account.length > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {user.investor_account.length} account{user.investor_account.length !== 1 ? "s" : ""}
-            </span>
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          )}
+          </div>
         </TableCell>
-        {/* Issuer Account */}
+        {/* Issuer Orgs */}
         <TableCell>
-          {user.issuer_organization_count !== undefined && user.issuer_organization_count > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {user.issuer_organization_count} account{user.issuer_organization_count !== 1 ? "s" : ""}
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <BuildingOffice2Icon className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {user.issuer_organization_count ?? user.issuer_account?.length ?? 0}
             </span>
-          ) : user.issuer_account.length > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {user.issuer_account.length} account{user.issuer_account.length !== 1 ? "s" : ""}
-            </span>
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          )}
+          </div>
         </TableCell>
         {/* Password Changed */}
         <TableCell className="text-sm text-muted-foreground">
@@ -389,22 +380,22 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
             ? formatDistanceToNow(user.password_changed_at, { addSuffix: true })
             : "Never"}
         </TableCell>
-        {/* Created */}
-        <TableCell className="text-sm text-muted-foreground">
-          {formatDistanceToNow(user.created_at, { addSuffix: true })}
-        </TableCell>
-        {/* Updated */}
-        <TableCell className="text-sm text-muted-foreground">
-          {formatDistanceToNow(user.updated_at, { addSuffix: true })}
-        </TableCell>
-        {/* Actions */}
-        <TableCell>
-          <Button size="sm" variant="ghost" onClick={onEdit} className="h-8">
-            <PencilIcon className="h-4 w-4 mr-1" />
-            Edit
-          </Button>
-        </TableCell>
-      </TableRow>
+      {/* Created */}
+      <TableCell className="text-sm text-muted-foreground">
+        {format(new Date(user.created_at), "dd MMM yyyy")}
+      </TableCell>
+      {/* Updated */}
+      <TableCell className="text-sm text-muted-foreground">
+        {formatDistanceToNow(user.updated_at, { addSuffix: true })}
+      </TableCell>
+      {/* Actions */}
+      <TableCell>
+        <Button size="sm" variant="ghost" onClick={onEdit} className="h-8">
+          <PencilIcon className="h-4 w-4 mr-1" />
+          Edit
+        </Button>
+      </TableCell>
+    </TableRow>
     </>
   );
 }

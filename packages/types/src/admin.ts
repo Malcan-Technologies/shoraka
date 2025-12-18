@@ -351,6 +351,7 @@ export interface OrganizationResponse {
   owner: OrganizationOwner;
   memberCount: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface GetOrganizationsParams extends PaginationParams {

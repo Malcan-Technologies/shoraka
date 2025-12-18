@@ -1301,6 +1301,7 @@ export class AdminService {
       };
       memberCount: number;
       createdAt: string;
+      updatedAt: string;
     }[];
     pagination: {
       page: number;
@@ -1316,6 +1317,7 @@ export class AdminService {
         ...org,
         onboardedAt: org.onboardedAt?.toISOString() ?? null,
         createdAt: org.createdAt.toISOString(),
+        updatedAt: org.updatedAt.toISOString(),
       })),
       pagination: {
         page: params.page,

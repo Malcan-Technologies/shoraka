@@ -1,14 +1,26 @@
 import { z } from "zod";
 import { UserRole, AdminRole } from "@prisma/client";
 
+// Helper for parsing boolean query params (handles "true"/"false" strings properly)
+const booleanQueryParam = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((val) => {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === "boolean") return val;
+    if (val === "true") return true;
+    if (val === "false") return false;
+    return undefined;
+  });
+
 // User listing query schema
 export const getUsersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
   role: z.nativeEnum(UserRole).optional(),
-  investorOnboarded: z.coerce.boolean().optional(),
-  issuerOnboarded: z.coerce.boolean().optional(),
+  investorOnboarded: booleanQueryParam,
+  issuerOnboarded: booleanQueryParam,
 });
 
 export type GetUsersQuery = z.infer<typeof getUsersQuerySchema>;
@@ -88,11 +100,10 @@ export const updateAdminRoleSchema = z.object({
 export type UpdateAdminRoleInput = z.infer<typeof updateAdminRoleSchema>;
 
 export const inviteAdminSchema = z.object({
-  email: z
-    .preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string().email("Please enter a valid email address").optional()
-    ),
+  email: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string().email("Please enter a valid email address").optional()
+  ),
   roleDescription: z.nativeEnum(AdminRole),
 });
 

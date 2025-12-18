@@ -47,19 +47,20 @@ export class AdminRepository {
       where.roles = { has: role };
     }
 
+    // Filter by organization ownership (investor/issuer onboarded status)
     if (investorOnboarded !== undefined) {
       if (investorOnboarded) {
-        where.investor_account = { isEmpty: false };
+        where.investor_organizations = { some: {} };
       } else {
-        where.investor_account = { isEmpty: true };
+        where.investor_organizations = { none: {} };
       }
     }
 
     if (issuerOnboarded !== undefined) {
       if (issuerOnboarded) {
-        where.issuer_account = { isEmpty: false };
+        where.issuer_organizations = { some: {} };
       } else {
-        where.issuer_account = { isEmpty: true };
+        where.issuer_organizations = { none: {} };
       }
     }
 
@@ -1295,6 +1296,7 @@ export class AdminRepository {
       };
       memberCount: number;
       createdAt: Date;
+      updatedAt: Date;
     }[];
     total: number;
   }> {
@@ -1369,6 +1371,7 @@ export class AdminRepository {
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
       created_at: Date;
+      updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
       _count: { members: number };
     }> = [];
@@ -1380,6 +1383,7 @@ export class AdminRepository {
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
       created_at: Date;
+      updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
       _count: { members: number };
     }> = [];
@@ -1426,6 +1430,7 @@ export class AdminRepository {
         },
         memberCount: org._count.members,
         createdAt: org.created_at,
+        updatedAt: org.updated_at,
       })),
       ...issuerOrgs.map((org) => ({
         id: org.id,
@@ -1443,6 +1448,7 @@ export class AdminRepository {
         },
         memberCount: org._count.members,
         createdAt: org.created_at,
+        updatedAt: org.updated_at,
       })),
     ];
 

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import type { OrganizationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -114,6 +114,11 @@ export function OrganizationsTableRow({ organization }: OrganizationsTableRowPro
       {/* Created */}
       <TableCell className="text-[15px] leading-7 text-muted-foreground">
         {format(new Date(organization.createdAt), "dd MMM yyyy")}
+      </TableCell>
+
+      {/* Updated */}
+      <TableCell className="text-sm text-muted-foreground">
+        {formatDistanceToNow(new Date(organization.updatedAt), { addSuffix: true })}
       </TableCell>
     </TableRow>
   );
