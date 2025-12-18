@@ -9,11 +9,14 @@ import {
   HomeIcon,
   DocumentTextIcon,
   UsersIcon,
+  BuildingOffice2Icon,
   ArrowTrendingUpIcon,
   Cog6ToothIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
   UserCircleIcon,
+  CheckBadgeIcon,
+  DocumentCheckIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -37,11 +40,29 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 
+const navActions = [
+  {
+    title: "Onboarding Approval",
+    url: "/onboarding-approval",
+    icon: CheckBadgeIcon,
+  },
+  {
+    title: "Note Approval",
+    url: "/note-approval",
+    icon: DocumentCheckIcon,
+  },
+];
+
 const navPlatform = [
   {
     title: "Users",
     url: "/users",
     icon: UsersIcon,
+  },
+  {
+    title: "Organizations",
+    url: "/organizations",
+    icon: BuildingOffice2Icon,
   },
   {
     title: "Notes",
@@ -78,15 +99,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-16 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
           <div className="relative w-full">
             <img
               src="/shoraka_favicon.svg"
               alt="CashSouk"
-              className="h-14 w-14 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
+              className="h-10 w-10 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
             />
-            <div className="opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
+            <div className="flex items-center opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
               <Logo />
+              <span className="ml-2 text-xs font-medium text-muted-foreground">Admin</span>
             </div>
           </div>
         </div>
@@ -103,6 +125,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navActions.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

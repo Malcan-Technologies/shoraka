@@ -21,20 +21,21 @@ import type { SignupTrendItem } from "@cashsouk/types";
 interface UserSignupsChartProps {
   data?: SignupTrendItem[];
   loading?: boolean;
+  compact?: boolean;
 }
 
 // Brand colors from BRANDING.md
 const chartConfig = {
   totalSignups: {
-    label: "Total Signups",
+    label: "User Signups",
     color: "#8A0304", // Primary Brand - Deep corporate red
   },
-  investorsOnboarded: {
-    label: "Investors Onboarded",
+  investorOrgsOnboarded: {
+    label: "Investor Orgs Onboarded",
     color: "#6F4924", // Earth Brown
   },
-  issuersOnboarded: {
-    label: "Issuers Onboarded",
+  issuerOrgsOnboarded: {
+    label: "Issuer Orgs Onboarded",
     color: "#BAA38B", // Sand Taupe
   },
 } satisfies ChartConfig;
@@ -44,16 +45,18 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function UserSignupsChart({ data, loading }: UserSignupsChartProps) {
+export function UserSignupsChart({ data, loading, compact = false }: UserSignupsChartProps) {
+  const chartHeight = compact ? 250 : 300;
+
   if (loading) {
     return (
-      <Card className="rounded-2xl shadow-sm h-full">
+      <Card className="rounded-2xl shadow-sm">
         <CardHeader className="pb-2">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3 w-48 mt-1" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[200px] w-full" />
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
     );
@@ -61,22 +64,26 @@ export function UserSignupsChart({ data, loading }: UserSignupsChartProps) {
 
   const chartData = data || [];
   const hasData = chartData.some(
-    (item) => item.totalSignups > 0 || item.investorsOnboarded > 0 || item.issuersOnboarded > 0
+    (item) =>
+      item.totalSignups > 0 || item.investorOrgsOnboarded > 0 || item.issuerOrgsOnboarded > 0
   );
 
   return (
-    <Card className="rounded-2xl shadow-sm h-full">
+    <Card className="rounded-2xl shadow-sm">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-medium">User Signup & Onboarding</CardTitle>
+        <CardTitle className="text-base font-medium">Signups & Onboarding</CardTitle>
         <CardDescription className="text-xs">Daily trends over the last 30 days</CardDescription>
       </CardHeader>
       <CardContent>
         {!hasData ? (
-          <div className="flex h-[200px] items-center justify-center text-muted-foreground text-sm">
+          <div
+            className="flex items-center justify-center text-muted-foreground text-sm"
+            style={{ height: chartHeight }}
+          >
             No signup data available for this period
           </div>
         ) : (
-          <ChartContainer config={chartConfig}>
+          <ChartContainer config={chartConfig} className="w-full" style={{ height: chartHeight }}>
             <AreaChart
               accessibilityLayer
               data={chartData}
@@ -112,17 +119,29 @@ export function UserSignupsChart({ data, loading }: UserSignupsChartProps) {
                   <stop offset="5%" stopColor="var(--color-totalSignups)" stopOpacity={0.8} />
                   <stop offset="95%" stopColor="var(--color-totalSignups)" stopOpacity={0.1} />
                 </linearGradient>
-                <linearGradient id="fillInvestorsOnboarded" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-investorsOnboarded)" stopOpacity={0.8} />
+                <linearGradient id="fillInvestorOrgsOnboarded" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-investorOrgsOnboarded)"
+                    stopOpacity={0.8}
+                  />
                   <stop
                     offset="95%"
-                    stopColor="var(--color-investorsOnboarded)"
+                    stopColor="var(--color-investorOrgsOnboarded)"
                     stopOpacity={0.1}
                   />
                 </linearGradient>
-                <linearGradient id="fillIssuersOnboarded" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-issuersOnboarded)" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="var(--color-issuersOnboarded)" stopOpacity={0.1} />
+                <linearGradient id="fillIssuerOrgsOnboarded" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-issuerOrgsOnboarded)"
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-issuerOrgsOnboarded)"
+                    stopOpacity={0.1}
+                  />
                 </linearGradient>
               </defs>
               <Area
@@ -134,19 +153,19 @@ export function UserSignupsChart({ data, loading }: UserSignupsChartProps) {
                 strokeWidth={2}
               />
               <Area
-                dataKey="investorsOnboarded"
+                dataKey="investorOrgsOnboarded"
                 type="monotone"
-                fill="url(#fillInvestorsOnboarded)"
+                fill="url(#fillInvestorOrgsOnboarded)"
                 fillOpacity={0.4}
-                stroke="var(--color-investorsOnboarded)"
+                stroke="var(--color-investorOrgsOnboarded)"
                 strokeWidth={2}
               />
               <Area
-                dataKey="issuersOnboarded"
+                dataKey="issuerOrgsOnboarded"
                 type="monotone"
-                fill="url(#fillIssuersOnboarded)"
+                fill="url(#fillIssuerOrgsOnboarded)"
                 fillOpacity={0.4}
-                stroke="var(--color-issuersOnboarded)"
+                stroke="var(--color-issuerOrgsOnboarded)"
                 strokeWidth={2}
               />
               <ChartLegend content={<ChartLegendContent />} />

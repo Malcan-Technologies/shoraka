@@ -27,6 +27,8 @@ import type {
   ExportOnboardingLogsParams,
   GetPendingInvitationsParams,
   PendingInvitationsResponse,
+  GetOrganizationsParams,
+  OrganizationsResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -217,6 +219,21 @@ export class ApiClient {
     return this.get<UsersResponse>(`/v1/admin/users?${queryParams.toString()}`);
   }
 
+  // Admin - Organization Management
+  async getOrganizations(
+    params: GetOrganizationsParams
+  ): Promise<ApiResponse<OrganizationsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.portal) queryParams.append("portal", params.portal);
+    if (params.type) queryParams.append("type", params.type);
+    if (params.onboardingStatus) queryParams.append("onboardingStatus", params.onboardingStatus);
+
+    return this.get<OrganizationsResponse>(`/v1/admin/organizations?${queryParams.toString()}`);
+  }
+
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.get<{ user: UserResponse }>(`/v1/admin/users/${id}`);
   }
@@ -278,9 +295,7 @@ export class ApiClient {
   }
 
   // Verify email with code (for unverified emails)
-  async verifyEmail(data: {
-    code: string;
-  }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
+  async verifyEmail(data: { code: string }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
     return this.post<{ success: boolean }>(`/v1/auth/verify-email`, data);
   }
 
@@ -360,7 +375,9 @@ export class ApiClient {
   async updateAdminRole(
     id: string,
     data: UpdateAdminRoleInput
-  ): Promise<ApiResponse<{ user: UserResponse; admin: { role_description: string } | null }> | ApiError> {
+  ): Promise<
+    ApiResponse<{ user: UserResponse; admin: { role_description: string } | null }> | ApiError
+  > {
     return this.put<{ user: UserResponse; admin: { role_description: string } | null }>(
       `/v1/admin/admin-users/${id}/role`,
       data
@@ -403,19 +420,25 @@ export class ApiClient {
     if (params.search) queryParams.append("search", params.search);
     if (params.roleDescription) queryParams.append("roleDescription", params.roleDescription);
 
-    return this.get<PendingInvitationsResponse>(`/v1/admin/invitations/pending?${queryParams.toString()}`);
+    return this.get<PendingInvitationsResponse>(
+      `/v1/admin/invitations/pending?${queryParams.toString()}`
+    );
   }
 
   async resendInvitation(
     invitationId: string
-  ): Promise<ApiResponse<{ messageId?: string; emailSent: boolean; emailError?: string }> | ApiError> {
+  ): Promise<
+    ApiResponse<{ messageId?: string; emailSent: boolean; emailError?: string }> | ApiError
+  > {
     return this.post<{ messageId?: string; emailSent: boolean; emailError?: string }>(
       `/v1/admin/invitations/${invitationId}/resend`,
       {}
     );
   }
 
-  async revokeInvitation(invitationId: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+  async revokeInvitation(
+    invitationId: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
     return this.delete<{ message: string }>(`/v1/admin/invitations/${invitationId}/revoke`);
   }
 
@@ -454,7 +477,9 @@ export class ApiClient {
     return this.get<OnboardingLogsResponse>(`/v1/admin/onboarding-logs?${queryParams.toString()}`);
   }
 
-  async getOnboardingLog(id: string): Promise<ApiResponse<{ log: OnboardingLogResponse }> | ApiError> {
+  async getOnboardingLog(
+    id: string
+  ): Promise<ApiResponse<{ log: OnboardingLogResponse }> | ApiError> {
     return this.get<{ log: OnboardingLogResponse }>(`/v1/admin/onboarding-logs/${id}`);
   }
 

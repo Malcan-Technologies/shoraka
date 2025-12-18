@@ -1,5 +1,13 @@
 import { AdminRepository } from "./repository";
-import { User, AccessLog, UserRole, Prisma, AdminRole, OnboardingLog, SecurityLog } from "@prisma/client";
+import {
+  User,
+  AccessLog,
+  UserRole,
+  Prisma,
+  AdminRole,
+  OnboardingLog,
+  SecurityLog,
+} from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
@@ -92,7 +100,7 @@ export class AdminService {
           "ADMIN role removed - deactivating admin record"
         );
         await this.repository.updateAdminStatus(userId, "INACTIVE");
-        
+
         // Log security event for admin deactivation via role removal
         const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
         await this.repository.createSecurityLog({
@@ -116,16 +124,21 @@ export class AdminService {
     // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
     if (adminRoleAdded) {
       const admin = await this.repository.getAdminByUserId(userId);
-      
+
       if (admin) {
         // Admin record exists - reactivate it (preserving existing role_description)
         if (admin.status === "INACTIVE") {
           logger.info(
-            { userId, email: user.email, roleDescription: admin.role_description, activatedBy: adminUserId },
+            {
+              userId,
+              email: user.email,
+              roleDescription: admin.role_description,
+              activatedBy: adminUserId,
+            },
             "ADMIN role added - reactivating existing admin record with previous role description"
           );
           await this.repository.updateAdminStatus(userId, "ACTIVE");
-          
+
           // Log security event for admin reactivation via role addition
           const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
           await this.repository.createSecurityLog({
@@ -239,10 +252,13 @@ export class AdminService {
 
     // Create onboarding logs for the target user(s) when their onboarding status is updated
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    
+
     // Create onboarding log for investor if status changed
     const previousInvestorOnboarded = user.investor_account.length > 0;
-    if (data.investorOnboarded !== undefined && data.investorOnboarded !== previousInvestorOnboarded) {
+    if (
+      data.investorOnboarded !== undefined &&
+      data.investorOnboarded !== previousInvestorOnboarded
+    ) {
       await this.repository.createOnboardingLog({
         userId: userId,
         role: UserRole.INVESTOR,
@@ -302,7 +318,8 @@ export class AdminService {
     // Admins can always edit names (no restrictions)
     // Note: This is the admin service, so admins can edit any user's name
     const isChangingName = data.firstName !== undefined || data.lastName !== undefined;
-    const hasCompletedOnboarding = user.investor_account.length > 0 || user.issuer_account.length > 0;
+    const hasCompletedOnboarding =
+      user.investor_account.length > 0 || user.issuer_account.length > 0;
 
     const updatedUser = await this.repository.updateUserProfile(userId, data);
 
@@ -415,19 +432,33 @@ export class AdminService {
     signupTrends: {
       date: string;
       totalSignups: number;
-      investorsOnboarded: number;
-      issuersOnboarded: number;
+      investorOrgsOnboarded: number;
+      issuerOrgsOnboarded: number;
     }[];
+    organizations: {
+      investor: {
+        total: number;
+        personal: { total: number; onboarded: number; pending: number };
+        company: { total: number; onboarded: number; pending: number };
+      };
+      issuer: {
+        total: number;
+        personal: { total: number; onboarded: number; pending: number };
+        company: { total: number; onboarded: number; pending: number };
+      };
+    };
   }> {
     const TREND_PERIOD_DAYS = 30;
 
     // Get all stats in parallel
-    const [totalStats, currentPeriodStats, previousPeriodStats, signupTrends] = await Promise.all([
-      this.repository.getUserStats(),
-      this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
-      this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
-      this.repository.getSignupTrends(TREND_PERIOD_DAYS),
-    ]);
+    const [totalStats, currentPeriodStats, previousPeriodStats, signupTrends, organizationStats] =
+      await Promise.all([
+        this.repository.getUserStats(),
+        this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
+        this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
+        this.repository.getSignupTrends(TREND_PERIOD_DAYS),
+        this.repository.getOrganizationStats(),
+      ]);
 
     // Calculate percentage changes
     const calculatePercentageChange = (current: number, previous: number): number => {
@@ -472,6 +503,7 @@ export class AdminService {
         },
       },
       signupTrends,
+      organizations: organizationStats,
     };
   }
 
@@ -506,7 +538,9 @@ export class AdminService {
    * Get admin users list
    */
   async getAdminUsers(params: GetAdminUsersQuery): Promise<{
-    users: (User & { admin: { role_description: AdminRole; status: string; last_login: Date | null } | null })[];
+    users: (User & {
+      admin: { role_description: AdminRole; status: string; last_login: Date | null } | null;
+    })[];
     pagination: {
       page: number;
       pageSize: number;
@@ -584,11 +618,7 @@ export class AdminService {
    * Removes ADMIN role from user.roles to sync with /users page
    * User will not be able to access admin portal until reactivated
    */
-  async deactivateAdmin(
-    req: Request,
-    userId: string,
-    deactivatedBy: string
-  ): Promise<User> {
+  async deactivateAdmin(req: Request, userId: string, deactivatedBy: string): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
@@ -596,7 +626,7 @@ export class AdminService {
 
     // Check if admin record exists
     let admin = await this.repository.getAdminByUserId(userId);
-    
+
     // If no admin record exists, create one with SUPER_ADMIN as default role
     // This handles cases where users have ADMIN role but no admin record
     if (!admin) {
@@ -647,11 +677,7 @@ export class AdminService {
    * Creates admin record if it doesn't exist (for users with ADMIN role but no admin record)
    * Adds ADMIN role to user.roles to sync with /users page
    */
-  async reactivateAdmin(
-    req: Request,
-    userId: string,
-    reactivatedBy: string
-  ): Promise<User> {
+  async reactivateAdmin(req: Request, userId: string, reactivatedBy: string): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
@@ -669,7 +695,7 @@ export class AdminService {
 
     // Check if admin record exists
     let admin = await this.repository.getAdminByUserId(userId);
-    
+
     // If no admin record exists, create one with SUPER_ADMIN as default role
     // This handles cases where users have ADMIN role but no admin record
     if (!admin) {
@@ -684,7 +710,7 @@ export class AdminService {
       if (admin.status === "ACTIVE") {
         throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
       }
-      
+
       // Update admin status to ACTIVE
       await this.repository.updateAdminStatus(userId, "ACTIVE");
     }
@@ -782,12 +808,12 @@ export class AdminService {
     let messageId: string | undefined;
     let emailSent = false;
     let emailError: string | undefined;
-    
+
     if (data.email) {
       try {
         const inviterName = `${inviter.first_name} ${inviter.last_name}`;
         const template = adminInvitationTemplate(inviteUrl, data.roleDescription, inviterName);
-        
+
         const result = await sendEmail({
           to: data.email,
           subject: template.subject,
@@ -811,7 +837,7 @@ export class AdminService {
         // Log error but don't fail the request - invitation link is still valid
         emailSent = false;
         emailError = error instanceof Error ? error.message : String(error);
-        
+
         logger.warn(
           {
             email: data.email,
@@ -845,9 +871,12 @@ export class AdminService {
     req: Request,
     data: AcceptInvitationInput,
     authenticatedUser?: User
-  ): Promise<{ user: User; admin: { role_description: AdminRole; status: "ACTIVE" | "INACTIVE" } }> {
+  ): Promise<{
+    user: User;
+    admin: { role_description: AdminRole; status: "ACTIVE" | "INACTIVE" };
+  }> {
     const invitation = await this.repository.getAdminInvitationByToken(data.token);
-    
+
     if (!invitation) {
       throw new AppError(404, "NOT_FOUND", "Invitation not found");
     }
@@ -863,11 +892,15 @@ export class AdminService {
     // Find user - if invitation has a placeholder email, use authenticated user
     // Otherwise, find by invitation email
     let user: User | null = null;
-    
+
     if (invitation.email.startsWith("invitation-") && invitation.email.includes("@cashsouk.com")) {
       // This is a link-based invitation - use authenticated user from OAuth callback
       if (!authenticatedUser) {
-        throw new AppError(400, "VALIDATION_ERROR", "Link-based invitations require authentication");
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "Link-based invitations require authentication"
+        );
       }
       user = authenticatedUser;
     } else {
@@ -929,7 +962,7 @@ export class AdminService {
     const refreshedAdmin = await this.repository.getAdminByUserId(user.user_id);
     return {
       user: updatedUser!,
-      admin: { 
+      admin: {
         role_description: refreshedAdmin?.role_description || admin.role_description,
         status: (refreshedAdmin?.status || admin.status) as "ACTIVE" | "INACTIVE",
       },
@@ -975,9 +1008,7 @@ export class AdminService {
   /**
    * Export security logs
    */
-  async exportSecurityLogs(
-    params: Omit<GetSecurityLogsQuery, "page" | "pageSize">
-  ): Promise<
+  async exportSecurityLogs(params: Omit<GetSecurityLogsQuery, "page" | "pageSize">): Promise<
     (SecurityLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
     })[]
@@ -1022,7 +1053,7 @@ export class AdminService {
     invitedBy: string
   ): Promise<{ messageId?: string; emailSent: boolean; emailError?: string }> {
     const invitation = await this.repository.getAdminInvitationById(invitationId);
-    
+
     if (!invitation) {
       throw new AppError(404, "NOT_FOUND", "Invitation not found");
     }
@@ -1056,7 +1087,7 @@ export class AdminService {
     try {
       const inviterName = `${inviter.first_name} ${inviter.last_name}`;
       const template = adminInvitationTemplate(inviteUrl, invitation.role_description, inviterName);
-      
+
       const result = await sendEmail({
         to: invitation.email,
         subject: template.subject,
@@ -1079,7 +1110,7 @@ export class AdminService {
     } catch (error) {
       emailSent = false;
       emailError = error instanceof Error ? error.message : String(error);
-      
+
       logger.warn(
         {
           email: invitation.email,
@@ -1099,7 +1130,7 @@ export class AdminService {
    */
   async revokeInvitation(req: Request, invitationId: string, revokedBy: string): Promise<void> {
     const invitation = await this.repository.getAdminInvitationById(invitationId);
-    
+
     if (!invitation) {
       throw new AppError(404, "NOT_FOUND", "Invitation not found");
     }
@@ -1157,9 +1188,7 @@ export class AdminService {
   /**
    * Export onboarding logs
    */
-  async exportOnboardingLogs(
-    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
-  ): Promise<
+  async exportOnboardingLogs(params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">): Promise<
     (OnboardingLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
     })[]
@@ -1243,5 +1272,57 @@ export class AdminService {
     );
 
     return updatedUser;
+  }
+
+  /**
+   * Get all organizations (investor + issuer) with pagination and filters
+   */
+  async getOrganizations(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    portal?: "investor" | "issuer";
+    type?: "PERSONAL" | "COMPANY";
+    onboardingStatus?: "PENDING" | "COMPLETED";
+  }): Promise<{
+    organizations: {
+      id: string;
+      portal: "investor" | "issuer";
+      type: "PERSONAL" | "COMPANY";
+      name: string | null;
+      registrationNumber: string | null;
+      onboardingStatus: "PENDING" | "COMPLETED";
+      onboardedAt: string | null;
+      owner: {
+        userId: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+      };
+      memberCount: number;
+      createdAt: string;
+    }[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const result = await this.repository.getOrganizations(params);
+
+    return {
+      organizations: result.organizations.map((org) => ({
+        ...org,
+        onboardedAt: org.onboardedAt?.toISOString() ?? null,
+        createdAt: org.createdAt.toISOString(),
+      })),
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount: result.total,
+        totalPages: Math.ceil(result.total / params.pageSize),
+      },
+    };
   }
 }

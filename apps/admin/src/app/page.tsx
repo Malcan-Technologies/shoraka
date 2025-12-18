@@ -1,11 +1,11 @@
 "use client";
 
-import { UserSignupsChart } from "../components/user-signups-chart";
-import { UserStatsCard } from "../components/user-stats-card";
 import { SystemHealthIndicator } from "../components/system-health-indicator";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import { useDashboardStats } from "../hooks/use-dashboard-stats";
+import { QuickActionsSection } from "../components/quick-actions-section";
+import { PlatformSection } from "../components/platform-section";
 
 export default function AdminHomePage() {
   const { data: stats, isLoading } = useDashboardStats();
@@ -22,25 +22,24 @@ export default function AdminHomePage() {
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-8 p-2 md:p-4">
-          {/* Users Section */}
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Users</h2>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <UserStatsCard
-                total={stats?.users.total}
-                investorsOnboarded={stats?.users.investorsOnboarded}
-                issuersOnboarded={stats?.users.issuersOnboarded}
-                loading={isLoading}
-              />
-              <UserSignupsChart data={stats?.signupTrends} loading={isLoading} />
-            </div>
-          </section>
+          {/* Quick Actions Section */}
+          <QuickActionsSection loading={isLoading} />
 
-          {/* Future sections will be added here as features are built:
-              - Loans Section (loan applications, approvals, etc.)
-              - Investments Section (total investments, active investments, etc.)
-              - Payments Section (repayments, disbursements, etc.)
-          */}
+          {/* Platform Overview Section */}
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Platform</h2>
+              <p className="text-sm text-muted-foreground">
+                Users and organization statistics
+              </p>
+            </div>
+            <PlatformSection
+              users={stats?.users}
+              organizations={stats?.organizations}
+              signupTrends={stats?.signupTrends}
+              loading={isLoading}
+            />
+          </section>
         </div>
       </div>
     </>

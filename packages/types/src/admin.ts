@@ -120,14 +120,31 @@ export interface ExportAccessLogsParams extends Omit<GetAccessLogsParams, "page"
 export interface SignupTrendItem {
   date: string;
   totalSignups: number;
-  investorsOnboarded: number;
-  issuersOnboarded: number;
+  investorOrgsOnboarded: number;
+  issuerOrgsOnboarded: number;
 }
 
 export interface UserStatsWithTrend {
   current: number;
   previous: number;
   percentageChange: number;
+}
+
+export interface OrganizationTypeStats {
+  total: number;
+  onboarded: number;
+  pending: number;
+}
+
+export interface PortalOrganizationStats {
+  total: number;
+  personal: OrganizationTypeStats;
+  company: OrganizationTypeStats;
+}
+
+export interface OrganizationStats {
+  investor: PortalOrganizationStats;
+  issuer: PortalOrganizationStats;
 }
 
 export interface DashboardStatsResponse {
@@ -137,6 +154,7 @@ export interface DashboardStatsResponse {
     issuersOnboarded: UserStatsWithTrend;
   };
   signupTrends: SignupTrendItem[];
+  organizations: OrganizationStats;
 }
 
 // Admin Management Types
@@ -233,7 +251,10 @@ export interface SecurityLogsResponse {
 }
 
 // Onboarding Logs Types
-export type OnboardingEventType = "ONBOARDING_STARTED" | "ONBOARDING_COMPLETED" | "ONBOARDING_STATUS_UPDATED";
+export type OnboardingEventType =
+  | "ONBOARDING_STARTED"
+  | "ONBOARDING_COMPLETED"
+  | "ONBOARDING_STATUS_UPDATED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -299,5 +320,42 @@ export interface GetPendingInvitationsParams extends PaginationParams {
 
 export interface PendingInvitationsResponse {
   invitations: PendingInvitation[];
+  pagination: PaginationResponse;
+}
+
+// Organization Types
+export type PortalType = "investor" | "issuer";
+export type OrganizationTypeEnum = "PERSONAL" | "COMPANY";
+export type OnboardingStatusEnum = "PENDING" | "COMPLETED";
+
+export interface OrganizationOwner {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface OrganizationResponse {
+  id: string;
+  portal: PortalType;
+  type: OrganizationTypeEnum;
+  name: string | null;
+  registrationNumber: string | null;
+  onboardingStatus: OnboardingStatusEnum;
+  onboardedAt: string | null;
+  owner: OrganizationOwner;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface GetOrganizationsParams extends PaginationParams {
+  search?: string;
+  portal?: PortalType;
+  type?: OrganizationTypeEnum;
+  onboardingStatus?: OnboardingStatusEnum;
+}
+
+export interface OrganizationsResponse {
+  organizations: OrganizationResponse[];
   pagination: PaginationResponse;
 }

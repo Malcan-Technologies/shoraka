@@ -169,3 +169,15 @@ export const exportOnboardingLogsQuerySchema = getOnboardingLogsQuerySchema.exte
 });
 
 export type ExportOnboardingLogsQuery = z.infer<typeof exportOnboardingLogsQuerySchema>;
+
+// Organizations query schema
+export const getOrganizationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  portal: z.enum(["investor", "issuer"]).optional(),
+  type: z.enum(["PERSONAL", "COMPANY"]).optional(),
+  onboardingStatus: z.enum(["PENDING", "COMPLETED"]).optional(),
+});
+
+export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;

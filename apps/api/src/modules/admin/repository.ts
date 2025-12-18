@@ -9,6 +9,8 @@ import {
   SecurityLog,
   AdminRole,
   OnboardingLog,
+  OrganizationType,
+  OnboardingStatus,
 } from "@prisma/client";
 import type {
   GetUsersQuery,
@@ -26,8 +28,7 @@ export class AdminRepository {
     users: User[];
     total: number;
   }> {
-    const { page, pageSize, search, role, investorOnboarded, issuerOnboarded } =
-      params;
+    const { page, pageSize, search, role, investorOnboarded, issuerOnboarded } = params;
     const skip = (page - 1) * pageSize;
 
     // Build where clause
@@ -404,41 +405,141 @@ export class AdminRepository {
   }
 
   /**
+   * Get organization statistics for dashboard
+   */
+  async getOrganizationStats(): Promise<{
+    investor: {
+      total: number;
+      personal: { total: number; onboarded: number; pending: number };
+      company: { total: number; onboarded: number; pending: number };
+    };
+    issuer: {
+      total: number;
+      personal: { total: number; onboarded: number; pending: number };
+      company: { total: number; onboarded: number; pending: number };
+    };
+  }> {
+    // Get all investor organization counts in parallel
+    const [
+      investorTotal,
+      investorPersonalTotal,
+      investorPersonalOnboarded,
+      investorCompanyTotal,
+      investorCompanyOnboarded,
+      issuerTotal,
+      issuerPersonalTotal,
+      issuerPersonalOnboarded,
+      issuerCompanyTotal,
+      issuerCompanyOnboarded,
+    ] = await Promise.all([
+      // Investor organizations
+      prisma.investorOrganization.count(),
+      prisma.investorOrganization.count({
+        where: { type: OrganizationType.PERSONAL },
+      }),
+      prisma.investorOrganization.count({
+        where: { type: OrganizationType.PERSONAL, onboarding_status: OnboardingStatus.COMPLETED },
+      }),
+      prisma.investorOrganization.count({
+        where: { type: OrganizationType.COMPANY },
+      }),
+      prisma.investorOrganization.count({
+        where: { type: OrganizationType.COMPANY, onboarding_status: OnboardingStatus.COMPLETED },
+      }),
+      // Issuer organizations
+      prisma.issuerOrganization.count(),
+      prisma.issuerOrganization.count({
+        where: { type: OrganizationType.PERSONAL },
+      }),
+      prisma.issuerOrganization.count({
+        where: { type: OrganizationType.PERSONAL, onboarding_status: OnboardingStatus.COMPLETED },
+      }),
+      prisma.issuerOrganization.count({
+        where: { type: OrganizationType.COMPANY },
+      }),
+      prisma.issuerOrganization.count({
+        where: { type: OrganizationType.COMPANY, onboarding_status: OnboardingStatus.COMPLETED },
+      }),
+    ]);
+
+    return {
+      investor: {
+        total: investorTotal,
+        personal: {
+          total: investorPersonalTotal,
+          onboarded: investorPersonalOnboarded,
+          pending: investorPersonalTotal - investorPersonalOnboarded,
+        },
+        company: {
+          total: investorCompanyTotal,
+          onboarded: investorCompanyOnboarded,
+          pending: investorCompanyTotal - investorCompanyOnboarded,
+        },
+      },
+      issuer: {
+        total: issuerTotal,
+        personal: {
+          total: issuerPersonalTotal,
+          onboarded: issuerPersonalOnboarded,
+          pending: issuerPersonalTotal - issuerPersonalOnboarded,
+        },
+        company: {
+          total: issuerCompanyTotal,
+          onboarded: issuerCompanyOnboarded,
+          pending: issuerCompanyTotal - issuerCompanyOnboarded,
+        },
+      },
+    };
+  }
+
+  /**
    * Get daily signup trends for the specified number of days
+   * Shows user signups and organization onboarding completions
    */
   async getSignupTrends(days: number): Promise<
     {
       date: string;
       totalSignups: number;
-      investorsOnboarded: number;
-      issuersOnboarded: number;
+      investorOrgsOnboarded: number;
+      issuerOrgsOnboarded: number;
     }[]
   > {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
-    // Get all users created in the period
-    const users = await prisma.user.findMany({
-      where: {
-        created_at: {
-          gte: startDate,
+    // Get all data in parallel
+    const [users, investorOrgs, issuerOrgs] = await Promise.all([
+      // User signups
+      prisma.user.findMany({
+        where: { created_at: { gte: startDate } },
+        select: { created_at: true },
+      }),
+      // Investor organizations that completed onboarding
+      prisma.investorOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          updated_at: { gte: startDate },
         },
-      },
-      select: {
-        created_at: true,
-        investor_account: true,
-        issuer_account: true,
-      },
-    });
+        select: { updated_at: true },
+      }),
+      // Issuer organizations that completed onboarding
+      prisma.issuerOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          updated_at: { gte: startDate },
+        },
+        select: { updated_at: true },
+      }),
+    ]);
 
     // Group by date
     const trendMap = new Map<
       string,
       {
         totalSignups: number;
-        investorsOnboarded: number;
-        issuersOnboarded: number;
+        investorOrgsOnboarded: number;
+        issuerOrgsOnboarded: number;
       }
     >();
 
@@ -449,23 +550,35 @@ export class AdminRepository {
       const dateKey = date.toISOString().split("T")[0];
       trendMap.set(dateKey, {
         totalSignups: 0,
-        investorsOnboarded: 0,
-        issuersOnboarded: 0,
+        investorOrgsOnboarded: 0,
+        issuerOrgsOnboarded: 0,
       });
     }
 
-    // Aggregate user data
+    // Aggregate user signups
     for (const user of users) {
       const dateKey = user.created_at.toISOString().split("T")[0];
       const existing = trendMap.get(dateKey);
       if (existing) {
         existing.totalSignups++;
-        if (user.investor_account.length > 0) {
-          existing.investorsOnboarded++;
-        }
-        if (user.issuer_account.length > 0) {
-          existing.issuersOnboarded++;
-        }
+      }
+    }
+
+    // Aggregate investor org onboardings
+    for (const org of investorOrgs) {
+      const dateKey = org.updated_at.toISOString().split("T")[0];
+      const existing = trendMap.get(dateKey);
+      if (existing) {
+        existing.investorOrgsOnboarded++;
+      }
+    }
+
+    // Aggregate issuer org onboardings
+    for (const org of issuerOrgs) {
+      const dateKey = org.updated_at.toISOString().split("T")[0];
+      const existing = trendMap.get(dateKey);
+      if (existing) {
+        existing.issuerOrgsOnboarded++;
       }
     }
 
@@ -1119,5 +1232,196 @@ export class AdminRepository {
         },
       },
     });
+  }
+
+  /**
+   * Get all organizations (investor + issuer) with pagination and filters
+   */
+  async getOrganizations(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    portal?: "investor" | "issuer";
+    type?: "PERSONAL" | "COMPANY";
+    onboardingStatus?: "PENDING" | "COMPLETED";
+  }): Promise<{
+    organizations: {
+      id: string;
+      portal: "investor" | "issuer";
+      type: "PERSONAL" | "COMPANY";
+      name: string | null;
+      registrationNumber: string | null;
+      onboardingStatus: "PENDING" | "COMPLETED";
+      onboardedAt: Date | null;
+      owner: {
+        userId: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+      };
+      memberCount: number;
+      createdAt: Date;
+    }[];
+    total: number;
+  }> {
+    const { page, pageSize, search, portal, type, onboardingStatus } = params;
+
+    // Build where clauses for both tables
+    const buildWhere = () => {
+      const where: {
+        type?: OrganizationType;
+        onboarding_status?: OnboardingStatus;
+        OR?: Array<{
+          name?: { contains: string; mode: "insensitive" };
+          registration_number?: { contains: string; mode: "insensitive" };
+          owner?: {
+            OR: Array<{
+              first_name?: { contains: string; mode: "insensitive" };
+              last_name?: { contains: string; mode: "insensitive" };
+              email?: { contains: string; mode: "insensitive" };
+            }>;
+          };
+        }>;
+      } = {};
+
+      if (type) {
+        where.type = type as OrganizationType;
+      }
+
+      if (onboardingStatus) {
+        where.onboarding_status = onboardingStatus as OnboardingStatus;
+      }
+
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" } },
+          { registration_number: { contains: search, mode: "insensitive" } },
+          {
+            owner: {
+              OR: [
+                { first_name: { contains: search, mode: "insensitive" } },
+                { last_name: { contains: search, mode: "insensitive" } },
+                { email: { contains: search, mode: "insensitive" } },
+              ],
+            },
+          },
+        ];
+      }
+
+      return where;
+    };
+
+    const where = buildWhere();
+    const include = {
+      owner: {
+        select: {
+          user_id: true,
+          email: true,
+          first_name: true,
+          last_name: true,
+        },
+      },
+      _count: {
+        select: { members: true },
+      },
+    };
+
+    // Fetch from both tables based on portal filter
+    let investorOrgs: Array<{
+      id: string;
+      type: OrganizationType;
+      name: string | null;
+      registration_number: string | null;
+      onboarding_status: OnboardingStatus;
+      onboarded_at: Date | null;
+      created_at: Date;
+      owner: { user_id: string | null; email: string; first_name: string; last_name: string };
+      _count: { members: number };
+    }> = [];
+    let issuerOrgs: Array<{
+      id: string;
+      type: OrganizationType;
+      name: string | null;
+      registration_number: string | null;
+      onboarding_status: OnboardingStatus;
+      onboarded_at: Date | null;
+      created_at: Date;
+      owner: { user_id: string | null; email: string; first_name: string; last_name: string };
+      _count: { members: number };
+    }> = [];
+    let investorCount = 0;
+    let issuerCount = 0;
+
+    if (!portal || portal === "investor") {
+      [investorOrgs, investorCount] = await Promise.all([
+        prisma.investorOrganization.findMany({
+          where,
+          include,
+          orderBy: { created_at: "desc" },
+        }),
+        prisma.investorOrganization.count({ where }),
+      ]);
+    }
+
+    if (!portal || portal === "issuer") {
+      [issuerOrgs, issuerCount] = await Promise.all([
+        prisma.issuerOrganization.findMany({
+          where,
+          include,
+          orderBy: { created_at: "desc" },
+        }),
+        prisma.issuerOrganization.count({ where }),
+      ]);
+    }
+
+    // Combine and transform results
+    const allOrgs = [
+      ...investorOrgs.map((org) => ({
+        id: org.id,
+        portal: "investor" as const,
+        type: org.type as "PERSONAL" | "COMPANY",
+        name: org.name,
+        registrationNumber: org.registration_number,
+        onboardingStatus: org.onboarding_status as "PENDING" | "COMPLETED",
+        onboardedAt: org.onboarded_at,
+        owner: {
+          userId: org.owner.user_id || "",
+          email: org.owner.email,
+          firstName: org.owner.first_name,
+          lastName: org.owner.last_name,
+        },
+        memberCount: org._count.members,
+        createdAt: org.created_at,
+      })),
+      ...issuerOrgs.map((org) => ({
+        id: org.id,
+        portal: "issuer" as const,
+        type: org.type as "PERSONAL" | "COMPANY",
+        name: org.name,
+        registrationNumber: org.registration_number,
+        onboardingStatus: org.onboarding_status as "PENDING" | "COMPLETED",
+        onboardedAt: org.onboarded_at,
+        owner: {
+          userId: org.owner.user_id || "",
+          email: org.owner.email,
+          firstName: org.owner.first_name,
+          lastName: org.owner.last_name,
+        },
+        memberCount: org._count.members,
+        createdAt: org.created_at,
+      })),
+    ];
+
+    // Sort by created_at desc
+    allOrgs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    // Apply pagination
+    const skip = (page - 1) * pageSize;
+    const paginatedOrgs = allOrgs.slice(skip, skip + pageSize);
+
+    return {
+      organizations: paginatedOrgs,
+      total: investorCount + issuerCount,
+    };
   }
 }

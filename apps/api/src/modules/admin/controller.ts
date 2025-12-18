@@ -21,6 +21,7 @@ import {
   exportOnboardingLogsQuerySchema,
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
+  getOrganizationsQuerySchema,
 } from "./schemas";
 
 const router = Router();
@@ -272,6 +273,67 @@ router.get(
           ? error
           : new AppError(500, "INTERNAL_ERROR", "Failed to fetch dashboard statistics")
       );
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/organizations:
+ *   get:
+ *     summary: List all organizations with pagination and filters (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: portal
+ *         schema:
+ *           type: string
+ *           enum: [investor, issuer]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [PERSONAL, COMPANY]
+ *       - in: query
+ *         name: onboardingStatus
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, COMPLETED]
+ *     responses:
+ *       200:
+ *         description: Organizations list with pagination
+ */
+router.get(
+  "/organizations",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getOrganizationsQuerySchema.parse(req.query);
+      const result = await adminService.getOrganizations(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
 );

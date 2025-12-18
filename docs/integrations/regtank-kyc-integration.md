@@ -152,6 +152,7 @@ RegTank has provided us with both **Production** and **Trial/Sandbox** environme
 **All config (URLs + credentials):** Stored in AWS Secrets Manager at `cashsouk/staging/regtank`
 
 **Trial/Sandbox Credentials:**
+
 - **Client ID**: `6c3eb4f4-3402-45a3-8707-a365059e7581`
 - **Client Secret**: `88b2d5fe7d5ac366f0d7b59f67bf9ee4`
 
@@ -162,6 +163,7 @@ RegTank has provided us with both **Production** and **Trial/Sandbox** environme
 RegTank uses OAuth2 client credentials flow. This is **server-to-server authentication** - our backend authenticates with RegTank, not the end users.
 
 **Key Points:**
+
 - **Backend-only authentication**: Users never log into RegTank directly
 - **Automatic**: OAuth happens automatically in our backend when a user initiates KYC
 - **No user interaction**: Users are not involved in the authentication process
@@ -223,6 +225,7 @@ Based on our implementation plan, the flow works as follows:
 ### Prerequisites
 
 Before creating an onboarding request, ensure:
+
 1. **OAuth Authentication**: Backend authenticates with RegTank OAuth server to obtain `access_token` (server-to-server, no user login)
 2. **User Data Parsing**: Parse user's `firstName` and `lastName` from our database fields (`user.first_name` → `forename`, `user.last_name` → `surname`)
 3. **Webhook Configuration**: Webhook URL is configured/sent when creating the onboarding request (one-time setup per environment, but URL is included in each request)
@@ -268,6 +271,7 @@ Content-Type: application/json; charset=utf-8
 ```
 
 **Key Implementation Notes:**
+
 - **Data Parsing**: `forename` and `surname` must be parsed from our user database fields (`user.first_name` → `forename`, `user.last_name` → `surname`)
 - **Webhook Configuration**: Webhook URL is included/configured when creating the onboarding request (see Webhooks section for one-time setup)
 - **Reference ID**: `referenceId` must be our internal user ID to match webhook payloads to users
@@ -499,6 +503,108 @@ RegTank provides a web-based admin portal where CashSouk staff can view and mana
 
 > **Note:** Access credentials for the admin portal should be requested separately from RegTank.
 
+## Admin Approval Flow (CashSouk Admin Portal)
+
+After users complete their onboarding on RegTank's side, CashSouk admins must review and approve the applications. The approval flow differs between Personal (Individual) and Company onboarding.
+
+### Two-Step RegTank Approval Process
+
+On RegTank's side, there are **two approval steps** that must be completed in order:
+
+1. **Onboarding Approval** - Review the submitted ID documents and liveness check results
+2. **AML Approval** - Review the Anti-Money Laundering screening results
+
+Both steps are performed in the RegTank admin portal.
+
+### Personal Onboarding Flow (Investors)
+
+Personal onboarding is simpler as it goes directly to RegTank for approval:
+
+```
+User completes onboarding on RegTank
+           ↓
+Status: WAIT_FOR_APPROVAL (appears in our admin queue)
+           ↓
+Admin opens RegTank Portal → Onboarding Approval
+           ↓
+Admin opens RegTank Portal → AML Approval
+           ↓
+Webhook received → User status updated to APPROVED
+```
+
+**Admin Steps:**
+
+1. Review application details in CashSouk Admin Portal
+2. Click "Open RegTank Portal" to access the RegTank admin interface
+3. Search for the user by email in RegTank
+4. Complete Onboarding Approval (review ID documents and liveness)
+5. Complete AML Approval (review sanctions/watchlist screening)
+6. Return to CashSouk - status updates automatically via webhook
+
+### Company Onboarding Flow (Issuers)
+
+Company onboarding has an **additional internal step** - SSM (Suruhanjaya Syarikat Malaysia) verification must be done on our side before proceeding to RegTank:
+
+```
+User completes onboarding on RegTank
+           ↓
+Status: PENDING_SSM_REVIEW (appears in our admin queue)
+           ↓
+Admin verifies company against SSM records (internal)
+           ↓
+SSM Approved → Status: SSM_APPROVED
+           ↓
+Admin opens RegTank Portal → Onboarding Approval
+           ↓
+Admin opens RegTank Portal → AML Approval
+           ↓
+Webhook received → User status updated to APPROVED
+```
+
+**Admin Steps:**
+
+1. Review application and company details in CashSouk Admin Portal
+2. **SSM Verification (Internal):**
+   - Verify company name matches SSM records
+   - Confirm SSM registration number is valid and active
+   - Check business address matches registered address
+   - Verify listed directors match SSM records
+   - Approve or reject SSM verification
+3. After SSM approval, click "Open RegTank Portal"
+4. Complete Onboarding Approval in RegTank
+5. Complete AML Approval in RegTank
+6. Return to CashSouk - status updates automatically via webhook
+
+### Internal Status Tracking
+
+CashSouk tracks the following approval statuses:
+
+| Status               | Description                                  | Applies To       |
+| -------------------- | -------------------------------------------- | ---------------- |
+| `PENDING_SSM_REVIEW` | Awaiting internal SSM verification           | Company only     |
+| `SSM_APPROVED`       | SSM verified, awaiting RegTank onboarding    | Company only     |
+| `PENDING_ONBOARDING` | Awaiting onboarding approval in RegTank      | Personal/Company |
+| `PENDING_AML`        | Onboarding approved, awaiting AML in RegTank | Personal/Company |
+| `APPROVED`           | Fully approved (all steps complete)          | Personal/Company |
+| `REJECTED`           | Rejected at any step                         | Personal/Company |
+
+### Admin Portal Page
+
+The Onboarding Approval page is located at `/onboarding-approval` in the CashSouk Admin Portal and provides:
+
+- **Unified Queue**: Single view of all pending applications (Investor + Issuer)
+- **Filters**: Filter by portal (Investor/Issuer), type (Personal/Company), and status
+- **Step-by-Step Guidance**: Visual progress stepper showing current step
+- **SSM Verification Panel**: For company applications, displays company details and verification checklist
+- **RegTank Portal Links**: Direct links to open RegTank in a new tab
+
+### Key Implementation Notes
+
+1. **Webhook-Driven Updates**: Status changes from RegTank are received via webhooks and automatically update our database
+2. **SSM Verification is Internal**: This step is performed entirely within CashSouk before going to RegTank
+3. **RegTank Portal Opens in New Tab**: Admin must search for the user by email in RegTank's interface
+4. **Audit Trail**: All approval actions are logged for compliance purposes
+
 ## Business Onboarding (COD/EOD)
 
 For company issuers, RegTank supports a two-tier process:
@@ -597,6 +703,36 @@ _Endpoint details: See sections 2.8-2.10 in RegTank docs_
   - Block certain actions until KYC approved
   - Show appropriate messaging
 
+### Admin Portal (`apps/admin`)
+
+- [x] **Onboarding Approval Page** (`app/onboarding-approval/page.tsx`)
+  - Unified queue showing all pending applications
+  - Filters for portal (Investor/Issuer), type (Personal/Company), status
+  - Search by name, email, or company registration number
+
+- [x] **Onboarding Queue Table** (`components/onboarding-queue-table.tsx`)
+  - Table displaying applications with status badges
+  - Pagination support
+
+- [x] **Onboarding Review Dialog** (`components/onboarding-review-dialog.tsx`)
+  - Step-by-step approval guidance
+  - Different flows for Personal vs Company applications
+  - Links to RegTank portal for external approval steps
+
+- [x] **SSM Verification Panel** (`components/ssm-verification-panel.tsx`)
+  - Display company details for verification
+  - Verification checklist
+  - Approve/Reject actions for internal SSM step
+
+- [x] **Approval Progress Stepper** (`components/approval-progress-stepper.tsx`)
+  - Visual indicator of current approval step
+  - Different step configurations for Personal vs Company
+
+- [ ] **Backend Integration** (pending)
+  - Connect to actual API endpoints
+  - Real-time status updates via webhooks
+  - SSM verification persistence
+
 ### Database Schema Addition
 
 ```prisma
@@ -656,7 +792,7 @@ enum KycStatus {
    - **Option B**: Is it a field in the onboarding request body when creating the request? (e.g., `{"returnUrl": "https://oursite.com/kyc/callback", ...}`)
    - **Option C**: Is it configured globally in the RegTank admin portal per environment?
    - **Option D**: Is there another mechanism? (Please specify)
-   - **Additional questions**: 
+   - **Additional questions**:
      - What happens if user abandons the flow mid-way?
      - Can we pass custom parameters in the return URL (e.g., user ID, session token)?
      - Is the redirect automatic or does user need to click a button?
