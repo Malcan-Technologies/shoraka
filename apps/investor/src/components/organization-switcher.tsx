@@ -20,7 +20,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganization, type Organization } from "@cashsouk/config";
+import { useOrganization, type Organization, createApiClient } from "@cashsouk/config";
+import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
   if (org.type === "PERSONAL") {
@@ -70,11 +71,13 @@ export function OrganizationSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const { getAccessToken } = useAuthToken();
   const {
     activeOrganization,
     organizations,
     isLoading,
     switchOrganization,
+    portalType,
   } = useOrganization();
 
   const isOnboardingPage = pathname === "/onboarding-start";
@@ -94,7 +97,28 @@ export function OrganizationSwitcher() {
     router.push("/onboarding-start");
   };
 
-  const handleSelectOrganization = (org: Organization) => {
+  const handleSelectOrganization = async (org: Organization) => {
+    // If we're on onboarding page or current org is pending, and switching to a different org, cancel onboarding
+    const currentOrgPending = activeOrganization?.onboardingStatus === "PENDING";
+    const switchingToDifferentOrg = org.id !== activeOrganization?.id;
+    
+    if ((isOnboardingPage || currentOrgPending) && switchingToDifferentOrg) {
+      try {
+        const apiClient = createApiClient(
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
+          getAccessToken
+        );
+        const role = portalType === "investor" ? "INVESTOR" : "ISSUER";
+        await apiClient.post("/v1/auth/cancel-onboarding", {
+          role,
+          reason: "User switched to a different organization during onboarding",
+        });
+      } catch (error) {
+        // Log error but don't block the organization switch
+        console.error("[OrganizationSwitcher] Failed to cancel onboarding:", error);
+      }
+    }
+
     switchOrganization(org.id);
     // If selecting an onboarded organization, redirect to dashboard
     // Use replace to avoid adding to history stack and setTimeout to ensure state propagates

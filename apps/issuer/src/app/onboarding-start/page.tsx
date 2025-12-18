@@ -38,11 +38,54 @@ function OnboardingStartPageContent() {
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
   const [savingName, setSavingName] = useState(false);
+  const [onboardingStarted, setOnboardingStarted] = useState(false);
 
   // Handle hydration
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Cancel onboarding when user navigates away or closes tab
+  useEffect(() => {
+    if (!onboardingStarted) return;
+
+    const cancelOnboarding = async () => {
+      try {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        await apiClient.post("/v1/auth/cancel-onboarding", {
+          role: "ISSUER",
+          reason: "User navigated away from onboarding page",
+        });
+      } catch (error) {
+        // Silently fail - user is leaving the page anyway
+        console.error("[OnboardingStart] Failed to cancel onboarding:", error);
+      }
+    };
+
+    // Handle visibility change (tab hidden/backgrounded)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        // Page is being hidden - cancel onboarding
+        cancelOnboarding();
+      }
+    };
+
+    // Handle page hide (navigation away)
+    const handlePageHide = () => {
+      cancelOnboarding();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    // Cleanup function - cancel onboarding when component unmounts
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      // Cancel onboarding on unmount (navigation away)
+      cancelOnboarding();
+    };
+  }, [onboardingStarted, getAccessToken]);
 
   useEffect(() => {
     let isMounted = true;
@@ -90,6 +133,9 @@ function OnboardingStartPageContent() {
                 await apiClient.post("/v1/auth/start-onboarding", {
                   role: "ISSUER",
                 });
+                if (isMounted) {
+                  setOnboardingStarted(true);
+                }
               } catch (error: any) {
                 // If backend also rejects due to missing names, show name input
                 if (error?.response?.data?.error === "NAMES_REQUIRED") {
@@ -128,6 +174,7 @@ function OnboardingStartPageContent() {
       await apiClient.post("/v1/auth/start-onboarding", {
         role: "ISSUER",
       });
+      setOnboardingStarted(true);
       setStep("account-type");
     } catch (error: any) {
       if (error?.response?.data?.error === "NAMES_REQUIRED") {
@@ -162,6 +209,7 @@ function OnboardingStartPageContent() {
         role: "ISSUER",
       });
 
+      setOnboardingStarted(true);
       setStep("account-type");
     } catch (error) {
       console.error("Failed to save name:", error);
@@ -175,6 +223,8 @@ function OnboardingStartPageContent() {
   };
 
   const handleOnboardingComplete = async () => {
+    // Clear onboarding started flag so we don't cancel after completion
+    setOnboardingStarted(false);
     // The organization state is already updated locally by createOrganization and completeOnboarding
     // Use router.replace for client-side navigation to preserve React state
     // This avoids a full page reload which would cause state loss in production

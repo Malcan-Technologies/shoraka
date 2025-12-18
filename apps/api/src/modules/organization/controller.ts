@@ -158,7 +158,7 @@ async function completeOnboarding(
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
 
-    const organization = await organizationService.completeOnboarding(userId, id, portalType);
+    const organization = await organizationService.completeOnboarding(req, userId, id, portalType);
 
     res.json({
       success: true,

@@ -368,6 +368,124 @@ export class AuthService {
   }
 
   /**
+   * Cancel onboarding - logs ONBOARDING_CANCELLED if user has started but not completed onboarding
+   */
+  async cancelOnboarding(
+    req: Request,
+    userId: string,
+    role?: UserRole,
+    reason?: string
+  ): Promise<{ success: boolean; cancelled: boolean }> {
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+
+    // Get user to determine role if not provided
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Determine the role
+    let onboardingRole = role;
+    if (!onboardingRole) {
+      // Try to determine role from token or user
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith("Bearer ")) {
+        try {
+          const token = authHeader.substring(7);
+          const payload = await verifyCognitoAccessToken(token);
+          const tokenUser = await prisma.user.findUnique({
+            where: { cognito_sub: payload.sub },
+          });
+          onboardingRole = tokenUser?.roles[0] || user.roles[0] || UserRole.INVESTOR;
+        } catch (error) {
+          onboardingRole = user.roles[0] || UserRole.INVESTOR;
+        }
+      } else {
+        onboardingRole = user.roles[0] || UserRole.INVESTOR;
+      }
+    }
+
+    // Check if user has started onboarding but not completed it
+    // Check if there's a recent ONBOARDING_STARTED event for this role
+    const startedEvent = await prisma.onboardingLog.findFirst({
+      where: {
+        user_id: userId,
+        role: onboardingRole,
+        event_type: "ONBOARDING_STARTED",
+      },
+      orderBy: {
+        created_at: "desc",
+      },
+    });
+
+    if (!startedEvent) {
+      // User hasn't started onboarding, nothing to cancel
+      logger.info(
+        { userId, role: onboardingRole },
+        "No onboarding started event found - skipping cancellation"
+      );
+      return { success: true, cancelled: false };
+    }
+
+    // Check if onboarding has been completed (check for COMPLETED event or account array)
+    const completedEvent = await prisma.onboardingLog.findFirst({
+      where: {
+        user_id: userId,
+        role: onboardingRole,
+        event_type: "ONBOARDING_COMPLETED",
+        created_at: {
+          gte: startedEvent.created_at, // Only count if completed after started
+        },
+      },
+    });
+
+    // Also check if account array indicates completion
+    const accountArray = onboardingRole === UserRole.INVESTOR 
+      ? user.investor_account 
+      : user.issuer_account;
+    const hasCompletedAccount = accountArray.length > 0 && !accountArray.includes("temp");
+
+    if (completedEvent || hasCompletedAccount) {
+      // Onboarding already completed, nothing to cancel
+      logger.info(
+        { userId, role: onboardingRole, hasCompletedEvent: !!completedEvent, hasCompletedAccount },
+        "Onboarding already completed - skipping cancellation"
+      );
+      return { success: true, cancelled: false };
+    }
+
+    // User has started but not completed - log cancellation
+    const portal = getPortalFromRole(onboardingRole);
+
+    await this.repository.createOnboardingLog({
+      userId: user.user_id,
+      role: onboardingRole,
+      eventType: "ONBOARDING_CANCELLED",
+      portal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      metadata: {
+        role: onboardingRole,
+        roles: user.roles,
+        reason: reason || "User cancelled onboarding",
+        startedAt: startedEvent.created_at.toISOString(),
+      },
+    });
+
+    logger.info(
+      { userId, role: onboardingRole, reason },
+      "Onboarding cancelled successfully"
+    );
+
+    return { success: true, cancelled: true };
+  }
+
+  /**
    * Logout user and revoke session
    */
   async logout(
@@ -386,6 +504,19 @@ export class AuthService {
     // Use activeRole from parameter, session, or default to first role
     const roleForPortal = activeRole || session?.active_role || null;
     const portal = roleForPortal ? getPortalFromRole(roleForPortal) : undefined;
+
+    // Check if user has started but not completed onboarding, and cancel it
+    if (roleForPortal) {
+      try {
+        await this.cancelOnboarding(req, userId, roleForPortal, "User logged out during onboarding");
+      } catch (error) {
+        // Log error but don't fail logout
+        logger.warn(
+          { error: error instanceof Error ? error.message : String(error), userId, role: roleForPortal },
+          "Failed to cancel onboarding during logout"
+        );
+      }
+    }
 
     if (session) {
       await this.repository.revokeSession(session.id);

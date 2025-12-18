@@ -16,6 +16,10 @@ import {
   AdminUpdateUserAttributesCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
+import { Request } from "express";
+import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { getPortalFromRole } from "../../lib/role-detector";
+import { AuthRepository } from "../auth/repository";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
@@ -24,9 +28,11 @@ const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
 
 export class OrganizationService {
   private repository: OrganizationRepository;
+  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new OrganizationRepository();
+    this.authRepository = new AuthRepository();
   }
 
   /**
@@ -225,6 +231,7 @@ export class OrganizationService {
    * In the future, this will be triggered by RegTank webhook.
    */
   async completeOnboarding(
+    req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -262,6 +269,68 @@ export class OrganizationService {
       { organizationId, portalType },
       "Organization onboarding completed"
     );
+
+    // Update user's account array: replace 'temp' with organization ID
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (user) {
+      const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
+      const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+      
+      // Find the first 'temp' and replace it with the organization ID
+      const tempIndex = currentArray.indexOf("temp");
+      if (tempIndex !== -1) {
+        const updatedArray = [...currentArray];
+        updatedArray[tempIndex] = organizationId;
+
+        await prisma.user.update({
+          where: { user_id: userId },
+          data: {
+            [accountArrayField]: { set: updatedArray },
+          },
+        });
+
+        logger.info(
+          { userId, organizationId, portalType, accountArray: updatedArray },
+          "User account array updated with organization ID"
+        );
+      } else {
+        logger.warn(
+          { userId, organizationId, portalType, currentArray },
+          "No 'temp' placeholder found in user account array"
+        );
+      }
+
+      // Log onboarding completion event
+      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      const portal = getPortalFromRole(role);
+
+      await this.authRepository.createOnboardingLog({
+        userId: user.user_id,
+        role,
+        eventType: "ONBOARDING_COMPLETED",
+        portal,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        metadata: {
+          organizationId,
+          organizationType: organization.type,
+          organizationName: organization.name,
+          role,
+          roles: user.roles,
+        },
+      });
+
+      logger.info(
+        { userId, organizationId, portalType, role },
+        "Onboarding completion event logged"
+      );
+    }
 
     return updatedOrg;
   }

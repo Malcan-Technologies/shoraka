@@ -256,6 +256,7 @@ export interface SecurityLogsResponse {
 export type OnboardingEventType =
   | "ONBOARDING_STARTED"
   | "ONBOARDING_COMPLETED"
+  | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED";
 
 export interface OnboardingLogUser {

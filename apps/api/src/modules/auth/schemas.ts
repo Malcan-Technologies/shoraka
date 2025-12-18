@@ -47,6 +47,16 @@ export const completeOnboardingSchema = z.object({
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingSchema>;
 
 /**
+ * Schema for cancel-onboarding endpoint
+ */
+export const cancelOnboardingSchema = z.object({
+  role: z.nativeEnum(UserRole).optional(),
+  reason: z.string().optional(),
+});
+
+export type CancelOnboardingInput = z.infer<typeof cancelOnboardingSchema>;
+
+/**
  * Schema for switch-role endpoint
  */
 export const switchRoleSchema = z.object({

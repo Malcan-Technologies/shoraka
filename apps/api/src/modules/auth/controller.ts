@@ -8,6 +8,7 @@ import {
   addRoleSchema,
   checkOnboardingSchema,
   completeOnboardingSchema,
+  cancelOnboardingSchema,
   switchRoleSchema,
   createAdminUserSchema,
   startOnboardingSchema,
@@ -242,6 +243,53 @@ router.post(
     try {
       const validated = completeOnboardingSchema.parse(req.body);
       const result = await authService.completeOnboarding(req, req.user!.user_id, validated.role);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/auth/cancel-onboarding:
+ *   post:
+ *     summary: Cancel onboarding if user has started but not completed it
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 $ref: '#/components/schemas/UserRole'
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Onboarding cancellation processed
+ */
+router.post(
+  "/cancel-onboarding",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = cancelOnboardingSchema.parse(req.body);
+      const result = await authService.cancelOnboarding(
+        req,
+        req.user!.user_id,
+        validated.role,
+        validated.reason
+      );
 
       res.json({
         success: true,
