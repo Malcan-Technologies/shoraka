@@ -3,7 +3,6 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PencilIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -256,23 +255,25 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
               ))}
             </div>
           </TableCell>
-          {/* Investor Account */}
+          {/* Investor Account - Read Only */}
           <TableCell>
-            <Switch
-              checked={(editedUser.investor_account?.length ?? 0) > 0}
-              onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, investor_account: checked ? ["temp"] : [] })
-              }
-            />
+            {(editedUser.investor_account?.length ?? 0) > 0 ? (
+              <span className="text-sm text-muted-foreground">
+                {editedUser.investor_account?.length} account{editedUser.investor_account?.length !== 1 ? "s" : ""}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
           </TableCell>
-          {/* Issuer Account */}
+          {/* Issuer Account - Read Only */}
           <TableCell>
-            <Switch
-              checked={(editedUser.issuer_account?.length ?? 0) > 0}
-              onCheckedChange={(checked) =>
-                setEditedUser({ ...editedUser, issuer_account: checked ? ["temp"] : [] })
-              }
-            />
+            {(editedUser.issuer_account?.length ?? 0) > 0 ? (
+              <span className="text-sm text-muted-foreground">
+                {editedUser.issuer_account?.length} account{editedUser.issuer_account?.length !== 1 ? "s" : ""}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
           </TableCell>
           {/* Password Changed */}
           <TableCell className="text-sm text-muted-foreground">
@@ -345,9 +346,9 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         <TableCell className="text-[15px]">{user.email}</TableCell>
         {/* Roles */}
         <TableCell>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-col gap-1">
             {user.roles.map((role) => (
-              <Badge key={role} variant="outline" className={`text-xs ${roleColors[role]}`}>
+              <Badge key={role} variant="outline" className={`text-xs w-fit ${roleColors[role]}`}>
                 {role}
               </Badge>
             ))}
