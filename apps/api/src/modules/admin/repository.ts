@@ -73,7 +73,41 @@ export class AdminRepository {
       prisma.user.count({ where }),
     ]);
 
-    return { users, total };
+    // Get organization counts for each user
+    const userIds = users.map((u) => u.user_id);
+    const [investorCounts, issuerCounts] = await Promise.all([
+      prisma.investorOrganization.groupBy({
+        by: ["owner_user_id"],
+        where: {
+          owner_user_id: { in: userIds },
+        },
+        _count: true,
+      }),
+      prisma.issuerOrganization.groupBy({
+        by: ["owner_user_id"],
+        where: {
+          owner_user_id: { in: userIds },
+        },
+        _count: true,
+      }),
+    ]);
+
+    // Create maps for quick lookup
+    const investorCountMap = new Map(
+      investorCounts.map((item) => [item.owner_user_id, item._count])
+    );
+    const issuerCountMap = new Map(
+      issuerCounts.map((item) => [item.owner_user_id, item._count])
+    );
+
+    // Add organization counts to users
+    const usersWithCounts = users.map((user) => ({
+      ...user,
+      investor_organization_count: investorCountMap.get(user.user_id) || 0,
+      issuer_organization_count: issuerCountMap.get(user.user_id) || 0,
+    }));
+
+    return { users: usersWithCounts, total };
   }
 
   /**

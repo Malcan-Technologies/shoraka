@@ -23,6 +23,8 @@ interface User {
   roles: UserRole[];
   investor_account: string[];
   issuer_account: string[];
+  investor_organization_count?: number;
+  issuer_organization_count?: number;
   password_changed_at: Date | null;
   created_at: Date;
   updated_at: Date;

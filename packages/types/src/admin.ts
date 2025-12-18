@@ -33,6 +33,8 @@ export interface UserResponse {
   phone: string | null;
   investor_account: string[];
   issuer_account: string[];
+  investor_organization_count?: number;
+  issuer_organization_count?: number;
   password_changed_at: string | null;
   created_at: string;
   updated_at: string;
