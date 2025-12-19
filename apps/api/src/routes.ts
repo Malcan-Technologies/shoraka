@@ -5,6 +5,7 @@ import { authRouter } from "./modules/auth/controller";
 import cognitoAuthRouter from "./modules/auth/cognito.routes";
 import { adminRouter } from "./modules/admin/controller";
 import { createOrganizationRouter } from "./modules/organization/controller";
+import { regTankRouter } from "./modules/regtank/controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -25,6 +26,9 @@ export function registerRoutes(app: Application): void {
 
   // Cognito OAuth routes - also available at /api/auth for backward compatibility
   app.use("/api/auth", cognitoAuthRouter);
+
+  // Note: Webhook routes are registered in app/index.ts BEFORE express.json()
+  // to allow raw body capture for signature verification
 
   const v1Router = Router();
 
@@ -62,6 +66,9 @@ export function registerRoutes(app: Application): void {
   
   // Organization routes
   v1Router.use("/organizations", createOrganizationRouter());
+  
+  // RegTank routes (require authentication)
+  v1Router.use("/regtank", requireAuth, regTankRouter);
   
   // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

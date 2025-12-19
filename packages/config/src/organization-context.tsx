@@ -46,6 +46,7 @@ interface OrganizationContextType {
   refreshOrganizations: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   completeOnboarding: (organizationId: string) => Promise<void>;
+  startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number }>;
   isOnboarded: boolean;
   portalType: PortalType;
 }
@@ -268,6 +269,32 @@ export function OrganizationProvider({
     [apiUrl, getAccessToken, portalType]
   );
 
+  /**
+   * Start RegTank onboarding for an organization
+   * Returns the verify link to redirect user to RegTank portal
+   */
+  const startRegTankOnboarding = useCallback(
+    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{
+        verifyLink: string;
+        requestId: string;
+        expiresIn: number;
+        organizationType: string;
+      }>("/v1/regtank/start-onboarding", {
+        organizationId,
+        portalType,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to start RegTank onboarding");
+      }
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -279,6 +306,7 @@ export function OrganizationProvider({
         refreshOrganizations,
         createOrganization,
         completeOnboarding,
+        startRegTankOnboarding,
         isOnboarded,
         portalType,
       }}

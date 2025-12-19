@@ -12,6 +12,7 @@ import { registerRoutes } from "../routes";
 import { createSessionMiddleware } from "./session";
 import { initializeOpenIdClient } from "../lib/openid-client";
 import { hydrateVerifier } from "../lib/auth/cognito-jwt-verifier";
+import { regTankWebhookRouter } from "../modules/regtank/webhook-controller";
 
 export async function createApp(): Promise<Application> {
   const app = express();
@@ -42,6 +43,9 @@ export async function createApp(): Promise<Application> {
       credentials: true,
     })
   );
+
+  // Register webhook routes BEFORE express.json() so we can capture raw body for signature verification
+  app.use("/v1/webhooks", regTankWebhookRouter);
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));

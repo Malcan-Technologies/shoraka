@@ -22,6 +22,10 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
 export class OrganizationRepository {
   /**
    * Create an investor organization
+   * 
+   * Note: All new organizations (both PERSONAL and COMPANY) are created with
+   * onboarding_status = PENDING. The status is only set to COMPLETED when
+   * RegTank webhook confirms successful KYC/KYB approval.
    */
   async createInvestorOrganization(data: {
     ownerUserId: string;
@@ -35,6 +39,7 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
+        // Always start with PENDING status - will be updated to COMPLETED via RegTank webhook
         onboarding_status: OnboardingStatus.PENDING,
       },
     });
@@ -42,6 +47,10 @@ export class OrganizationRepository {
 
   /**
    * Create an issuer organization
+   * 
+   * Note: All new organizations (both PERSONAL and COMPANY) are created with
+   * onboarding_status = PENDING. The status is only set to COMPLETED when
+   * RegTank webhook confirms successful KYC/KYB approval.
    */
   async createIssuerOrganization(data: {
     ownerUserId: string;
@@ -55,6 +64,7 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
+        // Always start with PENDING status - will be updated to COMPLETED via RegTank webhook
         onboarding_status: OnboardingStatus.PENDING,
       },
     });

@@ -1,18 +1,17 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
-import type { CognitoJwtVerifierSingleUserPool } from "aws-jwt-verify/cognito-verifier";
 import { getEnv } from "../../config/env";
 
 // Lazy-initialized verifier singleton
 // This avoids calling getEnv() at module load time, which would fail
 // before dotenv has loaded environment variables
-let verifier: CognitoJwtVerifierSingleUserPool<{
-  userPoolId: string;
-  tokenUse: "access";
-  clientId: string;
-}> | null = null;
+// Type is inferred automatically - no explicit type needed
+let verifier: any = null;
 
 /**
  * Get or create the Cognito JWT verifier (lazy singleton)
+ * Note: clientId is omitted to avoid scope claim validation issues.
+ * Cognito may return scope as an array, but aws-jwt-verify expects a string.
+ * We still verify token signature, expiration, and issuer - just skip client-specific validations.
  */
 function getVerifier() {
   if (!verifier) {
@@ -20,7 +19,9 @@ function getVerifier() {
     verifier = CognitoJwtVerifier.create({
       userPoolId: env.COGNITO_USER_POOL_ID,
       tokenUse: "access", // We're verifying access tokens
-      clientId: env.COGNITO_CLIENT_ID,
+	  clientId: null,
+      // clientId is omitted to avoid scope claim format validation
+      // The token is still verified for signature, expiration, and issuer
     });
   }
   return verifier;

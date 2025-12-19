@@ -39,7 +39,7 @@ function getNextCompanyName(existingCompanyCount: number): string {
 }
 
 export function AccountTypeSelector({ onBack, onComplete }: AccountTypeSelectorProps) {
-  const { hasPersonalOrganization, organizations, createOrganization, completeOnboarding } = useOrganization();
+  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -64,14 +64,14 @@ export function AccountTypeSelector({ onBack, onComplete }: AccountTypeSelectorP
       const input: CreateOrganizationInput = { type: "PERSONAL" };
       const org = await createOrganization(input);
       
-      // For now, immediately complete onboarding (RegTank placeholder)
-      await completeOnboarding(org.id);
+      // Start RegTank onboarding for the new organization
+      const { verifyLink } = await startRegTankOnboarding(org.id);
       
-      onComplete();
+      // Redirect to RegTank portal
+      window.location.href = verifyLink;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create personal account");
       setStep("select-type");
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -92,15 +92,14 @@ export function AccountTypeSelector({ onBack, onComplete }: AccountTypeSelectorP
       };
       const org = await createOrganization(input);
       
-      // For now, immediately complete onboarding (RegTank placeholder)
-      // In production, this will redirect to external RegTank onboarding
-      await completeOnboarding(org.id);
+      // Start RegTank onboarding for the new organization
+      const { verifyLink } = await startRegTankOnboarding(org.id);
       
-      onComplete();
+      // Redirect to RegTank portal
+      window.location.href = verifyLink;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create company account");
       setStep("select-type");
-    } finally {
       setIsSubmitting(false);
     }
   };

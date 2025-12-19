@@ -78,6 +78,9 @@ model User {
   issuer_organizations     IssuerOrganization[]
   organization_memberships OrganizationMember[]
 
+  // RegTank onboarding relations
+  regtank_onboarding       RegTankOnboarding[]
+
   @@index([cognito_sub])
   @@map("users")
 }
@@ -251,6 +254,7 @@ model InvestorOrganization {
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
+  regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
   @@index([owner_user_id])
@@ -272,6 +276,7 @@ model IssuerOrganization {
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
+  regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToIssuerOrg")
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
   @@index([owner_user_id])
@@ -299,4 +304,50 @@ model OrganizationMember {
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
   @@map("organization_members")
+}
+
+model RegTankOnboarding {
+  id                    String           @id @default(cuid())
+  user_id               String
+  investor_organization_id String?       // InvestorOrganization ID (if portal_type is "investor")
+  issuer_organization_id  String?       // IssuerOrganization ID (if portal_type is "issuer")
+  organization_type     OrganizationType // PERSONAL or COMPANY
+  portal_type           String           // "investor" or "issuer"
+  
+  // RegTank identifiers
+  request_id            String           @unique // RegTank's requestId
+  reference_id          String           @unique // Our internal reference (user_id or org_id)
+  
+  // Onboarding flow
+  onboarding_type       String           // "INDIVIDUAL" or "CORPORATE"
+  verify_link           String?          // URL to redirect user to RegTank
+  verify_link_expires_at DateTime?
+  
+  // Status tracking
+  status                String           // PENDING, IN_PROGRESS, APPROVED, REJECTED, EXPIRED
+  substatus             String?          // WAIT_FOR_APPROVAL, PROCESSING, etc.
+  
+  // RegTank response data
+  regtank_response      Json?            // Full response from RegTank
+  webhook_payloads      Json[]           @default([]) // Array of webhook payloads received
+  
+  // Timestamps
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+  submitted_at          DateTime?        // When user submitted to RegTank
+  completed_at          DateTime?        // When approved/rejected
+  
+  // Relations
+  user                  User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  investor_organization InvestorOrganization? @relation("RegTankOnboardingToInvestorOrg", fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  issuer_organization   IssuerOrganization?   @relation("RegTankOnboardingToIssuerOrg", fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id])
+  @@index([request_id])
+  @@index([reference_id])
+  @@index([status])
+  @@index([portal_type])
+  @@map("regtank_onboarding")
 }

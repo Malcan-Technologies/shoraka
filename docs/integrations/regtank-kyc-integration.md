@@ -2,6 +2,8 @@
 
 This document summarizes our understanding of the RegTank API for KYC/KYB onboarding integration with CashSouk.
 
+> **Note:** This documentation has been cross-referenced with the RegTank Postman collection (v3.0 - Shoraka Digital Trial). Some field types and formats differ between the original documentation and the Postman collection examples. Where discrepancies exist, both formats are noted and should be verified with RegTank. See `regtank-postman-comparison.md` for detailed comparison findings.
+
 ## Quick Start (Testing with Postman)
 
 ### Digital Onboarding (Manual Testing)
@@ -110,18 +112,24 @@ For CashSouk, we primarily need:
 
 1. **User Initiates**: User clicks "Start KYC" and chooses **Personal** or **Company** onboarding type
 2. **Server-to-Server OAuth**: Backend automatically authenticates with RegTank OAuth server (using client credentials) to obtain `access_token`. **Important**: Users do NOT log into RegTank - this is backend-only authentication.
-3. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
+3. **Configure Onboarding Settings** (One-time per `formId`): If not already configured, backend calls Set Onboarding Settings API to configure:
+   - `redirectUrl` - Our callback URL (e.g., `https://api.cashsouk.com/v1/kyc/callback`)
+   - `livenessConfidence` - Face match threshold
+   - `approveMode` - Manual approval settings
+   - Other form-specific settings
+4. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
    - User's `firstName` and `lastName` (parsed from our user database fields `first_name` and `last_name`)
-   - Webhook URL for status updates (configured/sent during request creation)
+   - `formId` - Links to the configured settings (including `redirectUrl`)
+   - Webhook URL for status updates (configured/sent during onboarding request creation)
    - `referenceId` (our internal user ID) for webhook matching
-4. **Get Verify Link**: RegTank returns a `verifyLink` URL
-5. **Redirect to RegTank**: User is redirected to RegTank's hosted onboarding flow (no login required)
-6. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
-7. **Progress Webhooks**: We receive progress webhooks for status changes (for monitoring/logging only)
-8. **Final Status**: When we receive `APPROVED` or `REJECTED` webhook, we call Get Detail API to pull the full verified profile
-9. **Redirect Back**: User is redirected back to our portal (return URL mechanism - see Open Questions #7)
-10. **Update Database**: Update our database with verified user data from RegTank
-11. **Show Status**: Display verified status to user in our application
+5. **Get Verify Link**: RegTank returns a `verifyLink` URL
+6. **Redirect to RegTank**: User is redirected to RegTank's hosted onboarding flow (no login required)
+7. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
+8. **Progress Webhooks**: We receive progress webhooks for status changes (for monitoring/logging only)
+9. **Final Status**: When we receive `APPROVED` or `REJECTED` webhook, we call Get Detail API to pull the full verified profile
+10. **Redirect Back**: User is automatically redirected back to our portal using the `redirectUrl` configured in Set Onboarding Settings
+11. **Update Database**: Update our database with verified user data from RegTank
+12. **Show Status**: Display verified status to user in our application
 
 ## Environment Configuration
 
@@ -210,15 +218,21 @@ Based on our implementation plan, the flow works as follows:
 
 1. **User Initiates**: User clicks "Start KYC" and selects **Personal** or **Company** onboarding type
 2. **Server-to-Server OAuth Authentication**: Backend automatically authenticates with RegTank OAuth server using client credentials to obtain `access_token`. **Critical**: This is server-to-server authentication - users never log into RegTank directly.
-3. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
+3. **Configure Onboarding Settings** (One-time per `formId`): If not already configured, backend calls Set Onboarding Settings API to set:
+   - `redirectUrl` - Our callback URL (e.g., `https://api.cashsouk.com/v1/kyc/callback`)
+   - `livenessConfidence` - Face match threshold
+   - `approveMode` - Manual approval settings
+   - Other form-specific settings
+4. **Create Onboarding Request**: Backend calls RegTank API to create onboarding session, parsing and sending:
    - User's `firstName` and `lastName` (parsed from our user database fields `first_name` and `last_name`)
+   - `formId` - Links to the configured settings (including `redirectUrl`)
    - Webhook URL for status updates (configured/sent during onboarding request creation)
    - `referenceId` (our internal user ID) for webhook matching
-4. **Redirect to RegTank**: User is redirected to RegTank's `verifyLink` (no login required)
-5. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
-6. **Webhook Updates**: We receive webhook notifications for status changes (progress updates logged, final status triggers action)
-7. **Redirect Back**: User is redirected back to our portal (return URL mechanism - **needs clarification from RegTank** - see Open Questions #7)
-8. **Update Database**: When `APPROVED` or `REJECTED` webhook received, we pull full details via Get Detail API and update user record
+5. **Redirect to RegTank**: User is redirected to RegTank's `verifyLink` (no login required)
+6. **Complete KYC**: User completes entire onboarding flow on RegTank's side (ID upload + liveness check)
+7. **Webhook Updates**: We receive webhook notifications for status changes (progress updates logged, final status triggers action)
+8. **Redirect Back**: User is automatically redirected back to our portal using the `redirectUrl` configured in settings (see Set Onboarding Settings endpoint)
+9. **Update Database**: When `APPROVED` or `REJECTED` webhook received, we pull full details via Get Detail API and update user record
 
 ## Individual Onboarding Flow
 
@@ -257,18 +271,31 @@ Content-Type: application/json; charset=utf-8
   "nationality": "MY",
   "placeOfBirth": "MY",
   "idIssuingCountry": "MY",
-  "dateOfBirth": 631152000000, // Epoch milliseconds
+  "dateOfBirth": "1977-01-01", // ISO date string (YYYY-MM-DD) - Note: Postman uses string format
+  "yearOfBirth": "1977", // Optional - year as string
   "gender": "MALE", // MALE, FEMALE, UNSPECIFIED
   "governmentIdNumber": "123456789",
   "idType": "IDENTITY", // PASSPORT, IDENTITY, DRIVER_LICENSE, RESIDENCE_PERMIT
   "language": "EN", // UI language
-  "bypassIdUpload": false, // If true, skip ID upload step
+  "bypassIdUpload": "FALSE", // String: "TRUE" or "FALSE" (not boolean) - If "TRUE", skip ID upload step
   "address": "123 Main St",
-  "industry": "FINANCE", // See Appendix B
-  "occupation": "PROFESSIONAL", // See Appendix C
-  "tags": ["investor", "tier1"]
+  "walletAddress": "KwmgX4oEAZRLDLaVBv6VbV2S8PiyYv23mctbqHdP6GjQAcDvZUNg", // Optional - crypto wallet address
+  "industry": "WINE_SPIRITS", // See Appendix B - Postman example uses WINE_SPIRITS
+  "occupation": "CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS", // See Appendix C
+  "tags": [], // Array of strings
+  "proofOfAddress": { // Optional - proof of address document
+    "fileName": "proofOfAddress.pdf",
+    "fileContent": "data:image/jpeg;base64,/9j..." // Base64 encoded file
+  }
 }
 ```
+
+**Field Type Notes:**
+- `dateOfBirth`: Postman collection uses ISO date string format (`"1977-01-01"`), not epoch milliseconds. Verify with RegTank which format is accepted.
+- `bypassIdUpload`: Postman uses string `"FALSE"`/`"TRUE"`, not boolean. Verify with RegTank which format is accepted.
+- `yearOfBirth`: Optional field present in Postman but not in original documentation.
+- `proofOfAddress`: Optional field for uploading proof of address document.
+- `walletAddress`: Optional field for crypto wallet addresses.
 
 **Key Implementation Notes:**
 
@@ -306,6 +333,133 @@ User visits `verifyLink` and:
 6. If enabled, KYC screening runs against sanctions databases
 
 **After completion:** User should be redirected back to our portal (return URL mechanism - see Open Questions #7)
+
+### 2a. Onboarding ID Document Upload (Optional)
+
+If you need to upload ID documents separately after creating the onboarding request:
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/onboarding/indv/document-upload`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/onboarding/indv/document-upload`
+
+**Request Body:**
+```json
+{
+  "requestId": "LD01752",
+  "email": "testmail@mail.com",
+  "documentType": "Identity",
+  "frontImage": {
+    "fileName": "icFront.jpeg",
+    "fileContent": "data:image/jpeg;base64,/9j..." // Base64 encoded image
+  },
+  "backImage": {
+    "fileName": "icBack.jpeg",
+    "fileContent": "data:image/jpg;base64,/9j..." // Base64 encoded image (optional for some ID types)
+  }
+}
+```
+
+**Note:** This endpoint is optional if documents are uploaded through the `verifyLink` flow.
+
+### 2b. Onboarding Liveness Check (Alternative Method)
+
+If you need to upload liveness video separately:
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/onboarding/indv/liveness-check`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/onboarding/indv/liveness-check`
+
+**Request:** `multipart/form-data`
+- `requestId`: Text (e.g., "LD01752")
+- `token`: Text (JWT token from onboarding request, not OAuth token)
+- `video`: File (video file for liveness check)
+
+**Note:** This endpoint is typically not needed if users complete the flow via `verifyLink`, as liveness is handled in the hosted flow.
+
+### 2c. Onboarding Restart
+
+If a user needs to restart a failed onboarding:
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/onboarding/indv/restart`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/onboarding/indv/restart`
+
+**Request Body:**
+```json
+{
+  "requestId": "LD01752",
+  "email": "user@example.com"
+}
+```
+
+**Response:** Returns a new `verifyLink` for the user to restart the onboarding process.
+
+### 2d. Get Onboarding Settings
+
+Retrieve onboarding form settings:
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/onboarding/indv/setting/query?formId={formId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/onboarding/indv/setting/query?formId={formId}`
+
+**Query Parameters:**
+- `formId`: Required - The form ID to query settings for
+
+### 2e. Set Onboarding Settings
+
+Configure onboarding settings (liveness confidence threshold, approval mode, redirect URL, etc.):
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/onboarding/indv/setting`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/onboarding/indv/setting`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json; charset=utf-8
+```
+
+**Request Body:**
+```json
+{
+  "formId": 12306, // Integer - ID of individual onboarding form
+  "livenessConfidence": 90, // Integer (required) - Face Match Percentage Threshold (default: 60)
+  "approveMode": false, // Boolean (required) - Enable/disable Approve/Reject button on client portal
+  "kycApprovalTarget": "DOWJONES", // String - KYC provider: "ACURIS" or "DOWJONES"
+  "enabledRegistrationEmail": true, // Boolean - Enable/disable registration email to end-user
+  "redirectUrl": "https://api.cashsouk.com/v1/kyc/callback" // String - URL redirected after onboarding completion
+}
+```
+
+**Field Descriptions:**
+- `formId`: Integer - The ID of the individual onboarding form. Settings are applied per `formId`.
+- `livenessConfidence`: Integer (required) - Face match percentage threshold to pass face comparison. Default is 60.
+- `approveMode`: Boolean (required) - If `true`, enables Approve/Reject button on the RegTank client portal.
+- `kycApprovalTarget`: String - KYC provider for auto AML screening: `"ACURIS"` or `"DOWJONES"`.
+- `enabledRegistrationEmail`: Boolean - If `true`, RegTank sends email to end-user on status changes.
+- `redirectUrl`: String - **URL where users are redirected after completing onboarding**. This is the answer to the return URL mechanism.
+
+**Response:**
+```json
+{
+  "message": "Success"
+}
+```
+
+**Important Notes:**
+- ✅ **Return URL Mechanism Confirmed**: The `redirectUrl` field in this endpoint configures where users are redirected after completing onboarding.
+- Settings are configured **per `formId`**, so you can have different redirect URLs for different onboarding forms.
+- The `redirectUrl` applies to all onboarding requests that use the specified `formId`.
+- This is a **one-time configuration** per `formId` - you don't need to set it for each onboarding request.
+
+**Field Type Note:** The Postman collection shows string values (e.g., `"90"`, `"false"`), but the official API documentation specifies:
+- `livenessConfidence`: Integer (not string)
+- `approveMode`: Boolean (not string)
+- `formId`: Integer (not string)
+
+Use the types specified in the official documentation (Integer/Boolean) rather than the Postman examples (strings).
+
+**Reference:** [RegTank API Documentation - Set Setting](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.7-individual-onboarding-endpoint-json-set-setting)
 
 ### 3. Get Onboarding Details (Polling)
 
@@ -618,7 +772,267 @@ This is more complex and involves:
 - Director liveness verification
 - Ultimate beneficial owner identification
 
-_Endpoint details: See sections 2.8-2.10 in RegTank docs_
+### 1. Create Business Onboarding Request
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/onboarding/corp/request`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/onboarding/corp/request`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json; charset=utf-8
+```
+
+**Request Body:**
+```json
+{
+  "email": "test@regtank.com",
+  "companyName": "Company A",
+  "formName": "Business End User Onboarding Example Form1"
+}
+```
+
+**Response:**
+Returns a `requestId` and `verifyLink` similar to individual onboarding.
+
+### 2. Query Company Onboarding Data (COD)
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/onboarding/corp/query?requestId={requestId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/onboarding/corp/query?requestId={requestId}`
+
+**Query Parameters:**
+- `requestId`: Required - The COD request ID
+
+**Response:** Returns company-level onboarding details including company information, documents, and status.
+
+### 3. Query Entity Onboarding Data (EOD)
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/onboarding/corp/indv/query?requestId={requestId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/onboarding/corp/indv/query?requestId={requestId}`
+
+**Query Parameters:**
+- `requestId`: Required - The EOD request ID (for individual directors/shareholders)
+
+**Response:** Returns individual entity (director/shareholder) onboarding details including:
+- Corporate individual request info
+- Corporate user request info (with form content)
+- Corporate document info
+- Corporate liveness check info
+- KYC request info
+
+**Note:** The EOD query response includes detailed form content with field aliases, field names, field types, and field values for each director/shareholder.
+
+## KYC (Know Your Customer) Screening
+
+RegTank supports two KYC providers: **Acuris** and **Dow Jones**. Each has separate endpoints.
+
+### Acuris KYC
+
+#### 1. Acuris KYC Request
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyc/input`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyc/input`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json; charset=utf-8
+```
+
+**Request Body:**
+```json
+{
+  "surname": "Smith",
+  "middleName": "Rob",
+  "forename": "John",
+  "gender": "MALE",
+  "enableReScreening": false,
+  "enableOnGoingMonitoring": false,
+  "dateOfBirth": "1972-01-23",
+  "assignee": "isaac@regtank.com",
+  "address1": "23 Broad St",
+  "address2": "San Francisco",
+  "countryOfResidence": "US",
+  "email": "john.smith@mail.com",
+  "governmentIdNumber": "EN-05-10092",
+  "idIssuingCountry": "US",
+  "nationality": "SG",
+  "phone": "85640976",
+  "placeOfBirth": "SG",
+  "referenceId": "id82937184",
+  "yearOfBirth": 1972
+}
+```
+
+**Response:** Returns a `requestId` for tracking the KYC screening.
+
+#### 2. Acuris KYC Query Status
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/kyc/query?requestId={requestId}&referenceId={referenceId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/kyc/query?requestId={requestId}&referenceId={referenceId}`
+
+**Query Parameters:**
+- `requestId`: Required - The KYC request ID
+- `referenceId`: Optional - Your internal reference ID
+
+#### 3. Acuris KYC Generate Score
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyc/scoring`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyc/scoring`
+
+**Request Body:**
+```json
+{
+  "requestId": "KYC01911"
+}
+```
+
+#### 4. Acuris KYC Ongoing Monitoring
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyc/ongoing-monitoring`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyc/ongoing-monitoring`
+
+**Request Body:**
+```json
+{
+  "requestId": "KYC01911",
+  "enabled": true
+}
+```
+
+### Dow Jones KYC
+
+Dow Jones KYC uses the same endpoint structure but with `/djkyc/` prefix instead of `/kyc/`:
+
+- `POST /v3/djkyc/input` - Dow Jones KYC Request
+- `GET /v3/djkyc/query?requestId={requestId}&referenceId={referenceId}` - Dow Jones KYC Query Status
+- `POST /v3/djkyc/scoring` - Dow Jones KYC Generate Score
+- `POST /v3/djkyc/ongoing-monitoring` - Dow Jones KYC Ongoing Monitoring
+
+**Request/Response formats are similar to Acuris KYC**, but may have additional fields like:
+- `profileNotes`: Boolean
+- `occupationTitle`: Boolean
+- `strictDateMatch`: Boolean
+- `industry`: String (e.g., "ACCOMMODATION_AND_FOOD_SERVICES")
+- `occupation`: String (e.g., "CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS")
+- `tags`: Array of strings
+
+## KYB (Know Your Business) Screening
+
+RegTank supports two KYB providers: **Acuris** and **Dow Jones**. Each has separate endpoints.
+
+### Acuris KYB
+
+#### 1. Acuris KYB Request
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyb/input`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyb/input`
+
+**Request Body:**
+```json
+{
+  "businessName": "Apple",
+  "businessIdNumber": "12345ABCD",
+  "address1": "23 Broad St",
+  "address2": "San Francisco",
+  "sizeOfTheCompany": "FROM_500_AND_MORE",
+  "email": "apple@mail.com",
+  "phone": "62739201",
+  "website": "apple.com",
+  "referenceId": "id62726482",
+  "natureOfBusiness": "COMPUTER_SOFTWARE_ENGINEERING",
+  "companyType": "CORPORATION",
+  "countryOfIncorporation": "US",
+  "countryOfHeadQuarter": "US",
+  "dateOfIncorporation": "2021-01-01",
+  "assignee": "quanlei@regtank.com",
+  "enableReScreening": true,
+  "enableOnGoingMonitoring": true,
+  "operatingCountry": "US",
+  "tags": []
+}
+```
+
+#### 2. Acuris KYB Query Status
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/kyb/query?requestId={requestId}&referenceId={referenceId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/kyb/query?requestId={requestId}&referenceId={referenceId}`
+
+#### 3. Acuris KYB Complete Resolution
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyb/complete-resolution`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyb/complete-resolution`
+
+**Request Body:**
+```json
+{
+  "requestId": "KYB00200"
+}
+```
+
+#### 4. Acuris KYB Generate Score
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyb/scoring`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyb/scoring`
+
+#### 5. Acuris KYB Ongoing Monitoring
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyb/ongoing-monitoring`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyb/ongoing-monitoring`
+
+### Dow Jones KYB
+
+Dow Jones KYB uses the same endpoint structure but with `/djkyb/` prefix instead of `/kyb/`:
+
+- `POST /v3/djkyb/input` - Dow Jones KYB Request
+- `GET /v3/djkyb/query?requestId={requestId}&referenceId={referenceId}` - Dow Jones KYB Query Status
+- `POST /v3/djkyb/complete-resolution` - Dow Jones KYB Complete Resolution
+- `POST /v3/djkyb/scoring` - Dow Jones KYB Generate Score
+- `POST /v3/djkyb/ongoing-monitoring` - Dow Jones KYB Ongoing Monitoring
+
+**Note:** Dow Jones KYB request may include an additional `relationship` field (e.g., "Partner").
+
+## KYT (Know Your Transaction) Monitoring
+
+### 1. KYT Request
+
+**Endpoint:**
+- Production: `POST https://shoraka-server.regtank.com/v3/kyt/input`
+- Sandbox: `POST https://shoraka-trial-server.regtank.com/v3/kyt/input`
+
+**Request Body:**
+```json
+{
+  "address": "3Pv7L9EeYyAMcn7U3tTWyKWxFpVJHfQBTa",
+  "asset": "BTC",
+  "referenceId": "id00000001",
+  "assignee": "quanlei@regtank.com",
+  "riskScoreChange": true,
+  "newTransaction": true
+}
+```
+
+### 2. KYT Query Status
+
+**Endpoint:**
+- Production: `GET https://shoraka-server.regtank.com/v3/kyt/query?requestId={requestId}&referenceId={referenceId}`
+- Sandbox: `GET https://shoraka-trial-server.regtank.com/v3/kyt/query?requestId={requestId}&referenceId={referenceId}`
+
+**Query Parameters:**
+- `requestId`: Required - The KYT request ID
+- `referenceId`: Optional - Your internal reference ID
 
 ## Implementation Checklist
 
@@ -773,47 +1187,170 @@ enum KycStatus {
 
 ### Critical (Blockers)
 
-1. **Webhook Security**: Do you send any signature/HMAC header for webhook verification? If so, what's the algorithm and which secret do we use?
+1. ~~**Webhook Security**: Do you send any signature/HMAC header for webhook verification? If so, what's the algorithm and which secret do we use?~~ ✅ **ANSWERED**
+
+   **Answer:** RegTank will use **HMAC-SHA256 signature** for webhook verification.
+   
+   **Implementation Details:**
+   - **Algorithm:** HMAC-SHA256
+   - **Header Name:** `X-RegTank-Signature` (to be confirmed with RegTank)
+   - **Header Format:** `X-RegTank-Signature: sha256=<signature>` or `X-RegTank-Signature: <signature>` (exact format to be confirmed)
+   - **Secret:** Shared secret key provided by RegTank (stored in AWS Secrets Manager)
+   - **Verification Process:**
+     1. RegTank computes HMAC-SHA256 of the raw request body using the shared secret
+     2. RegTank includes the signature in the `X-RegTank-Signature` header
+     3. Our webhook endpoint receives the request and extracts the signature from the header
+     4. We compute HMAC-SHA256 of the received request body using our stored secret
+     5. We compare our computed signature with the received signature
+     6. If signatures match, process the webhook; if not, reject with 401 Unauthorized
+   
+   **Implementation Requirements:**
+   - Webhook endpoint must verify signature **before** processing the payload
+   - Use raw request body for signature computation (not parsed JSON)
+   - Store webhook secret in AWS Secrets Manager at `cashsouk/prod/regtank` and `cashsouk/staging/regtank`
+   - Implement idempotency using `requestId` to prevent duplicate processing
+   - Log all webhook attempts (successful and failed) for audit trail
+   - Return appropriate HTTP status codes:
+     - `200 OK` - Webhook processed successfully
+     - `401 Unauthorized` - Invalid signature
+     - `500 Internal Server Error` - Processing error (retry may be attempted)
+   
+   **Example Verification Code (Node.js/TypeScript):**
+   ```typescript
+   import crypto from 'crypto';
+   
+   function verifyWebhookSignature(
+     rawBody: string,
+     receivedSignature: string,
+     secret: string
+   ): boolean {
+     const computedSignature = crypto
+       .createHmac('sha256', secret)
+       .update(rawBody)
+       .digest('hex');
+     
+     // Use constant-time comparison to prevent timing attacks
+     return crypto.timingSafeEqual(
+       Buffer.from(computedSignature),
+       Buffer.from(receivedSignature)
+     );
+   }
+   ```
+   
+   **Note:** Exact header name and signature format (hex/base64) to be confirmed with RegTank during webhook implementation.
 
 2. ~~**Sandbox Environment**: Is there a sandbox/staging environment for testing? Are credentials different for sandbox vs production?~~ ✅ **ANSWERED** - Yes, sandbox provided with separate credentials (see Environment Configuration above)
 
 3. ~~**Client Portal URL**: What is the exact base URL for API calls? Is it different per client?~~ ✅ **ANSWERED** - Yes, it's `shoraka-server.regtank.com` for production and `shoraka-trial-server.regtank.com` for sandbox
 
 4. **referenceId in Webhook**: Is the `referenceId` we pass during onboarding request included in webhook payloads? The docs show `requestId` but not `referenceId`. We need this to match webhooks to our users.
+   
+   **Finding from Postman Collection:** `referenceId` is extensively used in query endpoints:
+   - KYC Query: `GET /v3/kyc/query?requestId={requestId}&referenceId={referenceId}`
+   - KYB Query: `GET /v3/kyb/query?requestId={requestId}&referenceId={referenceId}`
+   - KYT Query: `GET /v3/kyt/query?requestId={requestId}&referenceId={referenceId}`
+   
+   This suggests `referenceId` is a first-class identifier that should be included in webhook payloads, but this needs confirmation from RegTank.
 
 ### Important
 
-5. **URL Expiration**: Default is 24 hours - can this be configured? Can users resume an expired session?
+5. ~~**URL Expiration**: Default is 24 hours - can this be configured? Can users resume an expired session?~~ ✅ **ANSWERED**
 
-6. **Retry Behavior**: If a user fails liveness, can they retry indefinitely or is there a limit? (`exceedDeclinedLimit` suggests 3 times)
+   **Answer:** URL expiration is currently set to **24 hours** and cannot be configured. This is the default retention period for onboarding links.
+   
+   **Note:** If a user's session expires, they would need to restart the onboarding process (use the Restart endpoint if available).
 
-7. **Return URL**: ⚠️ **CRITICAL** - How do users get redirected back to our portal after completing or abandoning the KYC flow? We need to understand the redirect mechanism:
-   - **Option A**: Is it a query parameter in the `verifyLink`? (e.g., `verifyLink?returnUrl=https://oursite.com/kyc/callback`)
-   - **Option B**: Is it a field in the onboarding request body when creating the request? (e.g., `{"returnUrl": "https://oursite.com/kyc/callback", ...}`)
-   - **Option C**: Is it configured globally in the RegTank admin portal per environment?
-   - **Option D**: Is there another mechanism? (Please specify)
-   - **Additional questions**:
-     - What happens if user abandons the flow mid-way?
-     - Can we pass custom parameters in the return URL (e.g., user ID, session token)?
-     - Is the redirect automatic or does user need to click a button?
+6. ~~**Retry Behavior**: If a user fails liveness, can they retry indefinitely or is there a limit? (`exceedDeclinedLimit` suggests 3 times)~~ ✅ **ANSWERED**
 
-8. **Embedding**: Can we embed the onboarding flow in an iframe, or must we redirect? Are there X-Frame-Options restrictions?
+   **Answer:** Users can retry liveness check **up to 3 times maximum**. After 3 failed attempts, the `exceedDeclinedLimit` flag will be set to `true` in webhook payloads.
+
+7. ~~**Return URL**: ⚠️ **CRITICAL** - How do users get redirected back to our portal after completing or abandoning the KYC flow?~~ ✅ **ANSWERED**
+
+   **Answer:** The `redirectUrl` is configured via the **Set Onboarding Settings** endpoint (`POST /v3/onboarding/indv/setting`). 
+   
+   **Key Points:**
+   - `redirectUrl` is a String field in the settings request body
+   - Settings are configured **per `formId`** - each onboarding form can have its own redirect URL
+   - The redirect URL applies to all onboarding requests that use the specified `formId`
+   - This is a **one-time configuration** per `formId`, not per onboarding request
+   
+   **Reference:** [RegTank API Documentation - Set Setting](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.7-individual-onboarding-endpoint-json-set-setting)
+   
+   **Additional Answers:**
+   - **7a. Abandonment:** Redirect will still occur if RegTank can find back the user's data on their side. This means if a user abandons the flow mid-way but RegTank has their session data, they can still be redirected back.
+   - **7b. Query Parameters:** According to the [official documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.7-individual-onboarding-endpoint-json-set-setting), `redirectUrl` is a String field, so you can include query parameters in the URL (e.g., `https://api.cashsouk.com/v1/kyc/callback?userId=123&token=abc`).
+   - **7c. Automatic Redirect:** Once onboarding is completed, RegTank automatically calls the `redirectUrl` - no user button click required.
+
+8. ~~**Embedding**: Can we embed the onboarding flow in an iframe, or must we redirect? Are there X-Frame-Options restrictions?~~ ✅ **ANSWERED**
+
+   **Answer:** Iframe embedding is **NOT allowed**. The Postman collection shows that API responses include the header `X-Frame-Options: DENY`, which prevents the onboarding flow from being embedded in an iframe.
+   
+   **Conclusion:** You **must redirect** users to RegTank's hosted onboarding flow. The `verifyLink` returned from the onboarding request should be opened in a new window/tab or redirect the current page, not embedded in an iframe.
 
 9. **Rate Limits**: What are the API rate limits?
 
-10. **Data Retention**: How long is onboarding data retained on RegTank's side?
+   **Finding from Postman Collection:** No explicit rate limit information found in the collection. However, the official API documentation mentions HTTP 429 "Too Many Requests" errors, indicating rate limiting exists.
+   
+   **Still need clarification:**
+   - What are the specific rate limits (requests per minute/hour)?
+   - Do different endpoints have different rate limits?
+   - Are rate limits per API key or per IP address?
+
+10. ~~**Data Retention**: How long is onboarding data retained on RegTank's side?~~ ✅ **ANSWERED**
+
+   **Answer:** Onboarding data retention is set to **24 hours** (same as URL expiration period). This is the confirmed retention period for onboarding sessions and data on RegTank's servers.
+   
+   **Important Notes:**
+   - RegTank retains onboarding session data (ID documents, liveness videos, form submissions) for **24 hours**
+   - After 24 hours, the data may be archived or deleted depending on RegTank's data retention policy
+   - **For long-term storage:** We must pull and store verified user data in our own database via the Get Detail API when we receive `APPROVED` webhooks
+   - Do not rely on RegTank's 24-hour retention for data retrieval - always store verified data immediately upon approval
+   
+   **Implementation Recommendation:**
+   - When receiving `APPROVED` webhook, immediately call Get Detail API to retrieve full verified profile
+   - Store all verified data in our database (see Database Schema Addition section)
+   - Store document URLs if needed (note: these may expire after 24 hours)
 
 ### Nice to Have
 
-11. **SDK/Widget**: Is there a JavaScript SDK for inline embedding?
+11. ~~**SDK/Widget**: Is there a JavaScript SDK for inline embedding?~~ ✅ **ANSWERED**
 
-12. **Customization**: Can we customize the onboarding UI (branding, colors, logo)?
+   **Answer:** No, there is no JavaScript SDK or widget for RegTank. All onboarding and approval processes are handled entirely within the RegTank portal. Users must be redirected to RegTank's hosted onboarding flow.
 
-13. **Languages**: What UI languages are supported? (Docs mention EN, ZH_CN, etc.)
+12. ~~**Customization**: Can we customize the onboarding UI (branding, colors, logo)?~~ ✅ **ANSWERED**
+
+   **Answer:** The onboarding UI customization is handled on CashSouk's side at `admin.cashsouk.com/onboarding-approval` (our admin portal for reviewing applications). The actual RegTank onboarding flow (where users complete ID upload and liveness) cannot be customized - it uses RegTank's standard UI.
+   
+   **Note:** This means:
+   - RegTank's onboarding flow (ID upload, liveness check) uses their standard UI
+   - Our admin portal (`admin.cashsouk.com/onboarding-approval`) can be customized for our internal review process
+   - The RegTank client portal (where admins approve) also uses RegTank's standard UI
+
+13. ~~**Languages**: What UI languages are supported? (Docs mention EN, ZH_CN, etc.)~~ ✅ **PARTIALLY ANSWERED**
+
+   **Answer from Postman Collection:**
+   - **English (EN)** is confirmed - Postman collection shows `"language": "EN"` in onboarding requests
+   - **Chinese** is confirmed - Corporate onboarding response shows Chinese field aliases (名, 中间名, 姓, 邮箱, 性别, etc.)
+   - Multi-language support exists - Form content can display field aliases in different languages
+   
+   **Still need clarification:**
+   - What are all the supported language codes? (e.g., EN, ZH_CN, ZH_TW, etc.)
+   - Can language be changed per onboarding request, or is it set globally?
+   - Are all UI elements translated, or only form fields?
 
 14. **IP Whitelist**: Is there an IP whitelist for API access or webhook delivery?
 
-15. **Approval Flow**: Is `WAIT_FOR_APPROVAL` reviewed by RegTank staff, or can we approve via API?
+15. ~~**Approval Flow**: Is `WAIT_FOR_APPROVAL` reviewed by RegTank staff, or can we approve via API?~~ ✅ **ANSWERED**
+
+   **Answer:** Onboarding approvals can **only be reviewed by RegTank staff** at their portal. There is no API endpoint for programmatic approval. 
+   
+   **Approval Process:**
+   - When status reaches `WAIT_FOR_APPROVAL`, the application appears in the RegTank client portal
+   - CashSouk admins must log into the RegTank portal (e.g., `shoraka.regtank.com` or `shoraka-trial.regtank.com`)
+   - Admins review and approve/reject applications in the RegTank portal
+   - Status updates are sent back to CashSouk via webhooks
+   
+   **Note:** This is a manual approval process - there is no API endpoint to approve/reject onboarding requests programmatically.
 
 ## References
 
