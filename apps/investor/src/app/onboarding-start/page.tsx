@@ -224,15 +224,6 @@ function OnboardingStartPageContent() {
     setStep("welcome");
   };
 
-  const handleOnboardingComplete = async () => {
-    // Clear onboarding started flag so we don't cancel after completion
-    setOnboardingStarted(false);
-    // The organization state is already updated locally by createOrganization and completeOnboarding
-    // Use router.replace for client-side navigation to preserve React state
-    // This avoids a full page reload which would cause state loss in production
-    router.replace("/");
-  };
-
   const handleSwitchPortal = () => {
     window.location.href = ISSUER_URL;
   };
@@ -398,7 +389,6 @@ function OnboardingStartPageContent() {
           {step === "account-type" && (
             <AccountTypeSelector
               onBack={handleBackToWelcome}
-              onComplete={handleOnboardingComplete}
             />
           )}
         </div>

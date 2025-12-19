@@ -23,7 +23,6 @@ import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config"
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
-  onComplete: () => void;
 }
 
 type Step = "select-type" | "completing";
@@ -38,7 +37,7 @@ function getNextCompanyName(existingCompanyCount: number): string {
   return `Company ${letter}`;
 }
 
-export function AccountTypeSelector({ onBack, onComplete }: AccountTypeSelectorProps) {
+export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);

@@ -121,11 +121,26 @@ export class RegTankService {
         ? this.config.redirectUrlInvestor
         : this.config.redirectUrlIssuer;
     
+    // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
+    // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
+    // Otherwise, use /v1/webhooks/regtank (production)
+    const webhookMode = process.env.REGTANK_WEBHOOK_MODE || "prod";
+    const webhookEndpoint = webhookMode === "dev" ? "/v1/webhooks/regtank/dev" : "/v1/webhooks/regtank";
+    
     const webhookUrl = process.env.API_URL 
-      ? `${process.env.API_URL}/v1/webhooks/regtank`
+      ? `${process.env.API_URL}${webhookEndpoint}`
       : process.env.FRONTEND_URL 
-      ? `${process.env.FRONTEND_URL}/v1/webhooks/regtank`
-      : "https://api.cashsouk.com/v1/webhooks/regtank";
+      ? `${process.env.FRONTEND_URL}${webhookEndpoint}`
+      : `https://api.cashsouk.com${webhookEndpoint}`;
+
+    logger.info(
+      {
+        webhookMode,
+        webhookEndpoint,
+        webhookUrl,
+      },
+      "RegTank webhook URL configured"
+    );
 
     // Set onboarding settings (redirect URL and webhook URL)
     // According to RegTank docs, redirectUrl must be set via settings endpoint, not in request
