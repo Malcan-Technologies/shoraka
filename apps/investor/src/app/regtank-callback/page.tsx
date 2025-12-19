@@ -10,7 +10,7 @@ import { Separator } from "../../components/ui/separator";
 
 function RegTankCallbackContent() {
   const router = useRouter();
-  const { refreshOrganizations, activeOrganization } = useOrganization();
+  const { refreshOrganizations, activeOrganization, syncRegTankStatus } = useOrganization();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +24,18 @@ function RegTankCallbackContent() {
       try {
         // Immediately refresh organizations to get latest status
         await refreshOrganizations();
+
+        // If we have an active organization, try to sync status from RegTank API
+        // This helps when webhooks are delayed or not configured
+        if (activeOrganization?.id) {
+          try {
+            await syncRegTankStatus(activeOrganization.id);
+            console.log("[RegTank Callback] Status synced from RegTank API");
+          } catch (syncError) {
+            console.warn("[RegTank Callback] Failed to sync status (non-blocking):", syncError);
+            // Non-blocking - continue with polling
+          }
+        }
 
         // Poll for status updates (webhook might be delayed)
         const pollForStatus = async () => {

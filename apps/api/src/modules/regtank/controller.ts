@@ -269,5 +269,87 @@ router.post(
   }
 );
 
+/**
+ * @swagger
+ * /v1/regtank/sync-status/{organizationId}:
+ *   post:
+ *     summary: Manually sync onboarding status from RegTank API
+ *     tags: [RegTank]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: organizationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Organization ID
+ *       - in: query
+ *         name: portalType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [investor, issuer]
+ *         description: Portal type
+ *     responses:
+ *       200:
+ *         description: Status synced successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     status:
+ *                       type: string
+ *                     substatus:
+ *                       type: string
+ *                     requestId:
+ *                       type: string
+ *                     synced:
+ *                       type: boolean
+ *       403:
+ *         description: Forbidden (no access to organization)
+ *       404:
+ *         description: Organization or onboarding not found
+ */
+router.post(
+  "/sync-status/:organizationId",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.user_id;
+      const { organizationId } = organizationIdParamSchema.parse(req.params);
+      const portalType = req.query.portalType as "investor" | "issuer";
+
+      if (!portalType || !["investor", "issuer"].includes(portalType)) {
+        throw new AppError(
+          400,
+          "INVALID_PORTAL_TYPE",
+          "portalType query parameter is required and must be 'investor' or 'issuer'"
+        );
+      }
+
+      const result = await regTankService.syncOnboardingStatus(
+        userId,
+        organizationId,
+        portalType
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export { router as regTankRouter };
 

@@ -46,7 +46,8 @@ interface OrganizationContextType {
   refreshOrganizations: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   completeOnboarding: (organizationId: string) => Promise<void>;
-  startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number }>;
+  startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
+  syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
   isOnboarded: boolean;
   portalType: PortalType;
 }
@@ -295,6 +296,32 @@ export function OrganizationProvider({
     [apiUrl, getAccessToken, portalType]
   );
 
+  /**
+   * Manually sync RegTank onboarding status from RegTank API
+   * Useful when webhooks are delayed or not configured
+   */
+  const syncRegTankStatus = useCallback(
+    async (organizationId: string): Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{
+        status: string;
+        substatus?: string;
+        requestId: string;
+        synced: boolean;
+      }>(`/v1/regtank/sync-status/${organizationId}?portalType=${portalType}`, {});
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to sync RegTank status");
+      }
+
+      // Refresh organizations after sync to get updated status
+      await refreshOrganizations();
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType, refreshOrganizations]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -307,6 +334,7 @@ export function OrganizationProvider({
         createOrganization,
         completeOnboarding,
         startRegTankOnboarding,
+        syncRegTankStatus,
         isOnboarded,
         portalType,
       }}

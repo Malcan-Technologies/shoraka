@@ -268,6 +268,9 @@ export class RegTankService {
         portalType,
         email: user.email,
         referenceId,
+        redirectUrl,
+        webhookUrl,
+        formId,
       },
       "Creating RegTank individual onboarding request"
     );
@@ -559,6 +562,158 @@ export class RegTankService {
       createdAt: onboarding.created_at,
       updatedAt: onboarding.updated_at,
     };
+  }
+
+  /**
+   * Manually sync onboarding status from RegTank API
+   * Useful when webhooks are delayed or not configured
+   */
+  async syncOnboardingStatus(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<{
+    status: string;
+    substatus?: string;
+    requestId: string;
+    synced: boolean;
+  }> {
+    // Verify organization access
+    const organization =
+      portalType === "investor"
+        ? await this.organizationRepository.findInvestorOrganizationById(
+            organizationId
+          )
+        : await this.organizationRepository.findIssuerOrganizationById(
+            organizationId
+          );
+
+    if (!organization) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
+    }
+
+    // Check access
+    const isMember = organization.members.some(
+      (m: { user_id: string }) => m.user_id === userId
+    );
+    const isOwner = organization.owner_user_id === userId;
+
+    if (!isMember && !isOwner) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You do not have access to this organization"
+      );
+    }
+
+    // Find onboarding record
+    const onboarding = await this.repository.findByOrganizationId(organizationId, portalType);
+
+    if (!onboarding || !onboarding.request_id) {
+      throw new AppError(
+        404,
+        "ONBOARDING_NOT_FOUND",
+        "No RegTank onboarding found for this organization"
+      );
+    }
+
+    // Fetch latest status from RegTank API
+    logger.info(
+      {
+        requestId: onboarding.request_id,
+        organizationId,
+      },
+      "Syncing onboarding status from RegTank API"
+    );
+
+    try {
+      const details = await this.apiClient.getOnboardingDetails(onboarding.request_id);
+
+      // Update our database with latest status
+      const updateData: {
+        status: string;
+        substatus?: string;
+        completedAt?: Date;
+      } = {
+        status: details.status.toUpperCase(),
+      };
+
+      if (details.substatus) {
+        updateData.substatus = details.substatus;
+      }
+
+      // Set completed_at if status is APPROVED or REJECTED
+      if (details.status === "APPROVED" || details.status === "REJECTED") {
+        updateData.completedAt = new Date();
+      }
+
+      await this.repository.updateStatus(onboarding.request_id, updateData);
+
+      // If approved, update organization status (same logic as webhook handler)
+      if (details.status === "APPROVED") {
+        if (portalType === "investor") {
+          await prisma.investorOrganization.update({
+            where: { id: organizationId },
+            data: {
+              onboarding_status: OnboardingStatus.COMPLETED,
+              onboarded_at: new Date(),
+            },
+          });
+        } else {
+          await prisma.issuerOrganization.update({
+            where: { id: organizationId },
+            data: {
+              onboarding_status: OnboardingStatus.COMPLETED,
+              onboarded_at: new Date(),
+            },
+          });
+        }
+
+        logger.info(
+          {
+            requestId: onboarding.request_id,
+            organizationId,
+            portalType,
+          },
+          "Organization onboarding status updated to COMPLETED via manual sync"
+        );
+      }
+
+      logger.info(
+        {
+          requestId: onboarding.request_id,
+          status: details.status,
+          organizationId,
+        },
+        "Onboarding status synced successfully from RegTank"
+      );
+
+      return {
+        status: details.status,
+        substatus: details.substatus,
+        requestId: onboarding.request_id,
+        synced: true,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          requestId: onboarding.request_id,
+          organizationId,
+        },
+        "Failed to sync onboarding status from RegTank"
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        500,
+        "SYNC_FAILED",
+        `Failed to sync status from RegTank: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   /**
