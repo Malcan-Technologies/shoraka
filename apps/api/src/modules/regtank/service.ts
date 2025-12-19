@@ -39,6 +39,15 @@ export class RegTankService {
     expiresIn: number;
     organizationType: string;
   }> {
+    logger.info(
+      {
+        userId,
+        organizationId,
+        portalType,
+      },
+      "Starting RegTank personal onboarding"
+    );
+
     // Get user data
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -192,6 +201,7 @@ export class RegTankService {
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
           formId,
           redirectUrl,
           webhookUrl,
@@ -199,7 +209,9 @@ export class RegTankService {
         "Failed to set RegTank onboarding settings"
       );
       // Don't continue - this is critical for redirects to work
-      throw new Error(
+      throw new AppError(
+        500,
+        "REGTANK_SETTINGS_FAILED",
         `Failed to configure RegTank settings: ${error instanceof Error ? error.message : String(error)}`
       );
     }
@@ -237,9 +249,32 @@ export class RegTankService {
     );
 
     // Call RegTank API
-    const regTankResponse = await this.apiClient.createIndividualOnboarding(
-      onboardingRequest
-    );
+    let regTankResponse;
+    try {
+      regTankResponse = await this.apiClient.createIndividualOnboarding(
+        onboardingRequest
+      );
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          organizationId,
+          userId,
+          email: user.email,
+        },
+        "Failed to create RegTank individual onboarding"
+      );
+      // Re-throw AppError as-is, wrap others
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(
+        500,
+        "REGTANK_ONBOARDING_FAILED",
+        `Failed to start RegTank onboarding: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
 
     // Calculate expiration time (24 hours default)
     const expiresIn = regTankResponse.expiredIn || 86400;

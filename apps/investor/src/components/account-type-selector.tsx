@@ -64,11 +64,30 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       const org = await createOrganization(input);
       
       // Start RegTank onboarding for the new organization
-      const { verifyLink } = await startRegTankOnboarding(org.id);
-      
-      // Redirect to RegTank portal
-      window.location.href = verifyLink;
+      try {
+        const { verifyLink } = await startRegTankOnboarding(org.id);
+        
+        // Redirect to RegTank portal
+        window.location.href = verifyLink;
+      } catch (regTankError) {
+        // Log full error for debugging
+        console.error("[AccountTypeSelector] RegTank onboarding failed:", regTankError);
+        
+        // Extract error message
+        let errorMessage = "Failed to start identity verification";
+        if (regTankError instanceof Error) {
+          errorMessage = regTankError.message;
+        } else if (typeof regTankError === "object" && regTankError !== null) {
+          const err = regTankError as { message?: string; error?: { message?: string } };
+          errorMessage = err.message || err.error?.message || errorMessage;
+        }
+        
+        setError(errorMessage);
+        setStep("select-type");
+        setIsSubmitting(false);
+      }
     } catch (err) {
+      console.error("[AccountTypeSelector] Failed to create personal account:", err);
       setError(err instanceof Error ? err.message : "Failed to create personal account");
       setStep("select-type");
       setIsSubmitting(false);
@@ -92,11 +111,30 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       const org = await createOrganization(input);
       
       // Start RegTank onboarding for the new organization
-      const { verifyLink } = await startRegTankOnboarding(org.id);
-      
-      // Redirect to RegTank portal
-      window.location.href = verifyLink;
+      try {
+        const { verifyLink } = await startRegTankOnboarding(org.id);
+        
+        // Redirect to RegTank portal
+        window.location.href = verifyLink;
+      } catch (regTankError) {
+        // Log full error for debugging
+        console.error("[AccountTypeSelector] RegTank onboarding failed:", regTankError);
+        
+        // Extract error message
+        let errorMessage = "Failed to start identity verification";
+        if (regTankError instanceof Error) {
+          errorMessage = regTankError.message;
+        } else if (typeof regTankError === "object" && regTankError !== null) {
+          const err = regTankError as { message?: string; error?: { message?: string } };
+          errorMessage = err.message || err.error?.message || errorMessage;
+        }
+        
+        setError(errorMessage);
+        setStep("select-type");
+        setIsSubmitting(false);
+      }
     } catch (err) {
+      console.error("[AccountTypeSelector] Failed to create company account:", err);
       setError(err instanceof Error ? err.message : "Failed to create company account");
       setStep("select-type");
       setIsSubmitting(false);

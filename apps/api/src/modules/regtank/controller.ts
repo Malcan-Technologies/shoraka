@@ -84,6 +84,17 @@ router.post(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
+      // Log the full error for debugging
+      const logger = require("../../lib/logger").logger;
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          body: req.body,
+          userId: req.user?.user_id,
+        },
+        "Error in /v1/regtank/start-onboarding"
+      );
       next(error);
     }
   }
