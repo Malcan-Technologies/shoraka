@@ -4,6 +4,7 @@ import { RegTankWebhookPayload } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
 import { prismaDev } from "../../lib/prisma-dev";
+import { prisma } from "../../lib/prisma";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { PortalType } from "./types";
 
@@ -144,8 +145,8 @@ export class RegTankDevWebhookHandler {
   ): Promise<void> {
     const { requestId, status, substatus } = payload;
 
-    // Find onboarding record in dev database
-    const onboarding = await prismaDev.regTankOnboarding.findUnique({
+    // Try to find onboarding record in dev database first
+    let onboarding = await prismaDev.regTankOnboarding.findUnique({
       where: { request_id: requestId },
       include: {
         investor_organization: true,
@@ -154,10 +155,74 @@ export class RegTankDevWebhookHandler {
       },
     });
 
+    // If not found in dev, check production database (fallback)
+    // This handles the case where onboarding was created in prod but webhook is sent to dev endpoint
+    if (!onboarding) {
+      logger.info(
+        { requestId, database: "dev" },
+        "Onboarding not found in dev database, checking production database"
+      );
+      
+      const prodOnboarding = await prisma.regTankOnboarding.findUnique({
+        where: { request_id: requestId },
+        include: {
+          investor_organization: true,
+          issuer_organization: true,
+          user: true,
+        },
+      });
+
+      if (prodOnboarding) {
+        logger.info(
+          { requestId, database: "dev" },
+          "Found onboarding in production database, creating copy in dev database"
+        );
+        
+        // Create a copy in dev database for future webhook processing
+        // This ensures subsequent webhooks can find it in dev
+        const existingInDev = await prismaDev.regTankOnboarding.findUnique({
+          where: { request_id: requestId },
+        });
+
+        if (!existingInDev) {
+          await prismaDev.regTankOnboarding.create({
+            data: {
+              id: prodOnboarding.id,
+              user_id: prodOnboarding.user_id,
+              investor_organization_id: prodOnboarding.investor_organization_id,
+              issuer_organization_id: prodOnboarding.issuer_organization_id,
+              organization_type: prodOnboarding.organization_type,
+              portal_type: prodOnboarding.portal_type,
+              request_id: prodOnboarding.request_id,
+              reference_id: prodOnboarding.reference_id,
+              onboarding_type: prodOnboarding.onboarding_type,
+              verify_link: prodOnboarding.verify_link,
+              verify_link_expires_at: prodOnboarding.verify_link_expires_at,
+              status: prodOnboarding.status,
+              substatus: prodOnboarding.substatus,
+              regtank_response: prodOnboarding.regtank_response as any,
+              webhook_payloads: prodOnboarding.webhook_payloads as any,
+              created_at: prodOnboarding.created_at,
+              updated_at: prodOnboarding.updated_at,
+              completed_at: prodOnboarding.completed_at,
+            },
+          });
+
+          logger.info(
+            { requestId, database: "dev" },
+            "Created onboarding copy in dev database"
+          );
+        }
+
+        // Use the production onboarding record for processing
+        onboarding = prodOnboarding;
+      }
+    }
+
     if (!onboarding) {
       logger.warn(
         { requestId, database: "dev" },
-        "Webhook received for unknown requestId (DEV database)"
+        "Webhook received for unknown requestId (checked both dev and prod databases)"
       );
       throw new AppError(
         404,
