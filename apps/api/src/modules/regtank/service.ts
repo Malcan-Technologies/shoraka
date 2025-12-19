@@ -198,22 +198,46 @@ export class RegTankService {
         "RegTank onboarding settings configured successfully"
       );
     } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-          formId,
-          redirectUrl,
-          webhookUrl,
-        },
-        "Failed to set RegTank onboarding settings"
-      );
-      // Don't continue - this is critical for redirects to work
-      throw new AppError(
-        500,
-        "REGTANK_SETTINGS_FAILED",
-        `Failed to configure RegTank settings: ${error instanceof Error ? error.message : String(error)}`
-      );
+      // Extract detailed error information
+      let errorMessage = "Failed to configure RegTank settings";
+      if (error instanceof AppError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+
+      // Check if error is "SettingInfo does not exist" - this is OK, we'll use redirectUrl in request
+      const isSettingsNotFound = 
+        error instanceof AppError && 
+        error.code === "REGTANK_API_ERROR" &&
+        (errorMessage.includes("SettingInfo does not exist") || 
+         errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+      
+      if (isSettingsNotFound) {
+        logger.warn(
+          {
+            formId,
+            redirectUrl,
+            message: "RegTank settings not found - will use redirectUrl in onboarding request",
+          },
+          "RegTank settings do not exist yet, continuing with onboarding request"
+        );
+        // Continue - we'll include redirectUrl in the onboarding request
+      } else {
+        // Other errors - log but don't block (redirectUrl will be in request anyway)
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            formId,
+            redirectUrl,
+            message: "Failed to set RegTank settings, but continuing with onboarding request",
+          },
+          "Failed to set RegTank onboarding settings (non-blocking)"
+        );
+      }
+      // Don't throw - continue with onboarding request which includes redirectUrl
     }
 
     const onboardingRequest: RegTankIndividualOnboardingRequest = {

@@ -65,12 +65,47 @@ export class RegTankAPIClient {
       }
 
       if (!response.ok) {
+        // Extract error message from various possible response structures
+        let errorMessage = `RegTank API error (${response.status}): `;
+        
+        if (responseData.message) {
+          errorMessage += responseData.message;
+        } else if (responseData.error) {
+          // Handle both string and object error fields
+          if (typeof responseData.error === "string") {
+            errorMessage += responseData.error;
+          } else if (responseData.error?.message) {
+            errorMessage += responseData.error.message;
+          } else {
+            errorMessage += JSON.stringify(responseData.error);
+          }
+        } else if (responseData.errors) {
+          // Handle array of errors
+          if (Array.isArray(responseData.errors)) {
+            errorMessage += responseData.errors.map((e: any) => 
+              typeof e === "string" ? e : e.message || JSON.stringify(e)
+            ).join(", ");
+          } else {
+            errorMessage += JSON.stringify(responseData.errors);
+          }
+        } else if (responseData.detail) {
+          errorMessage += responseData.detail;
+        } else if (response.statusText) {
+          errorMessage += response.statusText;
+        } else {
+          // Fallback: include full response for debugging
+          errorMessage += JSON.stringify(responseData);
+        }
+
         logger.error(
           {
             status: response.status,
             statusText: response.statusText,
             responseData,
+            responseText,
             endpoint,
+            url,
+            errorMessage,
           },
           "RegTank API request failed"
         );
@@ -78,7 +113,7 @@ export class RegTankAPIClient {
         throw new AppError(
           response.status,
           "REGTANK_API_ERROR",
-          responseData.message || responseData.error || `RegTank API error: ${response.statusText}`
+          errorMessage
         );
       }
 
@@ -183,19 +218,34 @@ export class RegTankAPIClient {
     kycApprovalTarget?: string; // Optional - "ACURIS" or "DOWJONES"
     enabledRegistrationEmail?: boolean; // Optional - Send email on status changes
   }): Promise<void> {
-    logger.info({ settings }, "Setting RegTank onboarding settings");
+    const requestBody = {
+      formId: settings.formId,
+      livenessConfidence: settings.livenessConfidence,
+      approveMode: settings.approveMode,
+      redirectUrl: settings.redirectUrl,
+      kycApprovalTarget: settings.kycApprovalTarget,
+      enabledRegistrationEmail: settings.enabledRegistrationEmail,
+    };
+
+    logger.info(
+      { 
+        settings: {
+          ...settings,
+          // Don't log full URLs in production logs for security
+          redirectUrl: settings.redirectUrl ? `${settings.redirectUrl.substring(0, 30)}...` : undefined,
+        },
+        requestBody: {
+          ...requestBody,
+          redirectUrl: requestBody.redirectUrl ? `${requestBody.redirectUrl.substring(0, 30)}...` : undefined,
+        },
+      },
+      "Setting RegTank onboarding settings"
+    );
 
     // Use correct endpoint: /v3/onboarding/indv/setting (not /request/json/setSettings)
     await this.makeRequest<{ message: string }>("/v3/onboarding/indv/setting", {
       method: "POST",
-      body: JSON.stringify({
-        formId: settings.formId,
-        livenessConfidence: settings.livenessConfidence,
-        approveMode: settings.approveMode,
-        redirectUrl: settings.redirectUrl,
-        kycApprovalTarget: settings.kycApprovalTarget,
-        enabledRegistrationEmail: settings.enabledRegistrationEmail,
-      }),
+      body: JSON.stringify(requestBody),
     });
   }
 }
