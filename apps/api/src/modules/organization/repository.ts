@@ -23,9 +23,10 @@ export class OrganizationRepository {
   /**
    * Create an investor organization
    * 
-   * Note: All new organizations (both PERSONAL and COMPANY) are created with
-   * onboarding_status = PENDING. The status is only set to COMPLETED when
-   * RegTank webhook confirms successful KYC/KYB approval.
+   * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
+   * Company accounts start with PENDING. Status is updated via RegTank webhooks:
+   * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
+   * - PENDING_APPROVAL → COMPLETED (when RegTank approves)
    */
   async createInvestorOrganization(data: {
     ownerUserId: string;
@@ -39,8 +40,11 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
-        // Always start with PENDING status - will be updated to COMPLETED via RegTank webhook
-        onboarding_status: OnboardingStatus.PENDING,
+        // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
+        // Company accounts: PENDING (will be updated when onboarding starts)
+        onboarding_status: data.type === OrganizationType.PERSONAL 
+          ? OnboardingStatus.IN_PROGRESS 
+          : OnboardingStatus.PENDING,
       },
     });
   }
@@ -48,9 +52,10 @@ export class OrganizationRepository {
   /**
    * Create an issuer organization
    * 
-   * Note: All new organizations (both PERSONAL and COMPANY) are created with
-   * onboarding_status = PENDING. The status is only set to COMPLETED when
-   * RegTank webhook confirms successful KYC/KYB approval.
+   * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
+   * Company accounts start with PENDING. Status is updated via RegTank webhooks:
+   * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
+   * - PENDING_APPROVAL → COMPLETED (when RegTank approves)
    */
   async createIssuerOrganization(data: {
     ownerUserId: string;
@@ -64,8 +69,11 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
-        // Always start with PENDING status - will be updated to COMPLETED via RegTank webhook
-        onboarding_status: OnboardingStatus.PENDING,
+        // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
+        // Company accounts: PENDING (will be updated when onboarding starts)
+        onboarding_status: data.type === OrganizationType.PERSONAL 
+          ? OnboardingStatus.IN_PROGRESS 
+          : OnboardingStatus.PENDING,
       },
     });
   }

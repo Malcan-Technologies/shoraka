@@ -39,6 +39,8 @@ enum OrganizationType {
 
 enum OnboardingStatus {
   PENDING
+  IN_PROGRESS
+  PENDING_APPROVAL
   COMPLETED
 }
 

@@ -284,8 +284,82 @@ export class RegTankDevWebhookHandler {
       data: updateData,
     });
 
-    // If approved, update organization status in dev database
+    // Update organization status based on RegTank status
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const statusUpper = status.toUpperCase();
+    
+    // Detect when liveness test is completed
+    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
+    const isLivenessCompleted = 
+      statusUpper === "LIVENESS_PASSED" || 
+      statusUpper === "WAIT_FOR_APPROVAL";
+
+    // Update organization to PENDING_APPROVAL when liveness test completes
+    if (isLivenessCompleted && organizationId) {
+      const portalType = onboarding.portal_type as PortalType;
+
+      try {
+        if (portalType === "investor") {
+          const orgExists = await prismaDev.investorOrganization.findUnique({
+            where: { id: organizationId },
+          });
+          
+          if (orgExists) {
+            await prismaDev.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+              },
+            });
+            logger.info(
+              { organizationId, portalType, requestId, status: statusUpper, database: "dev" },
+              "Liveness test completed, updated investor organization status to PENDING_APPROVAL"
+            );
+          } else {
+            logger.warn(
+              { organizationId, requestId, database: "dev" },
+              "Investor organization not found in dev database, skipping PENDING_APPROVAL update"
+            );
+          }
+        } else {
+          const orgExists = await prismaDev.issuerOrganization.findUnique({
+            where: { id: organizationId },
+          });
+          
+          if (orgExists) {
+            await prismaDev.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+              },
+            });
+            logger.info(
+              { organizationId, portalType, requestId, status: statusUpper, database: "dev" },
+              "Liveness test completed, updated issuer organization status to PENDING_APPROVAL"
+            );
+          } else {
+            logger.warn(
+              { organizationId, requestId, database: "dev" },
+              "Issuer organization not found in dev database, skipping PENDING_APPROVAL update"
+            );
+          }
+        }
+      } catch (orgError) {
+        logger.error(
+          {
+            error: orgError instanceof Error ? orgError.message : String(orgError),
+            organizationId,
+            portalType,
+            requestId,
+            status: statusUpper,
+            database: "dev",
+          },
+          "Failed to update organization status to PENDING_APPROVAL in dev database"
+        );
+      }
+    }
+
+    // If approved, update organization status to COMPLETED in dev database
     if (status === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 

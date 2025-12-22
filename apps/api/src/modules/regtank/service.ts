@@ -417,8 +417,71 @@ export class RegTankService {
 
     await this.repository.updateStatus(requestId, updateData);
 
-    // If approved, update organization status
+    // Update organization status based on RegTank status
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const statusUpper = status.toUpperCase();
+    
+    // Detect when liveness test is completed
+    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
+    const isLivenessCompleted = 
+      statusUpper === "LIVENESS_PASSED" || 
+      statusUpper === "WAIT_FOR_APPROVAL";
+
+    // Update organization to PENDING_APPROVAL when liveness test completes
+    if (isLivenessCompleted && organizationId) {
+      const portalType = onboarding.portal_type as PortalType;
+      
+      try {
+        if (portalType === "investor") {
+          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (orgExists) {
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL
+            );
+            logger.info(
+              { organizationId, portalType, requestId, status: statusUpper },
+              "Liveness test completed, updated investor organization status to PENDING_APPROVAL"
+            );
+          } else {
+            logger.warn(
+              { organizationId, requestId },
+              "Investor organization not found, skipping PENDING_APPROVAL update"
+            );
+          }
+        } else {
+          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (orgExists) {
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL
+            );
+            logger.info(
+              { organizationId, portalType, requestId, status: statusUpper },
+              "Liveness test completed, updated issuer organization status to PENDING_APPROVAL"
+            );
+          } else {
+            logger.warn(
+              { organizationId, requestId },
+              "Issuer organization not found, skipping PENDING_APPROVAL update"
+            );
+          }
+        }
+      } catch (orgError) {
+        logger.error(
+          {
+            error: orgError instanceof Error ? orgError.message : String(orgError),
+            organizationId,
+            portalType,
+            requestId,
+            status: statusUpper,
+          },
+          "Failed to update organization status to PENDING_APPROVAL"
+        );
+      }
+    }
+
+    // If approved, update organization status to COMPLETED
     if (status === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 
