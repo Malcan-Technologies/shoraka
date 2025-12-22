@@ -262,12 +262,27 @@ export class RegTankDevWebhookHandler {
     });
 
     // Update status
+    const statusUpper = status.toUpperCase();
+    
+    // Detect when liveness test is completed
+    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
+    const isLivenessCompleted = 
+      statusUpper === "LIVENESS_PASSED" || 
+      statusUpper === "WAIT_FOR_APPROVAL";
+
+    // Map RegTank status to our internal status
+    // When liveness completes, set to PENDING_APPROVAL in reg_tank_onboarding table
+    let internalStatus = statusUpper;
+    if (isLivenessCompleted) {
+      internalStatus = "PENDING_APPROVAL";
+    }
+
     const updateData: {
       status: string;
       substatus?: string;
       completed_at?: Date;
     } = {
-      status: status.toUpperCase(),
+      status: internalStatus,
     };
 
     if (substatus) {
@@ -286,13 +301,6 @@ export class RegTankDevWebhookHandler {
 
     // Update organization status based on RegTank status
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-    const statusUpper = status.toUpperCase();
-    
-    // Detect when liveness test is completed
-    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
-    const isLivenessCompleted = 
-      statusUpper === "LIVENESS_PASSED" || 
-      statusUpper === "WAIT_FOR_APPROVAL";
 
     // Update organization to PENDING_APPROVAL when liveness test completes
     if (isLivenessCompleted && organizationId) {

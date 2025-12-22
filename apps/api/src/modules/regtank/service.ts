@@ -7,7 +7,7 @@ import {
   RegTankWebhookPayload,
   PortalType,
 } from "./types";
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -307,6 +307,13 @@ export class RegTankService {
     const expiresIn = regTankResponse.expiredIn || 86400;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
+    // For personal accounts, organization is already IN_PROGRESS when user clicks "Yes"
+    // Set reg_tank_onboarding status to IN_PROGRESS to match organization status
+    // For company accounts, start with PENDING
+    const initialStatus = organization.type === OrganizationType.PERSONAL 
+      ? "IN_PROGRESS" 
+      : "PENDING";
+
     // Store onboarding record
     await this.repository.createOnboarding({
       userId,
@@ -318,7 +325,7 @@ export class RegTankService {
       onboardingType: "INDIVIDUAL",
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
-      status: "PENDING",
+      status: initialStatus,
       regtankResponse: regTankResponse,
     });
 
@@ -398,12 +405,27 @@ export class RegTankService {
     await this.repository.appendWebhookPayload(requestId, payload);
 
     // Update status
+    const statusUpper = status.toUpperCase();
+    
+    // Detect when liveness test is completed
+    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
+    const isLivenessCompleted = 
+      statusUpper === "LIVENESS_PASSED" || 
+      statusUpper === "WAIT_FOR_APPROVAL";
+
+    // Map RegTank status to our internal status
+    // When liveness completes, set to PENDING_APPROVAL in reg_tank_onboarding table
+    let internalStatus = statusUpper;
+    if (isLivenessCompleted) {
+      internalStatus = "PENDING_APPROVAL";
+    }
+
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: status.toUpperCase(),
+      status: internalStatus,
     };
 
     if (substatus) {
@@ -419,13 +441,6 @@ export class RegTankService {
 
     // Update organization status based on RegTank status
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-    const statusUpper = status.toUpperCase();
-    
-    // Detect when liveness test is completed
-    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
-    const isLivenessCompleted = 
-      statusUpper === "LIVENESS_PASSED" || 
-      statusUpper === "WAIT_FOR_APPROVAL";
 
     // Update organization to PENDING_APPROVAL when liveness test completes
     if (isLivenessCompleted && organizationId) {
@@ -865,8 +880,14 @@ export class RegTankService {
     const expiresIn = regTankResponse.expiredIn || 86400;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
+    // For personal accounts, set to IN_PROGRESS to match organization status
+    // For company accounts, set to PENDING
+    const retryStatus = organization.type === OrganizationType.PERSONAL 
+      ? "IN_PROGRESS" 
+      : "PENDING";
+
     await this.repository.updateStatus(existingOnboarding.request_id, {
-      status: "PENDING",
+      status: retryStatus,
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
     });
