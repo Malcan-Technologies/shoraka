@@ -2,6 +2,7 @@ import { getRegTankConfig } from "../../config/regtank";
 import { getRegTankOAuthClient } from "./oauth-client";
 import {
   RegTankIndividualOnboardingRequest,
+  RegTankCorporateOnboardingRequest,
   RegTankOnboardingResponse,
   RegTankOnboardingDetails,
 } from "./types";
@@ -277,6 +278,61 @@ export class RegTankAPIClient {
       method: "POST",
       body: JSON.stringify(preferences),
     });
+  }
+
+  /**
+   * Create corporate onboarding request
+   * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.8-business-onboarding-endpoint-json-request
+   */
+  async createCorporateOnboarding(
+    request: RegTankCorporateOnboardingRequest
+  ): Promise<RegTankOnboardingResponse> {
+    logger.info(
+      {
+        email: request.email,
+        companyName: request.companyName,
+        referenceId: request.referenceId,
+      },
+      "Creating RegTank corporate onboarding request"
+    );
+
+    return this.makeRequest<RegTankOnboardingResponse>(
+      "/v3/onboarding/corp/request",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
+  }
+
+  /**
+   * Get corporate onboarding details (COD - Company Onboarding Data)
+   * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.9-business-onboarding-endpoint-json-query-cod
+   */
+  async getCorporateOnboardingDetails(requestId: string): Promise<any> {
+    logger.debug({ requestId }, "Fetching RegTank corporate onboarding details (COD)");
+    
+    return this.makeRequest(`/v3/onboarding/corp/query?requestId=${requestId}`);
+  }
+
+  /**
+   * Get entity onboarding details (EOD - Entity Onboarding Data)
+   * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.10-business-onboarding-endpoint-json-query-eod
+   */
+  async getEntityOnboardingDetails(requestId: string): Promise<any> {
+    logger.debug({ requestId }, "Fetching RegTank entity onboarding details (EOD)");
+    
+    return this.makeRequest(`/v3/onboarding/corp/indv/query?requestId=${requestId}`);
+  }
+
+  /**
+   * Get onboarding settings
+   * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.6-individual-onboarding-endpoint-json-get-setting
+   */
+  async getOnboardingSettings(formId: number): Promise<any> {
+    logger.debug({ formId }, "Fetching RegTank onboarding settings");
+    
+    return this.makeRequest(`/v3/onboarding/indv/setting/query?formId=${formId}`);
   }
 }
 

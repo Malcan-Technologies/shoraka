@@ -4,6 +4,7 @@ import { getRegTankAPIClient } from "./api-client";
 import { getRegTankConfig } from "../../config/regtank";
 import {
   RegTankIndividualOnboardingRequest,
+  RegTankCorporateOnboardingRequest,
   RegTankWebhookPayload,
   PortalType,
 } from "./types";
@@ -391,6 +392,216 @@ export class RegTankService {
   }
 
   /**
+   * Start corporate onboarding for an organization
+   */
+  async startCorporateOnboarding(
+    req: Request,
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<{
+    verifyLink: string;
+    requestId: string;
+    expiresIn: number;
+    organizationType: string;
+  }> {
+    logger.info(
+      {
+        userId,
+        organizationId,
+        portalType,
+      },
+      "Starting RegTank corporate onboarding"
+    );
+
+    // Get user data
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    // Get organization
+    const organization =
+      portalType === "investor"
+        ? await this.organizationRepository.findInvestorOrganizationById(
+            organizationId
+          )
+        : await this.organizationRepository.findIssuerOrganizationById(
+            organizationId
+          );
+
+    if (!organization) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
+    }
+
+    // Verify user owns the organization
+    if (organization.owner_user_id !== userId) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Only the organization owner can start onboarding"
+      );
+    }
+
+    // Check if organization is already completed
+    if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
+      throw new AppError(
+        400,
+        "ALREADY_COMPLETED",
+        "Onboarding is already completed"
+      );
+    }
+
+    // Verify organization is COMPANY type
+    if (organization.type !== OrganizationType.COMPANY) {
+      throw new AppError(
+        400,
+        "INVALID_ORGANIZATION_TYPE",
+        "Corporate onboarding can only be started for COMPANY organizations"
+      );
+    }
+
+    // Check if there's already an active onboarding
+    const existingOnboarding = await this.repository.findByOrganizationId(
+      organizationId,
+      portalType
+    );
+    if (
+      existingOnboarding &&
+      ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)
+    ) {
+      if (existingOnboarding.verify_link) {
+        return {
+          verifyLink: existingOnboarding.verify_link,
+          requestId: existingOnboarding.request_id,
+          expiresIn: existingOnboarding.verify_link_expires_at
+            ? Math.floor(
+                (existingOnboarding.verify_link_expires_at.getTime() -
+                  Date.now()) /
+                  1000
+              )
+            : 86400,
+          organizationType: organization.type,
+        };
+      }
+    }
+
+    // Prepare RegTank corporate onboarding request
+    const referenceId = organizationId; // Use organization ID as reference
+
+    const onboardingRequest: RegTankCorporateOnboardingRequest = {
+      email: user.email,
+      companyName: organization.name || `${user.first_name} ${user.last_name} Company`,
+      formName: "Business End User Onboarding",
+      referenceId,
+    };
+
+    logger.info(
+      {
+        userId,
+        organizationId,
+        portalType,
+        email: user.email,
+        referenceId,
+        companyName: onboardingRequest.companyName,
+      },
+      "Creating RegTank corporate onboarding request"
+    );
+
+    // Call RegTank API
+    let regTankResponse;
+    try {
+      regTankResponse = await this.apiClient.createCorporateOnboarding(
+        onboardingRequest
+      );
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          organizationId,
+          userId,
+          email: user.email,
+        },
+        "Failed to create RegTank corporate onboarding"
+      );
+      // Re-throw AppError as-is, wrap others
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(
+        500,
+        "REGTANK_ONBOARDING_FAILED",
+        `Failed to start RegTank corporate onboarding: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    // Calculate expiration time (24 hours default)
+    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    // Corporate onboarding starts with PENDING status
+    const initialStatus = "PENDING";
+
+    // Store onboarding record
+    await this.repository.createOnboarding({
+      userId,
+      organizationId,
+      organizationType: organization.type,
+      portalType,
+      requestId: regTankResponse.requestId,
+      referenceId,
+      onboardingType: "CORPORATE",
+      verifyLink: regTankResponse.verifyLink,
+      verifyLinkExpiresAt: expiresAt,
+      status: initialStatus,
+      regtankResponse: regTankResponse,
+    });
+
+    // Log onboarding started event
+    const { ipAddress, userAgent, deviceInfo, deviceType } =
+      extractRequestMetadata(req);
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: userId,
+        role,
+        event_type: "ONBOARDING_STARTED",
+        portal: portalType,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        device_info: deviceInfo,
+        device_type: deviceType,
+        metadata: {
+          organizationId,
+          requestId: regTankResponse.requestId,
+          onboardingType: "CORPORATE",
+        },
+      },
+    });
+
+    logger.info(
+      {
+        requestId: regTankResponse.requestId,
+        organizationId,
+        verifyLink: regTankResponse.verifyLink,
+      },
+      "RegTank corporate onboarding started successfully"
+    );
+
+    return {
+      verifyLink: regTankResponse.verifyLink,
+      requestId: regTankResponse.requestId,
+      expiresIn,
+      organizationType: organization.type,
+    };
+  }
+
+  /**
    * Handle webhook update from RegTank
    */
   async handleWebhookUpdate(
@@ -428,20 +639,32 @@ export class RegTankService {
     // Update status
     const statusUpper = status.toUpperCase();
     
-    // Detect when liveness test is completed
-    // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
+    // Status transition logic:
+    // IN_PROGRESS → LIVENESS_PASSED → PENDING_APPROVAL → APPROVED/REJECTED
+    
+    // Map RegTank status to our internal status
+    let internalStatus = statusUpper;
+    
+    // NEW: Explicit LIVENESS_PASSED status
+    if (statusUpper === "LIVENESS_PASSED") {
+      internalStatus = "LIVENESS_PASSED";
+    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
+      internalStatus = "PENDING_APPROVAL";
+    } else if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+      internalStatus = statusUpper;
+    }
+    
+    // Detect when liveness test is completed (for organization status updates)
     const isLivenessCompleted = 
       statusUpper === "LIVENESS_PASSED" || 
       statusUpper === "WAIT_FOR_APPROVAL";
 
-    // Store the actual RegTank status in RegTankOnboarding.status
-    // This preserves RegTank's status strings (LIVENESS_PASSED, APPROVED, etc.)
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: statusUpper, // Store actual RegTank status: "LIVENESS_PASSED", "APPROVED", etc.
+      status: internalStatus,
     };
 
     if (substatus) {
@@ -923,6 +1146,40 @@ export class RegTankService {
       expiresIn,
       organizationType: organization.type,
     };
+  }
+
+  /**
+   * Set webhook preferences (global configuration)
+   * Wrapper method for admin endpoints
+   */
+  async setWebhookPreferences(preferences: {
+    webhookUrl: string;
+    webhookEnabled: boolean;
+  }): Promise<void> {
+    return this.apiClient.setWebhookPreferences(preferences);
+  }
+
+  /**
+   * Set onboarding settings (per formId)
+   * Wrapper method for admin endpoints
+   */
+  async setOnboardingSettings(settings: {
+    formId: number;
+    livenessConfidence: number;
+    approveMode: boolean;
+    redirectUrl?: string;
+    kycApprovalTarget?: string;
+    enabledRegistrationEmail?: boolean;
+  }): Promise<void> {
+    return this.apiClient.setOnboardingSettings(settings);
+  }
+
+  /**
+   * Get onboarding settings (per formId)
+   * Wrapper method for admin endpoints
+   */
+  async getOnboardingSettings(formId: number): Promise<any> {
+    return this.apiClient.getOnboardingSettings(formId);
   }
 }
 

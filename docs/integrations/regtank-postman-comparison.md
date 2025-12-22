@@ -342,6 +342,72 @@ The `redirectUrl` field in the Set Onboarding Settings endpoint (`POST /v3/onboa
 - Official docs specify Integer and Boolean types respectively
 - **Recommendation**: Use Integer and Boolean types as per official documentation
 
+## ✅ Webhook Configuration and Delivery
+
+**Status**: ✅ **DOCUMENTED** - Confirmed via official RegTank API documentation
+
+**Official Documentation References:**
+- [Webhook Overview](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook)
+- [Endpoint Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.1-endpoint-definition)
+- [Receiving Webhook Notifications](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications)
+
+### Webhook Configuration
+
+**Postman Collection:**
+- `POST https://{{companySpecificRegtankServerURL}}/alert/preferences`
+- Request body: `{ "webhookUrl": "string", "webhookEnabled": "boolean" }`
+
+**Official Documentation:**
+- `POST https://{client-portal-server}/alert/preferences`
+- Same request body structure
+
+**Status**: ✅ **ALIGNED** - Both match exactly
+
+### Webhook URL Suffixes
+
+**Official Documentation Confirms:**
+RegTank automatically appends suffixes to the configured `webhookUrl` based on webhook type:
+
+| Webhook Type | Suffix | Documentation Reference |
+|--------------|--------|------------------------|
+| Individual Onboarding | `/liveness` | [6.2.6](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition) |
+| KYC (Acuris) | `/kyc` | [6.2.1](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.1-kyc-notification-definition) |
+| KYC (Dow Jones) | `/djkyc` | [6.2.2](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.2-djkyc-notification-definition) |
+| KYB (Acuris) | `/kyb` | [6.2.3](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.3-kyb-notification-definition) |
+| KYB (Dow Jones) | `/djkyb` | [6.2.4](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.4-djkyb-notification-definition) |
+| KYT | `/kyt` | [6.2.5](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.5-kyt-notification-definition) |
+| Business Onboarding (COD) | `/cod` | [6.2.7](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.7-business-onboarding-notification-definition-cod) |
+| Business Onboarding (EOD) | `/eod` | [6.2.8](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.8-business-onboarding-notification-definition-eod) |
+
+**Example:**
+If `webhookUrl` is configured as `https://api.cashsouk.com/v1/webhooks/regtank`, RegTank will send:
+- Individual onboarding webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/liveness`
+- KYC webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/kyc`
+- KYB webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/kyb`
+- etc.
+
+**Postman Collection:**
+- Does not explicitly show webhook suffix examples
+- Webhook configuration endpoint is present and matches documentation
+
+**Status**: ✅ **CONFIRMED** - Official documentation clearly specifies suffix-based routing
+
+### Webhook Payload Structure
+
+**Official Documentation Confirms:**
+All webhooks include `requestId` and `referenceId` in the request body. The documentation states:
+
+> "Take note that the record is tagged using the referenceId. Therefore referenceId is returned as part of the webhook response. Hence, referenceId must be a unique ID from the client-server."
+
+**Key Findings:**
+- ✅ `referenceId` is confirmed in all webhook payloads (request body)
+- ✅ `requestId` is the RegTank system ID
+- ✅ Each webhook type has specific additional fields (status, riskScore, etc.)
+- ✅ Webhooks are sent as POST requests with JSON body
+- ✅ Response should be HTTP 200 OK
+
+**Status**: ✅ **RESOLVED** - All webhook types documented with payload structures
+
 ## Conclusion
 
 The documentation is **partially aligned** with the Postman collection, but there are significant gaps:

@@ -11,30 +11,35 @@ import { Separator } from "../../components/ui/separator";
 function RegTankCallbackContent() {
   const router = useRouter();
   const { refreshOrganizations, activeOrganization, syncRegTankStatus } = useOrganization();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [status, setStatus] = useState<"syncing" | "pending_approval" | "approved" | "rejected" | "error">("syncing");
   const [error, setError] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let pollInterval: NodeJS.Timeout | null = null;
     let redirectTimeout: NodeJS.Timeout | null = null;
     let pollCount = 0;
-    const maxPolls = 10; // Poll for up to 10 seconds (10 polls × 1 second)
+    const maxPolls = 150; // Poll for up to 5 minutes (150 polls × 2 seconds)
 
     const handleCallback = async () => {
+      if (!activeOrganization?.id) {
+        setError("No active organization found");
+        setStatus("error");
+        return;
+      }
+
       try {
         // Immediately refresh organizations to get latest status
         await refreshOrganizations();
 
-        // If we have an active organization, try to sync status from RegTank API
-        // This helps when webhooks are delayed or not configured
-        if (activeOrganization?.id) {
-          try {
-            await syncRegTankStatus(activeOrganization.id);
-            console.log("[RegTank Callback] Status synced from RegTank API");
-          } catch (syncError) {
-            console.warn("[RegTank Callback] Failed to sync status (non-blocking):", syncError);
-            // Non-blocking - continue with polling
-          }
+        // Sync status from RegTank API (helps when webhooks are delayed)
+        try {
+          const syncResult = await syncRegTankStatus(activeOrganization.id);
+          setCurrentStatus(syncResult.status);
+          console.log("[RegTank Callback] Status synced:", syncResult.status);
+        } catch (syncError) {
+          console.warn("[RegTank Callback] Failed to sync status (non-blocking):", syncError);
+          // Non-blocking - continue with polling
         }
 
         // Poll for status updates (webhook might be delayed)
@@ -43,25 +48,57 @@ function RegTankCallbackContent() {
             await refreshOrganizations();
             pollCount++;
 
-            // Check if active organization is now completed
+            // Get latest status from sync
+            try {
+              const syncResult = await syncRegTankStatus(activeOrganization.id);
+              const onboardingStatus = syncResult.status.toUpperCase();
+              setCurrentStatus(onboardingStatus);
+
+              // Handle different status values
+              if (onboardingStatus === "APPROVED") {
+                setStatus("approved");
+                if (pollInterval) clearInterval(pollInterval);
+                // Redirect to dashboard after a brief delay
+                redirectTimeout = setTimeout(() => {
+                  router.replace("/");
+                }, 2000);
+                return true;
+              } else if (onboardingStatus === "REJECTED") {
+                setStatus("rejected");
+                if (pollInterval) clearInterval(pollInterval);
+                // Don't redirect immediately - show rejection message
+                return true;
+              } else if (onboardingStatus === "LIVENESS_PASSED" || onboardingStatus === "PENDING_APPROVAL") {
+                setStatus("pending_approval");
+                // Continue polling
+              }
+            } catch (syncError) {
+              console.warn("[RegTank Callback] Sync error during poll:", syncError);
+            }
+
+            // Check organization status as fallback
             if (activeOrganization?.onboardingStatus === "COMPLETED") {
-              setStatus("success");
+              setStatus("approved");
               if (pollInterval) clearInterval(pollInterval);
-              // Redirect to dashboard after a brief delay
               redirectTimeout = setTimeout(() => {
                 router.replace("/");
-              }, 1500);
+              }, 2000);
               return true;
             }
 
             // Stop polling after max attempts
             if (pollCount >= maxPolls) {
-              setStatus("success");
+              // If we're still pending approval, show that status
+              if (currentStatus === "PENDING_APPROVAL" || currentStatus === "LIVENESS_PASSED") {
+                setStatus("pending_approval");
+              } else {
+                // Otherwise redirect - webhook might update later
+                setStatus("approved");
+                redirectTimeout = setTimeout(() => {
+                  router.replace("/");
+                }, 2000);
+              }
               if (pollInterval) clearInterval(pollInterval);
-              // Redirect anyway - webhook might update later
-              redirectTimeout = setTimeout(() => {
-                router.replace("/");
-              }, 1500);
               return true;
             }
 
@@ -76,10 +113,10 @@ function RegTankCallbackContent() {
         const isComplete = await pollForStatus();
         
         if (!isComplete) {
-          // Poll every second for status updates
+          // Poll every 2 seconds for status updates
           pollInterval = setInterval(async () => {
             await pollForStatus();
-          }, 1000);
+          }, 2000);
         }
       } catch (err) {
         console.error("[RegTank Callback] Error:", err);
@@ -89,7 +126,7 @@ function RegTankCallbackContent() {
         // Redirect to dashboard even on error after delay
         redirectTimeout = setTimeout(() => {
           router.replace("/");
-        }, 3000);
+        }, 5000);
       }
     };
 
@@ -100,7 +137,7 @@ function RegTankCallbackContent() {
       if (pollInterval) clearInterval(pollInterval);
       if (redirectTimeout) clearTimeout(redirectTimeout);
     };
-  }, [router, refreshOrganizations, activeOrganization]);
+  }, [router, refreshOrganizations, activeOrganization, syncRegTankStatus]);
 
   return (
     <>
@@ -111,11 +148,11 @@ function RegTankCallbackContent() {
       </header>
       <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
         <div className="w-full max-w-md text-center space-y-6">
-          {status === "loading" && (
+          {status === "syncing" && (
             <>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold">Processing your onboarding...</h2>
+                <h2 className="text-xl font-semibold">Verifying your identity...</h2>
                 <p className="text-[15px] text-muted-foreground">
                   Please wait while we verify your information
                 </p>
@@ -123,7 +160,33 @@ function RegTankCallbackContent() {
             </>
           )}
 
-          {status === "success" && (
+          {status === "pending_approval" && (
+            <>
+              <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto">
+                <svg
+                  className="h-6 w-6 text-yellow-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold">Your submission is under review</h2>
+                <p className="text-[15px] text-muted-foreground">
+                  We're reviewing your verification. You'll be notified once it's complete.
+                </p>
+              </div>
+            </>
+          )}
+
+          {status === "approved" && (
             <>
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                 <svg
@@ -141,9 +204,35 @@ function RegTankCallbackContent() {
                 </svg>
               </div>
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold">Onboarding Complete!</h2>
+                <h2 className="text-xl font-semibold">Verification complete!</h2>
                 <p className="text-[15px] text-muted-foreground">
                   Redirecting you to your dashboard...
+                </p>
+              </div>
+            </>
+          )}
+
+          {status === "rejected" && (
+            <>
+              <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                <svg
+                  className="h-6 w-6 text-destructive"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold">Verification failed</h2>
+                <p className="text-[15px] text-muted-foreground">
+                  Your verification was not approved. Please contact support for assistance.
                 </p>
               </div>
             </>
@@ -169,7 +258,7 @@ function RegTankCallbackContent() {
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold">Something went wrong</h2>
                 <p className="text-[15px] text-muted-foreground">
-                  {error || "Failed to process callback. Redirecting to dashboard..."}
+                  {error || "Failed to process callback. Please try again or contact support."}
                 </p>
               </div>
             </>

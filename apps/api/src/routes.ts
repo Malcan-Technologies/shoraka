@@ -6,6 +6,7 @@ import cognitoAuthRouter from "./modules/auth/cognito.routes";
 import { adminRouter } from "./modules/admin/controller";
 import { createOrganizationRouter } from "./modules/organization/controller";
 import { regTankRouter } from "./modules/regtank/controller";
+import { regTankAdminRouter } from "./modules/regtank/admin-controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -69,6 +70,9 @@ export function registerRoutes(app: Application): void {
   
   // RegTank routes (require authentication)
   v1Router.use("/regtank", requireAuth, regTankRouter);
+  
+  // RegTank admin routes (require authentication + ADMIN role)
+  v1Router.use("/regtank", requireAuth, regTankAdminRouter);
   
   // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

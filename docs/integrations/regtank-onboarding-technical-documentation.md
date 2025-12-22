@@ -609,6 +609,18 @@ Processes incoming webhook payload.
 3. Calls `webhookHandler.processWebhook()`
 4. Returns 200 OK immediately (processing is async)
 
+**Note:** According to the [official RegTank documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications), RegTank automatically appends suffixes to the configured `webhookUrl`:
+- `/liveness` for Individual Onboarding
+- `/kyc` for Acuris KYC
+- `/djkyc` for Dow Jones KYC
+- `/kyb` for Acuris KYB
+- `/djkyb` for Dow Jones KYB
+- `/kyt` for KYT Monitoring
+- `/cod` for Business Onboarding (COD)
+- `/eod` for Business Onboarding (EOD)
+
+**Current Implementation:** The current implementation handles all webhooks at the base endpoint `/v1/webhooks/regtank`. To support RegTank's suffix-based routing, you may need to add route handlers for each suffix (e.g., `/v1/webhooks/regtank/liveness`, `/v1/webhooks/regtank/kyc`, etc.) or configure your routing to accept all paths under `/v1/webhooks/regtank/*`.
+
 ---
 
 ### Dev Webhook Handler Module

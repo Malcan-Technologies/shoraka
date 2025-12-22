@@ -540,18 +540,24 @@ Webhook URL is configured **globally** via the `/alert/preferences` endpoint. Th
 
 ### Webhook Endpoints
 
-RegTank sends webhooks to your configured `webhookUrl` with different suffixes:
+RegTank automatically appends suffixes to your configured `webhookUrl` based on the webhook type. According to the [official RegTank documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications), RegTank sends webhooks to:
 
-| Webhook Type | Endpoint Suffix | Purpose |
-|--------------|----------------|---------|
-| Individual Onboarding | `/liveness` | Status updates for individual onboarding |
-| KYC Screening | `/kyc` | KYC screening results |
-| Business Onboarding | `/kyb` | Business onboarding COD results |
+| Webhook Type | Endpoint Suffix | Full URL Example | Reference |
+|--------------|----------------|------------------|-----------|
+| Individual Onboarding | `/liveness` | `https://api.cashsouk.com/v1/webhooks/regtank/liveness` | [6.2.6](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition) |
+| KYC Screening (Acuris) | `/kyc` | `https://api.cashsouk.com/v1/webhooks/regtank/kyc` | [6.2.1](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.1-kyc-notification-definition) |
+| KYC Screening (Dow Jones) | `/djkyc` | `https://api.cashsouk.com/v1/webhooks/regtank/djkyc` | [6.2.2](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.2-djkyc-notification-definition) |
+| KYB Screening (Acuris) | `/kyb` | `https://api.cashsouk.com/v1/webhooks/regtank/kyb` | [6.2.3](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.3-kyb-notification-definition) |
+| KYB Screening (Dow Jones) | `/djkyb` | `https://api.cashsouk.com/v1/webhooks/regtank/djkyb` | [6.2.4](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.4-djkyb-notification-definition) |
+| KYT Monitoring | `/kyt` | `https://api.cashsouk.com/v1/webhooks/regtank/kyt` | [6.2.5](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.5-kyt-notification-definition) |
+| Business Onboarding (COD) | `/cod` | `https://api.cashsouk.com/v1/webhooks/regtank/cod` | [6.2.7](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.7-business-onboarding-notification-definition-cod) |
+| Business Onboarding (EOD) | `/eod` | `https://api.cashsouk.com/v1/webhooks/regtank/eod` | [6.2.8](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.8-business-onboarding-notification-definition-eod) |
 
-**Example:** If `webhookUrl` is `https://api.cashsouk.com/v1/webhooks/regtank`, RegTank will send:
-- Individual onboarding webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/liveness`
-- KYC webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/kyc`
-- Business onboarding webhooks to: `https://api.cashsouk.com/v1/webhooks/regtank/kyb`
+**Important Notes:**
+- RegTank automatically appends the suffix to your base `webhookUrl`
+- You must configure route handlers for each suffix in your application
+- All webhooks use the same signature verification mechanism
+- The `referenceId` field is included in all webhook payloads for record matching
 
 ### Webhook Signature Verification
 
@@ -569,11 +575,17 @@ RegTank uses **HMAC-SHA256** signature verification for webhooks.
 
 **Note:** In development/testing, webhooks may be accepted without signature (logged as warning).
 
-### Webhook Payload
+### Webhook Payloads
 
-RegTank sends webhook notifications as **POST requests** to your configured webhook URL. The **request body** (JSON payload) contains the webhook data.
+RegTank sends webhook notifications as **POST requests** to your configured webhook URL with the appropriate suffix. The **request body** (JSON payload) contains the webhook data. All webhooks include `requestId` and `referenceId` for record matching.
 
-**Individual Onboarding Webhook:**
+**Reference:** [RegTank Webhook Documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications)
+
+#### Individual Onboarding Webhook (`/liveness`)
+
+**Reference:** [Individual Onboarding Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition)
+
+**Payload:**
 ```json
 {
   "requestId": "LD00001",
@@ -591,9 +603,11 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 }
 ```
 
-**Note:** The `referenceId` field is included in the webhook request body. This is confirmed for KYC webhooks (see [KYC Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.1-kyc-notification-definition#request-syntax)). Individual Onboarding webhooks likely include it as well, following the same pattern.
+#### KYC Webhook - Acuris (`/kyc`)
 
-**KYC Webhook Example:**
+**Reference:** [KYC Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.1-kyc-notification-definition)
+
+**Payload:**
 ```json
 {
   "requestId": "KYC06407",
@@ -604,19 +618,90 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
   "messageStatus": "DONE",
   "possibleMatchCount": 10,
   "blacklistedMatchCount": 12,
+  "assignee": "",
   "timestamp": "2025-08-18T03:40:27.417+00:00",
   "onboardingId": "LD58043",
   "tags": []
 }
 ```
 
-**Your Response:** Your webhook endpoint should return `200 OK` with a simple acknowledgment:
+**Status Values:**
+- `Unresolved` - Initial status
+- `No Match` - When no match is found
+- `Positive Match` - When there is a positive match found
+- `Score Generated` - Risk score calculated
+- `Approved` - Final approval
+- `Rejected` - Final rejection
+- `Terminated` - Process terminated
+
+#### KYC Webhook - Dow Jones (`/djkyc`)
+
+**Reference:** [DJKYC Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.2-djkyc-notification-definition)
+
+**Payload:** Same structure as Acuris KYC webhook, but with `requestId` prefixed with "DJKYC" (e.g., "DJKYC08238")
+
+#### KYB Webhook - Acuris (`/kyb`)
+
+**Reference:** [KYB Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.3-kyb-notification-definition)
+
+**Payload:**
+```json
+{
+  "requestId": "KYB00087",
+  "referenceId": "id00000002",
+  "riskScore": "30",
+  "riskLevel": "Medium Level",
+  "status": "Approved",
+  "messageStatus": "DONE",
+  "possibleMatchCount": 9,
+  "blacklistedMatchCount": 2,
+  "assignee": "user@regtank.com",
+  "timestamp": "2023-11-09T22:49:10.991+00:00",
+  "onboardingId": "COD12345",
+  "tags": []
+}
+```
+
+#### KYB Webhook - Dow Jones (`/djkyb`)
+
+**Reference:** [DJKYB Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.4-djkyb-notification-definition)
+
+**Payload:** Same structure as Acuris KYB webhook, but with `requestId` prefixed with "DJKYB"
+
+#### KYT Webhook (`/kyt`)
+
+**Reference:** [KYT Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.5-kyt-notification-definition)
+
+**Payload:** Contains transaction monitoring results with `requestId`, `referenceId`, `status`, and transaction-related fields.
+
+#### Business Onboarding - COD (`/cod`)
+
+**Reference:** [Business Onboarding Notification Definition (COD)](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.7-business-onboarding-notification-definition-cod)
+
+**Payload:** Contains company-level onboarding status updates with `requestId`, `referenceId`, and company verification status.
+
+#### Business Onboarding - EOD (`/eod`)
+
+**Reference:** [Business Onboarding Notification Definition (EOD)](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.8-business-onboarding-notification-definition-eod)
+
+**Payload:** Contains entity-level (director/shareholder) onboarding status updates with `requestId`, `referenceId`, and individual entity verification status.
+
+**Note:** The `referenceId` field is included in all webhook request body payloads. This is confirmed in the [official RegTank documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications), which states: "Take note that the record is tagged using the referenceId. Therefore referenceId is returned as part of the webhook response."
+
+**Your Response:** Your webhook endpoint should return `200 OK` with a simple acknowledgment. RegTank expects an HTTP 200 response to confirm successful receipt.
+
+**Response Format:**
 ```json
 {
   "success": true,
   "message": "Webhook received and processed"
 }
 ```
+
+**Important:** RegTank will retry webhook delivery if it doesn't receive a 200 OK response. Ensure your endpoint:
+- Returns 200 OK immediately upon receipt (processing can be async)
+- Handles errors gracefully without returning 5xx errors for invalid payloads
+- Processes webhooks idempotently (same webhook can be delivered multiple times)
 
 **Status Values:**
 - `URL_GENERATED` - Onboarding link created

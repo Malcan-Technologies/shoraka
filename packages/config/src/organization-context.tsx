@@ -47,6 +47,8 @@ interface OrganizationContextType {
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   completeOnboarding: (organizationId: string) => Promise<void>;
   startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
+  startIndividualOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
+  startCorporateOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
   isOnboarded: boolean;
   portalType: PortalType;
@@ -271,8 +273,9 @@ export function OrganizationProvider({
   );
 
   /**
-   * Start RegTank onboarding for an organization
+   * Start RegTank onboarding for an organization (legacy endpoint)
    * Returns the verify link to redirect user to RegTank portal
+   * @deprecated Use startIndividualOnboarding or startCorporateOnboarding instead
    */
   const startRegTankOnboarding = useCallback(
     async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
@@ -289,6 +292,58 @@ export function OrganizationProvider({
 
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to start RegTank onboarding");
+      }
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
+  /**
+   * Start RegTank individual onboarding for an organization
+   * Returns the verify link to redirect user to RegTank portal
+   */
+  const startIndividualOnboarding = useCallback(
+    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{
+        verifyLink: string;
+        requestId: string;
+        expiresIn: number;
+        organizationType: string;
+      }>("/v1/regtank/start-individual-onboarding", {
+        organizationId,
+        portalType,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to start individual onboarding");
+      }
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
+  /**
+   * Start RegTank corporate onboarding for an organization
+   * Returns the verify link to redirect user to RegTank portal
+   */
+  const startCorporateOnboarding = useCallback(
+    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{
+        verifyLink: string;
+        requestId: string;
+        expiresIn: number;
+        organizationType: string;
+      }>("/v1/regtank/start-corporate-onboarding", {
+        organizationId,
+        portalType,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to start corporate onboarding");
       }
 
       return result.data;
@@ -334,6 +389,8 @@ export function OrganizationProvider({
         createOrganization,
         completeOnboarding,
         startRegTankOnboarding,
+        startIndividualOnboarding,
+        startCorporateOnboarding,
         syncRegTankStatus,
         isOnboarded,
         portalType,

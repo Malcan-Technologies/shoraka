@@ -7,6 +7,8 @@ export type RegTankOnboardingType = "INDIVIDUAL" | "CORPORATE";
 export type RegTankOnboardingStatus =
   | "PENDING"
   | "IN_PROGRESS"
+  | "LIVENESS_PASSED"
+  | "PENDING_APPROVAL"
   | "APPROVED"
   | "REJECTED"
   | "EXPIRED";
@@ -90,5 +92,118 @@ export interface RegTankOnboardingDetails {
   [key: string]: any;
 }
 
+/**
+ * RegTank Corporate Onboarding Request
+ */
+export interface RegTankCorporateOnboardingRequest {
+  email: string;
+  companyName: string;
+  formName?: string;
+  referenceId: string;
+}
 
+/**
+ * RegTank Individual Onboarding Webhook (6.2.6)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition
+ */
+export interface RegTankIndividualOnboardingWebhook {
+  requestId: string;
+  status: string;
+  timestamp: string;
+  exceedDeclinedLimit: boolean;
+  ocrResults?: {
+    validUntil?: string;
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    idType?: string;
+    idIssuedCountry?: string;
+    idNumber?: string;
+  };
+  confidence?: number;
+}
+
+/**
+ * RegTank COD Webhook (6.2.7)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.7-business-onboarding-notification-definition-cod
+ */
+export interface RegTankCODWebhook {
+  requestId: string;
+  status: string;
+  timestamp: string;
+  isPrimary: boolean;
+  corpIndvDirectors: string[];
+  corpIndvShareholders: string[];
+  corpBizShareholders: string[];
+  kybId: string;
+  corpIndvDirectorCount: number;
+  corpIndvShareholderCount: number;
+  corpBizShareholderCount: number;
+}
+
+/**
+ * RegTank EOD Webhook (6.2.8)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.8-business-onboarding-notification-definition-eod
+ */
+export interface RegTankEODWebhook {
+  requestId: string;
+  status: string;
+  timestamp: string;
+  confidence: number;
+  kycId: string;
+}
+
+/**
+ * RegTank KYC Webhook (6.2.1)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.1-kyc-notification-definition
+ */
+export interface RegTankKYCWebhook {
+  requestId: string;
+  referenceId: string;
+  riskScore: string;
+  riskLevel: string;
+  status: string;
+  messageStatus: string;
+  possibleMatchCount: number;
+  blacklistedMatchCount: number;
+  assignee: string;
+  timestamp: string;
+  onboardingId?: string;
+  tags: string[];
+}
+
+/**
+ * RegTank KYB Webhook (6.2.3)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.3-kyb-notification-definition
+ */
+export interface RegTankKYBWebhook {
+  requestId: string;
+  referenceId: string;
+  riskScore: string;
+  riskLevel: string;
+  status: string;
+  messageStatus: string;
+  possibleMatchCount: number;
+  blacklistedMatchCount: number;
+  assignee: string;
+  timestamp: string;
+  onboardingId?: string;
+  tags: string[];
+}
+
+/**
+ * RegTank KYT Webhook (6.2.5)
+ * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.5-kyt-notification-definition
+ */
+export interface RegTankKYTWebhook {
+  requestId: string;
+  referenceId: string;
+  riskScore: string;
+  riskLevel: string;
+  typeOfChange: string;
+  status: string;
+  messageStatus: string;
+  assignee: string;
+  timestamp: string;
+}
 

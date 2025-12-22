@@ -326,7 +326,7 @@ model RegTankOnboarding {
   verify_link_expires_at DateTime?
   
   // Status tracking
-  status                String           // PENDING, IN_PROGRESS, APPROVED, REJECTED, EXPIRED
+  status                String           // PENDING, IN_PROGRESS, LIVENESS_PASSED, PENDING_APPROVAL, APPROVED, REJECTED, EXPIRED
   substatus             String?          // WAIT_FOR_APPROVAL, PROCESSING, etc.
   
   // RegTank response data
