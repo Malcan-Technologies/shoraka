@@ -423,15 +423,46 @@ export class RegTankService {
       const portalType = onboarding.portal_type as PortalType;
 
       // Update organization onboarding status
-      if (portalType === "investor") {
-        await this.organizationRepository.updateInvestorOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
-        );
-      } else {
-        await this.organizationRepository.updateIssuerOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
+      // Check if organization exists first to prevent errors
+      try {
+        if (portalType === "investor") {
+          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (orgExists) {
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.COMPLETED
+            );
+            logger.info({ organizationId, portalType }, "Updated investor organization status to COMPLETED");
+          } else {
+            logger.warn(
+              { organizationId, requestId },
+              "Investor organization not found, skipping organization update"
+            );
+          }
+        } else {
+          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (orgExists) {
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.COMPLETED
+            );
+            logger.info({ organizationId, portalType }, "Updated issuer organization status to COMPLETED");
+          } else {
+            logger.warn(
+              { organizationId, requestId },
+              "Issuer organization not found, skipping organization update"
+            );
+          }
+        }
+      } catch (orgError) {
+        logger.error(
+          {
+            error: orgError instanceof Error ? orgError.message : String(orgError),
+            organizationId,
+            portalType,
+            requestId,
+          },
+          "Failed to update organization status, continuing with user update"
         );
       }
 

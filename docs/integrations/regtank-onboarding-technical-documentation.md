@@ -651,14 +651,20 @@ Main business logic layer that orchestrates the onboarding flow.
    - Sets `completed_at` if status is APPROVED or REJECTED
 
 4. **If APPROVED:**
+   - **Checks organization exists** before updating (defensive)
    - Updates organization: `onboarding_status = COMPLETED`
    - Updates `onboarded_at` timestamp
    - Updates user's account array (replaces "temp" with organizationId)
    - Creates `OnboardingLog` entry with event_type "ONBOARDING_COMPLETED"
+   - **Error handling:** Logs warnings if organization not found, continues with user updates
 
 **Throws:** `AppError` if onboarding not found
 
-**Note:** This method is idempotent - can be called multiple times safely.
+**Important Notes:**
+- This method is idempotent - can be called multiple times safely
+- **Defensive programming:** Checks if organization exists before updates to prevent crashes
+- **Graceful degradation:** Continues processing user updates even if organization update fails
+- **Enhanced logging:** Logs success/failure of organization updates for debugging
 
 #### `getOnboardingStatus(userId: string, organizationId: string, portalType: PortalType): Promise<{...}>`
 
@@ -1023,14 +1029,21 @@ Handles webhooks for development database. Identical to production handler but w
 **Purpose:** Updates dev database with webhook data.
 
 **Process:**
-1. Finds onboarding in dev database
-2. Appends payload to history
-3. Updates status
-4. If APPROVED, updates organization in dev database
-5. Updates user's account array in dev database
-6. Creates onboarding log in dev database
+1. Attempts to find onboarding in dev database
+2. **Fallback:** If not found in dev, checks production database
+   - If found in production, creates a copy in dev database
+   - Re-queries from dev database to ensure correct reference
+3. Appends payload to history
+4. Updates status
+5. If APPROVED, updates organization in dev database (with existence check)
+6. Updates user's account array in dev database
+7. Creates onboarding log in dev database
 
-**Note:** Uses `prismaDev` client instead of `prisma` to write to separate database.
+**Important Notes:**
+- Uses `prismaDev` client instead of `prisma` to write to separate database
+- **Production fallback:** Allows webhooks for onboarding created in production to be processed by dev handler
+- **Re-query after copy:** After copying from production, the record is re-queried from dev to ensure subsequent operations reference the dev database version
+- **Organization existence check:** Checks if organization exists in dev before attempting updates (may not exist if copied from production)
 
 #### `POST /v1/webhooks/regtank/dev`
 
@@ -1038,7 +1051,7 @@ Handles webhooks for development database. Identical to production handler but w
 
 **Process:** Same as production endpoint but uses `RegTankDevWebhookHandler`
 
-**Use Case:** Allows testing webhooks in production environment without affecting production data.
+**Use Case:** Allows testing webhooks in production environment without affecting production data. Supports processing webhooks for onboarding initiated in production by creating dev database copies on-the-fly.
 
 ---
 

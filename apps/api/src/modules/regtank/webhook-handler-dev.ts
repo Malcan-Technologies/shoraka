@@ -214,8 +214,27 @@ export class RegTankDevWebhookHandler {
           );
         }
 
-        // Use the production onboarding record for processing
-        onboarding = prodOnboarding;
+        // Re-query from dev database to ensure we have the dev version
+        onboarding = await prismaDev.regTankOnboarding.findUnique({
+          where: { request_id: requestId },
+          include: {
+            investor_organization: true,
+            issuer_organization: true,
+            user: true,
+          },
+        });
+
+        if (!onboarding) {
+          logger.error(
+            { requestId, database: "dev" },
+            "Failed to query onboarding after creating copy in dev database"
+          );
+          throw new AppError(
+            500,
+            "INTERNAL_ERROR",
+            "Failed to query onboarding after creating copy"
+          );
+        }
       }
     }
 
