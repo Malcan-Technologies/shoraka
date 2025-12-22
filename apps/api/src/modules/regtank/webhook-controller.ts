@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
 import express from "express";
-import { RegTankWebhookHandler } from "./webhook-handler";
 import { RegTankDevWebhookHandler } from "./webhook-handler-dev";
 import { IndividualOnboardingWebhookHandler } from "./webhooks/individual-onboarding-handler";
 import { CODWebhookHandler } from "./webhooks/cod-handler";
@@ -12,7 +11,6 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 
 const router = Router();
-const webhookHandler = new RegTankWebhookHandler();
 const devWebhookHandler = new RegTankDevWebhookHandler();
 
 // Specialized webhook handlers

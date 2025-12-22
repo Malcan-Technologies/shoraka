@@ -63,9 +63,11 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       const input: CreateOrganizationInput = { type: "PERSONAL" };
       const org = await createOrganization(input);
       
-      // Start RegTank onboarding for the new organization
+      // Start RegTank individual onboarding for the new organization
       try {
-        const { verifyLink } = await startRegTankOnboarding(org.id);
+        const { verifyLink } = startIndividualOnboarding 
+          ? await startIndividualOnboarding(org.id)
+          : await startRegTankOnboarding(org.id);
         
         // Redirect to RegTank portal
         window.location.href = verifyLink;

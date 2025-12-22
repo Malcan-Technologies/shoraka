@@ -29,7 +29,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
   }
 
   protected async handle(payload: RegTankIndividualOnboardingWebhook): Promise<void> {
-    const { requestId, status, confidence, ocrResults } = payload;
+    const { requestId, status } = payload;
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);

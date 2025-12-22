@@ -22,7 +22,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
   }
 
   protected async handle(payload: RegTankCODWebhook): Promise<void> {
-    const { requestId, status, timestamp, isPrimary, corpIndvDirectors, corpIndvShareholders, corpBizShareholders, kybId } = payload;
+    const { requestId, status, isPrimary, corpIndvDirectors, corpIndvShareholders, corpBizShareholders, kybId } = payload;
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);

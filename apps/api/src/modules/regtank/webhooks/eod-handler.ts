@@ -22,7 +22,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
   }
 
   protected async handle(payload: RegTankEODWebhook): Promise<void> {
-    const { requestId, status, timestamp, confidence, kycId } = payload;
+    const { requestId, status, confidence, kycId } = payload;
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);

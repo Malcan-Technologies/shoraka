@@ -1,7 +1,6 @@
 import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankKYBWebhook } from "../types";
 import { logger } from "../../../lib/logger";
-import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 
 /**
@@ -35,10 +34,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       messageStatus,
       possibleMatchCount,
       blacklistedMatchCount,
-      assignee,
-      timestamp,
       onboardingId,
-      tags,
     } = payload;
 
     logger.info(

@@ -29,8 +29,6 @@ export class KYTWebhookHandler extends BaseWebhookHandler {
       typeOfChange,
       status,
       messageStatus,
-      assignee,
-      timestamp,
     } = payload;
 
     logger.info(
