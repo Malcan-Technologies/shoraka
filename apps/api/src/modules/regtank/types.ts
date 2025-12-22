@@ -36,13 +36,14 @@ export interface RegTankIndividualOnboardingRequest {
   nationality: string;
   placeOfBirth: string;
   idIssuingCountry: string;
-  dateOfBirth: string; // ISO date string (YYYY-MM-DD)
+  dateOfBirth?: string; // ISO date string (YYYY-MM-DD)
   yearOfBirth?: string;
   gender: "MALE" | "FEMALE" | "UNSPECIFIED";
   governmentIdNumber: string;
   idType: "PASSPORT" | "IDENTITY" | "DRIVER_LICENSE" | "RESIDENCE_PERMIT";
   language: string; // e.g., "EN"
-  bypassIdUpload?: "TRUE" | "FALSE"; // String format, not boolean
+  bypassIdUpload?: boolean; // If true, URL points directly to liveness check screen (default: false)
+  skipFormPage?: boolean; // If true, URL points directly to form page (default: true)
   address?: string;
   walletAddress?: string;
   industry?: string;

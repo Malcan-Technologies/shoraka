@@ -4,7 +4,8 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Module Documentation](#module-documentation)
+3. [RegTank API Reference](#regtank-api-reference)
+4. [Module Documentation](#module-documentation)
    - [Configuration Module](#configuration-module)
    - [OAuth Client Module](#oauth-client-module)
    - [API Client Module](#api-client-module)
@@ -34,6 +35,13 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
 - Manual status sync fallback
 - Support for both production and development databases
 - Dual portal support (investor/issuer)
+
+**Current Implementation Status:**
+- ✅ Individual onboarding: Fully implemented
+- ⚠️ Company onboarding: Currently uses individual onboarding flow (not yet implemented)
+  - Company organizations are created but use the same `/v3/onboarding/indv/request` endpoint
+  - RegTank supports corporate onboarding via `/v3/onboarding/corp/request` (see [Business Onboarding documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.8-business-onboarding-endpoint-json-request))
+  - Future enhancement: Implement separate corporate onboarding flow
 
 ---
 
@@ -95,6 +103,131 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
          │  Handler        │
          └─────────────────┘
 ```
+
+---
+
+## RegTank API Reference
+
+This section documents the RegTank API endpoints and request/response structures based on the [official RegTank API documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request).
+
+### Individual Onboarding Request
+
+**Endpoint:** `POST https://{client-portal-server}/v3/onboarding/indv/request`
+
+**Headers:**
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json; charset=utf-8`
+
+**Request Body Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | String | ✅ Yes | Individual's email address |
+| `surname` | String | ✅ Yes | Individual's last name (surname) |
+| `forename` | String | ✅ Yes | Individual's first name (forename) |
+| `middleName` | String | No | Individual's middle name |
+| `referenceId` | String | No* | A string for Case identity. Used to link a KYC into a Case with a matching referenceId. *Required when webhook is enabled |
+| `countryOfResidence` | Enum | No* | Individual's country of residence (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
+| `placeOfBirth` | Enum | No* | Individual's place of birth (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
+| `nationality` | Enum | No* | Individual's nationality (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
+| `idIssuingCountry` | Enum | No* | Individual's ID issuing country (ISO 3166 code). Used for better matching results. *Required when webhook is enabled |
+| `dateOfBirth` | Datetime | No | Individual's full date of birth in epoch time format or ISO date string (YYYY-MM-DD). Used for better matching results |
+| `yearOfBirth` | Integer | No | Individual's year of birth. Redundant if `dateOfBirth` is provided |
+| `gender` | Enum | No | Individual's gender: `MALE`, `FEMALE`, or `UNSPECIFIED` |
+| `governmentIdNumber` | String | No | Individual's government-issued ID number (e.g., Passport number, ID number) |
+| `idType` | String | No | ID type: `PASSPORT`, `IDENTITY`, `DRIVER_LICENSE`, `RESIDENCE_PERMIT` |
+| `language` | String | No | Language code: `EN`, `ZH_CN` (CN), `RU`, `JA`, `KO`, `DE`, `ES`, `FR`, `PT`, `IT`, `TR`, `TH`, `VI`, `ID`, `ZH_TW`, `AR`. Default is `EN` (English) |
+| `bypassIdUpload` | Boolean | No | If `true`, the URL should point directly to the liveness check screen. Default is `false` |
+| `skipFormPage` | Boolean | No | If `true`, the URL should point directly to the form page. Default is `true` |
+| `address` | String | No | Individual's residential address |
+| `walletAddress` | String | No | Individual's wallet address |
+| `industry` | Enum | No | Individual's industry. Used for risk assessment. See [Appendix B: List of all the Industry Values](https://regtank.gitbook.io/regtank-api-docs) |
+| `occupation` | Enum | No | Individual's occupation. Used for risk assessment. See [Appendix C: List of all the Occupation Values](https://regtank.gitbook.io/regtank-api-docs) |
+| `tags` | Array | No | Tags to the KYC record for recording purposes |
+| `formId` | Integer | No | The respective ID of the individual onboarding form |
+| `proofOfAddress` | Object | No | Superset that contains more fields for proof of address |
+| `proofOfAddress.fileName` | String | No | The name of the uploaded document |
+| `proofOfAddress.fileContent` | String | No | A string of characters that encodes the uploaded document in base64 format |
+| `webhookUrl` | String | No | Webhook URL for status updates (set per request, not in settings) |
+| `redirectUrl` | String | No | Redirect URL after completion (can be set per request or in settings) |
+
+**Response Body:**
+
+```json
+{
+  "requestId": "string",
+  "verifyLink": "string",
+  "expiredIn": 86400,
+  "timestamp": "datetime"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestId` | String | Unique ID generated from the request, to be used for liveness status and detail check. Will be changed with every request |
+| `verifyLink` | String | Link generated from the request. Used to access the Liveness test portal |
+| `expiredIn` | Integer | Duration before URL expired in seconds. Default is 86400 (24 hours) |
+| `timestamp` | Datetime | Time when the first liveness test URL is generated (GMT +8) |
+
+**Error Responses:**
+
+| HTTP Code | Error Code | Description |
+|-----------|------------|-------------|
+| 400 | `ERROR_VALUE_INVALID` | The specified value is invalid (e.g., invalid idType, occupation, industry, gender) |
+| 400 | `ERROR_MISSING_PARAM` | Required items were not set or invalid value (e.g., referenceId, idType) |
+| 400 | `ERROR_DATA_NOT_FOUND` | formId does not exist |
+| 400 | `ERROR_INVALID_ID_TYPE` | Your ID type does not match with the document type |
+| 400 | `Invalid Request Parameters` | Missing required fields (e.g., surname, forename, email must not be blank) |
+| 429 | `Too Many Requests` | Rate limit exceeded |
+
+**Example Request:**
+
+```json
+{
+  "email": "jack@regtank.com",
+  "surname": "Wang",
+  "forename": "Jack",
+  "middleName": "",
+  "countryOfResidence": "US",
+  "nationality": "US",
+  "placeOfBirth": "US",
+  "dateOfBirth": "1977-01-01",
+  "gender": "MALE",
+  "idType": "IDENTITY",
+  "governmentIdNumber": "T0000001I",
+  "idIssuingCountry": "US",
+  "referenceId": "id00000001",
+  "address": "First Road",
+  "walletAddress": "0x052…",
+  "industry": "ANIMATION",
+  "occupation": "CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS",
+  "tags": ["a", "b"],
+  "proofOfAddress": {
+    "fileName": "Proof of Address.pdf",
+    "fileContent": "data:application/pdf;base64,JVBE…RU9G"
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "verifyLink": "https://companyname-onboarding.regtank.com?requestId=LD00001&token=eyJhbGciOiZIUzI1NiJ9...&language=EN&step=ID",
+  "expiredIn": 86400,
+  "timestamp": "2023-07-31 09:45:29+0000",
+  "requestId": "LD00001"
+}
+```
+
+**Notes:**
+- Standard ISO 3166 country codes are used (see [Appendix A: Standard ISO 3166 Country Codes](https://regtank.gitbook.io/regtank-api-docs))
+- Industry and Occupation values must match the predefined enums (see Appendices B and C)
+- Language codes are defined in [Appendix J: Onboarding Module Language Configuration](https://regtank.gitbook.io/regtank-api-docs)
+- The `verifyLink` can be converted to a QR code for end users to use on mobile devices
+- Email address is used to initiate the individual onboarding session request
 
 ---
 
@@ -233,8 +366,14 @@ Handles all HTTP requests to RegTank API with automatic OAuth token injection.
 **Returns:** `RegTankOnboardingResponse` containing:
 - `requestId`: RegTank's unique request ID
 - `verifyLink`: URL to redirect user to RegTank portal
-- `expiredIn`: Link expiration time in seconds
-- `timestamp`: Response timestamp
+- `expiredIn`: Link expiration time in seconds (default: 86400 = 24 hours)
+- `timestamp`: Response timestamp (GMT +8)
+
+**Implementation Notes:**
+- Currently sends `bypassIdUpload` as string (`"TRUE"`/`"FALSE"`) for compatibility, though RegTank API accepts boolean
+- Does not currently include `skipFormPage` field (defaults to `true` in RegTank API)
+- `referenceId` is set to organizationId to link KYC to our internal records
+- `webhookUrl` and `redirectUrl` are included in the request body (can also be set via settings endpoint)
 
 #### `getOnboardingDetails(requestId: string): Promise<RegTankOnboardingDetails>`
 
@@ -930,7 +1069,17 @@ Handles webhooks for development database. Identical to production handler but w
 
 **`RegTankIndividualOnboardingRequest`**
 - Complete request structure for creating individual onboarding
-- Includes: email, forename, surname, referenceId, country/nationality, dateOfBirth, gender, idType, webhookUrl, redirectUrl, etc.
+- **Required fields:** `email`, `surname`, `forename`
+- **Optional fields:** `middleName`, `referenceId`, `countryOfResidence`, `placeOfBirth`, `nationality`, `idIssuingCountry`, `dateOfBirth`, `yearOfBirth`, `gender`, `governmentIdNumber`, `idType`, `language`, `bypassIdUpload`, `skipFormPage`, `address`, `walletAddress`, `industry`, `occupation`, `tags`, `formId`, `proofOfAddress`, `webhookUrl`, `redirectUrl`
+- **Note:** When webhook is enabled, `referenceId`, `countryOfResidence`, `placeOfBirth`, `nationality`, and `idIssuingCountry` become required
+- **Field types:**
+  - `bypassIdUpload`: Boolean (if true, URL points directly to liveness check screen)
+  - `skipFormPage`: Boolean (if true, URL points directly to form page, default is true)
+  - `dateOfBirth`: String (ISO date format: "YYYY-MM-DD" or epoch time)
+  - `gender`: `"MALE"` | `"FEMALE"` | `"UNSPECIFIED"`
+  - `idType`: `"PASSPORT"` | `"IDENTITY"` | `"DRIVER_LICENSE"` | `"RESIDENCE_PERMIT"`
+  - `language`: String (e.g., "EN", "ZH_CN", "RU", "JA", "KO", "DE", "ES", "FR", "PT", "IT", "TR", "TH", "VI", "ID", "ZH_TW", "AR")
+  - `proofOfAddress`: Object with `fileName` (string) and `fileContent` (base64 string)
 
 **`RegTankOnboardingResponse`**
 ```typescript
@@ -1150,7 +1299,7 @@ Handles webhooks for development database. Identical to production handler but w
 - Custom error class with status code, error code, and message
 - Used throughout the application for consistent error responses
 
-**Common Error Codes:**
+**Common Error Codes (Internal):**
 - `USER_NOT_FOUND`: User doesn't exist
 - `ORGANIZATION_NOT_FOUND`: Organization doesn't exist
 - `FORBIDDEN`: Access denied
@@ -1160,6 +1309,14 @@ Handles webhooks for development database. Identical to production handler but w
 - `INVALID_SIGNATURE`: Webhook signature invalid
 - `INVALID_PAYLOAD`: Invalid webhook payload
 - `SYNC_FAILED`: Status sync failed
+
+**RegTank API Error Codes:**
+- `ERROR_VALUE_INVALID`: The specified value is invalid (e.g., invalid idType, occupation, industry, gender, or empty values)
+- `ERROR_MISSING_PARAM`: Required items were not set or invalid value (e.g., referenceId, idType)
+- `ERROR_DATA_NOT_FOUND`: formId does not exist
+- `ERROR_INVALID_ID_TYPE`: Your ID type does not match with the document type
+- `Invalid Request Parameters`: Missing required fields (e.g., surname, forename, email must not be blank)
+- `Too Many Requests` (HTTP 429): Rate limit exceeded
 
 ### Error Response Format
 

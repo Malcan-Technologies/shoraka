@@ -249,14 +249,16 @@ export class RegTankService {
       nationality: "MY", // TODO: Get from user profile
       placeOfBirth: "MY", // TODO: Get from user profile
       idIssuingCountry: "MY", // TODO: Get from user profile
-      dateOfBirth: "1977-01-01", // TODO: Get from user profile
+      dateOfBirth: "", // TODO: Get from user profile
+	  yearOfBirth: "", // TODO: Get from user profile
       gender: "UNSPECIFIED", // TODO: Get from user profile
       governmentIdNumber: "", // Will be provided by user in RegTank portal
       idType: "IDENTITY",
       language: "EN",
-      bypassIdUpload: "FALSE",
-      // Note: redirectUrl and webhookUrl are set via settings endpoint above
-      // Including them here for reference, but they may be ignored
+      bypassIdUpload: false, // Boolean: If true, skip directly to liveness check
+      skipFormPage: true, // Boolean: If true, skip to form page (default behavior)
+      formId, // Include formId to link request to configured settings
+      // redirectUrl and webhookUrl can be set per request (in addition to settings)
       webhookUrl,
       redirectUrl,
     };

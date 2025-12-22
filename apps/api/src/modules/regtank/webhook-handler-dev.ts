@@ -271,20 +271,59 @@ export class RegTankDevWebhookHandler {
       const portalType = onboarding.portal_type as PortalType;
 
       // Update organization onboarding status in dev database
-      if (portalType === "investor") {
-        await prismaDev.investorOrganization.update({
-          where: { id: organizationId },
-          data: {
-            onboarding_status: OnboardingStatus.COMPLETED,
+      // Check if organization exists first (may not exist if record was copied from prod)
+      try {
+        if (portalType === "investor") {
+          const orgExists = await prismaDev.investorOrganization.findUnique({
+            where: { id: organizationId },
+          });
+          
+          if (orgExists) {
+            await prismaDev.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.COMPLETED,
+                onboarded_at: new Date(),
+              },
+            });
+            logger.info({ organizationId, database: "dev" }, "Updated investor organization status to COMPLETED");
+          } else {
+            logger.warn(
+              { organizationId, database: "dev" },
+              "Investor organization not found in dev database, skipping organization update"
+            );
+          }
+        } else {
+          const orgExists = await prismaDev.issuerOrganization.findUnique({
+            where: { id: organizationId },
+          });
+          
+          if (orgExists) {
+            await prismaDev.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.COMPLETED,
+                onboarded_at: new Date(),
+              },
+            });
+            logger.info({ organizationId, database: "dev" }, "Updated issuer organization status to COMPLETED");
+          } else {
+            logger.warn(
+              { organizationId, database: "dev" },
+              "Issuer organization not found in dev database, skipping organization update"
+            );
+          }
+        }
+      } catch (orgError) {
+        logger.error(
+          {
+            error: orgError instanceof Error ? orgError.message : String(orgError),
+            organizationId,
+            portalType,
+            database: "dev",
           },
-        });
-      } else {
-        await prismaDev.issuerOrganization.update({
-          where: { id: organizationId },
-          data: {
-            onboarding_status: OnboardingStatus.COMPLETED,
-          },
-        });
+          "Failed to update organization in dev database, continuing with user update"
+        );
       }
 
       // Update user's account array in dev database

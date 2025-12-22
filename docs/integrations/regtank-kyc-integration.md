@@ -236,6 +236,8 @@ Based on our implementation plan, the flow works as follows:
 
 ## Individual Onboarding Flow
 
+> **Reference:** [RegTank API Documentation - Individual Onboarding Endpoint](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request)
+
 ### Prerequisites
 
 Before creating an onboarding request, ensure:
@@ -277,7 +279,8 @@ Content-Type: application/json; charset=utf-8
   "governmentIdNumber": "123456789",
   "idType": "IDENTITY", // PASSPORT, IDENTITY, DRIVER_LICENSE, RESIDENCE_PERMIT
   "language": "EN", // UI language
-  "bypassIdUpload": "FALSE", // String: "TRUE" or "FALSE" (not boolean) - If "TRUE", skip ID upload step
+  "bypassIdUpload": false, // Boolean - If true, URL points directly to liveness check screen (default: false)
+  "skipFormPage": true, // Boolean - If true, URL points directly to form page (default: true)
   "address": "123 Main St",
   "walletAddress": "KwmgX4oEAZRLDLaVBv6VbV2S8PiyYv23mctbqHdP6GjQAcDvZUNg", // Optional - crypto wallet address
   "industry": "WINE_SPIRITS", // See Appendix B - Postman example uses WINE_SPIRITS
@@ -291,11 +294,17 @@ Content-Type: application/json; charset=utf-8
 ```
 
 **Field Type Notes:**
-- `dateOfBirth`: Postman collection uses ISO date string format (`"1977-01-01"`), not epoch milliseconds. Verify with RegTank which format is accepted.
-- `bypassIdUpload`: Postman uses string `"FALSE"`/`"TRUE"`, not boolean. Verify with RegTank which format is accepted.
-- `yearOfBirth`: Optional field present in Postman but not in original documentation.
-- `proofOfAddress`: Optional field for uploading proof of address document.
+- `dateOfBirth`: ISO date string format (`"1977-01-01"`) or epoch time format. According to [official API docs](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request), both formats are accepted.
+- `bypassIdUpload`: **Boolean** (not string) - According to [official API docs](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request), this is a boolean field. Default is `false`. If `true`, URL points directly to liveness check screen.
+- `skipFormPage`: **Boolean** - New field in official API docs. If `true`, URL points directly to form page. Default is `true`.
+- `yearOfBirth`: Optional integer field. Redundant if `dateOfBirth` is provided.
+- `proofOfAddress`: Optional object for uploading proof of address document with `fileName` (string) and `fileContent` (base64 string).
 - `walletAddress`: Optional field for crypto wallet addresses.
+- `formId`: Optional integer - The respective ID of the individual onboarding form.
+- `webhookUrl`: Optional string - Webhook URL for status updates (set per request, not in settings).
+- `redirectUrl`: Optional string - Redirect URL after completion (can be set per request or in settings).
+
+**Note:** Some Postman collection examples show string values for boolean fields, but the [official API documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request) specifies boolean types. Use the types from the official documentation.
 
 **Key Implementation Notes:**
 
@@ -319,7 +328,54 @@ Content-Type: application/json; charset=utf-8
 
 - `requestId` - Store this; used to query status and receive webhooks
 - `verifyLink` - URL to redirect user to (or generate QR code)
-- `expiredIn` - Link expires in 24 hours by default
+- `expiredIn` - Link expires in 24 hours by default (86400 seconds)
+- `timestamp` - Time when the first liveness test URL is generated (GMT +8)
+
+**Error Responses:**
+
+According to the [official API documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request), the following error codes may be returned:
+
+| HTTP Code | Error Code | Description |
+|-----------|------------|-------------|
+| 400 | `ERROR_VALUE_INVALID` | The specified value is invalid (e.g., invalid idType, occupation, industry, gender, or empty values) |
+| 400 | `ERROR_MISSING_PARAM` | Required items were not set or invalid value (e.g., referenceId, idType) |
+| 400 | `ERROR_DATA_NOT_FOUND` | formId does not exist |
+| 400 | `ERROR_INVALID_ID_TYPE` | Your ID type does not match with the document type |
+| 400 | `Invalid Request Parameters` | Missing required fields (e.g., surname, forename, email must not be blank) |
+| 429 | `Too Many Requests` | Rate limit exceeded |
+
+**Example Error Response:**
+
+```json
+{
+  "errorCode": "ERROR_VALUE_INVALID",
+  "errorMsg": "The specified value is invalid. [Input item: idType, input value: Empty]",
+  "requestUID": "d1d5ec97-1d72-4843-a420-f37b4909e92e"
+}
+```
+
+Or:
+
+```json
+{
+  "timestamp": "2024-09-02T09:33:34.041+00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Invalid Request Parameters",
+  "path": "/v3/onboarding/indv/request",
+  "errors": [
+    {
+      "surname": "must not be blank"
+    },
+    {
+      "forename": "must not be blank"
+    },
+    {
+      "email": "must not be blank"
+    }
+  ]
+}
+```
 
 ### 2. User Completes Onboarding
 
