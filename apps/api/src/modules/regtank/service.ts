@@ -249,8 +249,6 @@ export class RegTankService {
       nationality: "MY", // TODO: Get from user profile
       placeOfBirth: "MY", // TODO: Get from user profile
       idIssuingCountry: "MY", // TODO: Get from user profile
-      dateOfBirth: "", // TODO: Get from user profile
-	  yearOfBirth: "", // TODO: Get from user profile
       gender: "UNSPECIFIED", // TODO: Get from user profile
       governmentIdNumber: "", // Will be provided by user in RegTank portal
       idType: "IDENTITY",
