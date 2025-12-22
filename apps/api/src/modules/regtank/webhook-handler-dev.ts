@@ -270,19 +270,14 @@ export class RegTankDevWebhookHandler {
       statusUpper === "LIVENESS_PASSED" || 
       statusUpper === "WAIT_FOR_APPROVAL";
 
-    // Map RegTank status to our internal status
-    // When liveness completes, set to PENDING_APPROVAL in reg_tank_onboarding table
-    let internalStatus = statusUpper;
-    if (isLivenessCompleted) {
-      internalStatus = "PENDING_APPROVAL";
-    }
-
+    // Store the actual RegTank status in RegTankOnboarding.status
+    // This preserves RegTank's status strings (LIVENESS_PASSED, APPROVED, etc.)
     const updateData: {
       status: string;
       substatus?: string;
       completed_at?: Date;
     } = {
-      status: internalStatus,
+      status: statusUpper, // Store actual RegTank status: "LIVENESS_PASSED", "APPROVED", etc.
     };
 
     if (substatus) {

@@ -151,7 +151,7 @@ export class RegTankService {
       "RegTank webhook URL configured"
     );
 
-    // Set onboarding settings (redirect URL and webhook URL)
+    // Set onboarding settings (redirect URL)
     // According to RegTank docs, redirectUrl must be set via settings endpoint, not in request
     // Settings are per formId, so we need to set them once per formId
     // Note: formId is required - get from config or use default
@@ -185,13 +185,36 @@ export class RegTankService {
       );
     }
 
+    // Set webhook preferences (global configuration, called once per environment)
+    // This should ideally be done during initial setup, but we'll call it here to ensure it's set
+    try {
+      await this.apiClient.setWebhookPreferences({
+        webhookUrl,
+        webhookEnabled: true,
+      });
+      logger.info(
+        { webhookUrl },
+        "RegTank webhook preferences configured successfully"
+      );
+    } catch (error) {
+      // Log but don't block - webhook preferences might already be set
+      logger.warn(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          webhookUrl,
+          message: "Failed to set RegTank webhook preferences, but continuing with onboarding request",
+        },
+        "Failed to set RegTank webhook preferences (non-blocking)"
+      );
+    }
+
+    // Set onboarding settings (redirect URL) - called once per formId
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
         livenessConfidence: 60, // Default face match threshold
         approveMode: false, // Disable manual approve/reject button
         redirectUrl,
-        // Note: webhookUrl is set per request, not in settings
       });
       logger.info(
         { formId, redirectUrl },
@@ -208,7 +231,7 @@ export class RegTankService {
         errorMessage = String(error);
       }
 
-      // Check if error is "SettingInfo does not exist" - this is OK, we'll use redirectUrl in request
+      // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
       const isSettingsNotFound = 
         error instanceof AppError && 
         error.code === "REGTANK_API_ERROR" &&
@@ -220,13 +243,12 @@ export class RegTankService {
           {
             formId,
             redirectUrl,
-            message: "RegTank settings not found - will use redirectUrl in onboarding request",
+            message: "RegTank settings not found, but continuing with onboarding request",
           },
           "RegTank settings do not exist yet, continuing with onboarding request"
         );
-        // Continue - we'll include redirectUrl in the onboarding request
       } else {
-        // Other errors - log but don't block (redirectUrl will be in request anyway)
+        // Other errors - log but don't block
         logger.warn(
           {
             error: error instanceof Error ? error.message : String(error),
@@ -237,7 +259,7 @@ export class RegTankService {
           "Failed to set RegTank onboarding settings (non-blocking)"
         );
       }
-      // Don't throw - continue with onboarding request which includes redirectUrl
+      // Don't throw - continue with onboarding request
     }
 
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
@@ -256,9 +278,8 @@ export class RegTankService {
       bypassIdUpload: false, // Boolean: If true, skip directly to liveness check
       skipFormPage: true, // Boolean: If true, skip to form page (default behavior)
       formId, // Include formId to link request to configured settings
-      // redirectUrl and webhookUrl can be set per request (in addition to settings)
-      webhookUrl,
-      redirectUrl,
+      // Note: webhookUrl is configured globally via /alert/preferences endpoint
+      // Note: redirectUrl is configured via /v3/onboarding/indv/setting endpoint
     };
 
     logger.info(
@@ -413,19 +434,14 @@ export class RegTankService {
       statusUpper === "LIVENESS_PASSED" || 
       statusUpper === "WAIT_FOR_APPROVAL";
 
-    // Map RegTank status to our internal status
-    // When liveness completes, set to PENDING_APPROVAL in reg_tank_onboarding table
-    let internalStatus = statusUpper;
-    if (isLivenessCompleted) {
-      internalStatus = "PENDING_APPROVAL";
-    }
-
+    // Store the actual RegTank status in RegTankOnboarding.status
+    // This preserves RegTank's status strings (LIVENESS_PASSED, APPROVED, etc.)
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: internalStatus,
+      status: statusUpper, // Store actual RegTank status: "LIVENESS_PASSED", "APPROVED", etc.
     };
 
     if (substatus) {

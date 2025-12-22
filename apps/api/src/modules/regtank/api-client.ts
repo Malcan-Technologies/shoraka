@@ -200,7 +200,7 @@ export class RegTankAPIClient {
   }
 
   /**
-   * Set onboarding settings (webhook URL, redirect URL, etc.)
+   * Set onboarding settings (redirect URL, etc.)
    * This is typically called once per environment per formId
    * 
    * According to RegTank docs:
@@ -208,13 +208,14 @@ export class RegTankAPIClient {
    * - livenessConfidence: Required - Integer (default: 60)
    * - approveMode: Required - Boolean
    * - redirectUrl: Optional - URL to redirect after completion
+   * 
+   * Note: webhookUrl is configured globally via /alert/preferences endpoint, not here
    */
   async setOnboardingSettings(settings: {
     formId: number; // Required - Settings are per formId
     livenessConfidence: number; // Required - Face match threshold (default: 60)
     approveMode: boolean; // Required - Enable/disable Approve/Reject button
     redirectUrl?: string; // Optional - Redirect URL after completion
-    webhookUrl?: string; // Note: RegTank doesn't have webhookUrl in settings, it's set per request
     kycApprovalTarget?: string; // Optional - "ACURIS" or "DOWJONES"
     enabledRegistrationEmail?: boolean; // Optional - Send email on status changes
   }): Promise<void> {
@@ -246,6 +247,35 @@ export class RegTankAPIClient {
     await this.makeRequest<{ message: string }>("/v3/onboarding/indv/setting", {
       method: "POST",
       body: JSON.stringify(requestBody),
+    });
+  }
+
+  /**
+   * Set webhook preferences (global configuration)
+   * This is typically called once per environment
+   * 
+   * According to RegTank docs:
+   * POST /alert/preferences
+   * {
+   *   "webhookUrl": "string",
+   *   "webhookEnabled": boolean
+   * }
+   */
+  async setWebhookPreferences(preferences: {
+    webhookUrl: string; // Required - Webhook URL to receive notifications
+    webhookEnabled: boolean; // Required - Enable/disable webhook notifications
+  }): Promise<void> {
+    logger.info(
+      {
+        webhookUrl: preferences.webhookUrl ? `${preferences.webhookUrl.substring(0, 30)}...` : undefined,
+        webhookEnabled: preferences.webhookEnabled,
+      },
+      "Setting RegTank webhook preferences"
+    );
+
+    await this.makeRequest<{ message: string }>("/alert/preferences", {
+      method: "POST",
+      body: JSON.stringify(preferences),
     });
   }
 }

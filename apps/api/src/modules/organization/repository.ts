@@ -260,6 +260,42 @@ export class OrganizationRepository {
   }
 
   /**
+   * Update organization onboarding status (unified helper for both investor and issuer)
+   * 
+   * This is a convenience method that wraps updateInvestorOrganizationOnboarding
+   * and updateIssuerOrganizationOnboarding.
+   */
+  async updateOnboardingStatus(
+    organizationId: string,
+    portalType: 'investor' | 'issuer',
+    status: OnboardingStatus,
+    onboardedAt?: Date
+  ): Promise<void> {
+    const updateData: any = { 
+      onboarding_status: status 
+    };
+    
+    if (status === OnboardingStatus.COMPLETED) {
+      updateData.onboarded_at = onboardedAt || new Date();
+    } else if (onboardedAt !== undefined) {
+      // If explicitly set to null/undefined, allow it
+      updateData.onboarded_at = onboardedAt;
+    }
+
+    if (portalType === 'investor') {
+      await prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: updateData
+      });
+    } else {
+      await prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: updateData
+      });
+    }
+  }
+
+  /**
    * Find user by email
    */
   async findUserByEmail(email: string) {

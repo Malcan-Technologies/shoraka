@@ -1,47 +1,35 @@
 # RegTank Onboarding Integration - Technical Documentation
 
+This document provides detailed technical documentation for the RegTank onboarding integration implementation in the CashSouk backend API.
+
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [RegTank API Reference](#regtank-api-reference)
-4. [Module Documentation](#module-documentation)
-   - [Configuration Module](#configuration-module)
-   - [OAuth Client Module](#oauth-client-module)
-   - [API Client Module](#api-client-module)
-   - [Repository Module](#repository-module)
-   - [Service Module](#service-module)
-   - [Controller Module](#controller-module)
-   - [Webhook Handler Module](#webhook-handler-module)
-   - [Dev Webhook Handler Module](#dev-webhook-handler-module)
-   - [Type Definitions](#type-definitions)
-   - [Validation Schemas](#validation-schemas)
+3. [Module Documentation](#module-documentation)
 4. [API Endpoints](#api-endpoints)
 5. [Database Schema](#database-schema)
-6. [Frontend Integration](#frontend-integration)
+6. [Configuration](#configuration)
 7. [Data Flow](#data-flow)
 8. [Error Handling](#error-handling)
+9. [Security](#security)
+10. [Testing](#testing)
 
 ---
 
 ## Overview
 
-The RegTank onboarding integration enables KYC (Know Your Customer) verification for users in both the Investor and Issuer portals. The system uses a server-to-server OAuth2 flow with webhooks for asynchronous status updates.
+The RegTank onboarding integration enables KYC (Know Your Customer) verification for users in both the Investor and Issuer portals. The system uses:
 
-**Key Features:**
-- Server-to-server authentication (users never log into RegTank)
-- Automatic token caching and refresh
-- Webhook-based status updates
-- Manual status sync fallback
-- Support for both production and development databases
-- Dual portal support (investor/issuer)
+- **Server-to-Server OAuth2** - Backend authenticates with RegTank (users never log in)
+- **Webhook-Based Updates** - Asynchronous status notifications
+- **Global Configuration** - Webhook URL configured once via `/alert/preferences`
+- **Form-Based Settings** - Redirect URL configured per `formId` via `/v3/onboarding/indv/setting`
+- **Dual Database Support** - Production and development database handlers
 
 **Current Implementation Status:**
 - ✅ Individual onboarding: Fully implemented
-- ⚠️ Company onboarding: Currently uses individual onboarding flow (not yet implemented)
-  - Company organizations are created but use the same `/v3/onboarding/indv/request` endpoint
-  - RegTank supports corporate onboarding via `/v3/onboarding/corp/request` (see [Business Onboarding documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.8-business-onboarding-endpoint-json-request))
-  - Future enhancement: Implement separate corporate onboarding flow
+- ⚠️ Company onboarding: Currently uses individual onboarding flow (corporate endpoint not yet implemented)
 
 ---
 
@@ -58,7 +46,7 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
 ┌──────▼─────────────────────────────────────┐
 │         Backend API (Express)              │
 │  ┌──────────────────────────────────────┐  │
-│  │  RegTank Controller                  │  │
+│  │  RegTank Controller                   │  │
 │  │  - /v1/regtank/start-onboarding     │  │
 │  │  - /v1/regtank/status/:id           │  │
 │  │  - /v1/regtank/retry/:id            │  │
@@ -106,153 +94,28 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
 
 ---
 
-## RegTank API Reference
-
-This section documents the RegTank API endpoints and request/response structures based on the [official RegTank API documentation](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.1-individual-onboarding-endpoint-json-request).
-
-### Individual Onboarding Request
-
-**Endpoint:** `POST https://{client-portal-server}/v3/onboarding/indv/request`
-
-**Headers:**
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json; charset=utf-8`
-
-**Request Body Fields:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `email` | String | ✅ Yes | Individual's email address |
-| `surname` | String | ✅ Yes | Individual's last name (surname) |
-| `forename` | String | ✅ Yes | Individual's first name (forename) |
-| `middleName` | String | No | Individual's middle name |
-| `referenceId` | String | No* | A string for Case identity. Used to link a KYC into a Case with a matching referenceId. *Required when webhook is enabled |
-| `countryOfResidence` | Enum | No* | Individual's country of residence (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
-| `placeOfBirth` | Enum | No* | Individual's place of birth (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
-| `nationality` | Enum | No* | Individual's nationality (ISO 3166 code). Used for risk assessment. *Required when webhook is enabled |
-| `idIssuingCountry` | Enum | No* | Individual's ID issuing country (ISO 3166 code). Used for better matching results. *Required when webhook is enabled |
-| `dateOfBirth` | Datetime | No | Individual's full date of birth in epoch time format or ISO date string (YYYY-MM-DD). Used for better matching results |
-| `yearOfBirth` | Integer | No | Individual's year of birth. Redundant if `dateOfBirth` is provided |
-| `gender` | Enum | No | Individual's gender: `MALE`, `FEMALE`, or `UNSPECIFIED` |
-| `governmentIdNumber` | String | No | Individual's government-issued ID number (e.g., Passport number, ID number) |
-| `idType` | String | No | ID type: `PASSPORT`, `IDENTITY`, `DRIVER_LICENSE`, `RESIDENCE_PERMIT` |
-| `language` | String | No | Language code: `EN`, `ZH_CN` (CN), `RU`, `JA`, `KO`, `DE`, `ES`, `FR`, `PT`, `IT`, `TR`, `TH`, `VI`, `ID`, `ZH_TW`, `AR`. Default is `EN` (English) |
-| `bypassIdUpload` | Boolean | No | If `true`, the URL should point directly to the liveness check screen. Default is `false` |
-| `skipFormPage` | Boolean | No | If `true`, the URL should point directly to the form page. Default is `true` |
-| `address` | String | No | Individual's residential address |
-| `walletAddress` | String | No | Individual's wallet address |
-| `industry` | Enum | No | Individual's industry. Used for risk assessment. See [Appendix B: List of all the Industry Values](https://regtank.gitbook.io/regtank-api-docs) |
-| `occupation` | Enum | No | Individual's occupation. Used for risk assessment. See [Appendix C: List of all the Occupation Values](https://regtank.gitbook.io/regtank-api-docs) |
-| `tags` | Array | No | Tags to the KYC record for recording purposes |
-| `formId` | Integer | No | The respective ID of the individual onboarding form |
-| `proofOfAddress` | Object | No | Superset that contains more fields for proof of address |
-| `proofOfAddress.fileName` | String | No | The name of the uploaded document |
-| `proofOfAddress.fileContent` | String | No | A string of characters that encodes the uploaded document in base64 format |
-| `webhookUrl` | String | No | Webhook URL for status updates (set per request, not in settings) |
-| `redirectUrl` | String | No | Redirect URL after completion (can be set per request or in settings) |
-
-**Response Body:**
-
-```json
-{
-  "requestId": "string",
-  "verifyLink": "string",
-  "expiredIn": 86400,
-  "timestamp": "datetime"
-}
-```
-
-**Response Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `requestId` | String | Unique ID generated from the request, to be used for liveness status and detail check. Will be changed with every request |
-| `verifyLink` | String | Link generated from the request. Used to access the Liveness test portal |
-| `expiredIn` | Integer | Duration before URL expired in seconds. Default is 86400 (24 hours) |
-| `timestamp` | Datetime | Time when the first liveness test URL is generated (GMT +8) |
-
-**Error Responses:**
-
-| HTTP Code | Error Code | Description |
-|-----------|------------|-------------|
-| 400 | `ERROR_VALUE_INVALID` | The specified value is invalid (e.g., invalid idType, occupation, industry, gender) |
-| 400 | `ERROR_MISSING_PARAM` | Required items were not set or invalid value (e.g., referenceId, idType) |
-| 400 | `ERROR_DATA_NOT_FOUND` | formId does not exist |
-| 400 | `ERROR_INVALID_ID_TYPE` | Your ID type does not match with the document type |
-| 400 | `Invalid Request Parameters` | Missing required fields (e.g., surname, forename, email must not be blank) |
-| 429 | `Too Many Requests` | Rate limit exceeded |
-
-**Example Request:**
-
-```json
-{
-  "email": "jack@regtank.com",
-  "surname": "Wang",
-  "forename": "Jack",
-  "middleName": "",
-  "countryOfResidence": "US",
-  "nationality": "US",
-  "placeOfBirth": "US",
-  "dateOfBirth": "1977-01-01",
-  "gender": "MALE",
-  "idType": "IDENTITY",
-  "governmentIdNumber": "T0000001I",
-  "idIssuingCountry": "US",
-  "referenceId": "id00000001",
-  "address": "First Road",
-  "walletAddress": "0x052…",
-  "industry": "ANIMATION",
-  "occupation": "CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS",
-  "tags": ["a", "b"],
-  "proofOfAddress": {
-    "fileName": "Proof of Address.pdf",
-    "fileContent": "data:application/pdf;base64,JVBE…RU9G"
-  }
-}
-```
-
-**Example Response:**
-
-```json
-{
-  "verifyLink": "https://companyname-onboarding.regtank.com?requestId=LD00001&token=eyJhbGciOiZIUzI1NiJ9...&language=EN&step=ID",
-  "expiredIn": 86400,
-  "timestamp": "2023-07-31 09:45:29+0000",
-  "requestId": "LD00001"
-}
-```
-
-**Notes:**
-- Standard ISO 3166 country codes are used (see [Appendix A: Standard ISO 3166 Country Codes](https://regtank.gitbook.io/regtank-api-docs))
-- Industry and Occupation values must match the predefined enums (see Appendices B and C)
-- Language codes are defined in [Appendix J: Onboarding Module Language Configuration](https://regtank.gitbook.io/regtank-api-docs)
-- The `verifyLink` can be converted to a QR code for end users to use on mobile devices
-- Email address is used to initiate the individual onboarding session request
-
----
-
 ## Module Documentation
 
 ### Configuration Module
 
 **File:** `apps/api/src/config/regtank.ts`
 
-#### `getRegTankConfig()`
+**Function:** `getRegTankConfig()`
 
-**Purpose:** Retrieves and validates RegTank configuration from environment variables.
+Retrieves and validates RegTank configuration from environment variables.
 
-**Returns:** `RegTankConfig` object containing:
-- `oauthUrl`: OAuth token endpoint URL
-- `apiBaseUrl`: RegTank API base URL
-- `onboardingProxyUrl`: Onboarding proxy URL (for verify links)
-- `clientId`: OAuth client ID
-- `clientSecret`: OAuth client secret
-- `webhookSecret`: HMAC secret for webhook signature verification
-- `redirectUrlInvestor`: Callback URL for investor portal
-- `redirectUrlIssuer`: Callback URL for issuer portal
-- `formId`: Form ID for onboarding settings
+**Returns:** `RegTankConfig` object:
+- `oauthUrl` - OAuth token endpoint URL
+- `apiBaseUrl` - RegTank API base URL
+- `onboardingProxyUrl` - Onboarding proxy URL (for verify links)
+- `clientId` - OAuth client ID
+- `clientSecret` - OAuth client secret
+- `webhookSecret` - HMAC secret for webhook signature verification
+- `redirectUrlInvestor` - Callback URL for investor portal
+- `redirectUrlIssuer` - Callback URL for issuer portal
+- `formId` - Form ID for onboarding settings
 
-**Environment Variables Required:**
+**Environment Variables:**
 - `REGTANK_OAUTH_URL`
 - `REGTANK_API_BASE_URL`
 - `REGTANK_ONBOARDING_PROXY_URL`
@@ -262,8 +125,11 @@ This section documents the RegTank API endpoints and request/response structures
 - `REGTANK_REDIRECT_URL_INVESTOR`
 - `REGTANK_REDIRECT_URL_ISSUER`
 - `REGTANK_FORM_ID`
+- `REGTANK_WEBHOOK_MODE` (optional) - "dev" or "prod" (default: "prod")
+- `API_URL` (optional) - Base URL for webhook URLs
+- `DATABASE_URL_DEV` (optional) - Dev database connection string
 
-**Throws:** Error if required environment variables are missing.
+**Throws:** Error if required environment variables are missing
 
 ---
 
@@ -271,13 +137,13 @@ This section documents the RegTank API endpoints and request/response structures
 
 **File:** `apps/api/src/modules/regtank/oauth-client.ts`
 
-#### `RegTankOAuthClient` Class
+**Class:** `RegTankOAuthClient`
 
-Manages OAuth2 Client Credentials flow for server-to-server authentication with RegTank.
+Manages OAuth2 Client Credentials flow for server-to-server authentication.
 
 #### `getAccessToken(): Promise<string>`
 
-**Purpose:** Retrieves a valid access token, using cached token if available and not expired.
+Retrieves a valid access token, using cached token if available and not expired.
 
 **Logic:**
 1. Checks if cached token exists and is still valid (with 5-minute buffer)
@@ -290,11 +156,11 @@ Manages OAuth2 Client Credentials flow for server-to-server authentication with 
 
 #### `refreshToken(): Promise<string>`
 
-**Purpose:** Fetches a new access token from RegTank OAuth server using client credentials.
+Fetches a new access token from RegTank OAuth server.
 
 **Process:**
 1. Makes POST request to OAuth URL with `grant_type=client_credentials`
-2. Sends `client_id` and `client_secret` in request body
+2. Sends `client_id` and `client_secret` in form-data body
 3. Parses response to extract `access_token` and `expires_in`
 4. Caches token with expiration time (subtracts 1 minute for safety)
 5. Returns the access token
@@ -305,15 +171,7 @@ Manages OAuth2 Client Credentials flow for server-to-server authentication with 
 
 #### `clearCache(): void`
 
-**Purpose:** Clears the cached access token. Useful for testing or forced refresh.
-
-**Side Effects:** Sets `accessToken` and `tokenExpiresAt` to `null`
-
-#### `getRegTankOAuthClient(): RegTankOAuthClient`
-
-**Purpose:** Singleton factory function to get OAuth client instance.
-
-**Returns:** Singleton `RegTankOAuthClient` instance
+Clears the cached access token. Useful for testing or forced refresh.
 
 ---
 
@@ -321,17 +179,13 @@ Manages OAuth2 Client Credentials flow for server-to-server authentication with 
 
 **File:** `apps/api/src/modules/regtank/api-client.ts`
 
-#### `RegTankAPIClient` Class
+**Class:** `RegTankAPIClient`
 
 Handles all HTTP requests to RegTank API with automatic OAuth token injection.
 
 #### `makeRequest<T>(endpoint: string, options?: RequestInit): Promise<T>`
 
-**Purpose:** Generic method to make authenticated requests to RegTank API.
-
-**Parameters:**
-- `endpoint`: API endpoint path (e.g., `/v3/onboarding/indv/request`)
-- `options`: Fetch API options (method, body, headers, etc.)
+Generic method to make authenticated requests to RegTank API.
 
 **Process:**
 1. Gets access token from OAuth client
@@ -347,91 +201,63 @@ Handles all HTTP requests to RegTank API with automatic OAuth token injection.
 - Logs detailed error information
 - Throws `AppError` with appropriate status code and message
 
-**Returns:** Typed response data
-
-**Throws:** `AppError` if request fails
-
 #### `createIndividualOnboarding(request: RegTankIndividualOnboardingRequest): Promise<RegTankOnboardingResponse>`
 
-**Purpose:** Creates a new individual onboarding request in RegTank.
+Creates a new individual onboarding request in RegTank.
 
-**Parameters:**
-- `request`: Onboarding request object with user data, referenceId, webhookUrl, redirectUrl, etc.
-
-**Process:**
-1. Logs request details
-2. Calls `makeRequest` with `POST /v3/onboarding/indv/request`
-3. Sends request body as JSON
+**Important:** The request body does NOT include `webhookUrl` or `redirectUrl`:
+- `webhookUrl` is configured globally via `/alert/preferences` endpoint
+- `redirectUrl` is configured per `formId` via `/v3/onboarding/indv/setting` endpoint
 
 **Returns:** `RegTankOnboardingResponse` containing:
-- `requestId`: RegTank's unique request ID
-- `verifyLink`: URL to redirect user to RegTank portal
-- `expiredIn`: Link expiration time in seconds (default: 86400 = 24 hours)
-- `timestamp`: Response timestamp (GMT +8)
-
-**Implementation Notes:**
-- Currently sends `bypassIdUpload` as string (`"TRUE"`/`"FALSE"`) for compatibility, though RegTank API accepts boolean
-- Does not currently include `skipFormPage` field (defaults to `true` in RegTank API)
-- `referenceId` is set to organizationId to link KYC to our internal records
-- `webhookUrl` and `redirectUrl` are included in the request body (can also be set via settings endpoint)
+- `requestId` - RegTank's unique request ID
+- `verifyLink` - URL to redirect user to RegTank portal
+- `expiredIn` - Link expiration time in seconds (default: 86400 = 24 hours)
+- `timestamp` - Response timestamp (GMT +8)
 
 #### `getOnboardingDetails(requestId: string): Promise<RegTankOnboardingDetails>`
 
-**Purpose:** Fetches current onboarding status and details from RegTank.
+Fetches current onboarding status and details from RegTank.
 
-**Parameters:**
-- `requestId`: RegTank's request ID
+**Endpoint:** `GET /v3/onboarding/indv/request/{requestId}`
 
-**Process:**
-1. Calls `makeRequest` with `GET /v3/onboarding/indv/request/{requestId}`
-2. Returns onboarding details
-
-**Returns:** `RegTankOnboardingDetails` containing:
-- `requestId`: Request ID
-- `status`: Current status (PENDING, APPROVED, REJECTED, etc.)
-- `substatus`: Optional substatus
-- Additional fields as returned by RegTank
+**Returns:** `RegTankOnboardingDetails` containing status, substatus, and additional fields
 
 #### `restartOnboarding(requestId: string): Promise<RegTankOnboardingResponse>`
 
-**Purpose:** Restarts a failed or expired onboarding, generating a new verify link.
+Restarts a failed or expired onboarding, generating a new verify link.
 
-**Parameters:**
-- `requestId`: RegTank's request ID to restart
+**Endpoint:** `POST /v3/onboarding/indv/request/{requestId}/restart`
 
-**Process:**
-1. Calls `makeRequest` with `POST /v3/onboarding/indv/request/{requestId}/restart`
-2. Returns new verify link and expiration
-
-**Returns:** `RegTankOnboardingResponse` with new verify link
+**Returns:** New `RegTankOnboardingResponse` with new verify link
 
 #### `setOnboardingSettings(settings: {...}): Promise<void>`
 
-**Purpose:** Configures onboarding settings per formId (redirect URL, liveness confidence, etc.).
+Configures onboarding settings per formId (redirect URL, liveness confidence, etc.).
+
+**Endpoint:** `POST /v3/onboarding/indv/setting`
 
 **Parameters:**
-- `settings`: Settings object containing:
-  - `formId`: Required - Form ID (settings are per formId)
-  - `livenessConfidence`: Required - Face match threshold (default: 60)
-  - `approveMode`: Required - Boolean to enable/disable manual approve/reject
-  - `redirectUrl`: Optional - URL to redirect after completion
-  - `kycApprovalTarget`: Optional - "ACURIS" or "DOWJONES"
-  - `enabledRegistrationEmail`: Optional - Send email on status changes
+- `formId` (required) - Form ID (settings are per formId)
+- `livenessConfidence` (required) - Face match threshold (default: 60)
+- `approveMode` (required) - Boolean to enable/disable manual approve/reject
+- `redirectUrl` (optional) - URL to redirect after completion
+- `kycApprovalTarget` (optional) - "ACURIS" or "DOWJONES"
+- `enabledRegistrationEmail` (optional) - Send email on status changes
 
-**Process:**
-1. Constructs request body with settings
-2. Calls `makeRequest` with `POST /v3/onboarding/indv/setting`
-3. Logs settings (with URL truncation for security)
+**Note:** This is a one-time configuration per `formId`. The `redirectUrl` applies to all onboarding requests using the specified `formId`.
 
-**Returns:** Promise that resolves when settings are saved
+#### `setWebhookPreferences(preferences: {...}): Promise<void>`
 
-**Note:** This is a one-time configuration per `formId`. If settings don't exist, this may fail, but the onboarding request will still work with `redirectUrl` in the request body.
+Sets webhook preferences globally (webhook URL and enabled status).
 
-#### `getRegTankAPIClient(): RegTankAPIClient`
+**Endpoint:** `POST /alert/preferences`
 
-**Purpose:** Singleton factory function to get API client instance.
+**Parameters:**
+- `webhookUrl` (required) - Webhook URL to receive notifications
+- `webhookEnabled` (required) - Boolean to enable/disable webhook notifications
 
-**Returns:** Singleton `RegTankAPIClient` instance
+**Note:** This is a one-time configuration per environment. The webhook URL applies to all webhooks for the environment.
 
 ---
 
@@ -439,130 +265,57 @@ Handles all HTTP requests to RegTank API with automatic OAuth token injection.
 
 **File:** `apps/api/src/modules/regtank/repository.ts`
 
-#### `RegTankRepository` Class
+**Class:** `RegTankRepository`
 
 Handles all database operations for the `RegTankOnboarding` table.
 
 #### `createOnboarding(data: {...}): Promise<RegTankOnboarding>`
 
-**Purpose:** Creates a new RegTank onboarding record in the database.
+Creates a new RegTank onboarding record in the database.
 
 **Parameters:**
-- `data`: Object containing:
-  - `userId`: User ID
-  - `organizationId`: Organization ID (optional)
-  - `organizationType`: "PERSONAL" or "COMPANY"
-  - `portalType`: "investor" or "issuer"
-  - `requestId`: RegTank's request ID
-  - `referenceId`: Our internal reference (usually organizationId)
-  - `onboardingType`: "INDIVIDUAL" or "CORPORATE"
-  - `verifyLink`: URL to redirect user
-  - `verifyLinkExpiresAt`: Link expiration timestamp
-  - `status`: Initial status (usually "PENDING")
-  - `substatus`: Optional substatus
-  - `regtankResponse`: Full RegTank API response (stored as JSON)
-
-**Process:**
-1. Determines which organization ID field to use based on `portalType`
-2. Creates record in `regTankOnboarding` table
-3. Links to user and organization (investor or issuer)
+- `userId` - User ID
+- `organizationId` - Organization ID (optional)
+- `organizationType` - "PERSONAL" or "COMPANY"
+- `portalType` - "investor" or "issuer"
+- `requestId` - RegTank's request ID
+- `referenceId` - Our internal reference (usually organizationId)
+- `onboardingType` - "INDIVIDUAL" or "CORPORATE"
+- `verifyLink` - URL to redirect user
+- `verifyLinkExpiresAt` - Link expiration timestamp
+- `status` - Initial status (usually "PENDING" or "IN_PROGRESS")
+- `substatus` - Optional substatus
+- `regtankResponse` - Full RegTank API response (stored as JSON)
 
 **Returns:** Created `RegTankOnboarding` record
 
 #### `findByRequestId(requestId: string): Promise<RegTankOnboardingWithRelations | null>`
 
-**Purpose:** Finds onboarding record by RegTank's request ID.
-
-**Parameters:**
-- `requestId`: RegTank's unique request ID
-
-**Returns:** Onboarding record with related user and organization data, or `null` if not found
+Finds onboarding record by RegTank's request ID.
 
 **Includes:**
 - User data (user_id, email, first_name, last_name)
 - Investor organization (if applicable)
 - Issuer organization (if applicable)
 
-#### `findByReferenceId(referenceId: string): Promise<RegTankOnboardingWithRelations | null>`
-
-**Purpose:** Finds onboarding record by our internal reference ID (usually organizationId).
-
-**Parameters:**
-- `referenceId`: Our internal reference ID
-
-**Returns:** Onboarding record with relations, or `null` if not found
-
-#### `findByOrganizationId(organizationId: string, portalType: "investor" | "issuer"): Promise<RegTankOnboardingWithRelations | null>`
-
-**Purpose:** Finds the most recent onboarding record for an organization.
-
-**Parameters:**
-- `organizationId`: Organization ID
-- `portalType`: "investor" or "issuer"
-
-**Process:**
-1. Determines which organization ID field to query based on `portalType`
-2. Finds most recent record (ordered by `created_at DESC`)
-
-**Returns:** Most recent onboarding record with relations, or `null` if not found
-
 #### `updateStatus(requestId: string, data: {...}): Promise<RegTankOnboarding>`
 
-**Purpose:** Updates onboarding status and related fields.
+Updates onboarding status and related fields.
 
 **Parameters:**
-- `requestId`: RegTank's request ID
-- `data`: Update object containing:
-  - `status`: New status
-  - `substatus`: Optional substatus
-  - `verifyLink`: Optional new verify link
-  - `verifyLinkExpiresAt`: Optional new expiration
-  - `submittedAt`: Optional submission timestamp
-  - `completedAt`: Optional completion timestamp
-
-**Returns:** Updated `RegTankOnboarding` record
+- `requestId` - RegTank's request ID
+- `data` - Update object containing:
+  - `status` - New status
+  - `substatus` - Optional substatus
+  - `verifyLink` - Optional new verify link
+  - `verifyLinkExpiresAt` - Optional new expiration
+  - `completedAt` - Optional completion timestamp
 
 #### `appendWebhookPayload(requestId: string, payload: any): Promise<RegTankOnboarding>`
 
-**Purpose:** Appends a webhook payload to the `webhook_payloads` JSON array for audit trail.
-
-**Parameters:**
-- `requestId`: RegTank's request ID
-- `payload`: Webhook payload object
-
-**Process:**
-1. Retrieves current `webhook_payloads` array
-2. Appends new payload to array
-3. Updates record with new array
-
-**Returns:** Updated `RegTankOnboarding` record
+Appends a webhook payload to the `webhook_payloads` JSON array for audit trail.
 
 **Note:** This maintains a complete history of all webhook events for debugging and audit purposes.
-
-#### `findPendingOnboardings(): Promise<RegTankOnboarding[]>`
-
-**Purpose:** Finds all onboarding records with PENDING or IN_PROGRESS status.
-
-**Returns:** Array of pending onboarding records, ordered by creation date (newest first)
-
-#### `findByUserId(userId: string): Promise<RegTankOnboarding[]>`
-
-**Purpose:** Finds all onboarding records for a specific user.
-
-**Parameters:**
-- `userId`: User ID
-
-**Returns:** Array of user's onboarding records, ordered by creation date (newest first)
-
-#### `updateRegTankResponse(requestId: string, response: any): Promise<RegTankOnboarding>`
-
-**Purpose:** Updates the stored RegTank API response.
-
-**Parameters:**
-- `requestId`: RegTank's request ID
-- `response`: Full RegTank API response object
-
-**Returns:** Updated `RegTankOnboarding` record
 
 ---
 
@@ -570,19 +323,13 @@ Handles all database operations for the `RegTankOnboarding` table.
 
 **File:** `apps/api/src/modules/regtank/service.ts`
 
-#### `RegTankService` Class
+**Class:** `RegTankService`
 
 Main business logic layer that orchestrates the onboarding flow.
 
 #### `startPersonalOnboarding(req: Request, userId: string, organizationId: string, portalType: PortalType): Promise<{...}>`
 
-**Purpose:** Initiates personal (individual) onboarding for an organization.
-
-**Parameters:**
-- `req`: Express request object (for metadata extraction)
-- `userId`: Authenticated user ID
-- `organizationId`: Organization ID to onboard
-- `portalType`: "investor" or "issuer"
+Initiates personal (individual) onboarding for an organization.
 
 **Process:**
 1. **Validation:**
@@ -599,44 +346,41 @@ Main business logic layer that orchestrates the onboarding flow.
    - Determines webhook URL based on `REGTANK_WEBHOOK_MODE` env var
    - Validates URLs are not localhost
 
-4. **Set RegTank settings (non-blocking):**
-   - Attempts to configure settings via `setOnboardingSettings()`
-   - If settings don't exist, logs warning and continues
-   - Settings include: formId, livenessConfidence, approveMode, redirectUrl
+4. **Set webhook preferences (non-blocking):**
+   - Attempts to configure webhook URL globally via `setWebhookPreferences()`
+   - Logs warning if fails, continues with onboarding
 
-5. **Create onboarding request:**
+5. **Set onboarding settings (non-blocking):**
+   - Attempts to configure settings via `setOnboardingSettings()`
+   - Settings include: formId, livenessConfidence, approveMode, redirectUrl
+   - If settings don't exist, logs warning and continues
+
+6. **Create onboarding request:**
    - Builds request with user data (email, forename, surname)
-   - Includes referenceId (organizationId), webhookUrl, redirectUrl
+   - Includes referenceId (organizationId)
+   - Includes formId to link to configured settings
+   - **Does NOT include webhookUrl or redirectUrl** (configured separately)
    - Calls RegTank API: `createIndividualOnboarding()`
 
-6. **Store record:**
+7. **Store record:**
    - Creates `RegTankOnboarding` record in database
    - Links to user and organization
    - Stores verifyLink and expiration
+   - Sets initial status: `IN_PROGRESS` for personal accounts, `PENDING` for company accounts
 
-7. **Logging:**
+8. **Logging:**
    - Creates `OnboardingLog` entry with event_type "ONBOARDING_STARTED"
    - Includes request metadata (IP, user agent, device info)
 
-**Returns:** Object containing:
-- `verifyLink`: URL to redirect user to RegTank
-- `requestId`: RegTank's request ID
-- `expiresIn`: Link expiration in seconds
-- `organizationType`: "PERSONAL" or "COMPANY"
-
-**Throws:** `AppError` if validation fails or RegTank API call fails
+**Returns:**
+- `verifyLink` - URL to redirect user to RegTank
+- `requestId` - RegTank's request ID
+- `expiresIn` - Link expiration in seconds
+- `organizationType` - "PERSONAL" or "COMPANY"
 
 #### `handleWebhookUpdate(payload: RegTankWebhookPayload): Promise<void>`
 
-**Purpose:** Processes webhook updates from RegTank.
-
-**Parameters:**
-- `payload`: Webhook payload containing:
-  - `requestId`: RegTank's request ID
-  - `status`: New status (APPROVED, REJECTED, etc.)
-  - `substatus`: Optional substatus
-  - `referenceId`: Optional reference ID
-  - `timestamp`: Optional timestamp
+Processes webhook updates from RegTank.
 
 **Process:**
 1. **Find record:**
@@ -648,115 +392,65 @@ Main business logic layer that orchestrates the onboarding flow.
 
 3. **Update status:**
    - Updates status and substatus in database
+   - Detects liveness completion (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL`)
+   - Sets status to `PENDING_APPROVAL` when liveness completes
    - Sets `completed_at` if status is APPROVED or REJECTED
 
 4. **If APPROVED:**
-   - **Checks organization exists** before updating (defensive)
+   - Checks organization exists before updating (defensive)
    - Updates organization: `onboarding_status = COMPLETED`
    - Updates `onboarded_at` timestamp
    - Updates user's account array (replaces "temp" with organizationId)
    - Creates `OnboardingLog` entry with event_type "ONBOARDING_COMPLETED"
-   - **Error handling:** Logs warnings if organization not found, continues with user updates
-
-**Throws:** `AppError` if onboarding not found
+   - Error handling: Logs warnings if organization not found, continues with user updates
 
 **Important Notes:**
 - This method is idempotent - can be called multiple times safely
-- **Defensive programming:** Checks if organization exists before updates to prevent crashes
-- **Graceful degradation:** Continues processing user updates even if organization update fails
-- **Enhanced logging:** Logs success/failure of organization updates for debugging
+- Defensive programming: Checks if organization exists before updates
+- Graceful degradation: Continues processing user updates even if organization update fails
 
 #### `getOnboardingStatus(userId: string, organizationId: string, portalType: PortalType): Promise<{...}>`
 
-**Purpose:** Retrieves current onboarding status for an organization.
-
-**Parameters:**
-- `userId`: User ID (for access verification)
-- `organizationId`: Organization ID
-- `portalType`: "investor" or "issuer"
+Retrieves current onboarding status for an organization.
 
 **Process:**
-1. **Access verification:**
-   - Verifies organization exists
-   - Verifies user is member or owner
+1. Access verification (organization exists, user has access)
+2. Finds onboarding record for organization
+3. Returns "NOT_STARTED" if no record exists
 
-2. **Find onboarding:**
-   - Looks up onboarding record for organization
-   - Returns "NOT_STARTED" if no record exists
-
-**Returns:** Object containing:
-- `status`: Current status
-- `substatus`: Optional substatus
-- `requestId`: RegTank's request ID
-- `verifyLink`: Verify link (if available)
-- `createdAt`: Creation timestamp
-- `updatedAt`: Last update timestamp
-
-**Throws:** `AppError` if organization not found or access denied
+**Returns:**
+- `status` - Current status
+- `substatus` - Optional substatus
+- `requestId` - RegTank's request ID
+- `verifyLink` - Verify link (if available)
+- `createdAt` - Creation timestamp
+- `updatedAt` - Last update timestamp
 
 #### `syncOnboardingStatus(userId: string, organizationId: string, portalType: PortalType): Promise<{...}>`
 
-**Purpose:** Manually syncs onboarding status from RegTank API (fallback when webhooks fail).
-
-**Parameters:**
-- `userId`: User ID (for access verification)
-- `organizationId`: Organization ID
-- `portalType`: "investor" or "issuer"
+Manually syncs onboarding status from RegTank API (fallback when webhooks fail).
 
 **Process:**
-1. **Access verification:**
-   - Verifies organization exists and user has access
+1. Access verification
+2. Finds onboarding record
+3. Calls `getOnboardingDetails()` to get latest status
+4. Updates database with new status
+5. If APPROVED, updates organization status to COMPLETED
 
-2. **Find onboarding:**
-   - Looks up onboarding record
-   - Verifies `requestId` exists
-
-3. **Fetch from RegTank:**
-   - Calls `getOnboardingDetails()` to get latest status
-   - Updates database with new status
-
-4. **If APPROVED:**
-   - Updates organization status to COMPLETED
-   - Updates `onboarded_at` timestamp
-
-**Returns:** Object containing:
-- `status`: Current status from RegTank
-- `substatus`: Optional substatus
-- `requestId`: RegTank's request ID
-- `synced`: Always `true`
-
-**Throws:** `AppError` if organization/onboarding not found, access denied, or RegTank API call fails
+**Returns:** Synced status with `synced: true` flag
 
 #### `retryOnboarding(req: Request, userId: string, organizationId: string, portalType: PortalType): Promise<{...}>`
 
-**Purpose:** Restarts a failed or expired onboarding.
-
-**Parameters:**
-- `req`: Express request object
-- `userId`: User ID
-- `organizationId`: Organization ID
-- `portalType`: "investor" or "issuer"
+Restarts a failed or expired onboarding.
 
 **Process:**
-1. **Find existing onboarding:**
-   - Looks up existing onboarding record
-   - Throws error if not found
+1. Finds existing onboarding record
+2. Verifies user is organization owner
+3. Calls `restartOnboarding()` API to get new verify link
+4. Updates database with new verify link and expiration
+5. Resets status to "IN_PROGRESS" (personal) or "PENDING" (company)
 
-2. **Access verification:**
-   - Verifies user is organization owner
-
-3. **Restart in RegTank:**
-   - Calls `restartOnboarding()` API to get new verify link
-   - Updates database with new verify link and expiration
-   - Resets status to "PENDING"
-
-**Returns:** Object containing:
-- `verifyLink`: New verify link
-- `requestId`: Same request ID (restarted)
-- `expiresIn`: New expiration in seconds
-- `organizationType`: Organization type
-
-**Throws:** `AppError` if onboarding not found, access denied, or RegTank API call fails
+**Returns:** New verify link and expiration
 
 ---
 
@@ -765,8 +459,6 @@ Main business logic layer that orchestrates the onboarding flow.
 **File:** `apps/api/src/modules/regtank/controller.ts`
 
 #### `POST /v1/regtank/start-onboarding`
-
-**Purpose:** API endpoint to start RegTank onboarding.
 
 **Authentication:** Required (Bearer token)
 
@@ -792,36 +484,16 @@ Main business logic layer that orchestrates the onboarding flow.
 }
 ```
 
-**Process:**
-1. Validates authentication
-2. Parses and validates request body
-3. Calls `RegTankService.startPersonalOnboarding()`
-4. Returns result
-
-**Error Responses:**
-- `400`: Bad request (missing fields, already completed, etc.)
-- `403`: Forbidden (not organization owner)
-- `404`: Organization not found
-- `500`: Internal server error
-
 #### `GET /v1/regtank/status/:organizationId?portalType=investor|issuer`
 
-**Purpose:** API endpoint to get onboarding status.
-
 **Authentication:** Required
-
-**Path Parameters:**
-- `organizationId`: Organization ID (CUID)
-
-**Query Parameters:**
-- `portalType`: "investor" or "issuer" (required)
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "status": "PENDING" | "APPROVED" | "REJECTED" | ...,
+    "status": "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | ...,
     "substatus": "string (optional)",
     "requestId": "string (optional)",
     "verifyLink": "string (optional)",
@@ -832,28 +504,9 @@ Main business logic layer that orchestrates the onboarding flow.
 }
 ```
 
-**Process:**
-1. Validates authentication
-2. Parses path and query parameters
-3. Calls `RegTankService.getOnboardingStatus()`
-4. Returns result
-
-**Error Responses:**
-- `400`: Invalid portalType
-- `403`: Forbidden (no access to organization)
-- `404`: Organization not found
-
 #### `POST /v1/regtank/retry/:organizationId?portalType=investor|issuer`
 
-**Purpose:** API endpoint to retry failed/expired onboarding.
-
 **Authentication:** Required
-
-**Path Parameters:**
-- `organizationId`: Organization ID (CUID)
-
-**Query Parameters:**
-- `portalType`: "investor" or "issuer" (required)
 
 **Response:**
 ```json
@@ -869,28 +522,9 @@ Main business logic layer that orchestrates the onboarding flow.
 }
 ```
 
-**Process:**
-1. Validates authentication
-2. Parses path and query parameters
-3. Calls `RegTankService.retryOnboarding()`
-4. Returns result
-
-**Error Responses:**
-- `400`: Invalid portalType
-- `403`: Forbidden (not organization owner)
-- `404`: Onboarding not found
-
 #### `POST /v1/regtank/sync-status/:organizationId?portalType=investor|issuer`
 
-**Purpose:** API endpoint to manually sync status from RegTank API.
-
 **Authentication:** Required
-
-**Path Parameters:**
-- `organizationId`: Organization ID (CUID)
-
-**Query Parameters:**
-- `portalType`: "investor" or "issuer" (required)
 
 **Response:**
 ```json
@@ -906,52 +540,30 @@ Main business logic layer that orchestrates the onboarding flow.
 }
 ```
 
-**Process:**
-1. Validates authentication
-2. Parses path and query parameters
-3. Calls `RegTankService.syncOnboardingStatus()`
-4. Returns result
-
-**Error Responses:**
-- `400`: Invalid portalType
-- `403`: Forbidden (no access to organization)
-- `404`: Organization or onboarding not found
-- `500`: Sync failed
-
 ---
 
 ### Webhook Handler Module
 
 **File:** `apps/api/src/modules/regtank/webhook-handler.ts`
 
-#### `RegTankWebhookHandler` Class
+**Class:** `RegTankWebhookHandler`
 
 Handles webhook signature verification and processing for production database.
 
 #### `verifySignature(rawBody: string, receivedSignature: string): boolean`
 
-**Purpose:** Verifies HMAC-SHA256 signature of webhook payload.
-
-**Parameters:**
-- `rawBody`: Raw request body as string
-- `receivedSignature`: Signature from `X-RegTank-Signature` header
+Verifies HMAC-SHA256 signature of webhook payload.
 
 **Process:**
 1. Computes HMAC-SHA256 signature using `webhookSecret`
 2. Handles signature format variations ("sha256=<sig>" or just "<sig>")
 3. Uses constant-time comparison to prevent timing attacks
 
-**Returns:** `true` if signature is valid, `false` otherwise
-
 **Security:** Uses `crypto.timingSafeEqual()` to prevent timing attacks
 
 #### `processWebhook(rawBody: string, signature?: string): Promise<void>`
 
-**Purpose:** Processes incoming webhook payload.
-
-**Parameters:**
-- `rawBody`: Raw request body as string
-- `signature`: Optional signature from header
+Processes incoming webhook payload.
 
 **Process:**
 1. **Signature verification:**
@@ -974,7 +586,7 @@ Handles webhook signature verification and processing for production database.
 
 #### `POST /v1/webhooks/regtank`
 
-**Purpose:** Public webhook endpoint (no authentication required).
+**Purpose:** Public webhook endpoint (no authentication required)
 
 **Request:**
 - Method: POST
@@ -997,36 +609,19 @@ Handles webhook signature verification and processing for production database.
 3. Calls `webhookHandler.processWebhook()`
 4. Returns 200 OK immediately (processing is async)
 
-**Error Responses:**
-- `400`: Invalid payload
-- `401`: Invalid signature
-- `500`: Internal server error
-
 ---
 
 ### Dev Webhook Handler Module
 
 **File:** `apps/api/src/modules/regtank/webhook-handler-dev.ts`
 
-#### `RegTankDevWebhookHandler` Class
+**Class:** `RegTankDevWebhookHandler`
 
 Handles webhooks for development database. Identical to production handler but writes to dev database.
 
-#### `verifySignature(rawBody: string, receivedSignature: string): boolean`
-
-**Purpose:** Same as production handler - verifies HMAC-SHA256 signature.
-
-#### `processWebhook(rawBody: string, signature?: string): Promise<void>`
-
-**Purpose:** Processes webhook for dev database.
-
-**Process:**
-1. Same signature verification as production
-2. Calls `handleWebhookUpdate()` which uses `prismaDev` client
-
 #### `handleWebhookUpdate(payload: RegTankWebhookPayload): Promise<void>`
 
-**Purpose:** Updates dev database with webhook data.
+Updates dev database with webhook data.
 
 **Process:**
 1. Attempts to find onboarding in dev database
@@ -1034,7 +629,7 @@ Handles webhooks for development database. Identical to production handler but w
    - If found in production, creates a copy in dev database
    - Re-queries from dev database to ensure correct reference
 3. Appends payload to history
-4. Updates status
+4. Updates status (with liveness completion detection)
 5. If APPROVED, updates organization in dev database (with existence check)
 6. Updates user's account array in dev database
 7. Creates onboarding log in dev database
@@ -1043,109 +638,13 @@ Handles webhooks for development database. Identical to production handler but w
 - Uses `prismaDev` client instead of `prisma` to write to separate database
 - **Production fallback:** Allows webhooks for onboarding created in production to be processed by dev handler
 - **Re-query after copy:** After copying from production, the record is re-queried from dev to ensure subsequent operations reference the dev database version
-- **Organization existence check:** Checks if organization exists in dev before attempting updates (may not exist if copied from production)
+- **Organization existence check:** Checks if organization exists in dev before attempting updates
 
 #### `POST /v1/webhooks/regtank/dev`
 
-**Purpose:** Dev webhook endpoint for testing in production.
-
-**Process:** Same as production endpoint but uses `RegTankDevWebhookHandler`
+**Purpose:** Dev webhook endpoint for testing in production
 
 **Use Case:** Allows testing webhooks in production environment without affecting production data. Supports processing webhooks for onboarding initiated in production by creating dev database copies on-the-fly.
-
----
-
-### Type Definitions
-
-**File:** `apps/api/src/modules/regtank/types.ts`
-
-#### Types and Interfaces
-
-**`RegTankOnboardingType`**
-- `"INDIVIDUAL"` | `"CORPORATE"`
-
-**`RegTankOnboardingStatus`**
-- `"PENDING"` | `"IN_PROGRESS"` | `"APPROVED"` | `"REJECTED"` | `"EXPIRED"`
-
-**`PortalType`**
-- `"investor"` | `"issuer"`
-
-**`RegTankTokenResponse`**
-```typescript
-{
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  scope?: string;
-}
-```
-
-**`RegTankIndividualOnboardingRequest`**
-- Complete request structure for creating individual onboarding
-- **Required fields:** `email`, `surname`, `forename`
-- **Optional fields:** `middleName`, `referenceId`, `countryOfResidence`, `placeOfBirth`, `nationality`, `idIssuingCountry`, `dateOfBirth`, `yearOfBirth`, `gender`, `governmentIdNumber`, `idType`, `language`, `bypassIdUpload`, `skipFormPage`, `address`, `walletAddress`, `industry`, `occupation`, `tags`, `formId`, `proofOfAddress`, `webhookUrl`, `redirectUrl`
-- **Note:** When webhook is enabled, `referenceId`, `countryOfResidence`, `placeOfBirth`, `nationality`, and `idIssuingCountry` become required
-- **Field types:**
-  - `bypassIdUpload`: Boolean (if true, URL points directly to liveness check screen)
-  - `skipFormPage`: Boolean (if true, URL points directly to form page, default is true)
-  - `dateOfBirth`: String (ISO date format: "YYYY-MM-DD" or epoch time)
-  - `gender`: `"MALE"` | `"FEMALE"` | `"UNSPECIFIED"`
-  - `idType`: `"PASSPORT"` | `"IDENTITY"` | `"DRIVER_LICENSE"` | `"RESIDENCE_PERMIT"`
-  - `language`: String (e.g., "EN", "ZH_CN", "RU", "JA", "KO", "DE", "ES", "FR", "PT", "IT", "TR", "TH", "VI", "ID", "ZH_TW", "AR")
-  - `proofOfAddress`: Object with `fileName` (string) and `fileContent` (base64 string)
-
-**`RegTankOnboardingResponse`**
-```typescript
-{
-  requestId: string;
-  verifyLink: string;
-  expiredIn: number;
-  timestamp: string;
-}
-```
-
-**`RegTankWebhookPayload`**
-```typescript
-{
-  requestId: string;
-  referenceId?: string;
-  status: string;
-  substatus?: string;
-  timestamp?: string;
-  [key: string]: any; // Additional fields
-}
-```
-
-**`RegTankOnboardingDetails`**
-```typescript
-{
-  requestId: string;
-  status: string;
-  substatus?: string;
-  [key: string]: any; // Additional fields
-}
-```
-
----
-
-### Validation Schemas
-
-**File:** `apps/api/src/modules/regtank/schemas.ts`
-
-#### `startOnboardingSchema`
-
-**Purpose:** Zod schema for validating start onboarding request body.
-
-**Validation:**
-- `organizationId`: Must be valid CUID
-- `portalType`: Must be "investor" or "issuer"
-
-#### `organizationIdParamSchema`
-
-**Purpose:** Zod schema for validating organization ID path parameter.
-
-**Validation:**
-- `organizationId`: Must be valid CUID
 
 ---
 
@@ -1176,30 +675,30 @@ Handles webhooks for development database. Identical to production handler but w
 **Primary Key:** `id` (UUID)
 
 **Fields:**
-- `id`: UUID (primary key)
-- `user_id`: UUID (foreign key to `User`)
-- `investor_organization_id`: UUID (nullable, foreign key to `InvestorOrganization`)
-- `issuer_organization_id`: UUID (nullable, foreign key to `IssuerOrganization`)
-- `organization_type`: Enum ("PERSONAL" | "COMPANY")
-- `portal_type`: String ("investor" | "issuer")
-- `request_id`: String (unique, RegTank's request ID)
-- `reference_id`: String (unique, our internal reference)
-- `onboarding_type`: String ("INDIVIDUAL" | "CORPORATE")
-- `verify_link`: String (nullable, URL to RegTank portal)
-- `verify_link_expires_at`: Timestamp (nullable)
-- `status`: String (PENDING, APPROVED, REJECTED, etc.)
-- `substatus`: String (nullable)
-- `submitted_at`: Timestamp (nullable)
-- `completed_at`: Timestamp (nullable)
-- `webhook_payloads`: JSON array (history of all webhooks)
-- `regtank_response`: JSON (full RegTank API response)
-- `created_at`: Timestamp
-- `updated_at`: Timestamp
+- `id` - UUID (primary key)
+- `user_id` - UUID (foreign key to `User`)
+- `investor_organization_id` - UUID (nullable, foreign key to `InvestorOrganization`)
+- `issuer_organization_id` - UUID (nullable, foreign key to `IssuerOrganization`)
+- `organization_type` - Enum ("PERSONAL" | "COMPANY")
+- `portal_type` - String ("investor" | "issuer")
+- `request_id` - String (unique, RegTank's request ID)
+- `reference_id` - String (unique, our internal reference)
+- `onboarding_type` - String ("INDIVIDUAL" | "CORPORATE")
+- `verify_link` - String (nullable, URL to RegTank portal)
+- `verify_link_expires_at` - Timestamp (nullable)
+- `status` - String (PENDING, IN_PROGRESS, PENDING_APPROVAL, APPROVED, REJECTED, etc.)
+- `substatus` - String (nullable)
+- `submitted_at` - Timestamp (nullable)
+- `completed_at` - Timestamp (nullable)
+- `webhook_payloads` - JSON array (history of all webhooks)
+- `regtank_response` - JSON (full RegTank API response)
+- `created_at` - Timestamp
+- `updated_at` - Timestamp
 
 **Relations:**
-- `user`: Belongs to `User`
-- `investor_organization`: Belongs to `InvestorOrganization` (optional)
-- `issuer_organization`: Belongs to `IssuerOrganization` (optional)
+- `user` - Belongs to `User`
+- `investor_organization` - Belongs to `InvestorOrganization` (optional)
+- `issuer_organization` - Belongs to `IssuerOrganization` (optional)
 
 **Indexes:**
 - `request_id` (unique)
@@ -1208,52 +707,47 @@ Handles webhooks for development database. Identical to production handler but w
 - `issuer_organization_id`
 - `user_id`
 
+### `OnboardingStatus` Enum
+
+```prisma
+enum OnboardingStatus {
+  PENDING
+  IN_PROGRESS
+  PENDING_APPROVAL
+  COMPLETED
+}
+```
+
+**Status Flow:**
+- `PENDING` - Initial status for company accounts
+- `IN_PROGRESS` - Initial status for personal accounts (when user clicks "Yes, create Personal Account")
+- `PENDING_APPROVAL` - Set when liveness test completes (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` webhook received)
+- `COMPLETED` - Set when `APPROVED` webhook received
+
 ---
 
-## Frontend Integration
+## Configuration
 
-### Organization Context
+### Environment Variables
 
-**File:** `packages/config/src/organization-context.tsx`
+**Required:**
+- `REGTANK_OAUTH_URL` - OAuth token endpoint
+- `REGTANK_API_BASE_URL` - RegTank API base URL
+- `REGTANK_CLIENT_ID` - OAuth client ID
+- `REGTANK_CLIENT_SECRET` - OAuth client secret
+- `REGTANK_WEBHOOK_SECRET` - HMAC secret for webhooks
+- `REGTANK_REDIRECT_URL_INVESTOR` - Investor callback URL
+- `REGTANK_REDIRECT_URL_ISSUER` - Issuer callback URL
+- `REGTANK_FORM_ID` - Form ID for settings
 
-#### `startRegTankOnboarding(organizationId: string): Promise<{...}>`
+**Optional:**
+- `REGTANK_WEBHOOK_MODE` - "dev" or "prod" (default: "prod")
+- `API_URL` - Base URL for webhook URLs
+- `DATABASE_URL_DEV` - Dev database connection string
 
-**Purpose:** Frontend function to start RegTank onboarding.
+### Configuration Loading
 
-**Process:**
-1. Calls `POST /v1/regtank/start-onboarding`
-2. Returns `verifyLink`, `requestId`, `expiresIn`, `organizationType`
-3. Frontend redirects user to `verifyLink`
-
-#### `syncRegTankStatus(organizationId: string): Promise<{...}>`
-
-**Purpose:** Frontend function to manually sync status.
-
-**Process:**
-1. Calls `POST /v1/regtank/sync-status/:organizationId`
-2. Automatically refreshes organizations after sync
-3. Returns synced status
-
-### Callback Page
-
-**File:** `apps/investor/src/app/regtank-callback/page.tsx`  
-**File:** `apps/issuer/src/app/regtank-callback/page.tsx`
-
-**Purpose:** Handles user return from RegTank portal.
-
-**Process:**
-1. **Immediate sync:**
-   - Calls `syncRegTankStatus()` to fetch latest status
-   - Updates database if status changed
-
-2. **Polling:**
-   - Polls every 1 second for status updates
-   - Checks if `onboardingStatus === "COMPLETED"`
-   - Stops after 10 seconds max
-
-3. **Redirect:**
-   - Redirects to dashboard when complete
-   - Shows loading/success/error states
+Configuration is loaded once at startup and cached. Missing required variables cause application startup to fail.
 
 ---
 
@@ -1263,7 +757,7 @@ Handles webhooks for development database. Identical to production handler but w
 
 ```
 1. User creates organization (PERSONAL/COMPANY)
-   └─> Organization created with onboarding_status = PENDING
+   └─> Organization created with onboarding_status = PENDING or IN_PROGRESS
 
 2. Frontend calls startRegTankOnboarding(organizationId)
    └─> POST /v1/regtank/start-onboarding
@@ -1271,8 +765,9 @@ Handles webhooks for development database. Identical to production handler but w
 3. Backend validates and prepares request
    ├─> Validates user/organization
    ├─> Checks for existing onboarding
-   ├─> Sets RegTank settings (non-blocking)
-   └─> Creates onboarding request
+   ├─> Sets webhook preferences (non-blocking, one-time)
+   ├─> Sets onboarding settings (redirectUrl per formId, non-blocking, one-time)
+   └─> Creates onboarding request (NO webhookUrl/redirectUrl in body)
 
 4. Backend calls RegTank API
    ├─> OAuth: Get access token (cached or fresh)
@@ -1281,6 +776,7 @@ Handles webhooks for development database. Identical to production handler but w
 
 5. Backend stores record
    └─> Creates RegTankOnboarding record in database
+       - Status: IN_PROGRESS (personal) or PENDING (company)
 
 6. Frontend redirects user
    └─> window.location.href = verifyLink
@@ -1294,6 +790,7 @@ Handles webhooks for development database. Identical to production handler but w
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
        ├─> Updates database
+       ├─> Sets status to PENDING_APPROVAL when liveness completes
        └─> Updates organization status if APPROVED
 
 9. User returns to callback page
@@ -1313,23 +810,23 @@ Handles webhooks for development database. Identical to production handler but w
 - Used throughout the application for consistent error responses
 
 **Common Error Codes (Internal):**
-- `USER_NOT_FOUND`: User doesn't exist
-- `ORGANIZATION_NOT_FOUND`: Organization doesn't exist
-- `FORBIDDEN`: Access denied
-- `ALREADY_COMPLETED`: Onboarding already completed
-- `ONBOARDING_NOT_FOUND`: Onboarding record not found
-- `REGTANK_API_ERROR`: RegTank API call failed
-- `INVALID_SIGNATURE`: Webhook signature invalid
-- `INVALID_PAYLOAD`: Invalid webhook payload
-- `SYNC_FAILED`: Status sync failed
+- `USER_NOT_FOUND` - User doesn't exist
+- `ORGANIZATION_NOT_FOUND` - Organization doesn't exist
+- `FORBIDDEN` - Access denied
+- `ALREADY_COMPLETED` - Onboarding already completed
+- `ONBOARDING_NOT_FOUND` - Onboarding record not found
+- `REGTANK_API_ERROR` - RegTank API call failed
+- `INVALID_SIGNATURE` - Webhook signature invalid
+- `INVALID_PAYLOAD` - Invalid webhook payload
+- `SYNC_FAILED` - Status sync failed
 
 **RegTank API Error Codes:**
-- `ERROR_VALUE_INVALID`: The specified value is invalid (e.g., invalid idType, occupation, industry, gender, or empty values)
-- `ERROR_MISSING_PARAM`: Required items were not set or invalid value (e.g., referenceId, idType)
-- `ERROR_DATA_NOT_FOUND`: formId does not exist
-- `ERROR_INVALID_ID_TYPE`: Your ID type does not match with the document type
-- `Invalid Request Parameters`: Missing required fields (e.g., surname, forename, email must not be blank)
-- `Too Many Requests` (HTTP 429): Rate limit exceeded
+- `ERROR_VALUE_INVALID` - Invalid field value
+- `ERROR_MISSING_PARAM` - Required field missing
+- `ERROR_DATA_NOT_FOUND` - formId does not exist
+- `ERROR_INVALID_ID_TYPE` - ID type doesn't match document type
+- `Invalid Request Parameters` - Missing required fields
+- `Too Many Requests` (HTTP 429) - Rate limit exceeded
 
 ### Error Response Format
 
@@ -1339,7 +836,7 @@ Handles webhooks for development database. Identical to production handler but w
   "error": {
     "code": "ERROR_CODE",
     "message": "Human-readable error message",
-    "details": {} // Optional additional details
+    "details": {}
   },
   "correlationId": "string"
 }
@@ -1354,71 +851,47 @@ All errors are logged with:
 
 ---
 
-## Configuration
+## Security
 
-### Environment Variables
+### OAuth Tokens
+- Tokens are cached in memory (not persisted)
+- Auto-refresh with 5-minute buffer before expiration
+- Never logged or exposed
 
-**Required:**
-- `REGTANK_OAUTH_URL`: OAuth token endpoint
-- `REGTANK_API_BASE_URL`: RegTank API base URL
-- `REGTANK_CLIENT_ID`: OAuth client ID
-- `REGTANK_CLIENT_SECRET`: OAuth client secret
-- `REGTANK_WEBHOOK_SECRET`: HMAC secret for webhooks
-- `REGTANK_REDIRECT_URL_INVESTOR`: Investor callback URL
-- `REGTANK_REDIRECT_URL_ISSUER`: Issuer callback URL
-- `REGTANK_FORM_ID`: Form ID for settings
+### Webhook Signatures
+- HMAC-SHA256 verification
+- Constant-time comparison to prevent timing attacks
+- Signature optional in dev mode for testing
 
-**Optional:**
-- `REGTANK_WEBHOOK_MODE`: "dev" or "prod" (default: "prod")
-- `API_URL`: Base URL for webhook URLs
-- `DATABASE_URL_DEV`: Dev database connection string
+### Access Control
+- All endpoints require authentication (except webhooks)
+- Organization ownership/membership verified
+- Webhook endpoints are public but signature-verified
 
-### Configuration Loading
-
-Configuration is loaded once at startup and cached. Missing required variables cause application startup to fail.
-
----
-
-## Security Considerations
-
-1. **OAuth Tokens:**
-   - Tokens are cached in memory (not persisted)
-   - Auto-refresh with 5-minute buffer before expiration
-   - Never logged or exposed
-
-2. **Webhook Signatures:**
-   - HMAC-SHA256 verification
-   - Constant-time comparison to prevent timing attacks
-   - Signature optional in dev mode for testing
-
-3. **Access Control:**
-   - All endpoints require authentication
-   - Organization ownership/membership verified
-   - Webhook endpoints are public but signature-verified
-
-4. **Data Privacy:**
-   - Sensitive data (URLs) truncated in logs
-   - Full webhook payloads stored for audit trail
-   - No PII logged in production
+### Data Privacy
+- Sensitive data (URLs) truncated in logs
+- Full webhook payloads stored for audit trail
+- No PII logged in production
 
 ---
 
-## Testing Considerations
+## Testing
 
-1. **Dev Webhook Handler:**
-   - Allows testing webhooks in production
-   - Writes to separate dev database
-   - Doesn't affect production data
+### Dev Webhook Handler
+- Allows testing webhooks in production
+- Writes to separate dev database
+- Doesn't affect production data
+- Supports processing webhooks for onboarding created in production
 
-2. **Manual Status Sync:**
-   - Fallback when webhooks aren't working
-   - Can be called from frontend callback page
-   - Useful for debugging
+### Manual Status Sync
+- Fallback when webhooks aren't working
+- Can be called from frontend callback page
+- Useful for debugging
 
-3. **Localhost Restrictions:**
-   - RegTank cannot redirect to localhost
-   - Use ngrok or public URLs for development
-   - Validation prevents localhost URLs
+### Localhost Restrictions
+- RegTank cannot redirect to localhost
+- Use ngrok or public URLs for development
+- Validation prevents localhost URLs
 
 ---
 
@@ -1442,15 +915,4 @@ Configuration is loaded once at startup and cached. Missing required variables c
 
 ---
 
-## Conclusion
-
-The RegTank onboarding integration provides a robust, production-ready KYC verification system with:
-
-- **Reliability:** Multiple fallback mechanisms (webhooks + manual sync)
-- **Security:** OAuth2 authentication, webhook signature verification
-- **Observability:** Comprehensive logging and audit trail
-- **Flexibility:** Support for both production and development workflows
-- **User Experience:** Seamless redirect flow with status polling
-
-The system is designed to handle edge cases gracefully and provides multiple ways to ensure status updates are captured even if webhooks fail.
-
+*Last Updated: December 2024*

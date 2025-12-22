@@ -53,9 +53,9 @@ export interface RegTankIndividualOnboardingRequest {
     fileName: string;
     fileContent: string; // Base64 encoded
   };
-  webhookUrl?: string;
-  redirectUrl?: string;
   formId?: number;
+  // Note: webhookUrl is configured globally via /alert/preferences endpoint
+  // Note: redirectUrl is configured via /v3/onboarding/indv/setting endpoint
 }
 
 /**
