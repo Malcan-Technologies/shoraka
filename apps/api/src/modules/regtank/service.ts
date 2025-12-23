@@ -99,14 +99,44 @@ export class RegTankService {
       );
     }
 
-    // Check if there's already an active onboarding
+    // First, check if there's an active onboarding for this user (resume functionality)
+    // This allows users to resume even if they exited the page
+    const activeUserOnboarding = await this.repository.findActiveOnboardingByUserId(
+      userId,
+      portalType
+    );
+    if (activeUserOnboarding && activeUserOnboarding.verify_link) {
+      logger.info(
+        {
+          userId,
+          organizationId,
+          requestId: activeUserOnboarding.request_id,
+          status: activeUserOnboarding.status,
+        },
+        "Resuming existing active onboarding for user"
+      );
+      return {
+        verifyLink: activeUserOnboarding.verify_link,
+        requestId: activeUserOnboarding.request_id,
+        expiresIn: activeUserOnboarding.verify_link_expires_at
+          ? Math.floor(
+              (activeUserOnboarding.verify_link_expires_at.getTime() -
+                Date.now()) /
+                1000
+            )
+          : 86400,
+        organizationType: activeUserOnboarding.organization_type,
+      };
+    }
+
+    // Fallback: Check if there's already an active onboarding for this organization
     const existingOnboarding = await this.repository.findByOrganizationId(
       organizationId,
       portalType
     );
     if (
       existingOnboarding &&
-      ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)
+      ["PENDING", "IN_PROGRESS", "FORM_FILLING"].includes(existingOnboarding.status)
     ) {
       if (existingOnboarding.verify_link) {
         return {
@@ -640,13 +670,15 @@ export class RegTankService {
     const statusUpper = status.toUpperCase();
     
     // Status transition logic:
-    // IN_PROGRESS → LIVENESS_PASSED → PENDING_APPROVAL → APPROVED/REJECTED
+    // IN_PROGRESS → FORM_FILLING → LIVENESS_PASSED → PENDING_APPROVAL → APPROVED/REJECTED
     
     // Map RegTank status to our internal status
     let internalStatus = statusUpper;
     
-    // NEW: Explicit LIVENESS_PASSED status
-    if (statusUpper === "LIVENESS_PASSED") {
+    // Map form filling statuses (before liveness test)
+    if (statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED" || statusUpper === "LIVENESS_STARTED") {
+      internalStatus = "FORM_FILLING";
+    } else if (statusUpper === "LIVENESS_PASSED") {
       internalStatus = "LIVENESS_PASSED";
     } else if (statusUpper === "WAIT_FOR_APPROVAL") {
       internalStatus = "PENDING_APPROVAL";

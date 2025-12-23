@@ -247,6 +247,57 @@ export class RegTankRepository {
   }
 
   /**
+   * Find active onboarding by user ID and portal type
+   * Returns the most recent active onboarding that hasn't expired
+   */
+  async findActiveOnboardingByUserId(
+    userId: string,
+    portalType: "investor" | "issuer"
+  ): Promise<RegTankOnboardingWithRelations | null> {
+    const now = new Date();
+    return prisma.regTankOnboarding.findFirst({
+      where: {
+        user_id: userId,
+        portal_type: portalType,
+        status: {
+          in: ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_PASSED", "PENDING_APPROVAL"],
+        },
+        verify_link: {
+          not: null,
+        },
+        verify_link_expires_at: {
+          gt: now,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+        investor_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+        issuer_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  /**
    * Update RegTank response data
    */
   async updateRegTankResponse(

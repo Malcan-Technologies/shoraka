@@ -60,10 +60,21 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     setStep("completing");
 
     try {
-      const input: CreateOrganizationInput = { type: "PERSONAL" };
-      const org = await createOrganization(input);
+      // Check if personal organization already exists
+      const existingPersonalOrg = organizations.find(org => org.type === "PERSONAL");
       
-      // Start RegTank individual onboarding for the new organization
+      let org;
+      if (existingPersonalOrg) {
+        // Use existing personal organization
+        org = existingPersonalOrg;
+      } else {
+        // Create new personal organization
+        const input: CreateOrganizationInput = { type: "PERSONAL" };
+        org = await createOrganization(input);
+      }
+      
+      // Start RegTank individual onboarding for the organization
+      // Backend will check for existing active onboarding and resume if found
       try {
         const { verifyLink } = startIndividualOnboarding 
           ? await startIndividualOnboarding(org.id)

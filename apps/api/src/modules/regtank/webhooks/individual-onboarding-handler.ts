@@ -49,8 +49,10 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     const statusUpper = status.toUpperCase();
     let internalStatus = statusUpper;
 
-    // NEW: Explicit LIVENESS_PASSED status
-    if (statusUpper === "LIVENESS_PASSED") {
+    // Map form filling statuses (before liveness test)
+    if (statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED" || statusUpper === "LIVENESS_STARTED") {
+      internalStatus = "FORM_FILLING";
+    } else if (statusUpper === "LIVENESS_PASSED") {
       internalStatus = "LIVENESS_PASSED";
     } else if (statusUpper === "WAIT_FOR_APPROVAL") {
       internalStatus = "PENDING_APPROVAL";

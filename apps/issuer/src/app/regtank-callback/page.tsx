@@ -68,6 +68,9 @@ function RegTankCallbackContent() {
                 if (pollInterval) clearInterval(pollInterval);
                 // Don't redirect immediately - show rejection message
                 return true;
+              } else if (onboardingStatus === "FORM_FILLING" || onboardingStatus === "IN_PROGRESS") {
+                // User is still filling out the form - continue polling
+                setStatus("syncing");
               } else if (onboardingStatus === "LIVENESS_PASSED" || onboardingStatus === "PENDING_APPROVAL") {
                 setStatus("pending_approval");
                 // Continue polling
@@ -91,6 +94,9 @@ function RegTankCallbackContent() {
               // If we're still pending approval, show that status
               if (currentStatus === "PENDING_APPROVAL" || currentStatus === "LIVENESS_PASSED") {
                 setStatus("pending_approval");
+              } else if (currentStatus === "FORM_FILLING" || currentStatus === "IN_PROGRESS") {
+                // Still filling form - show syncing status
+                setStatus("syncing");
               } else {
                 // Otherwise redirect - webhook might update later
                 setStatus("approved");

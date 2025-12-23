@@ -7,6 +7,7 @@ export type RegTankOnboardingType = "INDIVIDUAL" | "CORPORATE";
 export type RegTankOnboardingStatus =
   | "PENDING"
   | "IN_PROGRESS"
+  | "FORM_FILLING"
   | "LIVENESS_PASSED"
   | "PENDING_APPROVAL"
   | "APPROVED"
