@@ -277,7 +277,7 @@ export class RegTankService {
       idType: "IDENTITY",
       language: "EN",
       bypassIdUpload: false, // Boolean: If true, skip directly to liveness check
-      skipFormPage: true, // Boolean: If true, skip to form page (default behavior)
+      skipFormPage: false, // Boolean: If true, skip to form page (default behavior)
       formId, // Include formId to link request to configured settings
       // Note: webhookUrl is configured globally via /alert/preferences endpoint
       // Note: redirectUrl is configured via /v3/onboarding/indv/setting endpoint

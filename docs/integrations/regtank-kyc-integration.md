@@ -586,8 +586,8 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 **Reference:** [Individual Onboarding Notification Definition](https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition)
 
 **Payload:**
-```json
-{
+  ```json
+  {
   "requestId": "LD00001",
   "referenceId": "cashsouk-org-123",
   "status": "APPROVED",
@@ -765,7 +765,7 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 ### Status State Machine
 
 ```
-URL_GENERATED
+  URL_GENERATED
     │
     ├─> EMAIL_SENT (if email option used)
     │
