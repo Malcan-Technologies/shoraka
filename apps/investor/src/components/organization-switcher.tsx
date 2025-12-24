@@ -20,7 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganization, type Organization, createApiClient } from "@cashsouk/config";
+import { useOrganization, type Organization, type OnboardingStatus, createApiClient } from "@cashsouk/config";
 import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
@@ -47,7 +47,7 @@ function getOrgIcon(org: Organization) {
   return <BuildingOffice2Icon className="h-4 w-4" />;
 }
 
-function OnboardingStatusBadge({ status, size = "default" }: { status: "PENDING" | "COMPLETED"; size?: "default" | "sm" }) {
+function OnboardingStatusBadge({ status, size = "default" }: { status: OnboardingStatus; size?: "default" | "sm" }) {
   const textSize = size === "sm" ? "text-[11px]" : "text-xs";
   const iconSize = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
   
@@ -59,6 +59,26 @@ function OnboardingStatusBadge({ status, size = "default" }: { status: "PENDING"
       </span>
     );
   }
+  
+  if (status === "IN_PROGRESS") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
+        <ClockIcon className={iconSize} />
+        In Progress
+      </span>
+    );
+  }
+  
+  if (status === "PENDING_APPROVAL") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-purple-700`}>
+        <ClockIcon className={iconSize} />
+        Pending Approval
+      </span>
+    );
+  }
+  
+  // PENDING
   return (
     <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
       <ClockIcon className={iconSize} />
