@@ -13,7 +13,7 @@ import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
 
 export type OrganizationType = "PERSONAL" | "COMPANY";
-export type OnboardingStatus = "PENDING" | "COMPLETED";
+export type OnboardingStatus = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "COMPLETED";
 export type OrganizationMemberRole = "OWNER" | "DIRECTOR" | "MEMBER";
 export type PortalType = "investor" | "issuer";
 

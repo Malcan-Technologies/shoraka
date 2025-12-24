@@ -53,6 +53,25 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     return getNextCompanyName(companyCount);
   }, [companyCount]);
 
+  // Find personal organization and check if onboarding can be resumed
+  const personalOrganization = React.useMemo(() => {
+    return organizations.find(org => org.type === "PERSONAL");
+  }, [organizations]);
+
+  const canResumeOnboarding = React.useMemo(() => {
+    return personalOrganization?.onboardingStatus === "IN_PROGRESS";
+  }, [personalOrganization]);
+
+  // Personal account button should be disabled only if:
+  // - Personal org exists AND onboarding is NOT IN_PROGRESS (i.e., already completed or pending approval)
+  // - OR if currently submitting
+  const isPersonalAccountDisabled = React.useMemo(() => {
+    if (isSubmitting) return true;
+    if (!hasPersonalOrganization) return false;
+    // If personal org exists but onboarding is IN_PROGRESS, allow clicking to resume
+    return !canResumeOnboarding;
+  }, [hasPersonalOrganization, canResumeOnboarding, isSubmitting]);
+
   const handleConfirmPersonal = async () => {
     setConfirmationType(null);
     setIsSubmitting(true);
@@ -183,19 +202,33 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       <AlertDialog open={confirmationType === "personal"} onOpenChange={(open) => !open && setConfirmationType(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Create Personal Account?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {canResumeOnboarding ? "Resume Onboarding?" : "Create Personal Account?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to create a <strong>Personal Account</strong> for issuing on CashSouk.
-              <br /><br />
-              This account type is for individuals who want to issue as themselves. You can only have one personal account.
-              <br /><br />
-              Are you sure you want to continue?
+              {canResumeOnboarding ? (
+                <>
+                  You have an ongoing onboarding process for your <strong>Personal Account</strong>.
+                  <br /><br />
+                  Clicking continue will redirect you back to RegTank to complete your identity verification where you left off.
+                  <br /><br />
+                  Do you want to continue?
+                </>
+              ) : (
+                <>
+                  You are about to create a <strong>Personal Account</strong> for issuing on CashSouk.
+                  <br /><br />
+                  This account type is for individuals who want to issue as themselves. You can only have one personal account.
+                  <br /><br />
+                  Are you sure you want to continue?
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmPersonal}>
-              Yes, Create Personal Account
+              {canResumeOnboarding ? "Yes, Resume Onboarding" : "Yes, Create Personal Account"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -245,12 +278,12 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
         <div className="grid gap-4">
           <button
             onClick={() => setConfirmationType("personal")}
-            disabled={hasPersonalOrganization || isSubmitting}
+            disabled={isPersonalAccountDisabled}
             className="block text-left disabled:cursor-not-allowed"
           >
             <Card
               className={`transition-all ${
-                hasPersonalOrganization
+                isPersonalAccountDisabled
                   ? "opacity-50 cursor-not-allowed"
                   : "cursor-pointer hover:shadow-md hover:border-primary/50"
               }`}
@@ -263,19 +296,25 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
                   <div className="flex-1">
                     <CardTitle className="text-lg">Personal Account</CardTitle>
                     <CardDescription className="text-sm">
-                      Issue as an individual
+                      {canResumeOnboarding ? "Resume your onboarding" : "Issue as an individual"}
                     </CardDescription>
                   </div>
                   {hasPersonalOrganization && (
-                    <span className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground">
-                      Already created
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      canResumeOnboarding
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {canResumeOnboarding ? "Resume onboarding" : "Already created"}
                     </span>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Perfect for individual issuers. You can only have one personal account.
+                  {canResumeOnboarding
+                    ? "Continue where you left off with your identity verification."
+                    : "Perfect for individual issuers. You can only have one personal account."}
                 </p>
               </CardContent>
             </Card>
