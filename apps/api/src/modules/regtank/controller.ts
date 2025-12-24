@@ -5,7 +5,9 @@ import { requireAuth } from "../../lib/auth/middleware";
 import {
   startOnboardingSchema,
   organizationIdParamSchema,
+  setOnboardingSettingsSchema,
   type StartOnboardingInput,
+  type SetOnboardingSettingsInput,
 } from "./schemas";
 
 const router = Router();
@@ -239,6 +241,108 @@ router.post(
     }
   }
 );
+
+/**
+ * @swagger
+ * /v1/regtank/set-onboarding-settings:
+ *   post:
+ *     summary: Set onboarding settings for RegTank
+ *     tags: [RegTank]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [formId, livenessConfidence, approveMode]
+ *             properties:
+ *               formId:
+ *                 type: number
+ *                 description: Form ID for the onboarding settings
+ *                 example: 1036131
+ *               livenessConfidence:
+ *                 type: number
+ *                 description: Liveness confidence threshold (0-100)
+ *                 example: 90
+ *               approveMode:
+ *                 type: boolean
+ *                 description: Enable/disable manual approve/reject button
+ *                 example: true
+ *               kycApprovalTarget:
+ *                 type: string
+ *                 enum: [ACURIS, DOWJONES]
+ *                 description: KYC approval target provider
+ *                 example: ACURIS
+ *               enabledRegistrationEmail:
+ *                 type: boolean
+ *                 description: Send email on status changes
+ *                 example: false
+ *               redirectUrl:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL to redirect after completion
+ *                 example: https://investor.cashsouk.com/regtank-callback
+ *     responses:
+ *       200:
+ *         description: Onboarding settings updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *       400:
+ *         description: Bad request (validation error)
+ *       500:
+ *         description: Failed to update settings
+ */
+router.post(
+  "/set-onboarding-settings",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+	try {
+      const body = setOnboardingSettingsSchema.parse(req.body) as SetOnboardingSettingsInput;
+
+      await regTankService.setOnboardingSettings({
+        formId: body.formId,
+        livenessConfidence: body.livenessConfidence,
+        approveMode: body.approveMode,
+        kycApprovalTarget: body.kycApprovalTarget,
+        enabledRegistrationEmail: body.enabledRegistrationEmail,
+        redirectUrl: body.redirectUrl,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          message: "Onboarding settings updated successfully",
+        },
+        correlationId: res.locals.correlationId,
+      });
+	} catch (error) {
+      const logger = require("../../lib/logger").logger;
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          body: req.body,
+          userId: req.user?.user_id,
+        },
+        "Error in /v1/regtank/set-onboarding-settings"
+      );
+		next(error);
+	}
+  }
+);
+
 
 /**
  * @swagger

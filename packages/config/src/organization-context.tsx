@@ -50,6 +50,14 @@ interface OrganizationContextType {
   startIndividualOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   startCorporateOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
+  setOnboardingSettings: (settings: {
+    formId: number;
+    livenessConfidence: number;
+    approveMode: boolean;
+    kycApprovalTarget?: string;
+    enabledRegistrationEmail?: boolean;
+    redirectUrl?: string;
+  }) => Promise<void>;
   isOnboarded: boolean;
   portalType: PortalType;
 }
@@ -377,6 +385,32 @@ export function OrganizationProvider({
     [apiUrl, getAccessToken, portalType, refreshOrganizations]
   );
 
+  /**
+   * Set RegTank onboarding settings (redirectUrl, livenessConfidence, etc.)
+   * Should be called before starting onboarding to configure portal-specific redirect URL
+   */
+  const setOnboardingSettings = useCallback(
+    async (settings: {
+      formId: number;
+      livenessConfidence: number;
+      approveMode: boolean;
+      kycApprovalTarget?: string;
+      enabledRegistrationEmail?: boolean;
+      redirectUrl?: string;
+    }): Promise<void> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{ message: string }>(
+        "/v1/regtank/set-onboarding-settings",
+        settings
+      );
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to set onboarding settings");
+      }
+    },
+    [apiUrl, getAccessToken]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -392,6 +426,7 @@ export function OrganizationProvider({
         startIndividualOnboarding,
         startCorporateOnboarding,
         syncRegTankStatus,
+        setOnboardingSettings,
         isOnboarded,
         portalType,
       }}

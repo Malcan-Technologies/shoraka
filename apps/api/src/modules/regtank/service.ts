@@ -1,7 +1,6 @@
 import { Request } from "express";
 import { RegTankRepository } from "./repository";
 import { getRegTankAPIClient } from "./api-client";
-import { getRegTankConfig } from "../../config/regtank";
 import {
   RegTankIndividualOnboardingRequest,
   RegTankCorporateOnboardingRequest,
@@ -18,7 +17,6 @@ import { OrganizationRepository } from "../organization/repository";
 export class RegTankService {
   private repository: RegTankRepository;
   private apiClient = getRegTankAPIClient();
-  private config = getRegTankConfig();
   private organizationRepository: OrganizationRepository;
 
   constructor() {
@@ -99,67 +97,53 @@ export class RegTankService {
       );
     }
 
-    // First, check if there's an active onboarding for this user (resume functionality)
-    // This allows users to resume even if they exited the page
-    const activeUserOnboarding = await this.repository.findActiveOnboardingByUserId(
-      userId,
-      portalType
-    );
-    if (activeUserOnboarding && activeUserOnboarding.verify_link) {
-      logger.info(
-        {
-          userId,
-          organizationId,
-          requestId: activeUserOnboarding.request_id,
-          status: activeUserOnboarding.status,
-        },
-        "Resuming existing active onboarding for user"
-      );
-      return {
-        verifyLink: activeUserOnboarding.verify_link,
-        requestId: activeUserOnboarding.request_id,
-        expiresIn: activeUserOnboarding.verify_link_expires_at
-          ? Math.floor(
-              (activeUserOnboarding.verify_link_expires_at.getTime() -
-                Date.now()) /
-                1000
-            )
-          : 86400,
-        organizationType: activeUserOnboarding.organization_type,
-      };
-    }
-
-    // Fallback: Check if there's already an active onboarding for this organization
+    // Check if we should resume existing onboarding for this organization
+    // Resume if:
+    // - Organization status is NOT PENDING_APPROVAL or COMPLETED
+    // - RegTank onboarding status is NOT LIVENESS_PASSED, PENDING_APPROVAL, or APPROVED
     const existingOnboarding = await this.repository.findByOrganizationId(
       organizationId,
       portalType
     );
-    if (
+
+    const shouldResume =
+      organization.onboarding_status !== OnboardingStatus.PENDING_APPROVAL &&
       existingOnboarding &&
-      ["PENDING", "IN_PROGRESS", "FORM_FILLING"].includes(existingOnboarding.status)
-    ) {
-      if (existingOnboarding.verify_link) {
-        return {
-          verifyLink: existingOnboarding.verify_link,
+      !["LIVENESS_PASSED", "PENDING_APPROVAL", "APPROVED"].includes(existingOnboarding.status) &&
+      existingOnboarding.verify_link !== null;
+
+    if (shouldResume && existingOnboarding.verify_link) {
+      logger.info(
+        {
+          userId,
+          organizationId,
           requestId: existingOnboarding.request_id,
-          expiresIn: existingOnboarding.verify_link_expires_at
-            ? Math.floor(
-                (existingOnboarding.verify_link_expires_at.getTime() -
-                  Date.now()) /
-                  1000
-              )
-            : 86400,
-          organizationType: organization.type,
-        };
-      }
+          orgStatus: organization.onboarding_status,
+          rtStatus: existingOnboarding.status,
+        },
+        "Resuming existing onboarding for organization (not advanced enough)"
+      );
+      return {
+        verifyLink: existingOnboarding.verify_link,
+        requestId: existingOnboarding.request_id,
+        expiresIn: existingOnboarding.verify_link_expires_at
+          ? Math.floor(
+              (existingOnboarding.verify_link_expires_at.getTime() -
+                Date.now()) /
+                1000
+            )
+          : 86400,
+        organizationType: existingOnboarding.organization_type,
+      };
     }
 
     // Prepare RegTank onboarding request
     const referenceId = organizationId; // Use organization ID as reference
+    // Set portal-specific redirectUrl
     const redirectUrl =
       portalType === "investor"
-        ? this.config.redirectUrlInvestor
-        : this.config.redirectUrlIssuer;
+        ? "https://investor.cashsouk.com/regtank-callback"
+        : "https://issuer.cashsouk.com/regtank-callback";
     
     // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
     // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
@@ -240,11 +224,14 @@ export class RegTankService {
     }
 
     // Set onboarding settings (redirect URL) - called once per formId
+    // Use portal-specific redirectUrl and required settings
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
-        livenessConfidence: 60, // Default face match threshold
-        approveMode: false, // Disable manual approve/reject button
+        livenessConfidence: 90,
+        approveMode: true,
+        kycApprovalTarget: "ACURIS",
+        enabledRegistrationEmail: false,
         redirectUrl,
       });
       logger.info(
@@ -521,6 +508,74 @@ export class RegTankService {
 
     // Prepare RegTank corporate onboarding request
     const referenceId = organizationId; // Use organization ID as reference
+    
+    // Set portal-specific redirectUrl
+    const redirectUrl =
+      portalType === "investor"
+        ? "https://investor.cashsouk.com/regtank-callback"
+        : "https://issuer.cashsouk.com/regtank-callback";
+
+    // Get formId from config or use default
+    const formId = parseInt(process.env.REGTANK_FORM_ID || "1036131", 10);
+
+    // Set onboarding settings (redirect URL) - called once per formId
+    // Use portal-specific redirectUrl and required settings
+    try {
+      await this.apiClient.setOnboardingSettings({
+        formId,
+        livenessConfidence: 90,
+        approveMode: true,
+        kycApprovalTarget: "ACURIS",
+        enabledRegistrationEmail: false,
+        redirectUrl,
+      });
+      logger.info(
+        { formId, redirectUrl, portalType },
+        "RegTank onboarding settings configured successfully for corporate onboarding"
+      );
+    } catch (error) {
+      // Extract detailed error information
+      let errorMessage = "Failed to configure RegTank settings";
+      if (error instanceof AppError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+
+      // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
+      const isSettingsNotFound = 
+        error instanceof AppError && 
+        error.code === "REGTANK_API_ERROR" &&
+        (errorMessage.includes("SettingInfo does not exist") || 
+         errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+      
+      if (isSettingsNotFound) {
+        logger.warn(
+          {
+            formId,
+            redirectUrl,
+            portalType,
+            message: "RegTank settings not found, but continuing with onboarding request",
+          },
+          "RegTank settings do not exist yet, continuing with corporate onboarding request"
+        );
+      } else {
+        // Other errors - log but don't block
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            formId,
+            redirectUrl,
+            portalType,
+            message: "Failed to set RegTank settings, but continuing with onboarding request",
+          },
+          "Failed to set RegTank onboarding settings (non-blocking)"
+        );
+      }
+      // Don't throw - continue with onboarding request
+    }
 
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,
@@ -1193,7 +1248,6 @@ export class RegTankService {
 
   /**
    * Set onboarding settings (per formId)
-   * Wrapper method for admin endpoints
    */
   async setOnboardingSettings(settings: {
     formId: number;
