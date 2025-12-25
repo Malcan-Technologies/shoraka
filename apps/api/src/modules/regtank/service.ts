@@ -581,10 +581,11 @@ export class RegTankService {
       // Don't throw - continue with onboarding request
     }
 
+    // RegTank API expects "form" field, not "formName"
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,
       companyName: companyName,
-      form: formName,
+      formName: formName, // This will be mapped to "form" in the API client
       referenceId,
     };
 

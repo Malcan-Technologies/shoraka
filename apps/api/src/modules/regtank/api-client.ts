@@ -296,11 +296,28 @@ export class RegTankAPIClient {
       "Creating RegTank corporate onboarding request"
     );
 
+    // RegTank API expects "form" field, not "formName"
+    const requestBody: {
+      email: string;
+      companyName: string;
+      form?: string;
+      referenceId: string;
+    } = {
+      email: request.email,
+      companyName: request.companyName,
+      referenceId: request.referenceId,
+    };
+
+    // Map formName to form if provided
+    if (request.formName) {
+      requestBody.form = request.formName;
+    }
+
     return this.makeRequest<RegTankOnboardingResponse>(
       "/v3/onboarding/corp/request",
       {
         method: "POST",
-        body: JSON.stringify(request),
+        body: JSON.stringify(requestBody),
       }
     );
   }
