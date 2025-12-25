@@ -584,7 +584,7 @@ export class RegTankService {
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,
       companyName: companyName,
-      formName: formName,
+      form: formName,
       referenceId,
     };
 
