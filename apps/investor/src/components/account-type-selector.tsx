@@ -20,6 +20,8 @@ import {
 import { UserIcon, BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
@@ -28,30 +30,17 @@ interface AccountTypeSelectorProps {
 type Step = "select-type" | "completing";
 type ConfirmationType = "personal" | "company" | null;
 
-/**
- * Generate the next company name based on existing companies
- * Returns "Company A", "Company B", etc.
- */
-function getNextCompanyName(existingCompanyCount: number): string {
-  const letter = String.fromCharCode(65 + existingCompanyCount); // A=65, B=66, etc.
-  return `Company ${letter}`;
-}
-
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
-
-  // Count existing company organizations
-  const companyCount = React.useMemo(() => {
-    return organizations.filter(org => org.type === "COMPANY").length;
-  }, [organizations]);
-
-  const nextCompanyName = React.useMemo(() => {
-    return getNextCompanyName(companyCount);
-  }, [companyCount]);
+  
+  // Corporate onboarding form state
+  const [formName, setFormName] = React.useState("");
+  const [companyName, setCompanyName] = React.useState("");
+  const [formErrors, setFormErrors] = React.useState<{ formName?: string; companyName?: string }>({});
 
   // Find personal organization and check if onboarding can be resumed
   const personalOrganization = React.useMemo(() => {
@@ -126,26 +115,42 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     }
   };
 
-  const handleConfirmCompany = async () => {
+  const handleCompanyFormSubmit = () => {
+    // Validate form
+    const errors: { formName?: string; companyName?: string } = {};
+    if (!formName.trim()) {
+      errors.formName = "Form name is required";
+    }
+    if (!companyName.trim()) {
+      errors.companyName = "Company name is required";
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
+    setFormErrors({});
+    handleConfirmCompany(formName.trim(), companyName.trim());
+  };
+
+  const handleConfirmCompany = async (formNameValue: string, companyNameValue: string) => {
     setConfirmationType(null);
     setIsSubmitting(true);
     setError(null);
     setStep("completing");
 
     try {
-      // Auto-generate company name
-      const companyName = nextCompanyName;
-      
       const input: CreateOrganizationInput = {
         type: "COMPANY",
-        name: companyName,
+        name: companyNameValue,
       };
       const org = await createOrganization(input);
       
       // Start RegTank corporate onboarding for the new organization
       try {
         const { verifyLink } = startCorporateOnboarding 
-          ? await startCorporateOnboarding(org.id)
+          ? await startCorporateOnboarding(org.id, formNameValue, companyNameValue)
           : await startRegTankOnboarding(org.id);
         
         // Redirect to RegTank portal
@@ -216,11 +221,11 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
                 </>
               ) : (
                 <>
-                  You are about to create a <strong>Personal Account</strong> for investing on CashSouk.
-                  <br /><br />
-                  This account type is for individuals who want to invest as themselves. You can only have one personal account.
-                  <br /><br />
-                  Are you sure you want to continue?
+              You are about to create a <strong>Personal Account</strong> for investing on CashSouk.
+              <br /><br />
+              This account type is for individuals who want to invest as themselves. You can only have one personal account.
+              <br /><br />
+              Are you sure you want to continue?
                 </>
               )}
             </AlertDialogDescription>
@@ -234,25 +239,70 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Company Account Confirmation Dialog */}
-      <AlertDialog open={confirmationType === "company"} onOpenChange={(open) => !open && setConfirmationType(null)}>
-        <AlertDialogContent>
+      {/* Company Account Form Dialog */}
+      <AlertDialog open={confirmationType === "company"} onOpenChange={(open) => {
+        if (!open) {
+          setConfirmationType(null);
+          setFormName("");
+          setCompanyName("");
+          setFormErrors({});
+        }
+      }}>
+        <AlertDialogContent className="sm:max-w-[500px]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Create Company Account?</AlertDialogTitle>
+            <AlertDialogTitle>Create Company Account</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to create a <strong>Company Account</strong> for investing on CashSouk.
-              <br /><br />
-              This account will be named <strong>"{nextCompanyName}"</strong> for testing purposes.
-              <br /><br />
-              Company accounts are for businesses, partnerships, or other entities. You can create multiple company accounts.
-              <br /><br />
-              Are you sure you want to continue?
+              Please provide the following information to start your company onboarding process.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="formName">
+                Form Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="formName"
+                placeholder="e.g., Business End User Onboarding Example Form1"
+                value={formName}
+                onChange={(e) => {
+                  setFormName(e.target.value);
+                  if (formErrors.formName) {
+                    setFormErrors({ ...formErrors, formName: undefined });
+                  }
+                }}
+                disabled={isSubmitting}
+                className={formErrors.formName ? "border-destructive" : ""}
+              />
+              {formErrors.formName && (
+                <p className="text-sm text-destructive">{formErrors.formName}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="companyName">
+                Company Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="companyName"
+                placeholder="e.g., Company A"
+                value={companyName}
+                onChange={(e) => {
+                  setCompanyName(e.target.value);
+                  if (formErrors.companyName) {
+                    setFormErrors({ ...formErrors, companyName: undefined });
+                  }
+                }}
+                disabled={isSubmitting}
+                className={formErrors.companyName ? "border-destructive" : ""}
+              />
+              {formErrors.companyName && (
+                <p className="text-sm text-destructive">{formErrors.companyName}</p>
+              )}
+            </div>
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCompany}>
-              Yes, Create Company Account
+            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompanyFormSubmit} disabled={isSubmitting}>
+              Create Company Account
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

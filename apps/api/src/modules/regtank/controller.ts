@@ -6,8 +6,10 @@ import {
   startOnboardingSchema,
   organizationIdParamSchema,
   setOnboardingSettingsSchema,
+  startCorporateOnboardingSchema,
   type StartOnboardingInput,
   type SetOnboardingSettingsInput,
+  type StartCorporateOnboardingInput,
 } from "./schemas";
 
 const router = Router();
@@ -116,7 +118,7 @@ router.post(
  *         application/json:
  *           schema:
  *             type: object
- *             required: [organizationId, portalType]
+ *             required: [organizationId, portalType, formName, companyName]
  *             properties:
  *               organizationId:
  *                 type: string
@@ -125,6 +127,14 @@ router.post(
  *                 type: string
  *                 enum: [investor, issuer]
  *                 description: Portal type (investor or issuer)
+ *               formName:
+ *                 type: string
+ *                 description: Form name for RegTank corporate onboarding
+ *                 example: Business End User Onboarding Example Form1
+ *               companyName:
+ *                 type: string
+ *                 description: Company name for RegTank corporate onboarding
+ *                 example: Company A
  *     responses:
  *       200:
  *         description: Corporate onboarding started successfully
@@ -163,13 +173,15 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.user_id;
-      const body = startOnboardingSchema.parse(req.body) as StartOnboardingInput;
+      const body = startCorporateOnboardingSchema.parse(req.body) as StartCorporateOnboardingInput;
 
       const result = await regTankService.startCorporateOnboarding(
         req,
         userId,
         body.organizationId,
-        body.portalType
+        body.portalType,
+        body.formName,
+        body.companyName
       );
 
       res.json({

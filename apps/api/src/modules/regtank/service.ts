@@ -123,18 +123,18 @@ export class RegTankService {
         },
         "Resuming existing onboarding for organization (not advanced enough)"
       );
-      return {
-        verifyLink: existingOnboarding.verify_link,
-        requestId: existingOnboarding.request_id,
-        expiresIn: existingOnboarding.verify_link_expires_at
-          ? Math.floor(
-              (existingOnboarding.verify_link_expires_at.getTime() -
-                Date.now()) /
-                1000
-            )
-          : 86400,
+        return {
+          verifyLink: existingOnboarding.verify_link,
+          requestId: existingOnboarding.request_id,
+          expiresIn: existingOnboarding.verify_link_expires_at
+            ? Math.floor(
+                (existingOnboarding.verify_link_expires_at.getTime() -
+                  Date.now()) /
+                  1000
+              )
+            : 86400,
         organizationType: existingOnboarding.organization_type,
-      };
+        };
     }
 
     // Prepare RegTank onboarding request
@@ -415,7 +415,9 @@ export class RegTankService {
     req: Request,
     userId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    formName: string,
+    companyName: string
   ): Promise<{
     verifyLink: string;
     requestId: string;
@@ -427,6 +429,8 @@ export class RegTankService {
         userId,
         organizationId,
         portalType,
+        formName,
+        companyName,
       },
       "Starting RegTank corporate onboarding"
     );
@@ -579,8 +583,8 @@ export class RegTankService {
 
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,
-      companyName: organization.name || `${user.first_name} ${user.last_name} Company`,
-      formName: "Business End User Onboarding",
+      companyName: companyName,
+      formName: formName,
       referenceId,
     };
 

@@ -18,8 +18,16 @@ export const setOnboardingSettingsSchema = z.object({
   redirectUrl: z.string().url().optional(),
 });
 
+export const startCorporateOnboardingSchema = z.object({
+  organizationId: z.string().cuid(),
+  portalType: z.enum(["investor", "issuer"]),
+  formName: z.string().min(1, "Form name is required"),
+  companyName: z.string().min(1, "Company name is required"),
+});
+
 export type StartOnboardingInput = z.infer<typeof startOnboardingSchema>;
 export type SetOnboardingSettingsInput = z.infer<typeof setOnboardingSettingsSchema>;
+export type StartCorporateOnboardingInput = z.infer<typeof startCorporateOnboardingSchema>;
 
 
 

@@ -48,7 +48,7 @@ interface OrganizationContextType {
   completeOnboarding: (organizationId: string) => Promise<void>;
   startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   startIndividualOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
-  startCorporateOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
+  startCorporateOnboarding: (organizationId: string, formName: string, companyName: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
   setOnboardingSettings: (settings: {
     formId: number;
@@ -338,7 +338,11 @@ export function OrganizationProvider({
    * Returns the verify link to redirect user to RegTank portal
    */
   const startCorporateOnboarding = useCallback(
-    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+    async (
+      organizationId: string,
+      formName: string,
+      companyName: string
+    ): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
         verifyLink: string;
@@ -348,6 +352,8 @@ export function OrganizationProvider({
       }>("/v1/regtank/start-corporate-onboarding", {
         organizationId,
         portalType,
+        formName,
+        companyName,
       });
 
       if (!result.success) {
