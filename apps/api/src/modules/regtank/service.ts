@@ -523,11 +523,11 @@ export class RegTankService {
     // Prepare RegTank corporate onboarding request
     const referenceId = organizationId; // Use organization ID as reference
     
-    // Set portal-specific redirectUrl
-    const redirectUrl =
-      portalType === "investor"
-        ? "https://investor.cashsouk.com/regtank-callback"
-        : "https://issuer.cashsouk.com/regtank-callback";
+    // Set portal-specific redirectUrl (temporarily unused - commented out setOnboardingSettings)
+    // const redirectUrl =
+    //   portalType === "investor"
+    //     ? "https://investor.cashsouk.com/regtank-callback"
+    //     : "https://issuer.cashsouk.com/regtank-callback";
 
     // Get formId from parameter, or use portal-specific default
     // Determine formId based on portal type if not provided in request
@@ -542,6 +542,8 @@ export class RegTankService {
 
     // Set onboarding settings (redirect URL) - called once per formId
     // Use portal-specific redirectUrl and required settings
+    // TEMPORARILY COMMENTED OUT FOR TESTING
+    /*
     try {
       await this.apiClient.setOnboardingSettings({
         formId: formIdToUse,
@@ -598,6 +600,7 @@ export class RegTankService {
       }
       // Don't throw - continue with onboarding request
     }
+    */
 
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,

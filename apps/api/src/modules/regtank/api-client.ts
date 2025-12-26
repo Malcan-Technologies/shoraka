@@ -319,6 +319,7 @@ export class RegTankAPIClient {
         formName: requestBody.formName,
         formId: requestBody.formId,
         referenceId: request.referenceId,
+        requestBody: JSON.stringify(requestBody),
       },
       "Creating RegTank corporate onboarding request"
     );
