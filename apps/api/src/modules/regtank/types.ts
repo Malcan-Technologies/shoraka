@@ -100,7 +100,6 @@ export interface RegTankCorporateOnboardingRequest {
   email: string;
   companyName: string;
   formName: string;
-  formId: number; // Required for corporate onboarding
   referenceId: string;
 }
 
