@@ -36,7 +36,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
-  
+
   // Corporate onboarding form state
   const [formName, setFormName] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");

@@ -29,7 +29,7 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
 
 **Current Implementation Status:**
 - ✅ Individual onboarding: Fully implemented
-- ⚠️ Company onboarding: Currently uses individual onboarding flow (corporate endpoint not yet implemented)
+- ✅ Corporate onboarding: Fully implemented (uses dedicated corporate endpoint)
 
 ---
 
@@ -214,6 +214,22 @@ Creates a new individual onboarding request in RegTank.
 - `verifyLink` - URL to redirect user to RegTank portal
 - `expiredIn` - Link expiration time in seconds (default: 86400 = 24 hours)
 - `timestamp` - Response timestamp (GMT +8)
+
+#### `createCorporateOnboarding(request: RegTankCorporateOnboardingRequest): Promise<RegTankOnboardingResponse>`
+
+Creates a new corporate (business) onboarding request in RegTank.
+
+**Endpoint:** `POST /v3/onboarding/corp/request`
+
+**Important:** The request body sent to RegTank API contains only `email`, `companyName`, and `formName`:
+- `referenceId` is used internally by CashSouk for tracking and webhook matching, but is **NOT sent** to RegTank API
+- RegTank API does not accept `referenceId` in the request body
+
+**Returns:** `RegTankOnboardingResponse` containing:
+- `requestId` - RegTank's unique request ID
+- `verifyLink` - URL to redirect user to RegTank portal
+- `expiredIn` - Link expiration time in seconds (default: 86400 = 24 hours)
+- `timestamp` - Response timestamp
 
 #### `getOnboardingDetails(requestId: string): Promise<RegTankOnboardingDetails>`
 
@@ -909,9 +925,9 @@ All errors are logged with:
 
 ## Future Improvements
 
-1. **Corporate Onboarding:**
-   - Currently only individual onboarding implemented
-   - Corporate onboarding endpoint exists but not fully integrated
+1. **Corporate Onboarding Enhancements:**
+   - Corporate onboarding endpoint is implemented and functional
+   - Could add support for additional corporate onboarding features as needed
 
 2. **User Profile Integration:**
    - Currently uses hardcoded values for country, nationality, etc.

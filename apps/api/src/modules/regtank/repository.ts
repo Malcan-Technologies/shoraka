@@ -311,5 +311,84 @@ export class RegTankRepository {
       },
     });
   }
+
+  /**
+   * Upsert onboarding record - create if doesn't exist, update if it does
+   * This handles cases where RegTank returns the same requestId for different portal types
+   */
+  async upsertOnboarding(data: {
+    userId: string;
+    organizationId?: string;
+    organizationType: OrganizationType;
+    portalType: string;
+    requestId: string;
+    referenceId: string;
+    onboardingType: string;
+    verifyLink?: string;
+    verifyLinkExpiresAt?: Date;
+    status: string;
+    substatus?: string;
+    regtankResponse?: any;
+  }): Promise<RegTankOnboarding> {
+    // Set the appropriate organization ID field based on portal type
+    const investorOrgId = data.portalType === "investor" ? data.organizationId : null;
+    const issuerOrgId = data.portalType === "issuer" ? data.organizationId : null;
+
+    // Check if record exists to preserve existing organization IDs
+    const existing = await prisma.regTankOnboarding.findUnique({
+      where: { request_id: data.requestId },
+      select: {
+        investor_organization_id: true,
+        issuer_organization_id: true,
+      },
+    });
+
+    // Build update data - preserve existing org IDs for the other portal
+    const updateData: any = {
+      organization_type: data.organizationType,
+      portal_type: data.portalType,
+      verify_link: data.verifyLink,
+      verify_link_expires_at: data.verifyLinkExpiresAt,
+      status: data.status,
+      substatus: data.substatus,
+      regtank_response: data.regtankResponse,
+      reference_id: data.referenceId,
+    };
+
+    // Update organization IDs - set current portal's org ID, preserve other portal's if exists
+    if (data.portalType === "investor") {
+      updateData.investor_organization_id = investorOrgId;
+      // Preserve issuer org ID if it exists
+      if (existing?.issuer_organization_id) {
+        updateData.issuer_organization_id = existing.issuer_organization_id;
+      }
+    } else {
+      updateData.issuer_organization_id = issuerOrgId;
+      // Preserve investor org ID if it exists
+      if (existing?.investor_organization_id) {
+        updateData.investor_organization_id = existing.investor_organization_id;
+      }
+    }
+
+    return prisma.regTankOnboarding.upsert({
+      where: { request_id: data.requestId },
+      update: updateData,
+      create: {
+        user_id: data.userId,
+        investor_organization_id: investorOrgId,
+        issuer_organization_id: issuerOrgId,
+        organization_type: data.organizationType,
+        portal_type: data.portalType,
+        request_id: data.requestId,
+        reference_id: data.referenceId,
+        onboarding_type: data.onboardingType,
+        verify_link: data.verifyLink,
+        verify_link_expires_at: data.verifyLinkExpiresAt,
+        status: data.status,
+        substatus: data.substatus,
+        regtank_response: data.regtankResponse,
+      },
+    });
+  }
 }
 

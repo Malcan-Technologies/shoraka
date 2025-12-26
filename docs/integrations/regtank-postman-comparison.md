@@ -202,8 +202,10 @@ After comparing the Postman collection with the existing documentation, here are
 ```
 
 **Documentation:**
-- Doesn't show the actual request body structure
-- **Status**: ⚠️ **MISSING** - Should document corporate onboarding request structure
+- ✅ Request body structure documented in `regtank-kyc-integration.md`
+- ✅ Confirmed: Only `email`, `companyName`, and `formName` are sent to RegTank API
+- ✅ **Important:** `referenceId` is NOT sent to RegTank (used internally only)
+- **Status**: ✅ **ALIGNED** - Documentation matches Postman collection exactly
 
 ## Recommendations
 

@@ -420,6 +420,16 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
+**Required Fields:**
+- `email` (String) - User's email address
+- `companyName` (String) - Company name
+- `formName` (String) - Form name for RegTank corporate onboarding
+
+**Important Notes:**
+- **Do NOT include `referenceId`** in the request body - RegTank API does not accept this field
+- `referenceId` is used internally by CashSouk for tracking and webhook matching, but is not sent to RegTank
+- The request body must contain only the three fields shown above
+
 **Response:** Returns `requestId` and `verifyLink` similar to individual onboarding
 
 #### 2. Query Company Onboarding Data (COD)

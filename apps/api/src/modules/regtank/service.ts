@@ -353,8 +353,10 @@ export class RegTankService {
       ? "IN_PROGRESS" 
       : "PENDING";
 
-    // Store onboarding record
-    await this.repository.createOnboarding({
+    // Store onboarding record using upsert to handle duplicate requestId
+    // RegTank may return the same requestId for different portal types (investor/issuer)
+    // Upsert ensures we update existing records instead of failing on unique constraint
+    await this.repository.upsertOnboarding({
       userId,
       organizationId,
       organizationType: organization.type,
@@ -635,8 +637,10 @@ export class RegTankService {
     // Corporate onboarding starts with PENDING status
     const initialStatus = "PENDING";
 
-    // Store onboarding record
-    await this.repository.createOnboarding({
+    // Store onboarding record using upsert to handle duplicate requestId
+    // RegTank may return the same requestId for different portal types (investor/issuer)
+    // Upsert ensures we update existing records instead of failing on unique constraint
+    await this.repository.upsertOnboarding({
       userId,
       organizationId,
       organizationType: organization.type,
