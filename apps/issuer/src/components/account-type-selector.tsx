@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@cashsouk/ui";
-import { UserIcon, BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
@@ -28,10 +28,10 @@ interface AccountTypeSelectorProps {
 }
 
 type Step = "select-type" | "completing";
-type ConfirmationType = "personal" | "company" | null;
+type ConfirmationType = "company" | null;
 
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
-  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding } = useOrganization();
+  const { createOrganization, startCorporateOnboarding } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -41,79 +41,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [formName, setFormName] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ formName?: string; companyName?: string }>({});
-
-  // Find personal organization and check if onboarding can be resumed
-  const personalOrganization = React.useMemo(() => {
-    return organizations.find(org => org.type === "PERSONAL");
-  }, [organizations]);
-
-  const canResumeOnboarding = React.useMemo(() => {
-    return personalOrganization?.onboardingStatus === "IN_PROGRESS";
-  }, [personalOrganization]);
-
-  // Personal account button should be disabled only if:
-  // - Personal org exists AND onboarding is NOT IN_PROGRESS (i.e., already completed or pending approval)
-  // - OR if currently submitting
-  const isPersonalAccountDisabled = React.useMemo(() => {
-    if (isSubmitting) return true;
-    if (!hasPersonalOrganization) return false;
-    // If personal org exists but onboarding is IN_PROGRESS, allow clicking to resume
-    return !canResumeOnboarding;
-  }, [hasPersonalOrganization, canResumeOnboarding, isSubmitting]);
-
-  const handleConfirmPersonal = async () => {
-    setConfirmationType(null);
-    setIsSubmitting(true);
-    setError(null);
-    setStep("completing");
-
-    try {
-      // Check if personal organization already exists
-      const existingPersonalOrg = organizations.find(org => org.type === "PERSONAL");
-      
-      let org;
-      if (existingPersonalOrg) {
-        // Use existing personal organization
-        org = existingPersonalOrg;
-      } else {
-        // Create new personal organization
-        const input: CreateOrganizationInput = { type: "PERSONAL" };
-        org = await createOrganization(input);
-      }
-      
-      // Start RegTank individual onboarding for the organization
-      // Backend will check for existing active onboarding and resume if found
-      try {
-        const { verifyLink } = startIndividualOnboarding 
-          ? await startIndividualOnboarding(org.id)
-          : await startRegTankOnboarding(org.id);
-        
-        // Redirect to RegTank portal
-        window.location.href = verifyLink;
-      } catch (regTankError) {
-        // Log full error for debugging
-        console.error("[AccountTypeSelector] RegTank individual onboarding failed:", regTankError);
-        
-        // Extract error message
-        let errorMessage = "Failed to start identity verification";
-        if (regTankError instanceof Error) {
-          errorMessage = regTankError.message;
-        } else if (typeof regTankError === "object" && regTankError !== null) {
-          const err = regTankError as { message?: string; error?: { message?: string } };
-          errorMessage = err.message || err.error?.message || errorMessage;
-        }
-        
-        setError(errorMessage);
-        setStep("select-type");
-        setIsSubmitting(false);
-      }
-    } catch (err) {
-      console.error("[AccountTypeSelector] Failed to create personal account:", err);
-      setError(err instanceof Error ? err.message : "Failed to create personal account");
-      setStep("select-type");
-      setIsSubmitting(false);
-    }
-  };
 
   const handleCompanyFormSubmit = () => {
     // Validate form
@@ -149,9 +76,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       
       // Start RegTank corporate onboarding for the new organization
       try {
-        const { verifyLink } = startCorporateOnboarding 
-          ? await startCorporateOnboarding(org.id, formNameValue, companyNameValue)
-          : await startRegTankOnboarding(org.id);
+        const { verifyLink } = await startCorporateOnboarding(org.id, formNameValue, companyNameValue);
         
         // Redirect to RegTank portal
         window.location.href = verifyLink;
@@ -203,42 +128,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
 
   return (
     <>
-      {/* Personal Account Confirmation Dialog */}
-      <AlertDialog open={confirmationType === "personal"} onOpenChange={(open) => !open && setConfirmationType(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {canResumeOnboarding ? "Resume Onboarding?" : "Create Personal Account?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {canResumeOnboarding ? (
-                <>
-                  You have an ongoing onboarding process for your <strong>Personal Account</strong>.
-                  <br /><br />
-                  Clicking continue will redirect you back to RegTank to complete your identity verification where you left off.
-                  <br /><br />
-                  Do you want to continue?
-                </>
-              ) : (
-                <>
-              You are about to create a <strong>Personal Account</strong> for issuing on CashSouk.
-              <br /><br />
-              This account type is for individuals who want to issue as themselves. You can only have one personal account.
-              <br /><br />
-              Are you sure you want to continue?
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmPersonal}>
-              {canResumeOnboarding ? "Yes, Resume Onboarding" : "Yes, Create Personal Account"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Company Account Form Dialog */}
       <AlertDialog open={confirmationType === "company"} onOpenChange={(open) => {
         if (!open) {
@@ -310,9 +199,9 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
 
       <div className="w-full max-w-xl space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-xl font-semibold">Choose Account Type</h2>
+          <h2 className="text-xl font-semibold">Create Company Account</h2>
           <p className="text-[15px] text-muted-foreground">
-            Select how you'd like to issue on CashSouk
+            Start your company onboarding to issue on CashSouk
           </p>
         </div>
 
@@ -325,78 +214,32 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
           </div>
         )}
 
-        <div className="grid gap-4">
-          <button
-            onClick={() => setConfirmationType("personal")}
-            disabled={isPersonalAccountDisabled}
-            className="block text-left disabled:cursor-not-allowed"
-          >
-            <Card
-              className={`transition-all ${
-                isPersonalAccountDisabled
-                  ? "opacity-50 cursor-not-allowed"
-                  : "cursor-pointer hover:shadow-md hover:border-primary/50"
-              }`}
-            >
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <UserIcon className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">Personal Account</CardTitle>
-                    <CardDescription className="text-sm">
-                      {canResumeOnboarding ? "Resume your onboarding" : "Issue as an individual"}
-                    </CardDescription>
-                  </div>
-                  {hasPersonalOrganization && (
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      canResumeOnboarding
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {canResumeOnboarding ? "Resume onboarding" : "Already created"}
-                    </span>
-                  )}
+        <button
+          onClick={() => setConfirmationType("company")}
+          disabled={isSubmitting}
+          className="block text-left w-full"
+        >
+          <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-xl bg-secondary/30 flex items-center justify-center">
+                  <BuildingOffice2Icon className="h-6 w-6 text-secondary-foreground" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {canResumeOnboarding
-                    ? "Continue where you left off with your identity verification."
-                    : "Perfect for individual issuers. You can only have one personal account."}
-                </p>
-              </CardContent>
-            </Card>
-          </button>
-
-          <button
-            onClick={() => setConfirmationType("company")}
-            disabled={isSubmitting}
-            className="block text-left"
-          >
-            <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-secondary/30 flex items-center justify-center">
-                    <BuildingOffice2Icon className="h-6 w-6 text-secondary-foreground" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">Company Account</CardTitle>
-                    <CardDescription className="text-sm">
-                      Issue as a business entity
-                    </CardDescription>
-                  </div>
+                <div>
+                  <CardTitle className="text-lg">Company Account</CardTitle>
+                  <CardDescription className="text-sm">
+                    Issue as a business entity
+                  </CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  For companies, partnerships, or other business entities. You can create multiple company accounts.
-                </p>
-              </CardContent>
-            </Card>
-          </button>
-        </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                For companies, partnerships, or other business entities. You can create multiple company accounts.
+              </p>
+            </CardContent>
+          </Card>
+        </button>
 
         <div className="text-center">
           <Button
