@@ -287,31 +287,33 @@ export class RegTankAPIClient {
   async createCorporateOnboarding(
     request: RegTankCorporateOnboardingRequest
   ): Promise<RegTankOnboardingResponse> {
-    logger.info(
-      {
-        email: request.email,
-        companyName: request.companyName,
-        referenceId: request.referenceId,
-      },
-      "Creating RegTank corporate onboarding request"
-    );
+    // RegTank API expects "formName" field (as per Postman collection)
+    // formName is required and must not be blank
+    if (!request.formName || request.formName.trim() === "") {
+      throw new Error("formName is required and cannot be blank");
+    }
 
-    // RegTank API expects "form" field, not "formName"
     const requestBody: {
       email: string;
       companyName: string;
-      form?: string;
+      formName: string;
       referenceId: string;
     } = {
       email: request.email,
       companyName: request.companyName,
+      formName: request.formName.trim(),
       referenceId: request.referenceId,
     };
 
-    // Map formName to form if provided
-    if (request.formName) {
-      requestBody.form = request.formName;
-    }
+    logger.info(
+      {
+        email: requestBody.email,
+        companyName: requestBody.companyName,
+        formName: requestBody.formName,
+        referenceId: requestBody.referenceId,
+      },
+      "Creating RegTank corporate onboarding request"
+    );
 
     return this.makeRequest<RegTankOnboardingResponse>(
       "/v3/onboarding/corp/request",
