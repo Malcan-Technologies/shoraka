@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ChevronsUpDown, Plus, Check } from "lucide-react";
-import { UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ClockIcon } from "@heroicons/react/24/solid";
 import {
   DropdownMenu,
@@ -24,26 +24,15 @@ import { useOrganization, type Organization, type OnboardingStatus, createApiCli
 import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
-  if (org.type === "PERSONAL") {
-    return "Personal Account";
-  }
   return org.name || "Company Account";
 }
 
 function sortOrganizations(orgs: Organization[]): Organization[] {
-  return [...orgs].sort((a, b) => {
-    // Personal accounts always come first
-    if (a.type === "PERSONAL" && b.type !== "PERSONAL") return -1;
-    if (a.type !== "PERSONAL" && b.type === "PERSONAL") return 1;
-    // Otherwise maintain original order (by creation date)
-    return 0;
-  });
+  // Maintain original order (by creation date)
+  return [...orgs];
 }
 
-function getOrgIcon(org: Organization) {
-  if (org.type === "PERSONAL") {
-    return <UserIcon className="h-4 w-4" />;
-  }
+function getOrgIcon() {
   return <BuildingOffice2Icon className="h-4 w-4" />;
 }
 
@@ -234,7 +223,7 @@ export function OrganizationSwitcher() {
                       className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
                     >
                       <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                        {getOrgIcon(org)}
+                        {getOrgIcon()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="truncate text-sm font-medium text-foreground">
@@ -277,11 +266,7 @@ export function OrganizationSwitcher() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                {activeOrganization ? (
-                  getOrgIcon(activeOrganization)
-                ) : (
-                  <UserIcon className="size-4" />
-                )}
+                {getOrgIcon()}
               </div>
               <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate text-sm font-semibold text-foreground">
@@ -312,7 +297,7 @@ export function OrganizationSwitcher() {
                 className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
               >
                 <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                  {getOrgIcon(org)}
+                  {getOrgIcon()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="truncate text-sm font-medium text-foreground">

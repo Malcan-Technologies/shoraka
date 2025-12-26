@@ -293,22 +293,30 @@ export class RegTankAPIClient {
       throw new Error("formName is required and cannot be blank");
     }
 
-    // RegTank API only accepts email, companyName, and formName (referenceId is not accepted)
+    // RegTank API accepts email, companyName, formName, and formId
+    // referenceId is used internally but not sent to RegTank
     const requestBody: {
       email: string;
       companyName: string;
       formName: string;
+      formId?: number;
     } = {
       email: request.email,
       companyName: request.companyName,
       formName: request.formName.trim(),
     };
 
+    // Include formId if provided
+    if (request.formId) {
+      requestBody.formId = request.formId;
+    }
+
     logger.info(
       {
         email: requestBody.email,
         companyName: requestBody.companyName,
         formName: requestBody.formName,
+        formId: requestBody.formId,
         referenceId: request.referenceId,
       },
       "Creating RegTank corporate onboarding request"

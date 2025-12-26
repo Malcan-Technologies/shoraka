@@ -47,6 +47,15 @@ export class RegTankService {
       "Starting RegTank personal onboarding"
     );
 
+    // Block individual onboarding from issuer portal
+    if (portalType === "issuer") {
+      throw new AppError(
+        400,
+        "INVALID_PORTAL_TYPE",
+        "Individual onboarding is not supported for the Issuer portal. Please use corporate onboarding instead."
+      );
+    }
+
     // Get user data
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -169,8 +178,8 @@ export class RegTankService {
     // Set onboarding settings (redirect URL)
     // According to RegTank docs, redirectUrl must be set via settings endpoint, not in request
     // Settings are per formId, so we need to set them once per formId
-    // Note: formId is required - get from config or use default
-    const formId = parseInt(process.env.REGTANK_FORM_ID || "12306", 10); // Default formId from docs
+    // Note: formId is required - use investor personal form ID (investor portal only)
+    const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
     
     // Check if redirectUrl is localhost - RegTank can't redirect to localhost!
     if (redirectUrl.includes("localhost") || redirectUrl.includes("127.0.0.1")) {
@@ -417,7 +426,8 @@ export class RegTankService {
     organizationId: string,
     portalType: PortalType,
     formName: string,
-    companyName: string
+    companyName: string,
+    formId?: number
   ): Promise<{
     verifyLink: string;
     requestId: string;
@@ -519,14 +529,22 @@ export class RegTankService {
         ? "https://investor.cashsouk.com/regtank-callback"
         : "https://issuer.cashsouk.com/regtank-callback";
 
-    // Get formId from config or use default
-    const formId = parseInt(process.env.REGTANK_FORM_ID || "1036131", 10);
+    // Get formId from parameter, or use portal-specific default
+    // Determine formId based on portal type if not provided in request
+    let formIdToUse = formId;
+    if (!formIdToUse) {
+      if (portalType === "investor") {
+        formIdToUse = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
+      } else {
+        formIdToUse = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
+      }
+    }
 
     // Set onboarding settings (redirect URL) - called once per formId
     // Use portal-specific redirectUrl and required settings
     try {
       await this.apiClient.setOnboardingSettings({
-        formId,
+        formId: formIdToUse,
         livenessConfidence: 90,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
@@ -534,7 +552,7 @@ export class RegTankService {
         redirectUrl,
       });
       logger.info(
-        { formId, redirectUrl, portalType },
+        { formId: formIdToUse, redirectUrl, portalType },
         "RegTank onboarding settings configured successfully for corporate onboarding"
       );
     } catch (error) {
@@ -558,7 +576,7 @@ export class RegTankService {
       if (isSettingsNotFound) {
         logger.warn(
           {
-            formId,
+            formId: formIdToUse,
             redirectUrl,
             portalType,
             message: "RegTank settings not found, but continuing with onboarding request",
@@ -570,7 +588,7 @@ export class RegTankService {
         logger.warn(
           {
             error: error instanceof Error ? error.message : String(error),
-            formId,
+            formId: formIdToUse,
             redirectUrl,
             portalType,
             message: "Failed to set RegTank settings, but continuing with onboarding request",
@@ -585,6 +603,7 @@ export class RegTankService {
       email: user.email,
       companyName: companyName,
       formName: formName,
+      formId: formIdToUse,
       referenceId,
     };
 

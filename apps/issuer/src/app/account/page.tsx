@@ -168,10 +168,8 @@ export default function AccountPage() {
     return <NoOrganizationState />;
   }
 
-  const isPersonal = activeOrganization.type === "PERSONAL";
-  const accountName = isPersonal ? "Personal Account" : (activeOrganization.name || "Company Account");
-  const accountIcon = isPersonal ? UserIcon : BuildingOffice2Icon;
-  const AccountIcon = accountIcon;
+  const accountName = activeOrganization.name || "Company Account";
+  const AccountIcon = BuildingOffice2Icon;
 
   return (
     <>
@@ -193,7 +191,7 @@ export default function AccountPage() {
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{accountName}</h1>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-sm text-muted-foreground">
-                    {isPersonal ? "Individual Account" : "Business Account"}
+                    Business Account
                   </span>
                   {activeOrganization.onboardingStatus === "COMPLETED" ? (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
@@ -226,7 +224,7 @@ export default function AccountPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Account Type</p>
-                <p className="text-sm font-medium">{isPersonal ? "Personal" : "Company"}</p>
+                <p className="text-sm font-medium">Company</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
@@ -234,7 +232,7 @@ export default function AccountPage() {
                   {activeOrganization.onboardingStatus === "COMPLETED" ? "Active" : "Pending Verification"}
                 </p>
               </div>
-              {!isPersonal && activeOrganization.registrationNumber && (
+              {activeOrganization.registrationNumber && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Registration Number</p>
                   <p className="text-sm font-medium">{activeOrganization.registrationNumber}</p>
@@ -257,7 +255,7 @@ export default function AccountPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                {isPersonal ? "Account Holder" : "Members"} ({activeOrganization.members?.length || 0})
+                Members ({activeOrganization.members?.length || 0})
               </h2>
             </div>
 
@@ -273,23 +271,21 @@ export default function AccountPage() {
           </div>
 
           {/* Role Definitions for Company Accounts */}
-          {!isPersonal && (
-            <div className="px-4 py-3 bg-muted/20 rounded-lg border border-border">
-              <p className="text-xs text-muted-foreground mb-3">Role Definitions</p>
-              <div className="flex flex-wrap gap-4">
-                {Object.entries(roleConfig).map(([role, config]) => (
-                  <div key={role} className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bgColor} border ${config.borderColor}`}
-                    >
-                      <ShieldCheckIcon className="h-3 w-3" />
-                      {config.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
+          <div className="px-4 py-3 bg-muted/20 rounded-lg border border-border">
+            <p className="text-xs text-muted-foreground mb-3">Role Definitions</p>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(roleConfig).map(([role, config]) => (
+                <div key={role} className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bgColor} border ${config.borderColor}`}
+                  >
+                    <ShieldCheckIcon className="h-3 w-3" />
+                    {config.label}
+                  </span>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </>

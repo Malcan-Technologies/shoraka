@@ -141,8 +141,16 @@
 			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_REDIRECT_URL_ISSUER::"
 		},
 		{
-			"name": "REGTANK_FORM_ID",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_FORM_ID::"
+			"name": "REGTANK_INVESTOR_PERSONAL_FORM_ID",
+			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_PERSONAL_FORM_ID::"
+		},
+		{
+			"name": "REGTANK_INVESTOR_CORPORATE_FORM_ID",
+			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_CORPORATE_FORM_ID::"
+		},
+		{
+			"name": "REGTANK_ISSUER_CORPORATE_FORM_ID",
+			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ISSUER_CORPORATE_FORM_ID::"
 		},
 		{
 			"name": "REGTANK_WEBHOOK_MODE",

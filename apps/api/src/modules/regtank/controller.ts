@@ -135,6 +135,10 @@ router.post(
  *                 type: string
  *                 description: Company name for RegTank corporate onboarding
  *                 example: Company A
+ *               formId:
+ *                 type: integer
+ *                 description: Form ID for RegTank corporate onboarding (optional, defaults to portal-specific env var: REGTANK_INVESTOR_CORPORATE_FORM_ID for investor portal, REGTANK_ISSUER_CORPORATE_FORM_ID for issuer portal)
+ *                 example: 1015520
  *     responses:
  *       200:
  *         description: Corporate onboarding started successfully
@@ -181,7 +185,8 @@ router.post(
         body.organizationId,
         body.portalType,
         body.formName,
-        body.companyName
+        body.companyName,
+        body.formId
       );
 
       res.json({

@@ -32,8 +32,8 @@ RegTank is a compliance and risk management platform that provides:
 
 For CashSouk, we primarily use:
 
-- **Individual Onboarding** for Investors (personal identity verification)
-- **Business Onboarding (COD/EOD)** for Issuers (company + director verification)
+- **Individual Onboarding** for Investors (personal identity verification) - **Personal Account only available in Investor portal**
+- **Business Onboarding (COD/EOD)** for Issuers (company + director verification) - **Issuer portal only supports Company Account onboarding**
 
 ### Key Integration Points
 
@@ -41,6 +41,10 @@ For CashSouk, we primarily use:
 2. **Webhook-Based Updates** - Asynchronous status notifications via webhooks
 3. **Global Configuration** - Webhook and redirect URLs configured once per environment
 4. **Form-Based Settings** - Redirect URL configured per `formId` via settings endpoint
+5. **Multiple Form IDs** - RegTank uses three different form IDs:
+   - Personal Account (Investor portal): Individual onboarding form
+   - Company Account (Investor portal): Corporate onboarding form for investors
+   - Company Account (Issuer portal): Corporate onboarding form for issuers
 
 ---
 
@@ -84,6 +88,14 @@ RegTank provides separate **Production** and **Trial/Sandbox** environments.
 
 **Configuration Storage**: AWS Secrets Manager at `cashsouk/prod/regtank`
 
+**Form IDs:**
+RegTank uses different form IDs for different onboarding scenarios:
+- **Personal Account (Investor portal)**: Individual onboarding form ID
+- **Company Account (Investor portal)**: Corporate onboarding form ID for investors
+- **Company Account (Issuer portal)**: Corporate onboarding form ID for issuers
+
+Each form ID has its own settings configuration (redirect URL, liveness confidence, etc.) configured via the `/v3/onboarding/indv/setting` endpoint.
+
 ### Trial/Sandbox Environment
 
 | Component         | URL                                                                 |
@@ -99,6 +111,14 @@ RegTank provides separate **Production** and **Trial/Sandbox** environments.
 **Trial/Sandbox Credentials:**
 - **Client ID**: `6c3eb4f4-3402-45a3-8707-a365059e7581`
 - **Client Secret**: `88b2d5fe7d5ac366f0d7b59f67bf9ee4`
+
+**Form IDs:**
+Same as production - RegTank uses different form IDs for different onboarding scenarios:
+- **Personal Account (Investor portal)**: Individual onboarding form ID (configured via `REGTANK_INVESTOR_PERSONAL_FORM_ID`, default: 1036131)
+- **Company Account (Investor portal)**: Corporate onboarding form ID for investors (configured via `REGTANK_INVESTOR_CORPORATE_FORM_ID`, default: 1015520)
+- **Company Account (Issuer portal)**: Corporate onboarding form ID for issuers (configured via `REGTANK_ISSUER_CORPORATE_FORM_ID`, default: 1015520)
+
+Each form ID has its own settings configuration (redirect URL, liveness confidence, etc.) configured via the `/v3/onboarding/indv/setting` endpoint.
 
 > **Note:** The OAuth server (`crm-server.regtank.com`) is shared between environments. Only the API server URL differs.
 
@@ -416,7 +436,8 @@ Content-Type: application/json; charset=utf-8
 {
   "email": "test@regtank.com",
   "companyName": "Company A",
-  "formName": "Business End User Onboarding Example Form1"
+  "formName": "Business End User Onboarding Example Form1",
+  "formId": 1015520
 }
 ```
 
@@ -425,10 +446,18 @@ Content-Type: application/json; charset=utf-8
 - `companyName` (String) - Company name
 - `formName` (String) - Form name for RegTank corporate onboarding
 
+**Optional Fields:**
+- `formId` (Integer) - Form ID for RegTank corporate onboarding. If not provided, defaults to portal-specific environment variable:
+  - Investor portal: `REGTANK_INVESTOR_CORPORATE_FORM_ID` (default: 1015520)
+  - Issuer portal: `REGTANK_ISSUER_CORPORATE_FORM_ID` (default: 1015520)
+
 **Important Notes:**
 - **Do NOT include `referenceId`** in the request body - RegTank API does not accept this field
 - `referenceId` is used internally by CashSouk for tracking and webhook matching, but is not sent to RegTank
-- The request body must contain only the three fields shown above
+- `formId` is required by RegTank to identify the correct form configuration. CashSouk uses different form IDs for:
+  - Personal Account (Investor portal): Individual onboarding form
+  - Company Account (Investor portal): Corporate onboarding form for investors
+  - Company Account (Issuer portal): Corporate onboarding form for issuers
 
 **Response:** Returns `requestId` and `verifyLink` similar to individual onboarding
 
@@ -746,7 +775,10 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 ### Complete Onboarding Flow
 
 ```
-1. User clicks "Start KYC" → Frontend calls POST /v1/regtank/start-onboarding
+1. User clicks "Start Onboarding" → Frontend calls onboarding endpoint
+   │
+   ├─> Investor Portal: POST /v1/regtank/start-individual-onboarding (Personal Account only)
+   └─> Both Portals: POST /v1/regtank/start-corporate-onboarding (Company Account)
    │
    ├─> Backend validates user/organization
    ├─> Backend authenticates with RegTank OAuth (server-to-server)

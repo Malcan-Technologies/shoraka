@@ -129,9 +129,6 @@ function IssuerDashboardContent() {
   // Get organization display name
   const getOrgDisplayName = () => {
     if (!activeOrganization) return "";
-    if (activeOrganization.type === "PERSONAL") {
-      return "Personal Account";
-    }
     return activeOrganization.name || "Company Account";
   };
 

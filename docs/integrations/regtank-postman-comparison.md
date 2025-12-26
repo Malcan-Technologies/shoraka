@@ -197,15 +197,20 @@ After comparing the Postman collection with the existing documentation, here are
 {
   "email": "test@regtank.com",
   "companyName": "Company A",
-  "formName": "Business End User Onboarding Example Form1"
+  "formName": "Business End User Onboarding Example Form1",
+  "formId": 1015520
 }
 ```
 
 **Documentation:**
 - ✅ Request body structure documented in `regtank-kyc-integration.md`
-- ✅ Confirmed: Only `email`, `companyName`, and `formName` are sent to RegTank API
+- ✅ Confirmed: `email`, `companyName`, `formName`, and `formId` (optional) are sent to RegTank API
 - ✅ **Important:** `referenceId` is NOT sent to RegTank (used internally only)
-- **Status**: ✅ **ALIGNED** - Documentation matches Postman collection exactly
+- ✅ **Form IDs:** RegTank uses three different form IDs:
+  - Personal Account (Investor portal): Individual onboarding form
+  - Company Account (Investor portal): Corporate onboarding form for investors
+  - Company Account (Issuer portal): Corporate onboarding form for issuers
+- **Status**: ✅ **ALIGNED** - Documentation matches Postman collection and implementation
 
 ## Recommendations
 

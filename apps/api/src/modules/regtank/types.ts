@@ -99,7 +99,8 @@ export interface RegTankOnboardingDetails {
 export interface RegTankCorporateOnboardingRequest {
   email: string;
   companyName: string;
-  formName?: string;
+  formName: string;
+  formId?: number;
   referenceId: string;
 }
 

@@ -19,7 +19,7 @@ This document provides detailed technical documentation for the RegTank onboardi
 
 ## Overview
 
-The RegTank onboarding integration enables KYC (Know Your Customer) verification for users in both the Investor and Issuer portals. The system uses:
+The RegTank onboarding integration enables KYC (Know Your Customer) verification for users in both the Investor and Issuer portals. **Note:** Personal Account onboarding is only available in the Investor portal. The Issuer portal only supports Company Account onboarding. The system uses:
 
 - **Server-to-Server OAuth2** - Backend authenticates with RegTank (users never log in)
 - **Webhook-Based Updates** - Asynchronous status notifications
@@ -28,8 +28,8 @@ The RegTank onboarding integration enables KYC (Know Your Customer) verification
 - **Dual Database Support** - Production and development database handlers
 
 **Current Implementation Status:**
-- ✅ Individual onboarding: Fully implemented
-- ✅ Corporate onboarding: Fully implemented (uses dedicated corporate endpoint)
+- ✅ Individual onboarding: Fully implemented (Investor portal only)
+- ✅ Corporate onboarding: Fully implemented (both Investor and Issuer portals)
 
 ---
 
@@ -113,7 +113,13 @@ Retrieves and validates RegTank configuration from environment variables.
 - `webhookSecret` - HMAC secret for webhook signature verification
 - `redirectUrlInvestor` - Callback URL for investor portal
 - `redirectUrlIssuer` - Callback URL for issuer portal
-- `formId` - Form ID for onboarding settings
+
+**Note:** Form IDs are not part of the config object. RegTank uses three different form IDs:
+- **Personal Account (Investor portal)**: Individual onboarding form ID
+- **Company Account (Investor portal)**: Corporate onboarding form ID for investors
+- **Company Account (Issuer portal)**: Corporate onboarding form ID for issuers
+
+Each form ID is configured separately via environment variables (with fallback defaults) or passed directly in the request body.
 
 **Environment Variables:**
 - `REGTANK_OAUTH_URL`
@@ -124,7 +130,9 @@ Retrieves and validates RegTank configuration from environment variables.
 - `REGTANK_WEBHOOK_SECRET`
 - `REGTANK_REDIRECT_URL_INVESTOR`
 - `REGTANK_REDIRECT_URL_ISSUER`
-- `REGTANK_FORM_ID`
+- `REGTANK_INVESTOR_PERSONAL_FORM_ID` - Form ID for personal account onboarding in investor portal (default: 1036131)
+- `REGTANK_INVESTOR_CORPORATE_FORM_ID` - Form ID for corporate account onboarding in investor portal (default: 1015520)
+- `REGTANK_ISSUER_CORPORATE_FORM_ID` - Form ID for corporate account onboarding in issuer portal (default: 1015520)
 - `REGTANK_WEBHOOK_MODE` (optional) - "dev" or "prod" (default: "prod")
 - `API_URL` (optional) - Base URL for webhook URLs
 - `DATABASE_URL_DEV` (optional) - Dev database connection string
@@ -221,9 +229,21 @@ Creates a new corporate (business) onboarding request in RegTank.
 
 **Endpoint:** `POST /v3/onboarding/corp/request`
 
-**Important:** The request body sent to RegTank API contains only `email`, `companyName`, and `formName`:
+**Request Body:**
+The request body sent to RegTank API contains:
+- `email` (required) - User's email address
+- `companyName` (required) - Company name
+- `formName` (required) - Form name for RegTank corporate onboarding
+- `formId` (optional) - Form ID for RegTank corporate onboarding. If not provided, defaults to portal-specific environment variable:
+  - Investor portal: `REGTANK_INVESTOR_CORPORATE_FORM_ID` (default: 1015520)
+  - Issuer portal: `REGTANK_ISSUER_CORPORATE_FORM_ID` (default: 1015520)
+
+**Important Notes:**
 - `referenceId` is used internally by CashSouk for tracking and webhook matching, but is **NOT sent** to RegTank API
 - RegTank API does not accept `referenceId` in the request body
+- `formId` is required by RegTank to identify the correct form configuration. Different form IDs are used for:
+  - Company Account (Investor portal): Corporate onboarding form for investors
+  - Company Account (Issuer portal): Corporate onboarding form for issuers
 
 **Returns:** `RegTankOnboardingResponse` containing:
 - `requestId` - RegTank's unique request ID
@@ -347,6 +367,8 @@ Main business logic layer that orchestrates the onboarding flow.
 
 Initiates personal (individual) onboarding for an organization.
 
+**Note:** This method is only used for Investor portal. The Issuer portal does not support Personal Account onboarding.
+
 **Process:**
 1. **Validation:**
    - Verifies user exists and has first_name/last_name
@@ -379,10 +401,11 @@ Initiates personal (individual) onboarding for an organization.
    - Calls RegTank API: `createIndividualOnboarding()`
 
 7. **Store record:**
-   - Creates `RegTankOnboarding` record in database
+   - Creates `RegTankOnboarding` record in database using `createOnboarding()` method
    - Links to user and organization
    - Stores verifyLink and expiration
    - Sets initial status: `IN_PROGRESS` for personal accounts, `PENDING` for company accounts
+   - **Note:** Since Personal Account onboarding is only available in Investor portal, there's no risk of duplicate `request_id` across portals, so we use `createOnboarding()` instead of upsert logic
 
 8. **Logging:**
    - Creates `OnboardingLog` entry with event_type "ONBOARDING_STARTED"
@@ -474,7 +497,15 @@ Restarts a failed or expired onboarding.
 
 **File:** `apps/api/src/modules/regtank/controller.ts`
 
-#### `POST /v1/regtank/start-onboarding`
+#### `POST /v1/regtank/start-individual-onboarding`
+
+**Note:** This endpoint is only used by the Investor portal. The Issuer portal does not support Personal Account onboarding.
+
+#### `POST /v1/regtank/start-corporate-onboarding`
+
+**Note:** This endpoint is used by both Investor and Issuer portals for Company Account onboarding.
+
+#### `POST /v1/regtank/start-onboarding` (Deprecated)
 
 **Authentication:** Required (Bearer token)
 
@@ -766,7 +797,17 @@ enum OnboardingStatus {
 - `REGTANK_WEBHOOK_SECRET` - HMAC secret for webhooks
 - `REGTANK_REDIRECT_URL_INVESTOR` - Investor callback URL
 - `REGTANK_REDIRECT_URL_ISSUER` - Issuer callback URL
-- `REGTANK_FORM_ID` - Form ID for settings
+
+**Form ID Configuration:**
+- `REGTANK_INVESTOR_PERSONAL_FORM_ID` - Form ID for personal account onboarding in investor portal (default: 1036131)
+- `REGTANK_INVESTOR_CORPORATE_FORM_ID` - Form ID for corporate account onboarding in investor portal (default: 1015520)
+- `REGTANK_ISSUER_CORPORATE_FORM_ID` - Form ID for corporate account onboarding in issuer portal (default: 1015520)
+  - **Note:** RegTank uses three different form IDs for different scenarios:
+    - **Personal Account (Investor portal)**: Individual onboarding form ID (default: 1036131)
+    - **Company Account (Investor portal)**: Corporate onboarding form ID for investors (default: 1015520)
+    - **Company Account (Issuer portal)**: Corporate onboarding form ID for issuers (default: 1015520)
+  - Each form ID can be passed directly in the request body, or the system will use the appropriate portal-specific env var as fallback
+  - Each form ID requires separate settings configuration via `/v3/onboarding/indv/setting` endpoint
 
 **Optional:**
 - `REGTANK_WEBHOOK_MODE` - "dev" or "prod" (default: "prod")
@@ -786,9 +827,11 @@ Configuration is loaded once at startup and cached. Missing required variables c
 ```
 1. User creates organization (PERSONAL/COMPANY)
    └─> Organization created with onboarding_status = PENDING or IN_PROGRESS
+   └─> Note: Personal Account (PERSONAL) only available in Investor portal
 
-2. Frontend calls startRegTankOnboarding(organizationId)
-   └─> POST /v1/regtank/start-onboarding
+2. Frontend calls startRegTankOnboarding(organizationId) or startCorporateOnboarding(organizationId)
+   └─> POST /v1/regtank/start-individual-onboarding (Investor portal only)
+   └─> POST /v1/regtank/start-corporate-onboarding (both portals)
 
 3. Backend validates and prepares request
    ├─> Validates user/organization
@@ -803,8 +846,9 @@ Configuration is loaded once at startup and cached. Missing required variables c
    └─> Receives verifyLink and requestId
 
 5. Backend stores record
-   └─> Creates RegTankOnboarding record in database
+   └─> Creates RegTankOnboarding record in database using createOnboarding()
        - Status: IN_PROGRESS (personal) or PENDING (company)
+       - Note: No upsert logic needed since Personal Account only exists in Investor portal
 
 6. Frontend redirects user
    └─> window.location.href = verifyLink
