@@ -118,7 +118,7 @@ router.post(
  *         application/json:
  *           schema:
  *             type: object
- *             required: [organizationId, portalType, formName, companyName]
+ *             required: [organizationId, portalType, companyName]
  *             properties:
  *               organizationId:
  *                 type: string
@@ -127,10 +127,6 @@ router.post(
  *                 type: string
  *                 enum: [investor, issuer]
  *                 description: Portal type (investor or issuer)
- *               formName:
- *                 type: string
- *                 description: Form name for RegTank corporate onboarding
- *                 example: Business End User Onboarding Example Form1
  *               companyName:
  *                 type: string
  *                 description: Company name for RegTank corporate onboarding
@@ -184,7 +180,6 @@ router.post(
         userId,
         body.organizationId,
         body.portalType,
-        body.formName,
         body.companyName,
         body.formId
       );

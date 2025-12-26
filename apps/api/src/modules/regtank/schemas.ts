@@ -21,7 +21,6 @@ export const setOnboardingSettingsSchema = z.object({
 export const startCorporateOnboardingSchema = z.object({
   organizationId: z.string().cuid(),
   portalType: z.enum(["investor", "issuer"]),
-  formName: z.string().min(1, "Form name is required"),
   companyName: z.string().min(1, "Company name is required"),
   formId: z.coerce.number().int().positive().optional(),
 });

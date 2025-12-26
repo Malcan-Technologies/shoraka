@@ -425,7 +425,6 @@ export class RegTankService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    formName: string,
     companyName: string,
     formId?: number
   ): Promise<{
@@ -434,6 +433,12 @@ export class RegTankService {
     expiresIn: number;
     organizationType: string;
   }> {
+    // Get formName from environment variables based on portal type
+    const formName =
+      portalType === "investor"
+        ? process.env.REGTANK_INVESTOR_CORPORATE_FORM_NAME || "Business End User Onboarding Example Form1"
+        : process.env.REGTANK_ISSUER_CORPORATE_FORM_NAME || "Business End User Onboarding Example Form1";
+
     logger.info(
       {
         userId,
