@@ -295,21 +295,22 @@ export class RegTankAPIClient {
 
     // RegTank API accepts email, companyName, formName, and formId
     // referenceId is used internally but not sent to RegTank
+    // formId is required for corporate onboarding
+    if (!request.formId) {
+      throw new Error("formId is required for corporate onboarding");
+    }
+
     const requestBody: {
       email: string;
       companyName: string;
       formName: string;
-      formId?: number;
+      formId: number;
     } = {
       email: request.email,
       companyName: request.companyName,
       formName: request.formName.trim(),
+      formId: request.formId,
     };
-
-    // Include formId if provided
-    if (request.formId) {
-      requestBody.formId = request.formId;
-    }
 
     logger.info(
       {
