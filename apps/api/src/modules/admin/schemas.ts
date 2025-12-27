@@ -202,6 +202,7 @@ export const onboardingApprovalStatusEnum = z.enum([
   "APPROVED",
   "REJECTED",
   "EXPIRED",
+  "CANCELLED",
 ]);
 
 export const getOnboardingApplicationsQuerySchema = z.object({

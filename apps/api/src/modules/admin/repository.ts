@@ -1516,6 +1516,11 @@ export class AdminRepository {
         email: string;
       };
     }[];
+    // Latest RegTank onboarding record (for portal link)
+    regtank_onboardings: {
+      request_id: string;
+      status: string;
+    }[];
   } | null> {
     const include = {
       owner: {
@@ -1536,6 +1541,14 @@ export class AdminRepository {
             },
           },
         },
+      },
+      regtank_onboardings: {
+        select: {
+          request_id: true,
+          status: true,
+        },
+        orderBy: { created_at: "desc" as const },
+        take: 1,
       },
     };
 

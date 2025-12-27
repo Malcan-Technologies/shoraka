@@ -428,6 +428,10 @@ export interface OrganizationDetailResponse {
 
   // Members
   members: OrganizationMemberDetail[];
+
+  // RegTank portal link (for viewing in RegTank admin)
+  regtankPortalUrl: string | null;
+  regtankRequestId: string | null;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)

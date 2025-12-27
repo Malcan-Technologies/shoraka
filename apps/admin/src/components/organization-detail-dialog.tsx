@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
@@ -31,6 +32,8 @@ import {
   BanknotesIcon,
   ShieldCheckIcon,
   FaceSmileIcon,
+  ArrowTopRightOnSquareIcon,
+  LinkIcon,
 } from "@heroicons/react/24/outline";
 
 interface OrganizationDetailDialogProps {
@@ -68,6 +71,36 @@ function DetailRow({
   );
 }
 
+// Helper to check if a string is a URL
+function isUrl(str: string): boolean {
+  try {
+    const url = new URL(str);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// Helper to shorten a URL for display
+function shortenUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // Get last part of pathname (e.g., filename)
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    const lastPart = pathParts[pathParts.length - 1] || "";
+    // Truncate if too long
+    if (lastPart.length > 30) {
+      return `${parsed.hostname}/.../${lastPart.substring(0, 25)}...`;
+    }
+    if (pathParts.length > 2) {
+      return `${parsed.hostname}/.../${lastPart}`;
+    }
+    return `${parsed.hostname}${parsed.pathname.substring(0, 40)}${parsed.pathname.length > 40 ? "..." : ""}`;
+  } catch {
+    return url.substring(0, 40) + (url.length > 40 ? "..." : "");
+  }
+}
+
 function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; label: React.ReactNode }) {
   if (!data || Object.keys(data).length === 0) {
     return null;
@@ -76,6 +109,21 @@ function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; la
   const renderValue = (value: unknown): React.ReactNode => {
     if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>;
     if (typeof value === "boolean") return value ? "Yes" : "No";
+    // Check if string is a URL
+    if (typeof value === "string" && isUrl(value)) {
+      return (
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-primary hover:underline"
+        >
+          <LinkIcon className="h-3 w-3" />
+          <span className="truncate max-w-[200px]">{shortenUrl(value)}</span>
+          <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0" />
+        </a>
+      );
+    }
     if (typeof value === "object") {
       return (
         <pre className="text-xs bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap break-words">
@@ -156,8 +204,25 @@ export function OrganizationDetailDialog({
               )}
             </div>
           </DialogTitle>
-          <DialogDescription>
-            {org ? `Organization ID: ${org.id}` : "Loading organization details..."}
+          <DialogDescription className="flex items-center justify-between">
+            <span>{org ? `Organization ID: ${org.id}` : "Loading organization details..."}</span>
+            {org?.regtankPortalUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="gap-1.5"
+              >
+                <a
+                  href={org.regtankPortalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                  Open in RegTank
+                </a>
+              </Button>
+            )}
           </DialogDescription>
         </DialogHeader>
 

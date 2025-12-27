@@ -1404,6 +1404,8 @@ export class AdminService {
       role: string;
       createdAt: string;
     }[];
+    regtankPortalUrl: string | null;
+    regtankRequestId: string | null;
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -1454,6 +1456,11 @@ export class AdminService {
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
+      // Build RegTank portal URL from latest onboarding record
+      regtankRequestId: org.regtank_onboardings?.[0]?.request_id ?? null,
+      regtankPortalUrl: org.regtank_onboardings?.[0]?.request_id
+        ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboardings[0].request_id}?archived=false`
+        : null,
     };
   }
 
