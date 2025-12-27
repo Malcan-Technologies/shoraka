@@ -206,9 +206,18 @@ export function OrganizationSwitcher() {
     }
 
     switchOrganization(org.id);
-    // If selecting an onboarded organization, redirect to dashboard
-    // Use replace to avoid adding to history stack and setTimeout to ensure state propagates
-    if (org.onboardingStatus === "COMPLETED") {
+    
+    // Check if organization is in a restricted status (PENDING_APPROVAL, PENDING_AML, or REJECTED)
+    const isPendingApproval = org.onboardingStatus === "PENDING_APPROVAL" || 
+      org.onboardingStatus === "PENDING_AML" ||
+      org.regtankOnboardingStatus === "PENDING_APPROVAL";
+    const isRejected = org.regtankOnboardingStatus === "REJECTED";
+    const isRestricted = isPendingApproval || isRejected;
+    
+    // Only redirect to dashboard if organization is COMPLETED
+    // For PENDING_APPROVAL/REJECTED, allow switching but don't force redirect
+    // If already on dashboard, the overlay will handle blocking interactions
+    if (org.onboardingStatus === "COMPLETED" && !isRestricted) {
       setTimeout(() => {
         router.replace("/");
       }, 50);
@@ -419,7 +428,11 @@ export function OrganizationSwitcher() {
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OnboardingStatusBadge status={org.onboardingStatus} size="sm" />
+                  <OnboardingStatusBadge 
+                    status={org.onboardingStatus} 
+                    regtankStatus={org.regtankOnboardingStatus || undefined}
+                    size="sm" 
+                  />
                 </div>
                 {activeOrganization?.id === org.id && (
                   <Check className="size-4 text-primary shrink-0" />

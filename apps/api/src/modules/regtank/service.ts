@@ -775,6 +775,39 @@ export class RegTankService {
   /**
    * Extract data from RegTank API response and update organization
    */
+  /**
+   * Normalize value - convert empty strings, "null" strings, and undefined to actual null
+   */
+  private normalizeValue(value: any): any {
+    if (value === null || value === undefined || value === "" || value === "null" || String(value).trim() === "") {
+      return null;
+    }
+    return value;
+  }
+
+  /**
+   * Parse date safely, handling various formats and null values
+   */
+  private parseDate(value: any): Date | null {
+    if (!value || value === "null" || value === "") {
+      return null;
+    }
+    try {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        logger.warn({ value }, "Invalid date format, returning null");
+        return null;
+      }
+      return date;
+    } catch (error) {
+      logger.warn(
+        { value, error: error instanceof Error ? error.message : String(error) },
+        "Failed to parse date, returning null"
+      );
+      return null;
+    }
+  }
+
   private async extractAndUpdateOrganizationData(
     organizationId: string,
     portalType: PortalType,
@@ -785,39 +818,48 @@ export class RegTankService {
       const formContent = regtankDetails.formContent || {};
       const displayAreas = formContent.displayAreas || [];
       
-      // Extract basic user information
-      const firstName = userProfile.firstName || null;
-      const lastName = userProfile.lastName || null;
-      const middleName = userProfile.middleName || null;
-      const nationality = userProfile.nationality || null;
-      const country = userProfile.country || null;
-      const idIssuingCountry = userProfile.idIssuingCountry || null;
-      const gender = userProfile.gender || null;
-      const address = userProfile.address || null;
-      const dateOfBirth = userProfile.dateOfBirth ? new Date(userProfile.dateOfBirth) : null;
-      const documentType = userProfile.documentType || null;
-      const documentNumber = userProfile.documentNum || userProfile.governmentIdNumber || null;
-      const phoneNumber = userProfile.phoneNumber || null;
-      const kycId = regtankDetails.kycId || null;
+      // Extract basic user information with proper null handling
+      const firstName = this.normalizeValue(userProfile.firstName);
+      const lastName = this.normalizeValue(userProfile.lastName);
+      const middleName = this.normalizeValue(userProfile.middleName);
+      const nationality = this.normalizeValue(userProfile.nationality);
+      const country = this.normalizeValue(userProfile.country);
+      const idIssuingCountry = this.normalizeValue(userProfile.idIssuingCountry);
+      const gender = this.normalizeValue(userProfile.gender);
+      const address = this.normalizeValue(userProfile.address);
+      const dateOfBirth = this.parseDate(userProfile.dateOfBirth);
+      const documentType = this.normalizeValue(userProfile.documentType);
+      const documentNumber = this.normalizeValue(
+        userProfile.documentNum || userProfile.governmentIdNumber
+      );
+      const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
+      const kycId = this.normalizeValue(regtankDetails.kycId);
       
-      // Extract display areas
+      // Extract display areas - store entire displayArea object as JSON
       let bankAccountDetails = null;
       let wealthDeclaration = null;
       let complianceDeclaration = null;
       
       for (const area of displayAreas) {
         if (area.displayArea === "Bank Account Details") {
-          bankAccountDetails = area.content || null;
+          // Store the entire displayArea object (includes displayArea name and content array)
+          bankAccountDetails = area || null;
         } else if (area.displayArea === "Wealth Declaration") {
-          wealthDeclaration = area.content || null;
+          // Store the entire displayArea object
+          wealthDeclaration = area || null;
         } else if (area.displayArea === "Compliance Declarations") {
-          complianceDeclaration = area.content || null;
+          // Store the entire displayArea object
+          complianceDeclaration = area || null;
         }
       }
       
-      // Extract document info and liveness check info
-      const documentInfo = regtankDetails.documentInfo || null;
-      const livenessCheckInfo = regtankDetails.livenessCheckInfo || null;
+      // Extract document info and liveness check info - ensure they're proper objects or null
+      const documentInfo = regtankDetails.documentInfo && typeof regtankDetails.documentInfo === "object" 
+        ? regtankDetails.documentInfo 
+        : null;
+      const livenessCheckInfo = regtankDetails.livenessCheckInfo && typeof regtankDetails.livenessCheckInfo === "object"
+        ? regtankDetails.livenessCheckInfo
+        : null;
       
       // Update organization based on portal type
       if (portalType === "investor") {
@@ -875,6 +917,26 @@ export class RegTankService {
           organizationId,
           portalType,
           kycId,
+          extractedFields: {
+            firstName: !!firstName,
+            lastName: !!lastName,
+            middleName: !!middleName,
+            nationality: !!nationality,
+            country: !!country,
+            idIssuingCountry: !!idIssuingCountry,
+            gender: !!gender,
+            address: !!address,
+            dateOfBirth: !!dateOfBirth,
+            documentType: !!documentType,
+            documentNumber: !!documentNumber,
+            phoneNumber: !!phoneNumber,
+            kycId: !!kycId,
+            bankAccountDetails: !!bankAccountDetails,
+            wealthDeclaration: !!wealthDeclaration,
+            complianceDeclaration: !!complianceDeclaration,
+            documentInfo: !!documentInfo,
+            livenessCheckInfo: !!livenessCheckInfo,
+          },
         },
         "Extracted and updated organization data from RegTank"
       );
@@ -1360,34 +1422,66 @@ export class RegTankService {
 
       await this.repository.updateStatus(onboarding.request_id, updateData);
 
-      // If approved, update organization status (same logic as webhook handler)
+      // If approved, fetch details from RegTank and update organization to PENDING_AML (same logic as webhook handler)
       if (details.status === "APPROVED") {
-        if (portalType === "investor") {
-          await prisma.investorOrganization.update({
-            where: { id: organizationId },
-            data: {
-              onboarding_status: OnboardingStatus.COMPLETED,
-              onboarded_at: new Date(),
-            },
-          });
-        } else {
-          await prisma.issuerOrganization.update({
-            where: { id: organizationId },
-            data: {
-              onboarding_status: OnboardingStatus.COMPLETED,
-              onboarded_at: new Date(),
-            },
-          });
-        }
-
-        logger.info(
-          {
-            requestId: onboarding.request_id,
+        try {
+          // Fetch full details from RegTank API
+          logger.info(
+            { requestId: onboarding.request_id, organizationId, portalType },
+            "Fetching RegTank onboarding details after approval (manual sync)"
+          );
+          
+          const regtankDetails = await this.apiClient.queryOnboardingDetails(onboarding.request_id);
+          
+          // Extract and update organization with RegTank data
+          await this.extractAndUpdateOrganizationData(
             organizationId,
             portalType,
-          },
-          "Organization onboarding status updated to COMPLETED via manual sync"
-        );
+            regtankDetails
+          );
+          
+          // Update organization status to PENDING_AML (not COMPLETED)
+          if (portalType === "investor") {
+            const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+            if (orgExists) {
+              await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                organizationId,
+                OnboardingStatus.PENDING_AML
+              );
+              logger.info({ organizationId, portalType }, "Updated investor organization status to PENDING_AML via manual sync");
+            } else {
+              logger.warn(
+                { organizationId, requestId: onboarding.request_id },
+                "Investor organization not found, skipping organization update"
+              );
+            }
+          } else {
+            const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+            if (orgExists) {
+              await this.organizationRepository.updateIssuerOrganizationOnboarding(
+                organizationId,
+                OnboardingStatus.PENDING_AML
+              );
+              logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML via manual sync");
+            } else {
+              logger.warn(
+                { organizationId, requestId: onboarding.request_id },
+                "Issuer organization not found, skipping organization update"
+              );
+            }
+          }
+        } catch (error) {
+          logger.error(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              organizationId,
+              portalType,
+              requestId: onboarding.request_id,
+            },
+            "Failed to fetch RegTank details or update organization during manual sync"
+          );
+          // Don't throw - allow sync to complete even if data extraction fails
+        }
       }
 
       logger.info(

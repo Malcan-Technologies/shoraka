@@ -104,9 +104,10 @@ function InvestorDashboardContent() {
 
   const orgName = getOrgDisplayName();
   
-  // Check if organization is in PENDING_APPROVAL, PENDING_AML, or REJECTED status
+  // Check if organization is in PENDING_APPROVAL or REJECTED status
+  // PENDING_AML should NOT show overlay - dashboard is usable but restricted features are disabled
+  // (Future: restrict loan applications and investment features for PENDING_AML)
   const isPendingApprovalStatus = activeOrganization?.onboardingStatus === "PENDING_APPROVAL" || 
-    activeOrganization?.onboardingStatus === "PENDING_AML" ||
     activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
   const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
 
@@ -118,17 +119,17 @@ function InvestorDashboardContent() {
         <h1 className="text-lg font-semibold">Dashboard</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
-        {/* Overlay for PENDING_APPROVAL, PENDING_AML, or REJECTED status */}
+        {/* Overlay for PENDING_APPROVAL or REJECTED status only (not PENDING_AML) */}
         {(isPendingApprovalStatus || isRejected) && (
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="bg-card rounded-lg p-8 max-w-md mx-4 text-center border shadow-lg">
               <h2 className="text-2xl font-bold mb-4">
-                {isPendingApprovalStatus ? "Waiting for Approval" : "Account Rejected"}
+                {isRejected ? "Account Rejected" : "Waiting for Approval"}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {isPendingApprovalStatus 
-                  ? "Waiting for admin to approve. Your onboarding application is currently under review. You will be notified once the approval process is complete."
-                  : "Your onboarding application has been rejected. Please contact support for more information."}
+                {isRejected
+                  ? "Your onboarding application has been rejected by the admin. If you believe this is an error or would like to appeal the decision, please contact our support team for assistance."
+                  : "Waiting for admin to approve. Your onboarding application is currently under review. You will be notified once the approval process is complete."}
               </p>
               <p className="text-sm text-muted-foreground">
                 You can switch between portals or logout, but other features are currently unavailable.
