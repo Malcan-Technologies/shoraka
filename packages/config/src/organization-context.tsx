@@ -48,7 +48,7 @@ interface OrganizationContextType {
   completeOnboarding: (organizationId: string) => Promise<void>;
   startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   startIndividualOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
-  startCorporateOnboarding: (organizationId: string, formName: string, companyName: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
+  startCorporateOnboarding: (organizationId: string, companyName: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
   syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
   setOnboardingSettings: (settings: {
     formId: number;
@@ -340,7 +340,6 @@ export function OrganizationProvider({
   const startCorporateOnboarding = useCallback(
     async (
       organizationId: string,
-      formName: string,
       companyName: string
     ): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
@@ -352,7 +351,6 @@ export function OrganizationProvider({
       }>("/v1/regtank/start-corporate-onboarding", {
         organizationId,
         portalType,
-        formName,
         companyName,
       });
 

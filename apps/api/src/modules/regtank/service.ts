@@ -237,7 +237,7 @@ export class RegTankService {
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
-        livenessConfidence: 90,
+        livenessConfidence: 70,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,

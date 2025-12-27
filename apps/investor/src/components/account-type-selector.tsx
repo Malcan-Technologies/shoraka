@@ -38,9 +38,8 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
 
   // Corporate onboarding form state
-  const [formName, setFormName] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");
-  const [formErrors, setFormErrors] = React.useState<{ formName?: string; companyName?: string }>({});
+  const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
 
   // Find personal organization and check if onboarding can be resumed
   const personalOrganization = React.useMemo(() => {
@@ -117,10 +116,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
 
   const handleCompanyFormSubmit = () => {
     // Validate form
-    const errors: { formName?: string; companyName?: string } = {};
-    if (!formName.trim()) {
-      errors.formName = "Form name is required";
-    }
+    const errors: { companyName?: string } = {};
     if (!companyName.trim()) {
       errors.companyName = "Company name is required";
     }
@@ -131,10 +127,10 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     }
     
     setFormErrors({});
-    handleConfirmCompany(formName.trim(), companyName.trim());
+    handleConfirmCompany(companyName.trim());
   };
 
-  const handleConfirmCompany = async (formNameValue: string, companyNameValue: string) => {
+  const handleConfirmCompany = async (companyNameValue: string) => {
     setConfirmationType(null);
     setIsSubmitting(true);
     setError(null);
@@ -150,7 +146,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       // Start RegTank corporate onboarding for the new organization
       try {
         const { verifyLink } = startCorporateOnboarding 
-          ? await startCorporateOnboarding(org.id, formNameValue, companyNameValue)
+          ? await startCorporateOnboarding(org.id, companyNameValue)
           : await startRegTankOnboarding(org.id);
         
         // Redirect to RegTank portal
@@ -243,7 +239,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       <AlertDialog open={confirmationType === "company"} onOpenChange={(open) => {
         if (!open) {
           setConfirmationType(null);
-          setFormName("");
           setCompanyName("");
           setFormErrors({});
         }
@@ -256,27 +251,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="formName">
-                Form Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="formName"
-                placeholder="e.g., Business End User Onboarding Example Form1"
-                value={formName}
-                onChange={(e) => {
-                  setFormName(e.target.value);
-                  if (formErrors.formName) {
-                    setFormErrors({ ...formErrors, formName: undefined });
-                  }
-                }}
-                disabled={isSubmitting}
-                className={formErrors.formName ? "border-destructive" : ""}
-              />
-              {formErrors.formName && (
-                <p className="text-sm text-destructive">{formErrors.formName}</p>
-              )}
-            </div>
             <div className="space-y-2">
               <Label htmlFor="companyName">
                 Company Name <span className="text-destructive">*</span>
