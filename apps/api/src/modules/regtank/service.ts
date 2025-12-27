@@ -835,24 +835,38 @@ export class RegTankService {
       const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
       // kycId is at root level, not in userProfile
       // Try multiple possible locations/field names for kycId
-      const kycId = this.normalizeValue(
+      // Also check nested locations (userProfile, documentInfo, etc.)
+      let kycId = this.normalizeValue(
         regtankDetails.kycId || 
         regtankDetails.kyc_id || 
         (regtankDetails as any).KYCId ||
-        (regtankDetails as any).KYC_ID
+        (regtankDetails as any).KYC_ID ||
+        // Check nested locations
+        (userProfile as any).kycId ||
+        (userProfile as any).kyc_id ||
+        (regtankDetails.documentInfo as any)?.kycId ||
+        (regtankDetails.livenessCheckInfo as any)?.kycId
       );
       
       // Log the raw kycId value for debugging
-      logger.debug(
+      logger.info(
         {
           organizationId,
           kycIdRaw: regtankDetails.kycId,
           kycIdExtracted: kycId,
           kycIdType: typeof regtankDetails.kycId,
           hasKycId: "kycId" in regtankDetails,
+          hasKycIdInUserProfile: "kycId" in userProfile,
           regtankDetailsKeys: Object.keys(regtankDetails).slice(0, 30), // First 30 keys for debugging
+          // Check all string values that start with "KYC" in case it's named differently
+          kycLikeValues: Object.entries(regtankDetails)
+            .filter(([key, value]) => 
+              typeof value === 'string' && 
+              (value.startsWith('KYC') || key.toLowerCase().includes('kyc'))
+            )
+            .slice(0, 10),
         },
-        "Checking kycId in RegTank response"
+        "Checking kycId in RegTank response - all locations checked"
       );
       
       // Extract display areas - store entire displayArea object as JSON
@@ -1210,6 +1224,13 @@ export class RegTankService {
         const regtankDetails = await this.apiClient.queryOnboardingDetails(requestId);
         
         // Log the response structure to debug kycId extraction
+        // Check all possible locations for kycId
+        const allKeys = Object.keys(regtankDetails);
+        const kycLikeKeys = allKeys.filter(key => 
+          key.toLowerCase().includes('kyc') || 
+          (typeof regtankDetails[key] === 'string' && (regtankDetails[key] as string).startsWith('KYC'))
+        );
+        
         logger.info(
           {
             requestId,
@@ -1217,7 +1238,9 @@ export class RegTankService {
             hasKycId: "kycId" in regtankDetails,
             kycIdValue: regtankDetails.kycId,
             kycIdType: typeof regtankDetails.kycId,
-            topLevelKeys: Object.keys(regtankDetails).slice(0, 30),
+            topLevelKeys: allKeys.slice(0, 40),
+            kycLikeKeys,
+            kycLikeValues: kycLikeKeys.map(key => ({ key, value: regtankDetails[key] })),
             // Check if response is wrapped
             hasData: "data" in regtankDetails,
             hasResult: "result" in regtankDetails,
@@ -1226,11 +1249,52 @@ export class RegTankService {
               requestId: regtankDetails.requestId,
               status: regtankDetails.status,
               kycId: regtankDetails.kycId,
+              kycStatus: (regtankDetails as any).kycStatus,
               hasUserProfile: !!regtankDetails.userProfile,
             },
+            // Check if kycId might be in a nested object
+            fullResponseStructure: JSON.stringify(regtankDetails).substring(0, 500), // First 500 chars for debugging
           },
-          "RegTank query response received - checking kycId"
+          "RegTank query response received - comprehensive kycId check"
         );
+        
+        // Try to get kycId from stored onboarding record's webhook payloads (KYC webhooks)
+        // kycId might not be in the query response immediately, but may be in KYC webhook payloads
+        let kycIdFromWebhooks: string | null = null;
+        if (onboarding.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
+          for (const payload of onboarding.webhook_payloads) {
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+              const payloadObj = payload as Record<string, any>;
+              // KYC webhooks have requestId that is the kycId
+              if (payloadObj.requestId && typeof payloadObj.requestId === 'string' && payloadObj.requestId.startsWith('KYC')) {
+                kycIdFromWebhooks = payloadObj.requestId;
+                logger.info(
+                  { requestId, kycIdFromWebhooks, webhookType: payloadObj.webhookType || 'unknown' },
+                  "Found kycId in stored webhook payloads"
+                );
+                break;
+              }
+              // Also check if kycId field exists directly
+              if (payloadObj.kycId && typeof payloadObj.kycId === 'string') {
+                kycIdFromWebhooks = payloadObj.kycId;
+                logger.info(
+                  { requestId, kycIdFromWebhooks, webhookType: payloadObj.webhookType || 'unknown' },
+                  "Found kycId field in stored webhook payloads"
+                );
+                break;
+              }
+            }
+          }
+        }
+        
+        // If kycId is not in query response but found in webhooks, add it to regtankDetails
+        if (!regtankDetails.kycId && kycIdFromWebhooks) {
+          regtankDetails.kycId = kycIdFromWebhooks;
+          logger.info(
+            { requestId, kycId: kycIdFromWebhooks },
+            "Added kycId from webhook payloads to regtankDetails"
+          );
+        }
         
         // Extract and update organization with RegTank data
         await this.extractAndUpdateOrganizationData(
