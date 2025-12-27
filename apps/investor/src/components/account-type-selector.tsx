@@ -41,24 +41,32 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
 
-  // Find personal organization and check if onboarding can be resumed
+  // Find personal organization and check if onboarding can be resumed or restarted
   const personalOrganization = React.useMemo(() => {
     return organizations.find(org => org.type === "PERSONAL");
   }, [organizations]);
 
+  // Allow resuming if status is IN_PROGRESS
   const canResumeOnboarding = React.useMemo(() => {
     return personalOrganization?.onboardingStatus === "IN_PROGRESS";
   }, [personalOrganization]);
 
+  // Allow restarting if status is PENDING (admin requested redo) or IN_PROGRESS
+  const canStartOrResumeOnboarding = React.useMemo(() => {
+    const status = personalOrganization?.onboardingStatus;
+    return status === "IN_PROGRESS" || status === "PENDING";
+  }, [personalOrganization]);
+
   // Personal account button should be disabled only if:
-  // - Personal org exists AND onboarding is NOT IN_PROGRESS (i.e., already completed or pending approval)
+  // - Personal org exists AND onboarding status is COMPLETED or PENDING_APPROVAL (terminal states)
   // - OR if currently submitting
+  // Allow if: no org exists, or status is PENDING/IN_PROGRESS (can start or resume)
   const isPersonalAccountDisabled = React.useMemo(() => {
     if (isSubmitting) return true;
     if (!hasPersonalOrganization) return false;
-    // If personal org exists but onboarding is IN_PROGRESS, allow clicking to resume
-    return !canResumeOnboarding;
-  }, [hasPersonalOrganization, canResumeOnboarding, isSubmitting]);
+    // Allow if status is PENDING (admin restart) or IN_PROGRESS (resume)
+    return !canStartOrResumeOnboarding;
+  }, [hasPersonalOrganization, canStartOrResumeOnboarding, isSubmitting]);
 
   const handleConfirmPersonal = async () => {
     setConfirmationType(null);
@@ -320,16 +328,24 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
                   <div className="flex-1">
                     <CardTitle className="text-lg">Personal Account</CardTitle>
                     <CardDescription className="text-sm">
-                      {canResumeOnboarding ? "Resume your onboarding" : "Invest as an individual"}
+                      {canResumeOnboarding 
+                        ? "Resume your onboarding" 
+                        : canStartOrResumeOnboarding 
+                          ? "Complete your onboarding" 
+                          : "Invest as an individual"}
                     </CardDescription>
                   </div>
                   {hasPersonalOrganization && (
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      canResumeOnboarding
+                      canStartOrResumeOnboarding
                         ? "bg-primary/10 text-primary"
                         : "bg-muted text-muted-foreground"
                     }`}>
-                      {canResumeOnboarding ? "Resume onboarding" : "Already created"}
+                      {canResumeOnboarding 
+                        ? "Resume onboarding" 
+                        : canStartOrResumeOnboarding 
+                          ? "Start onboarding" 
+                          : "Already created"}
                     </span>
                   )}
                 </div>
@@ -338,7 +354,9 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
                 <p className="text-sm text-muted-foreground">
                   {canResumeOnboarding
                     ? "Continue where you left off with your identity verification."
-                    : "Perfect for individual investors. You can only have one personal account."}
+                    : canStartOrResumeOnboarding
+                      ? "Your previous onboarding was reset. Click to start fresh with identity verification."
+                      : "Perfect for individual investors. You can only have one personal account."}
                 </p>
               </CardContent>
             </Card>
