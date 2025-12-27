@@ -458,6 +458,7 @@ export class AdminService {
       };
     };
     onboardingOperations: {
+      inProgress: number;
       pending: number;
       approved: number;
       rejected: number;

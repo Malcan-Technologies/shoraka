@@ -1468,8 +1468,16 @@ export class AdminRepository {
   /**
    * Get onboarding operations metrics for the dashboard
    * Counts onboarding applications by status and calculates average approval time
+   * 
+   * Categories:
+   * - inProgress: User is still completing RegTank onboarding (PENDING, IN_PROGRESS, URL_GENERATED)
+   * - pending: User completed RegTank, waiting for admin approval (LIVENESS_PASSED, WAIT_FOR_APPROVAL, PENDING_APPROVAL)
+   * - approved: Admin approved
+   * - rejected: Admin rejected
+   * - expired: Link expired before completion
    */
   async getOnboardingOperationsMetrics(): Promise<{
+    inProgress: number;
     pending: number;
     approved: number;
     rejected: number;
@@ -1478,12 +1486,20 @@ export class AdminRepository {
     avgTimeChangePercent: number | null;
   }> {
     // Count applications by status from regtank_onboarding table
-    const [pendingCount, approvedCount, rejectedCount, expiredCount] = await Promise.all([
-      // Pending includes: PENDING, IN_PROGRESS, LIVENESS_PASSED, WAIT_FOR_APPROVAL, PENDING_APPROVAL
+    const [inProgressCount, pendingCount, approvedCount, rejectedCount, expiredCount] = await Promise.all([
+      // In Progress: User is still completing RegTank onboarding
       prisma.regTankOnboarding.count({
         where: {
           status: {
-            in: ["PENDING", "IN_PROGRESS", "LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL"],
+            in: ["PENDING", "IN_PROGRESS", "URL_GENERATED"],
+          },
+        },
+      }),
+      // Pending: User completed RegTank, waiting for admin approval
+      prisma.regTankOnboarding.count({
+        where: {
+          status: {
+            in: ["LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL"],
           },
         },
       }),
@@ -1499,7 +1515,8 @@ export class AdminRepository {
     ]);
 
     // Calculate average time to approval for completed applications
-    // Get applications that were approved in the last 30 days
+    // Time is measured from when onboarding record was created (created_at) 
+    // until admin approves (completed_at)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -1534,6 +1551,7 @@ export class AdminRepository {
     });
 
     // Calculate average approval time for current period
+    // Time from created_at to completed_at (admin approves)
     let avgTimeToApprovalMinutes: number | null = null;
     if (currentPeriodApproved.length > 0) {
       const totalMinutes = currentPeriodApproved.reduce((sum, app) => {
@@ -1565,6 +1583,7 @@ export class AdminRepository {
     }
 
     return {
+      inProgress: inProgressCount,
       pending: pendingCount,
       approved: approvedCount,
       rejected: rejectedCount,

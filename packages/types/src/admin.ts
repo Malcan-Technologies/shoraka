@@ -152,6 +152,7 @@ export interface OrganizationStats {
 }
 
 export interface OnboardingOperationsMetrics {
+  inProgress: number;
   pending: number;
   approved: number;
   rejected: number;

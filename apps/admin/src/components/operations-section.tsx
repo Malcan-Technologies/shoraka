@@ -22,6 +22,10 @@ const chartConfig = {
   applications: {
     label: "Applications",
   },
+  inProgress: {
+    label: "In Progress",
+    color: "#6B7280", // Gray
+  },
   pending: {
     label: "Pending",
     color: "#F59E0B", // Amber
@@ -53,6 +57,7 @@ function formatApprovalTime(minutes: number | null): string {
 
 export function OperationsSection({ loading = false, metrics }: OperationsSectionProps) {
   // Default to zeros if no metrics provided
+  const inProgress = metrics?.inProgress ?? 0;
   const pending = metrics?.pending ?? 0;
   const approved = metrics?.approved ?? 0;
   const rejected = metrics?.rejected ?? 0;
@@ -60,9 +65,10 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
   const avgTimeToApprovalMinutes = metrics?.avgTimeToApprovalMinutes ?? null;
   const avgTimeChangePercent = metrics?.avgTimeChangePercent ?? null;
 
-  const total = pending + approved + rejected + expired;
+  const total = inProgress + pending + approved + rejected + expired;
 
   const chartData = [
+    { status: "inProgress", count: inProgress, fill: "var(--color-inProgress)" },
     { status: "pending", count: pending, fill: "var(--color-pending)" },
     { status: "approved", count: approved, fill: "var(--color-approved)" },
     { status: "rejected", count: rejected, fill: "var(--color-rejected)" },
@@ -152,31 +158,40 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
           {/* Stats */}
           <div className="flex-1 w-full space-y-4">
             {/* Legend / Breakdown */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-3">
               <div className="text-center p-3 rounded-xl bg-muted/50">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="h-3 w-3 rounded-full bg-amber-500" />
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <div className="h-2.5 w-2.5 rounded-full bg-gray-500" />
+                  <span className="text-xs font-medium text-muted-foreground">In Progress</span>
+                </div>
+                <span className="text-xl font-bold text-foreground tabular-nums">
+                  {inProgress}
+                </span>
+              </div>
+              <div className="text-center p-3 rounded-xl bg-muted/50">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                   <span className="text-xs font-medium text-muted-foreground">Pending</span>
                 </div>
-                <span className="text-2xl font-bold text-foreground tabular-nums">
+                <span className="text-xl font-bold text-foreground tabular-nums">
                   {pending}
                 </span>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/50">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="h-3 w-3 rounded-full bg-green-500" />
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
                   <span className="text-xs font-medium text-muted-foreground">Approved</span>
                 </div>
-                <span className="text-2xl font-bold text-foreground tabular-nums">
+                <span className="text-xl font-bold text-foreground tabular-nums">
                   {approved}
                 </span>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/50">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="h-3 w-3 rounded-full bg-primary" />
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <div className="h-2.5 w-2.5 rounded-full bg-primary" />
                   <span className="text-xs font-medium text-muted-foreground">Rejected</span>
                 </div>
-                <span className="text-2xl font-bold text-foreground tabular-nums">
+                <span className="text-xl font-bold text-foreground tabular-nums">
                   {rejected}
                 </span>
               </div>
