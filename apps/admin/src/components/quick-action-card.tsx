@@ -95,7 +95,9 @@ export function QuickActionCard({
 
               {count === 0 && (
                 <div className="mt-3">
-                  <span className="text-sm text-muted-foreground">All caught up</span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    All caught up
+                  </span>
                 </div>
               )}
             </div>

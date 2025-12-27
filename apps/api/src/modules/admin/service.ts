@@ -1546,6 +1546,11 @@ export class AdminService {
       return "PENDING_AML";
     }
 
+    // Check for cancelled status (admin-initiated restart)
+    if (regtankStatus === "CANCELLED") {
+      return "CANCELLED";
+    }
+
     // Default to pending onboarding for unknown statuses
     return "PENDING_ONBOARDING";
   }
@@ -1597,9 +1602,13 @@ export class AdminService {
     // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
 
+    // Extract request metadata for logging
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const isInvestorPortal = onboarding.portal_type === "investor";
+    const role = isInvestorPortal ? UserRole.INVESTOR : UserRole.ISSUER;
+
     // Determine organization ID
-    const isInvestor = onboarding.portal_type === "investor";
-    const organizationId = isInvestor
+    const organizationId = isInvestorPortal
       ? onboarding.investor_organization_id
       : onboarding.issuer_organization_id;
 
@@ -1622,7 +1631,7 @@ export class AdminService {
     });
 
     // Reset the organization's onboarding status
-    if (isInvestor && onboarding.investor_organization_id) {
+    if (isInvestorPortal && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
         data: { onboarding_status: "PENDING" },
@@ -1634,25 +1643,23 @@ export class AdminService {
       });
     }
 
-    // Log the onboarding restart request
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = isInvestor ? UserRole.INVESTOR : UserRole.ISSUER;
-
+    // Log the cancellation/restart event
     await this.repository.createOnboardingLog({
       userId: onboarding.user_id,
       role,
-      eventType: "ONBOARDING_REDO_REQUESTED",
+      eventType: "ONBOARDING_CANCELLED",
       portal: onboarding.portal_type,
       ipAddress,
       userAgent,
       deviceInfo,
       deviceType,
       metadata: {
-        oldOnboardingId: onboardingId,
-        oldRequestId: onboarding.request_id,
+        cancelledOnboardingId: onboardingId,
+        cancelledRequestId: onboarding.request_id,
         newRequestId: regTankResponse.requestId,
         previousStatus: onboarding.status,
-        requestedBy: adminUserId,
+        cancelledBy: adminUserId,
+        reason: "Restart requested by admin",
         organizationType: onboarding.organization_type,
         organizationId,
       },

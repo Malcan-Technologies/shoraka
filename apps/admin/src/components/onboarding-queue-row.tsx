@@ -23,7 +23,7 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
     case "PENDING_ONBOARDING":
       return (
         <Badge variant="outline" className="text-muted-foreground">
-          Pending Onboarding
+          In Progress
         </Badge>
       );
     case "PENDING_APPROVAL":
@@ -42,6 +42,12 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       return (
         <Badge variant="secondary" className="bg-muted text-muted-foreground">
           Expired
+        </Badge>
+      );
+    case "CANCELLED":
+      return (
+        <Badge variant="secondary" className="bg-muted text-muted-foreground">
+          Cancelled
         </Badge>
       );
     default:

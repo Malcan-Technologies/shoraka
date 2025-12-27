@@ -270,8 +270,7 @@ export type OnboardingEventType =
   | "ONBOARDING_STARTED"
   | "ONBOARDING_COMPLETED"
   | "ONBOARDING_CANCELLED"
-  | "ONBOARDING_STATUS_UPDATED"
-  | "ONBOARDING_REDO_REQUESTED";
+  | "ONBOARDING_STATUS_UPDATED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -386,7 +385,8 @@ export type OnboardingApprovalStatus =
   | "PENDING_AML"
   | "APPROVED"
   | "REJECTED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CANCELLED";
 
 export interface OnboardingApplicationResponse {
   id: string;

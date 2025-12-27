@@ -237,7 +237,7 @@ export default function OnboardingApprovalPage() {
                     Pending SSM Review
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_ONBOARDING">
-                    Pending Onboarding
+                    In Progress
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_APPROVAL">
                     Pending Approval
@@ -246,6 +246,7 @@ export default function OnboardingApprovalPage() {
                   <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="EXPIRED">Expired</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="CANCELLED">Cancelled</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
