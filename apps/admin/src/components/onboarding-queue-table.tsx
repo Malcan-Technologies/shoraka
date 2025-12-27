@@ -11,40 +11,13 @@ import { Skeleton } from "@cashsouk/ui";
 import { OnboardingQueueRow } from "./onboarding-queue-row";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
 
-export type OnboardingApprovalStatus =
-  | "PENDING_SSM_REVIEW"
-  | "SSM_APPROVED"
-  | "PENDING_ONBOARDING"
-  | "PENDING_AML"
-  | "APPROVED"
-  | "REJECTED";
-
-export interface OnboardingApplication {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  type: "PERSONAL" | "COMPANY";
-  portal: "INVESTOR" | "ISSUER";
-  regtankRequestId: string;
-  status: OnboardingApprovalStatus;
-  submittedAt: Date;
-  approvedAt?: Date;
-  companyDetails?: {
-    companyName: string;
-    registrationNumber: string;
-    businessType: string;
-    address: string;
-    directors: string[];
-  };
-  ssmVerified?: boolean;
-  ssmVerifiedAt?: Date;
-  ssmVerifiedBy?: string;
-}
+// Re-export types for consumers
+export type { OnboardingApplicationResponse, OnboardingApprovalStatus };
 
 interface OnboardingQueueTableProps {
-  applications: OnboardingApplication[];
+  applications: OnboardingApplicationResponse[];
   loading: boolean;
   currentPage: number;
   pageSize: number;
@@ -109,7 +82,7 @@ export function OnboardingQueueTable({
               <TableHead className="text-sm font-semibold">Type</TableHead>
               <TableHead className="text-sm font-semibold">Portal</TableHead>
               <TableHead className="text-sm font-semibold">Submitted</TableHead>
-              <TableHead className="text-sm font-semibold">Approved</TableHead>
+              <TableHead className="text-sm font-semibold">Completed</TableHead>
               <TableHead className="text-sm font-semibold">Status</TableHead>
               <TableHead className="text-sm font-semibold">Actions</TableHead>
             </TableRow>
@@ -163,4 +136,3 @@ export function OnboardingQueueTable({
     </div>
   );
 }
-

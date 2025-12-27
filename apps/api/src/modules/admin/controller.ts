@@ -22,6 +22,7 @@ import {
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
+  getOnboardingApplicationsQuerySchema,
 } from "./schemas";
 
 const router = Router();
@@ -180,7 +181,12 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserOnboarding(req, id, validated, req.user.user_id);
+      const updatedUser = await adminService.updateUserOnboarding(
+        req,
+        id,
+        validated,
+        req.user.user_id
+      );
 
       res.json({
         success: true,
@@ -222,7 +228,12 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserProfile(req, id, validated, req.user.user_id);
+      const updatedUser = await adminService.updateUserProfile(
+        req,
+        id,
+        validated,
+        req.user.user_id
+      );
 
       res.json({
         success: true,
@@ -780,23 +791,20 @@ router.post(
  *     summary: Accept admin invitation (public endpoint)
  *     tags: [Admin]
  */
-router.post(
-  "/accept-invitation",
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const validated = acceptInvitationSchema.parse(req.body);
-      const result = await adminService.acceptInvitation(req, validated);
+router.post("/accept-invitation", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = acceptInvitationSchema.parse(req.body);
+    const result = await adminService.acceptInvitation(req, validated);
 
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 /**
  * @swagger
@@ -855,15 +863,24 @@ router.get(
           "Device",
           "Metadata",
         ];
-        const rows = logs.map((log: { created_at: Date; user: { first_name: string; last_name: string; email: string }; event_type: string; ip_address: string | null; device_info: string | null; metadata: unknown }) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.event_type,
-          log.ip_address || "",
-          log.device_info || "",
-          JSON.stringify(log.metadata || {}),
-        ]);
+        const rows = logs.map(
+          (log: {
+            created_at: Date;
+            user: { first_name: string; last_name: string; email: string };
+            event_type: string;
+            ip_address: string | null;
+            device_info: string | null;
+            metadata: unknown;
+          }) => [
+            log.created_at.toISOString(),
+            `${log.user.first_name} ${log.user.last_name}`,
+            log.user.email,
+            log.event_type,
+            log.ip_address || "",
+            log.device_info || "",
+            JSON.stringify(log.metadata || {}),
+          ]
+        );
 
         const csvContent = [
           headers.join(","),
@@ -879,22 +896,34 @@ router.get(
         );
         res.send(Buffer.from(csvContent, "utf-8"));
       } else {
-        const jsonData = logs.map((log: { id: string; user_id: string; user: { first_name: string; last_name: string; email: string; roles: UserRole[] }; event_type: string; ip_address: string | null; user_agent: string | null; device_info: string | null; metadata: unknown; created_at: Date }) => ({
-          id: log.id,
-          user_id: log.user_id,
-          user: {
-            first_name: log.user.first_name,
-            last_name: log.user.last_name,
-            email: log.user.email,
-            roles: log.user.roles,
-          },
-          event_type: log.event_type,
-          ip_address: log.ip_address,
-          user_agent: log.user_agent,
-          device_info: log.device_info,
-          metadata: log.metadata,
-          created_at: log.created_at.toISOString(),
-        }));
+        const jsonData = logs.map(
+          (log: {
+            id: string;
+            user_id: string;
+            user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+            event_type: string;
+            ip_address: string | null;
+            user_agent: string | null;
+            device_info: string | null;
+            metadata: unknown;
+            created_at: Date;
+          }) => ({
+            id: log.id,
+            user_id: log.user_id,
+            user: {
+              first_name: log.user.first_name,
+              last_name: log.user.last_name,
+              email: log.user.email,
+              roles: log.user.roles,
+            },
+            event_type: log.event_type,
+            ip_address: log.ip_address,
+            user_agent: log.user_agent,
+            device_info: log.device_info,
+            metadata: log.metadata,
+            created_at: log.created_at.toISOString(),
+          })
+        );
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(
@@ -1187,6 +1216,115 @@ router.post(
       res.json({
         success: true,
         data: { user: updatedUser },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-applications:
+ *   get:
+ *     summary: List onboarding applications for approval queue (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: portal
+ *         schema:
+ *           type: string
+ *           enum: [investor, issuer]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [PERSONAL, COMPANY]
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING_SSM_REVIEW, PENDING_ONBOARDING, PENDING_APPROVAL, PENDING_AML, APPROVED, REJECTED, EXPIRED]
+ *     responses:
+ *       200:
+ *         description: Onboarding applications list with pagination
+ */
+router.get(
+  "/onboarding-applications",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getOnboardingApplicationsQuerySchema.parse(req.query);
+      const result = await adminService.listOnboardingApplications(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-applications/:id/request-redo:
+ *   post:
+ *     summary: Request a user to redo their onboarding (admin only)
+ *     description: Cancels the current onboarding and resets organization status so user can start fresh
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Onboarding application ID
+ *     responses:
+ *       200:
+ *         description: Redo request successful
+ *       400:
+ *         description: Invalid state (onboarding cannot be redone in current status)
+ *       404:
+ *         description: Onboarding not found
+ */
+router.post(
+  "/onboarding-applications/:id/request-redo",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.requestRedoOnboarding(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
         correlationId: res.locals.correlationId,
       });
     } catch (error) {

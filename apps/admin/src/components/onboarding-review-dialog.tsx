@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +28,8 @@ import {
   getCompanyOnboardingSteps,
 } from "./approval-progress-stepper";
 import { SSMVerificationPanel } from "./ssm-verification-panel";
-import type { OnboardingApplication } from "./onboarding-queue-table";
+import { useRequestRedoOnboarding } from "@/hooks/use-onboarding-applications";
+import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -29,6 +40,8 @@ import {
   InformationCircleIcon,
   ClipboardIcon,
   ClipboardDocumentCheckIcon,
+  ClockIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -63,7 +76,7 @@ function CopyableEmail({ email }: { email: string }) {
 }
 
 interface OnboardingReviewDialogProps {
-  application: OnboardingApplication;
+  application: OnboardingApplicationResponse;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -76,6 +89,9 @@ export function OnboardingReviewDialog({
   open,
   onOpenChange,
 }: OnboardingReviewDialogProps) {
+  const [showRedoConfirm, setShowRedoConfirm] = React.useState(false);
+  const redoMutation = useRequestRedoOnboarding();
+
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
     ? getCompanyOnboardingSteps(application.status)
@@ -86,29 +102,45 @@ export function OnboardingReviewDialog({
   };
 
   const handleSSMApprove = () => {
-    // In real implementation, this would call the API
     toast.success("SSM verification approved", {
-      description: `Company ${application.companyDetails?.companyName} has been verified.`,
+      description: `Company ${application.organizationName} has been verified.`,
     });
     onOpenChange(false);
   };
 
   const handleSSMReject = () => {
-    // In real implementation, this would call the API
     toast.error("SSM verification rejected", {
-      description: `Company ${application.companyDetails?.companyName} has been rejected.`,
+      description: `Company ${application.organizationName} has been rejected.`,
     });
     onOpenChange(false);
   };
 
-  const formatDate = (date: Date) => {
+  const handleRequestRedo = () => {
+    redoMutation.mutate(application.id, {
+      onSuccess: (data) => {
+        toast.success("Redo onboarding requested", {
+          description: data.message,
+        });
+        setShowRedoConfirm(false);
+        onOpenChange(false);
+      },
+      onError: (error) => {
+        toast.error("Failed to request redo", {
+          description: error.message,
+        });
+        setShowRedoConfirm(false);
+      },
+    });
+  };
+
+  const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat("en-MY", {
       day: "numeric",
       month: "long",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(date);
+    }).format(new Date(dateString));
   };
 
   const renderCurrentStepContent = () => {
@@ -122,13 +154,43 @@ export function OnboardingReviewDialog({
           />
         );
 
-      case "SSM_APPROVED":
       case "PENDING_ONBOARDING":
         return (
           <Card className="border-accent/30 bg-accent/5">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <InformationCircleIcon className="h-5 w-5 text-accent" />
+                <ClockIcon className="h-5 w-5 text-accent" />
+                Waiting for User
+              </CardTitle>
+              <CardDescription>
+                The user is currently completing their identity verification on RegTank. 
+                Status will update automatically when they finish.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+                <p className="text-sm font-medium">Current Status:</p>
+                <p className="text-sm text-muted-foreground">
+                  RegTank Status: <span className="font-mono">{application.regtankStatus}</span>
+                  {application.regtankSubstatus && (
+                    <> / <span className="font-mono">{application.regtankSubstatus}</span></>
+                  )}
+                </p>
+              </div>
+              <Button variant="outline" onClick={handleOpenRegTank} className="w-full gap-2">
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                View in RegTank Portal
+              </Button>
+            </CardContent>
+          </Card>
+        );
+
+      case "PENDING_APPROVAL":
+        return (
+          <Card className="border-blue-500/30 bg-blue-50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600" />
                 Onboarding Approval Required
               </CardTitle>
               <CardDescription>
@@ -153,6 +215,19 @@ export function OnboardingReviewDialog({
               <Button onClick={handleOpenRegTank} className="w-full gap-2">
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal
+              </Button>
+              <Separator />
+              <div className="text-sm text-muted-foreground">
+                Or request the user to redo their onboarding:
+              </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={redoMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Request Redo Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -189,6 +264,19 @@ export function OnboardingReviewDialog({
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal for AML Review
               </Button>
+              <Separator />
+              <div className="text-sm text-muted-foreground">
+                Or request the user to redo their onboarding:
+              </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={redoMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Request Redo Onboarding
+              </Button>
             </CardContent>
           </Card>
         );
@@ -196,7 +284,7 @@ export function OnboardingReviewDialog({
       case "APPROVED":
         return (
           <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <div className="flex items-center gap-3">
                 <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
                 <div>
@@ -208,6 +296,19 @@ export function OnboardingReviewDialog({
                   </p>
                 </div>
               </div>
+              <Separator />
+              <div className="text-sm text-muted-foreground">
+                If needed, you can request the user to redo their onboarding:
+              </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={redoMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Request Redo Onboarding
+              </Button>
             </CardContent>
           </Card>
         );
@@ -215,17 +316,53 @@ export function OnboardingReviewDialog({
       case "REJECTED":
         return (
           <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <div className="flex items-center gap-3">
                 <XCircleIcon className="h-8 w-8 text-destructive" />
                 <div>
                   <p className="font-semibold text-lg text-destructive">Onboarding Rejected</p>
                   <p className="text-sm text-muted-foreground">
-                    This application has been rejected. The user may need to resubmit their
-                    application.
+                    This application has been rejected. You can request the user to redo their
+                    onboarding.
                   </p>
                 </div>
               </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={redoMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Request Redo Onboarding
+              </Button>
+            </CardContent>
+          </Card>
+        );
+
+      case "EXPIRED":
+        return (
+          <Card className="border-muted bg-muted/30">
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <ClockIcon className="h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="font-semibold text-lg text-muted-foreground">Link Expired</p>
+                  <p className="text-sm text-muted-foreground">
+                    The onboarding link has expired. Click below to allow the user to restart the
+                    onboarding process.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={redoMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Request Redo Onboarding
+              </Button>
             </CardContent>
           </Card>
         );
@@ -244,7 +381,7 @@ export function OnboardingReviewDialog({
             <Badge variant="outline" className="font-normal">
               {application.type === "PERSONAL" ? "Personal" : "Company"}
             </Badge>
-            <Badge variant="secondary" className="font-normal">
+            <Badge variant="secondary" className="font-normal capitalize">
               {application.portal}
             </Badge>
           </DialogTitle>
@@ -292,14 +429,28 @@ export function OnboardingReviewDialog({
                   </span>
                 </div>
                 <Separator className="my-2" />
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium">RegTank ID:</span>{" "}
-                  <span className="font-mono">{application.regtankRequestId}</span>
-                </div>
+                {application.regtankRequestId && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">RegTank ID:</span>{" "}
+                    <span className="font-mono">{application.regtankRequestId}</span>
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   <span className="font-medium">User ID:</span>{" "}
                   <span className="font-mono">{application.userId}</span>
                 </div>
+                {application.organizationName && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">Organization:</span>{" "}
+                    <span>{application.organizationName}</span>
+                  </div>
+                )}
+                {application.registrationNumber && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">SSM No:</span>{" "}
+                    <span className="font-mono">{application.registrationNumber}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -315,6 +466,32 @@ export function OnboardingReviewDialog({
           </Button>
         </div>
       </DialogContent>
+
+      {/* Redo Confirmation Dialog */}
+      <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Request Redo Onboarding?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel the current onboarding and allow {application.userName} to restart
+              the onboarding process. The previous onboarding data will be archived.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={redoMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRequestRedo}
+              disabled={redoMutation.isPending}
+              className="gap-2"
+            >
+              {redoMutation.isPending && (
+                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+              )}
+              Confirm Redo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

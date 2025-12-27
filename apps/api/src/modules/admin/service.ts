@@ -7,6 +7,7 @@ import {
   AdminRole,
   OnboardingLog,
   SecurityLog,
+  OrganizationType,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -29,13 +30,18 @@ import type {
   GetSecurityLogsQuery,
   GetOnboardingLogsQuery,
   ResetOnboardingInput,
+  GetOnboardingApplicationsQuery,
 } from "./schemas";
+import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
+import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 
 export class AdminService {
   private repository: AdminRepository;
+  private regTankRepository: RegTankRepository;
 
   constructor() {
     this.repository = new AdminRepository();
+    this.regTankRepository = new RegTankRepository();
   }
 
   /**
@@ -1325,6 +1331,263 @@ export class AdminService {
         totalCount: result.total,
         totalPages: Math.ceil(result.total / params.pageSize),
       },
+    };
+  }
+
+  /**
+   * List onboarding applications for admin approval queue
+   * Combines data from regtank_onboarding with investor/issuer organizations
+   * Maps RegTank statuses to admin-friendly approval statuses
+   */
+  async listOnboardingApplications(params: GetOnboardingApplicationsQuery): Promise<{
+    applications: OnboardingApplicationResponse[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const { applications, totalCount } = await this.regTankRepository.listOnboardingApplications({
+      page: params.page,
+      pageSize: params.pageSize,
+      search: params.search,
+      portal: params.portal as "investor" | "issuer" | undefined,
+      type: params.type as OrganizationType | undefined,
+    });
+
+    // Map applications to response format with derived approval status
+    const mappedApplications = applications.map((app) =>
+      this.mapToOnboardingApplicationResponse(app)
+    );
+
+    // Filter by status if specified (post-processing since status is derived)
+    const filteredApplications = params.status
+      ? mappedApplications.filter((app) => app.status === params.status)
+      : mappedApplications;
+
+    return {
+      applications: filteredApplications,
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount: params.status ? filteredApplications.length : totalCount,
+        totalPages: Math.ceil(
+          (params.status ? filteredApplications.length : totalCount) / params.pageSize
+        ),
+      },
+    };
+  }
+
+  /**
+   * Map a RegTank onboarding record to the admin-friendly response format
+   * Derives the approval status based on RegTank status and organization status
+   */
+  private mapToOnboardingApplicationResponse(
+    record: OnboardingApplicationRecord
+  ): OnboardingApplicationResponse {
+    const isInvestor = record.portal_type === "investor";
+    const org = isInvestor ? record.investor_organization : record.issuer_organization;
+    const orgOnboardingStatus = org?.onboarding_status || "PENDING";
+
+    // Derive admin-friendly status
+    const status = this.deriveApprovalStatus(
+      record.status,
+      record.organization_type,
+      record.portal_type,
+      orgOnboardingStatus
+    );
+
+    // Build user name
+    const userName = `${record.user.first_name} ${record.user.last_name}`.trim();
+
+    return {
+      id: record.id,
+      userId: record.user.user_id,
+      userName: userName || record.user.email,
+      userEmail: record.user.email,
+      type: record.organization_type as "PERSONAL" | "COMPANY",
+      portal: record.portal_type as "investor" | "issuer",
+      organizationId: org?.id || "",
+      organizationName: org?.name || null,
+      registrationNumber: org?.registration_number || null,
+      regtankRequestId: record.request_id,
+      regtankStatus: record.status,
+      regtankSubstatus: record.substatus,
+      status,
+      ssmVerified: false, // Will be implemented when SSM verification is added
+      ssmVerifiedAt: null,
+      ssmVerifiedBy: null,
+      submittedAt: record.created_at.toISOString(),
+      completedAt: record.completed_at?.toISOString() || null,
+    };
+  }
+
+  /**
+   * Derive the admin-friendly approval status from RegTank status and organization status
+   *
+   * Status mapping:
+   * - PENDING_SSM_REVIEW: Company in issuer portal without SSM verification
+   * - PENDING_ONBOARDING: User is in the process of completing RegTank onboarding
+   * - PENDING_APPROVAL: Completed RegTank onboarding, awaiting admin approval
+   * - PENDING_AML: Onboarding approved, awaiting AML check
+   * - APPROVED: Fully approved
+   * - REJECTED: Rejected at any stage
+   * - EXPIRED: RegTank link expired
+   */
+  private deriveApprovalStatus(
+    regtankStatus: string,
+    _orgType: OrganizationType,
+    _portalType: string,
+    orgOnboardingStatus: string
+  ): OnboardingApprovalStatus {
+    // Check for final states first
+    if (regtankStatus === "REJECTED") {
+      return "REJECTED";
+    }
+
+    if (regtankStatus === "EXPIRED") {
+      return "EXPIRED";
+    }
+
+    // Check organization onboarding status
+    if (orgOnboardingStatus === "COMPLETED") {
+      return "APPROVED";
+    }
+
+    if (orgOnboardingStatus === "PENDING_AML") {
+      return "PENDING_AML";
+    }
+
+    // For company issuers, check if SSM verification is needed
+    // Currently SSM verification is not tracked in the database, so we skip this
+    // When implemented, add: if (orgType === "COMPANY" && portalType === "issuer" && !ssmVerified) return "PENDING_SSM_REVIEW"
+
+    // RegTank in-progress statuses
+    const inProgressStatuses = [
+      "URL_GENERATED",
+      "PROCESSING",
+      "ID_UPLOADED",
+      "ID_UPLOADED_FAILED",
+      "LIVENESS_STARTED",
+      "CAMERA_FAILED",
+      "FORM_FILLING",
+      "IN_PROGRESS",
+      "PENDING",
+    ];
+
+    if (inProgressStatuses.includes(regtankStatus)) {
+      return "PENDING_ONBOARDING";
+    }
+
+    // RegTank pending approval statuses
+    const pendingApprovalStatuses = ["WAIT_FOR_APPROVAL", "LIVENESS_PASSED", "PENDING_APPROVAL"];
+
+    if (pendingApprovalStatuses.includes(regtankStatus)) {
+      return "PENDING_APPROVAL";
+    }
+
+    // If RegTank shows APPROVED but org status is not COMPLETED yet, it's pending AML
+    if (regtankStatus === "APPROVED" && orgOnboardingStatus !== "COMPLETED") {
+      return "PENDING_AML";
+    }
+
+    // Default to pending onboarding for unknown statuses
+    return "PENDING_ONBOARDING";
+  }
+
+  /**
+   * Request a user to redo their onboarding
+   * This cancels the current onboarding and resets the organization status
+   * so the user can start a fresh onboarding flow
+   */
+  async requestRedoOnboarding(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: boolean; message: string }> {
+    // Find the onboarding record
+    const onboarding = await this.regTankRepository.findById(onboardingId);
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    // Define statuses that can be redone
+    const redoableStatuses = [
+      "REJECTED",
+      "EXPIRED",
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+      "LIVENESS_PASSED",
+      "WAIT_FOR_APPROVAL",
+      "APPROVED",
+    ];
+
+    if (!redoableStatuses.includes(onboarding.status)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        `Cannot request redo for onboarding in status: ${onboarding.status}`
+      );
+    }
+
+    const cancelReason = `Redo requested by admin ${adminUserId}`;
+
+    // Mark the current onboarding as cancelled
+    await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
+
+    // Reset the organization's onboarding status
+    const isInvestor = onboarding.portal_type === "investor";
+    if (isInvestor && onboarding.investor_organization_id) {
+      await prisma.investorOrganization.update({
+        where: { id: onboarding.investor_organization_id },
+        data: { onboarding_status: "PENDING" },
+      });
+    } else if (onboarding.issuer_organization_id) {
+      await prisma.issuerOrganization.update({
+        where: { id: onboarding.issuer_organization_id },
+        data: { onboarding_status: "PENDING" },
+      });
+    }
+
+    // Log the onboarding redo request
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const role = isInvestor ? UserRole.INVESTOR : UserRole.ISSUER;
+
+    await this.repository.createOnboardingLog({
+      userId: onboarding.user_id,
+      role,
+      eventType: "ONBOARDING_REDO_REQUESTED",
+      portal: onboarding.portal_type,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      metadata: {
+        onboardingId,
+        previousStatus: onboarding.status,
+        requestedBy: adminUserId,
+        organizationType: onboarding.organization_type,
+        organizationId: isInvestor
+          ? onboarding.investor_organization_id
+          : onboarding.issuer_organization_id,
+      },
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        userId: onboarding.user_id,
+        previousStatus: onboarding.status,
+        adminUserId,
+        portalType: onboarding.portal_type,
+      },
+      "Onboarding redo requested by admin"
+    );
+
+    return {
+      success: true,
+      message: "Onboarding has been cancelled. User can now restart the process.",
     };
   }
 }

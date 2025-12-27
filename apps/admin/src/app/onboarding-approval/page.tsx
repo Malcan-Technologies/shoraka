@@ -21,181 +21,62 @@ import {
   FunnelIcon,
   XMarkIcon,
   ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import type {
-  OnboardingApplication,
-  OnboardingApprovalStatus,
-} from "../../components/onboarding-queue-table";
+import {
+  useOnboardingApplications,
+  useInvalidateOnboardingApplications,
+} from "../../hooks/use-onboarding-applications";
+import type { OnboardingApprovalStatus, PortalType, OrganizationTypeEnum } from "@cashsouk/types";
 
-// Mock data for demonstration
-const MOCK_APPLICATIONS: OnboardingApplication[] = [
-  {
-    id: "app-001",
-    userId: "usr-001",
-    userName: "Ahmad bin Abdullah",
-    userEmail: "ahmad.abdullah@example.com",
-    type: "PERSONAL",
-    portal: "INVESTOR",
-    regtankRequestId: "rt-abc123",
-    status: "PENDING_ONBOARDING",
-    submittedAt: new Date("2024-12-15T10:30:00"),
-  },
-  {
-    id: "app-002",
-    userId: "usr-002",
-    userName: "Siti Nurhaliza",
-    userEmail: "siti.nurhaliza@example.com",
-    type: "PERSONAL",
-    portal: "INVESTOR",
-    regtankRequestId: "rt-def456",
-    status: "PENDING_AML",
-    submittedAt: new Date("2024-12-14T14:15:00"),
-  },
-  {
-    id: "app-003",
-    userId: "usr-003",
-    userName: "Tech Solutions Sdn Bhd",
-    userEmail: "admin@techsolutions.com.my",
-    type: "COMPANY",
-    portal: "ISSUER",
-    regtankRequestId: "rt-ghi789",
-    status: "PENDING_SSM_REVIEW",
-    submittedAt: new Date("2024-12-16T09:00:00"),
-    companyDetails: {
-      companyName: "Tech Solutions Sdn Bhd",
-      registrationNumber: "1234567-A",
-      businessType: "Information Technology",
-      address: "Level 15, Menara KL, Jalan Sultan Ismail, 50250 Kuala Lumpur",
-      directors: ["Tan Wei Ming", "Lee Mei Ling"],
-    },
-  },
-  {
-    id: "app-004",
-    userId: "usr-004",
-    userName: "Green Energy Corp",
-    userEmail: "contact@greenenergy.com.my",
-    type: "COMPANY",
-    portal: "ISSUER",
-    regtankRequestId: "rt-jkl012",
-    status: "SSM_APPROVED",
-    submittedAt: new Date("2024-12-13T11:45:00"),
-    companyDetails: {
-      companyName: "Green Energy Corp Sdn Bhd",
-      registrationNumber: "9876543-B",
-      businessType: "Renewable Energy",
-      address: "No. 88, Jalan Ampang, 50450 Kuala Lumpur",
-      directors: ["Mohd Razak bin Ismail", "Nurul Aina binti Hassan", "David Lim"],
-    },
-    ssmVerified: true,
-    ssmVerifiedAt: new Date("2024-12-14T16:30:00"),
-    ssmVerifiedBy: "admin@cashsouk.com",
-  },
-  {
-    id: "app-005",
-    userId: "usr-005",
-    userName: "Wong Mei Ling",
-    userEmail: "meiling.wong@example.com",
-    type: "PERSONAL",
-    portal: "INVESTOR",
-    regtankRequestId: "rt-mno345",
-    status: "APPROVED",
-    submittedAt: new Date("2024-12-10T08:20:00"),
-    approvedAt: new Date("2024-12-12T14:45:00"),
-  },
-  {
-    id: "app-006",
-    userId: "usr-006",
-    userName: "Rajesh Kumar",
-    userEmail: "rajesh.kumar@example.com",
-    type: "PERSONAL",
-    portal: "INVESTOR",
-    regtankRequestId: "rt-pqr678",
-    status: "REJECTED",
-    submittedAt: new Date("2024-12-08T15:10:00"),
-    approvedAt: new Date("2024-12-09T10:30:00"),
-  },
-  {
-    id: "app-007",
-    userId: "usr-007",
-    userName: "Global Trading Sdn Bhd",
-    userEmail: "ops@globaltrading.com.my",
-    type: "COMPANY",
-    portal: "ISSUER",
-    regtankRequestId: "rt-stu901",
-    status: "PENDING_ONBOARDING",
-    submittedAt: new Date("2024-12-12T13:00:00"),
-    companyDetails: {
-      companyName: "Global Trading Sdn Bhd",
-      registrationNumber: "5555555-C",
-      businessType: "Import/Export",
-      address: "Port Klang Industrial Zone, 42000 Selangor",
-      directors: ["Lim Ah Kow"],
-    },
-    ssmVerified: true,
-    ssmVerifiedAt: new Date("2024-12-13T10:00:00"),
-    ssmVerifiedBy: "admin@cashsouk.com",
-  },
-  {
-    id: "app-008",
-    userId: "usr-008",
-    userName: "Fatimah binti Zainal",
-    userEmail: "fatimah.zainal@example.com",
-    type: "PERSONAL",
-    portal: "ISSUER",
-    regtankRequestId: "rt-vwx234",
-    status: "PENDING_ONBOARDING",
-    submittedAt: new Date("2024-12-17T16:45:00"),
-  },
-];
-
-type PortalFilter = "all" | "INVESTOR" | "ISSUER";
-type TypeFilter = "all" | "PERSONAL" | "COMPANY";
+type PortalFilter = "all" | PortalType;
+type TypeFilter = "all" | OrganizationTypeEnum;
 type StatusFilter = "all" | OnboardingApprovalStatus;
 
 export default function OnboardingApprovalPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [portalFilter, setPortalFilter] = React.useState<PortalFilter>("all");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [isLoading, setIsLoading] = React.useState(false);
   const pageSize = 10;
 
-  // Filter applications
-  const filteredApplications = React.useMemo(() => {
-    return MOCK_APPLICATIONS.filter((app) => {
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-          app.userName.toLowerCase().includes(query) ||
-          app.userEmail.toLowerCase().includes(query) ||
-          app.companyDetails?.companyName?.toLowerCase().includes(query) ||
-          app.companyDetails?.registrationNumber?.toLowerCase().includes(query);
-        if (!matchesSearch) return false;
-      }
+  const invalidate = useInvalidateOnboardingApplications();
 
-      // Portal filter
-      if (portalFilter !== "all" && app.portal !== portalFilter) return false;
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-      // Type filter
-      if (typeFilter !== "all" && app.type !== typeFilter) return false;
+  // Build query params
+  const queryParams = React.useMemo(
+    () => ({
+      page: currentPage,
+      pageSize,
+      search: debouncedSearch || undefined,
+      portal: portalFilter !== "all" ? portalFilter : undefined,
+      type: typeFilter !== "all" ? typeFilter : undefined,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+    }),
+    [currentPage, pageSize, debouncedSearch, portalFilter, typeFilter, statusFilter]
+  );
 
-      // Status filter
-      if (statusFilter !== "all" && app.status !== statusFilter) return false;
-
-      return true;
-    });
-  }, [searchQuery, portalFilter, typeFilter, statusFilter]);
+  const { data, isLoading, isError, error, refetch, isFetching } =
+    useOnboardingApplications(queryParams);
 
   const handleReload = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => setIsLoading(false), 500);
+    invalidate();
+    refetch();
   };
 
   const handleClearFilters = () => {
     setSearchQuery("");
+    setDebouncedSearch("");
     setPortalFilter("all");
     setTypeFilter("all");
     setStatusFilter("all");
@@ -205,19 +86,16 @@ export default function OnboardingApprovalPage() {
   const hasFilters =
     searchQuery !== "" || portalFilter !== "all" || typeFilter !== "all" || statusFilter !== "all";
 
-  // Pagination
-  const totalApplications = filteredApplications.length;
-  const paginatedApplications = filteredApplications.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  // Get applications data
+  const applications = data?.applications || [];
+  const totalApplications = data?.pagination?.totalCount || 0;
 
-  // Count pending items that need attention
-  const pendingCount = MOCK_APPLICATIONS.filter(
+  // Count pending items that need attention from current filtered data
+  const pendingCount = applications.filter(
     (app) =>
       app.status === "PENDING_SSM_REVIEW" ||
-      app.status === "SSM_APPROVED" ||
       app.status === "PENDING_ONBOARDING" ||
+      app.status === "PENDING_APPROVAL" ||
       app.status === "PENDING_AML"
   ).length;
 
@@ -240,13 +118,31 @@ export default function OnboardingApprovalPage() {
         <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
           {/* Description */}
           <div className="rounded-2xl border bg-card p-6">
-            <h2 className="text-xl font-semibold mb-2">KYC/KYB Approval Queue</h2>
+            <h2 className="text-xl font-semibold mb-2">Onboarding Approval Queue</h2>
             <p className="text-muted-foreground text-[15px] leading-relaxed">
               Review and approve user onboarding applications. Personal applications go directly to
               RegTank for approval. Company applications require SSM verification on our side before
               proceeding to RegTank.
             </p>
           </div>
+
+          {/* Error State */}
+          {isError && (
+            <div className="rounded-2xl border border-destructive/50 bg-destructive/5 p-6">
+              <div className="flex items-center gap-3 text-destructive">
+                <ExclamationTriangleIcon className="h-5 w-5" />
+                <div>
+                  <p className="font-medium">Failed to load applications</p>
+                  <p className="text-sm text-muted-foreground">
+                    {error instanceof Error ? error.message : "An unexpected error occurred"}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" onClick={handleReload} className="mt-4">
+                Try Again
+              </Button>
+            </div>
+          )}
 
           {/* Toolbar */}
           <div className="flex flex-wrap items-center gap-3">
@@ -276,11 +172,14 @@ export default function OnboardingApprovalPage() {
                 <DropdownMenuLabel>Portal</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={portalFilter}
-                  onValueChange={(v) => setPortalFilter(v as PortalFilter)}
+                  onValueChange={(v) => {
+                    setPortalFilter(v as PortalFilter);
+                    setCurrentPage(1);
+                  }}
                 >
                   <DropdownMenuRadioItem value="all">All Portals</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="investor">Investor</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="issuer">Issuer</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -301,7 +200,10 @@ export default function OnboardingApprovalPage() {
                 <DropdownMenuLabel>Onboarding Type</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={typeFilter}
-                  onValueChange={(v) => setTypeFilter(v as TypeFilter)}
+                  onValueChange={(v) => {
+                    setTypeFilter(v as TypeFilter);
+                    setCurrentPage(1);
+                  }}
                 >
                   <DropdownMenuRadioItem value="all">All Types</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PERSONAL">Personal</DropdownMenuRadioItem>
@@ -326,19 +228,25 @@ export default function OnboardingApprovalPage() {
                 <DropdownMenuLabel>Status</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                  onValueChange={(v) => {
+                    setStatusFilter(v as StatusFilter);
+                    setCurrentPage(1);
+                  }}
                 >
                   <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
                     Pending SSM Review
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="SSM_APPROVED">SSM Approved</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_ONBOARDING">
                     Pending Onboarding
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_APPROVAL">
+                    Pending Approval
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="EXPIRED">Expired</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -357,10 +265,12 @@ export default function OnboardingApprovalPage() {
             <Button
               variant="outline"
               onClick={handleReload}
-              disabled={isLoading}
+              disabled={isLoading || isFetching}
               className="gap-2 h-11 rounded-xl"
             >
-              <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              <ArrowPathIcon
+                className={`h-4 w-4 ${isLoading || isFetching ? "animate-spin" : ""}`}
+              />
               Reload
             </Button>
 
@@ -371,7 +281,7 @@ export default function OnboardingApprovalPage() {
 
           {/* Queue Table */}
           <OnboardingQueueTable
-            applications={paginatedApplications}
+            applications={applications}
             loading={isLoading}
             currentPage={currentPage}
             pageSize={pageSize}

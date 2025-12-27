@@ -62,11 +62,42 @@ export class RegTankRepository {
   }
 
   /**
+   * Find onboarding by its primary key (id)
+   */
+  async findById(id: string): Promise<RegTankOnboardingWithRelations | null> {
+    return prisma.regTankOnboarding.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+        investor_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+        issuer_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Find onboarding by RegTank's requestId
    */
-  async findByRequestId(
-    requestId: string
-  ): Promise<RegTankOnboardingWithRelations | null> {
+  async findByRequestId(requestId: string): Promise<RegTankOnboardingWithRelations | null> {
     return prisma.regTankOnboarding.findUnique({
       where: { request_id: requestId },
       include: {
@@ -99,9 +130,7 @@ export class RegTankRepository {
   /**
    * Find onboarding by our internal referenceId
    */
-  async findByReferenceId(
-    referenceId: string
-  ): Promise<RegTankOnboardingWithRelations | null> {
+  async findByReferenceId(referenceId: string): Promise<RegTankOnboardingWithRelations | null> {
     return prisma.regTankOnboarding.findUnique({
       where: { reference_id: referenceId },
       include: {
@@ -138,9 +167,10 @@ export class RegTankRepository {
     organizationId: string,
     portalType: "investor" | "issuer"
   ): Promise<RegTankOnboardingWithRelations | null> {
-    const whereClause = portalType === "investor"
-      ? { investor_organization_id: organizationId }
-      : { issuer_organization_id: organizationId };
+    const whereClause =
+      portalType === "investor"
+        ? { investor_organization_id: organizationId }
+        : { issuer_organization_id: organizationId };
 
     return prisma.regTankOnboarding.findFirst({
       where: whereClause,
@@ -200,12 +230,23 @@ export class RegTankRepository {
   }
 
   /**
+   * Cancel an onboarding by its ID
+   * Marks status as CANCELLED with reason in substatus
+   */
+  async cancelOnboarding(id: string, reason: string): Promise<RegTankOnboarding> {
+    return prisma.regTankOnboarding.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+        substatus: reason,
+      },
+    });
+  }
+
+  /**
    * Append webhook payload to the webhook_payloads array
    */
-  async appendWebhookPayload(
-    requestId: string,
-    payload: any
-  ): Promise<RegTankOnboarding> {
+  async appendWebhookPayload(requestId: string, payload: any): Promise<RegTankOnboarding> {
     const existing = await prisma.regTankOnboarding.findUnique({
       where: { request_id: requestId },
       select: { webhook_payloads: true },
@@ -300,10 +341,7 @@ export class RegTankRepository {
   /**
    * Update RegTank response data
    */
-  async updateRegTankResponse(
-    requestId: string,
-    response: any
-  ): Promise<RegTankOnboarding> {
+  async updateRegTankResponse(requestId: string, response: any): Promise<RegTankOnboarding> {
     return prisma.regTankOnboarding.update({
       where: { request_id: requestId },
       data: {
@@ -312,5 +350,114 @@ export class RegTankRepository {
     });
   }
 
+  /**
+   * List onboarding applications with pagination, filtering, and search
+   * Returns data from regtank_onboarding joined with organization tables
+   */
+  async listOnboardingApplications(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    portal?: "investor" | "issuer";
+    type?: OrganizationType;
+  }): Promise<{
+    applications: OnboardingApplicationRecord[];
+    totalCount: number;
+  }> {
+    const { page, pageSize, search, portal, type } = params;
+    const skip = (page - 1) * pageSize;
+
+    // Build where clause
+    const where: any = {};
+
+    if (portal) {
+      where.portal_type = portal;
+    }
+
+    if (type) {
+      where.organization_type = type;
+    }
+
+    if (search) {
+      where.OR = [
+        { user: { email: { contains: search, mode: "insensitive" } } },
+        { user: { first_name: { contains: search, mode: "insensitive" } } },
+        { user: { last_name: { contains: search, mode: "insensitive" } } },
+        { investor_organization: { name: { contains: search, mode: "insensitive" } } },
+        { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        {
+          investor_organization: { registration_number: { contains: search, mode: "insensitive" } },
+        },
+        { issuer_organization: { registration_number: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    const [applications, totalCount] = await Promise.all([
+      prisma.regTankOnboarding.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          user: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true,
+            },
+          },
+          investor_organization: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              registration_number: true,
+              onboarding_status: true,
+              onboarded_at: true,
+            },
+          },
+          issuer_organization: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              registration_number: true,
+              onboarding_status: true,
+              onboarded_at: true,
+            },
+          },
+        },
+      }),
+      prisma.regTankOnboarding.count({ where }),
+    ]);
+
+    return { applications, totalCount };
+  }
 }
 
+// Extended type for list query with organization onboarding status
+export type OnboardingApplicationRecord = RegTankOnboarding & {
+  user: {
+    user_id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  investor_organization: {
+    id: string;
+    name: string | null;
+    type: OrganizationType;
+    registration_number: string | null;
+    onboarding_status: string;
+    onboarded_at: Date | null;
+  } | null;
+  issuer_organization: {
+    id: string;
+    name: string | null;
+    type: OrganizationType;
+    registration_number: string | null;
+    onboarding_status: string;
+    onboarded_at: Date | null;
+  } | null;
+};

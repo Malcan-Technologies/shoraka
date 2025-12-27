@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
-import type { OnboardingApplication, OnboardingApprovalStatus } from "./onboarding-queue-table";
+import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
 
 interface OnboardingQueueRowProps {
-  application: OnboardingApplication;
+  application: OnboardingApplicationResponse;
 }
 
 function getStatusBadge(status: OnboardingApprovalStatus) {
@@ -20,16 +20,16 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
           Pending SSM Review
         </Badge>
       );
-    case "SSM_APPROVED":
-      return (
-        <Badge className="bg-[hsl(29.6_51%_28.8%)] text-white hover:bg-[hsl(29.6_51%_24%)]">
-          SSM Approved
-        </Badge>
-      );
     case "PENDING_ONBOARDING":
       return (
         <Badge className="bg-accent text-accent-foreground hover:bg-accent/80">
           Pending Onboarding
+        </Badge>
+      );
+    case "PENDING_APPROVAL":
+      return (
+        <Badge className="bg-blue-600 text-white hover:bg-blue-700">
+          Pending Approval
         </Badge>
       );
     case "PENDING_AML":
@@ -48,6 +48,12 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       return (
         <Badge variant="destructive">
           Rejected
+        </Badge>
+      );
+    case "EXPIRED":
+      return (
+        <Badge variant="secondary" className="bg-muted text-muted-foreground">
+          Expired
         </Badge>
       );
     default:
@@ -70,8 +76,8 @@ function getTypeBadge(type: "PERSONAL" | "COMPANY") {
   );
 }
 
-function getPortalBadge(portal: "INVESTOR" | "ISSUER") {
-  if (portal === "INVESTOR") {
+function getPortalBadge(portal: "investor" | "issuer") {
+  if (portal === "investor") {
     return (
       <Badge variant="secondary">
         Investor
@@ -85,14 +91,14 @@ function getPortalBadge(portal: "INVESTOR" | "ISSUER") {
   );
 }
 
-function formatDate(date: Date) {
+function formatDate(dateString: string) {
   return new Intl.DateTimeFormat("en-MY", {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(new Date(dateString));
 }
 
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
@@ -100,8 +106,8 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
 
   const needsAction =
     application.status === "PENDING_SSM_REVIEW" ||
-    application.status === "SSM_APPROVED" ||
     application.status === "PENDING_ONBOARDING" ||
+    application.status === "PENDING_APPROVAL" ||
     application.status === "PENDING_AML";
 
   return (
@@ -111,9 +117,9 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
           <div className="space-y-0.5">
             <div className="font-medium text-[15px]">{application.userName}</div>
             <div className="text-sm text-muted-foreground">{application.userEmail}</div>
-            {application.companyDetails && (
+            {application.type === "COMPANY" && application.registrationNumber && (
               <div className="text-xs text-muted-foreground">
-                SSM: {application.companyDetails.registrationNumber}
+                SSM: {application.registrationNumber}
               </div>
             )}
           </div>
@@ -126,9 +132,9 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
           </span>
         </TableCell>
         <TableCell>
-          {application.approvedAt ? (
+          {application.completedAt ? (
             <span className="text-sm text-muted-foreground">
-              {formatDate(application.approvedAt)}
+              {formatDate(application.completedAt)}
             </span>
           ) : (
             <span className="text-sm text-muted-foreground/50">—</span>
@@ -156,4 +162,3 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
     </>
   );
 }
-

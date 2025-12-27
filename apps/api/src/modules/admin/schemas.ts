@@ -192,3 +192,25 @@ export const getOrganizationsQuerySchema = z.object({
 });
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
+
+// Onboarding Applications query schema (Admin Approval Queue)
+export const onboardingApprovalStatusEnum = z.enum([
+  "PENDING_SSM_REVIEW",
+  "PENDING_ONBOARDING",
+  "PENDING_APPROVAL",
+  "PENDING_AML",
+  "APPROVED",
+  "REJECTED",
+  "EXPIRED",
+]);
+
+export const getOnboardingApplicationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  portal: z.enum(["investor", "issuer"]).optional(),
+  type: z.enum(["PERSONAL", "COMPANY"]).optional(),
+  status: onboardingApprovalStatusEnum.optional(),
+});
+
+export type GetOnboardingApplicationsQuery = z.infer<typeof getOnboardingApplicationsQuerySchema>;

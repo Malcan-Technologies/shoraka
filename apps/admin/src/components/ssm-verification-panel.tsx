@@ -10,15 +10,13 @@ import { Label } from "@/components/ui/label";
 import {
   BuildingOffice2Icon,
   DocumentTextIcon,
-  MapPinIcon,
-  UserGroupIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import type { OnboardingApplication } from "./onboarding-queue-table";
+import type { OnboardingApplicationResponse } from "@cashsouk/types";
 
 interface SSMVerificationPanelProps {
-  application: OnboardingApplication;
+  application: OnboardingApplicationResponse;
   onApprove: () => void;
   onReject: () => void;
   disabled?: boolean;
@@ -31,9 +29,11 @@ export function SSMVerificationPanel({
   disabled = false,
 }: SSMVerificationPanelProps) {
   const [confirmed, setConfirmed] = React.useState(false);
-  const company = application.companyDetails;
 
-  if (!company) {
+  // Company info is in the flat structure now
+  const hasCompanyInfo = application.type === "COMPANY" && application.organizationName;
+
+  if (!hasCompanyInfo) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
         <CardContent className="pt-6">
@@ -75,7 +75,7 @@ export function SSMVerificationPanel({
           {/* Company Name */}
           <div className="grid grid-cols-3 gap-4">
             <div className="text-sm font-medium text-muted-foreground">Company Name</div>
-            <div className="col-span-2 text-sm font-medium">{company.companyName}</div>
+            <div className="col-span-2 text-sm font-medium">{application.organizationName}</div>
           </div>
 
           <Separator />
@@ -88,47 +88,18 @@ export function SSMVerificationPanel({
             </div>
             <div className="col-span-2">
               <Badge variant="outline" className="font-mono text-sm">
-                {company.registrationNumber}
+                {application.registrationNumber || "Not provided"}
               </Badge>
             </div>
           </div>
 
           <Separator />
 
-          {/* Business Type */}
+          {/* Applicant Info */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="text-sm font-medium text-muted-foreground">Business Type</div>
-            <div className="col-span-2 text-sm">{company.businessType}</div>
-          </div>
-
-          <Separator />
-
-          {/* Address */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <MapPinIcon className="h-4 w-4" />
-              Registered Address
-            </div>
-            <div className="col-span-2 text-sm">{company.address}</div>
-          </div>
-
-          <Separator />
-
-          {/* Directors */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <UserGroupIcon className="h-4 w-4" />
-              Directors
-            </div>
-            <div className="col-span-2">
-              <ul className="space-y-1">
-                {company.directors.map((director, idx) => (
-                  <li key={idx} className="text-sm flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    {director}
-                  </li>
-                ))}
-              </ul>
+            <div className="text-sm font-medium text-muted-foreground">Applicant</div>
+            <div className="col-span-2 text-sm">
+              {application.userName} ({application.userEmail})
             </div>
           </div>
         </CardContent>
@@ -144,16 +115,18 @@ export function SSMVerificationPanel({
                 <p className="font-medium text-emerald-900 dark:text-emerald-100">
                   SSM Verification Completed
                 </p>
-                <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                  Verified by {application.ssmVerifiedBy} on{" "}
-                  {application.ssmVerifiedAt?.toLocaleDateString("en-MY", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+                {application.ssmVerifiedAt && application.ssmVerifiedBy && (
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                    Verified by {application.ssmVerifiedBy} on{" "}
+                    {new Date(application.ssmVerifiedAt).toLocaleDateString("en-MY", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -185,11 +158,7 @@ export function SSMVerificationPanel({
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                  Business address matches registered address
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                  Listed directors match SSM records
+                  Company is in good standing with SSM
                 </li>
               </ul>
             </div>
@@ -234,4 +203,3 @@ export function SSMVerificationPanel({
     </div>
   );
 }
-

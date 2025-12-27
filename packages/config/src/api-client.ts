@@ -29,6 +29,8 @@ import type {
   PendingInvitationsResponse,
   GetOrganizationsParams,
   OrganizationsResponse,
+  GetOnboardingApplicationsParams,
+  OnboardingApplicationsResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -232,6 +234,33 @@ export class ApiClient {
     if (params.onboardingStatus) queryParams.append("onboardingStatus", params.onboardingStatus);
 
     return this.get<OrganizationsResponse>(`/v1/admin/organizations?${queryParams.toString()}`);
+  }
+
+  // Admin - Onboarding Applications (Approval Queue)
+  async getOnboardingApplications(
+    params: GetOnboardingApplicationsParams
+  ): Promise<ApiResponse<OnboardingApplicationsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.portal) queryParams.append("portal", params.portal);
+    if (params.type) queryParams.append("type", params.type);
+    if (params.status) queryParams.append("status", params.status);
+
+    return this.get<OnboardingApplicationsResponse>(
+      `/v1/admin/onboarding-applications?${queryParams.toString()}`
+    );
+  }
+
+  // Request redo onboarding for an application
+  async requestRedoOnboarding(
+    onboardingId: string
+  ): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
+    return this.post<{ success: boolean; message: string }>(
+      `/v1/admin/onboarding-applications/${onboardingId}/request-redo`,
+      {}
+    );
   }
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {

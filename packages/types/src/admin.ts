@@ -259,7 +259,8 @@ export type OnboardingEventType =
   | "ONBOARDING_STARTED"
   | "ONBOARDING_COMPLETED"
   | "ONBOARDING_CANCELLED"
-  | "ONBOARDING_STATUS_UPDATED";
+  | "ONBOARDING_STATUS_UPDATED"
+  | "ONBOARDING_REDO_REQUESTED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -363,5 +364,48 @@ export interface GetOrganizationsParams extends PaginationParams {
 
 export interface OrganizationsResponse {
   organizations: OrganizationResponse[];
+  pagination: PaginationResponse;
+}
+
+// Onboarding Applications Types (Admin Approval Queue)
+export type OnboardingApprovalStatus =
+  | "PENDING_SSM_REVIEW"
+  | "PENDING_ONBOARDING"
+  | "PENDING_APPROVAL"
+  | "PENDING_AML"
+  | "APPROVED"
+  | "REJECTED"
+  | "EXPIRED";
+
+export interface OnboardingApplicationResponse {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  type: OrganizationTypeEnum;
+  portal: PortalType;
+  organizationId: string;
+  organizationName: string | null;
+  registrationNumber: string | null;
+  regtankRequestId: string | null;
+  regtankStatus: string | null;
+  regtankSubstatus: string | null;
+  status: OnboardingApprovalStatus;
+  ssmVerified: boolean;
+  ssmVerifiedAt: string | null;
+  ssmVerifiedBy: string | null;
+  submittedAt: string;
+  completedAt: string | null;
+}
+
+export interface GetOnboardingApplicationsParams extends PaginationParams {
+  search?: string;
+  portal?: PortalType;
+  type?: OrganizationTypeEnum;
+  status?: OnboardingApprovalStatus;
+}
+
+export interface OnboardingApplicationsResponse {
+  applications: OnboardingApplicationResponse[];
   pagination: PaginationResponse;
 }

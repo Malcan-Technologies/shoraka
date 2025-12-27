@@ -105,6 +105,9 @@ export function getPersonalOnboardingSteps(
     case "PENDING_ONBOARDING":
       steps[1].status = "current";
       break;
+    case "PENDING_APPROVAL":
+      steps[1].status = "current";
+      break;
     case "PENDING_AML":
       steps[1].status = "completed";
       steps[2].status = "current";
@@ -114,7 +117,8 @@ export function getPersonalOnboardingSteps(
       steps[2].status = "completed";
       break;
     case "REJECTED":
-      // Keep current step as the one that was rejected
+    case "EXPIRED":
+      // Keep current step as the one that was rejected/expired
       break;
   }
 
@@ -156,11 +160,11 @@ export function getCompanyOnboardingSteps(
     case "PENDING_SSM_REVIEW":
       steps[1].status = "current";
       break;
-    case "SSM_APPROVED":
+    case "PENDING_ONBOARDING":
       steps[1].status = "completed";
       steps[2].status = "current";
       break;
-    case "PENDING_ONBOARDING":
+    case "PENDING_APPROVAL":
       steps[1].status = "completed";
       steps[2].status = "current";
       break;
@@ -175,7 +179,8 @@ export function getCompanyOnboardingSteps(
       steps[3].status = "completed";
       break;
     case "REJECTED":
-      // Keep current step as the one that was rejected
+    case "EXPIRED":
+      // Keep current step as the one that was rejected/expired
       break;
   }
 
