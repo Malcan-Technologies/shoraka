@@ -834,7 +834,26 @@ export class RegTankService {
       const documentNumber = this.normalizeValue(userProfile.documentNum || userProfile.governmentIdNumber);
       const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
       // kycId is at root level, not in userProfile
-      const kycId = this.normalizeValue(regtankDetails.kycId);
+      // Try multiple possible locations/field names for kycId
+      const kycId = this.normalizeValue(
+        regtankDetails.kycId || 
+        regtankDetails.kyc_id || 
+        (regtankDetails as any).KYCId ||
+        (regtankDetails as any).KYC_ID
+      );
+      
+      // Log the raw kycId value for debugging
+      logger.debug(
+        {
+          organizationId,
+          kycIdRaw: regtankDetails.kycId,
+          kycIdExtracted: kycId,
+          kycIdType: typeof regtankDetails.kycId,
+          hasKycId: "kycId" in regtankDetails,
+          regtankDetailsKeys: Object.keys(regtankDetails).slice(0, 30), // First 30 keys for debugging
+        },
+        "Checking kycId in RegTank response"
+      );
       
       // Extract display areas - store entire displayArea object as JSON
       let bankAccountDetails = null;
@@ -1189,6 +1208,29 @@ export class RegTankService {
         );
         
         const regtankDetails = await this.apiClient.queryOnboardingDetails(requestId);
+        
+        // Log the response structure to debug kycId extraction
+        logger.info(
+          {
+            requestId,
+            organizationId,
+            hasKycId: "kycId" in regtankDetails,
+            kycIdValue: regtankDetails.kycId,
+            kycIdType: typeof regtankDetails.kycId,
+            topLevelKeys: Object.keys(regtankDetails).slice(0, 30),
+            // Check if response is wrapped
+            hasData: "data" in regtankDetails,
+            hasResult: "result" in regtankDetails,
+            // Sample of response structure
+            responseSample: {
+              requestId: regtankDetails.requestId,
+              status: regtankDetails.status,
+              kycId: regtankDetails.kycId,
+              hasUserProfile: !!regtankDetails.userProfile,
+            },
+          },
+          "RegTank query response received - checking kycId"
+        );
         
         // Extract and update organization with RegTank data
         await this.extractAndUpdateOrganizationData(
