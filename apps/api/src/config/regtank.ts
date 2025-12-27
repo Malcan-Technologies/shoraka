@@ -38,6 +38,12 @@ export function getRegTankConfig(): RegTankConfig {
   const env = regtankEnvSchema.parse(process.env);
   const nodeEnv = process.env.NODE_ENV || "development";
 
+  // Log RegTank redirect URL environment variables on first load
+//   console.log("[RegTank Config] Redirect URL Environment Variables:", {
+//     REGTANK_REDIRECT_URL_INVESTOR: process.env.REGTANK_REDIRECT_URL_INVESTOR || "(not set, using default)",
+//     REGTANK_REDIRECT_URL_ISSUER: process.env.REGTANK_REDIRECT_URL_ISSUER || "(not set, using default)",
+//   });
+
   // Determine environment (sandbox for development/test, production otherwise)
   const environment: "sandbox" | "production" =
     nodeEnv === "production" ? "production" : "sandbox";
@@ -50,6 +56,19 @@ export function getRegTankConfig(): RegTankConfig {
   // Derive admin portal URL from API base URL by removing "-server" suffix
   // e.g., https://shoraka-trial-server.regtank.com -> https://shoraka-trial.regtank.com
   const adminPortalUrl = apiBaseUrl.replace("-server", "");
+
+  const redirectUrlInvestor =
+    env.REGTANK_REDIRECT_URL_INVESTOR ||
+    "https://investor.cashsouk.com";
+  const redirectUrlIssuer =
+    env.REGTANK_REDIRECT_URL_ISSUER ||
+    "https://issuer.cashsouk.com";
+
+  // Log final redirect URLs being used
+  console.log("[RegTank Config] Final Redirect URLs:", {
+    redirectUrlInvestor,
+    redirectUrlIssuer,
+  });
 
   const config: RegTankConfig = {
     oauthUrl:
@@ -67,12 +86,8 @@ export function getRegTankConfig(): RegTankConfig {
       env.REGTANK_CLIENT_SECRET ||
       "88b2d5fe7d5ac366f0d7b59f67bf9ee4",
     webhookSecret: env.REGTANK_WEBHOOK_SECRET || "",
-    redirectUrlInvestor:
-      env.REGTANK_REDIRECT_URL_INVESTOR ||
-      "https://investor.cashsouk.com/regtank-callback",
-    redirectUrlIssuer:
-      env.REGTANK_REDIRECT_URL_ISSUER ||
-      "https://issuer.cashsouk.com/regtank-callback",
+    redirectUrlInvestor,
+    redirectUrlIssuer,
     environment,
   };
 

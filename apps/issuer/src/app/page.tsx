@@ -156,7 +156,7 @@ function IssuerDashboardContent() {
               </h2>
               <p className="text-muted-foreground mb-6">
                 {isPendingApproval 
-                  ? "Your onboarding application is currently under review. You will be notified once the approval process is complete."
+                  ? "Waiting for admin to approve. Your onboarding application is currently under review. You will be notified once the approval process is complete."
                   : "Your onboarding application has been rejected. Please contact support for more information."}
               </p>
               <p className="text-sm text-muted-foreground">

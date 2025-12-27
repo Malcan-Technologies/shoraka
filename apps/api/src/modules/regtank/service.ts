@@ -14,6 +14,7 @@ import { prisma } from "../../lib/prisma";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
+import { getRegTankConfig } from "../../config/regtank";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -215,8 +216,11 @@ export class RegTankService {
       );
     }
 
-    // Set onboarding settings (no redirect URL) - called once per formId
-    // Users will navigate back manually after completing onboarding
+    // Set onboarding settings with redirect URL - called once per formId
+    // Redirect URL points to dashboard so users are redirected back after completing onboarding
+    const config = getRegTankConfig();
+    const redirectUrl = config.redirectUrlInvestor;
+    
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
@@ -224,11 +228,11 @@ export class RegTankService {
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
-        // redirectUrl removed - users navigate back manually
+        redirectUrl,
       });
       logger.info(
-        { formId },
-        "RegTank onboarding settings configured successfully (no redirect URL)"
+        { formId, redirectUrl },
+        "RegTank onboarding settings configured successfully"
       );
     } catch (error) {
       // Extract detailed error information
@@ -508,11 +512,11 @@ export class RegTankService {
     // Prepare RegTank corporate onboarding request
     const referenceId = organizationId; // Use organization ID as reference
     
-    // Set portal-specific redirectUrl (temporarily unused - commented out setOnboardingSettings)
-    // const redirectUrl =
-    //   portalType === "investor"
-    //     ? "https://investor.cashsouk.com/regtank-callback"
-    //     : "https://issuer.cashsouk.com/regtank-callback";
+    // Get portal-specific redirectUrl from config
+    const config = getRegTankConfig();
+    const redirectUrl = portalType === "investor" 
+      ? config.redirectUrlInvestor 
+      : config.redirectUrlIssuer;
 
     // Get formId from parameter, or use portal-specific default
     // Determine formId based on portal type if not provided in request
@@ -525,10 +529,8 @@ export class RegTankService {
       }
     }
 
-    // Set onboarding settings (redirect URL) - called once per formId
-    // Use portal-specific redirectUrl and required settings
-    // TEMPORARILY COMMENTED OUT FOR TESTING
-    /*
+    // Set onboarding settings with redirect URL - called once per formId
+    // Redirect URL points to dashboard so users are redirected back after completing onboarding
     try {
       await this.apiClient.setOnboardingSettings({
         formId: formIdToUse,
@@ -585,7 +587,6 @@ export class RegTankService {
       }
       // Don't throw - continue with onboarding request
     }
-    */
 
     const onboardingRequest: RegTankCorporateOnboardingRequest = {
       email: user.email,
