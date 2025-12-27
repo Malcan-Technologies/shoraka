@@ -15,6 +15,7 @@ import {
 } from "@cashsouk/ui";
 import { ClockIcon, DocumentCheckIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import type { OnboardingOperationsMetrics } from "@cashsouk/types";
 
 // Brand colors from BRANDING.md
 const chartConfig = {
@@ -35,35 +36,36 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-interface OnboardingApprovalMetrics {
-  pending: number;
-  approved: number;
-  rejected: number;
-  avgTimeToApproval: string;
-  avgTimeChange: number;
-}
-
 interface OperationsSectionProps {
   loading?: boolean;
+  metrics?: OnboardingOperationsMetrics;
 }
 
-// Mock data for onboarding approval metrics
-const MOCK_ONBOARDING_METRICS: OnboardingApprovalMetrics = {
-  pending: 5,
-  approved: 47,
-  rejected: 8,
-  avgTimeToApproval: "2.4h",
-  avgTimeChange: -15,
-};
+/**
+ * Format minutes into a human-readable time string
+ */
+function formatApprovalTime(minutes: number | null): string {
+  if (minutes === null) return "N/A";
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
+  return `${(minutes / 1440).toFixed(1)}d`;
+}
 
-export function OperationsSection({ loading = false }: OperationsSectionProps) {
-  const metrics = MOCK_ONBOARDING_METRICS;
-  const total = metrics.pending + metrics.approved + metrics.rejected;
+export function OperationsSection({ loading = false, metrics }: OperationsSectionProps) {
+  // Default to zeros if no metrics provided
+  const pending = metrics?.pending ?? 0;
+  const approved = metrics?.approved ?? 0;
+  const rejected = metrics?.rejected ?? 0;
+  const expired = metrics?.expired ?? 0;
+  const avgTimeToApprovalMinutes = metrics?.avgTimeToApprovalMinutes ?? null;
+  const avgTimeChangePercent = metrics?.avgTimeChangePercent ?? null;
+
+  const total = pending + approved + rejected + expired;
 
   const chartData = [
-    { status: "pending", count: metrics.pending, fill: "var(--color-pending)" },
-    { status: "approved", count: metrics.approved, fill: "var(--color-approved)" },
-    { status: "rejected", count: metrics.rejected, fill: "var(--color-rejected)" },
+    { status: "pending", count: pending, fill: "var(--color-pending)" },
+    { status: "approved", count: approved, fill: "var(--color-approved)" },
+    { status: "rejected", count: rejected, fill: "var(--color-rejected)" },
   ];
 
   if (loading) {
@@ -84,7 +86,7 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
     );
   }
 
-  const isTimeImproved = metrics.avgTimeChange < 0;
+  const isTimeImproved = avgTimeChangePercent !== null && avgTimeChangePercent < 0;
 
   return (
     <Card className="rounded-2xl shadow-sm">
@@ -157,7 +159,7 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
                   <span className="text-xs font-medium text-muted-foreground">Pending</span>
                 </div>
                 <span className="text-2xl font-bold text-foreground tabular-nums">
-                  {metrics.pending}
+                  {pending}
                 </span>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/50">
@@ -166,7 +168,7 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
                   <span className="text-xs font-medium text-muted-foreground">Approved</span>
                 </div>
                 <span className="text-2xl font-bold text-foreground tabular-nums">
-                  {metrics.approved}
+                  {approved}
                 </span>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/50">
@@ -175,7 +177,7 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
                   <span className="text-xs font-medium text-muted-foreground">Rejected</span>
                 </div>
                 <span className="text-2xl font-bold text-foreground tabular-nums">
-                  {metrics.rejected}
+                  {rejected}
                 </span>
               </div>
             </div>
@@ -193,18 +195,20 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
                   </p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-foreground tabular-nums">
-                      {metrics.avgTimeToApproval}
+                      {formatApprovalTime(avgTimeToApprovalMinutes)}
                     </span>
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        isTimeImproved ? "text-green-600" : "text-primary"
-                      )}
-                    >
-                      {isTimeImproved ? "↓" : "↑"} {Math.abs(metrics.avgTimeChange)}%
-                    </span>
+                    {avgTimeChangePercent !== null && (
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          isTimeImproved ? "text-green-600" : "text-primary"
+                        )}
+                      >
+                        {isTimeImproved ? "↓" : "↑"} {Math.abs(avgTimeChangePercent)}%
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">vs last 7 days</p>
+                  <p className="text-xs text-muted-foreground">vs last 30 days</p>
                 </div>
               </div>
 
@@ -219,7 +223,9 @@ export function OperationsSection({ loading = false }: OperationsSectionProps) {
                   </p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-foreground tabular-nums">
-                      {((metrics.rejected / (metrics.approved + metrics.rejected)) * 100).toFixed(1)}%
+                      {approved + rejected > 0
+                        ? ((rejected / (approved + rejected)) * 100).toFixed(1)
+                        : "0.0"}%
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">of processed applications</p>

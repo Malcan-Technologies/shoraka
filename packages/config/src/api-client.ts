@@ -253,12 +253,28 @@ export class ApiClient {
     );
   }
 
+  // Get count of pending onboarding applications requiring admin action
+  async getPendingApprovalCount(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.get<{ count: number }>("/v1/admin/onboarding-applications/pending-count");
+  }
+
   // Request redo onboarding for an application
-  async requestRedoOnboarding(
+  // Restart onboarding for an application via RegTank restart API
+  async restartOnboarding(
     onboardingId: string
-  ): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
-    return this.post<{ success: boolean; message: string }>(
-      `/v1/admin/onboarding-applications/${onboardingId}/request-redo`,
+  ): Promise<ApiResponse<{ 
+    success: boolean; 
+    message: string; 
+    verifyLink?: string; 
+    newRequestId?: string;
+  }> | ApiError> {
+    return this.post<{ 
+      success: boolean; 
+      message: string; 
+      verifyLink?: string; 
+      newRequestId?: string;
+    }>(
+      `/v1/admin/onboarding-applications/${onboardingId}/restart`,
       {}
     );
   }

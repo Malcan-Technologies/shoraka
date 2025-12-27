@@ -90,11 +90,10 @@ export default function OnboardingApprovalPage() {
   const applications = data?.applications || [];
   const totalApplications = data?.pagination?.totalCount || 0;
 
-  // Count pending items that need attention from current filtered data
+  // Count items requiring admin action (excludes PENDING_ONBOARDING which is user action)
   const pendingCount = applications.filter(
     (app) =>
       app.status === "PENDING_SSM_REVIEW" ||
-      app.status === "PENDING_ONBOARDING" ||
       app.status === "PENDING_APPROVAL" ||
       app.status === "PENDING_AML"
   ).length;

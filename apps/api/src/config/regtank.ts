@@ -15,6 +15,7 @@ export type RegTankConfig = {
   oauthUrl: string;
   apiBaseUrl: string;
   onboardingProxyUrl: string;
+  adminPortalUrl: string;
   clientId: string;
   clientSecret: string;
   webhookSecret: string;
@@ -42,16 +43,23 @@ export function getRegTankConfig(): RegTankConfig {
     nodeEnv === "production" ? "production" : "sandbox";
 
   // Default to sandbox URLs if not provided
+  const apiBaseUrl =
+    env.REGTANK_API_BASE_URL ||
+    "https://shoraka-trial-server.regtank.com";
+  
+  // Derive admin portal URL from API base URL by removing "-server" suffix
+  // e.g., https://shoraka-trial-server.regtank.com -> https://shoraka-trial.regtank.com
+  const adminPortalUrl = apiBaseUrl.replace("-server", "");
+
   const config: RegTankConfig = {
     oauthUrl:
       env.REGTANK_OAUTH_URL ||
       "https://crm-server.regtank.com/oauth2/token",
-    apiBaseUrl:
-      env.REGTANK_API_BASE_URL ||
-      "https://shoraka-trial-server.regtank.com",
+    apiBaseUrl,
     onboardingProxyUrl:
       env.REGTANK_ONBOARDING_PROXY_URL ||
       "https://shoraka-trial-onboarding-proxy.regtank.com",
+    adminPortalUrl,
     clientId:
       env.REGTANK_CLIENT_ID ||
       "6c3eb4f4-3402-45a3-8707-a365059e7581",

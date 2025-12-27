@@ -28,7 +28,7 @@ import {
   getCompanyOnboardingSteps,
 } from "./approval-progress-stepper";
 import { SSMVerificationPanel } from "./ssm-verification-panel";
-import { useRequestRedoOnboarding } from "@/hooks/use-onboarding-applications";
+import { useRestartOnboarding } from "@/hooks/use-onboarding-applications";
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -81,24 +81,24 @@ interface OnboardingReviewDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// RegTank portal URLs
-const REGTANK_PORTAL_URL = "https://shoraka-trial.regtank.com";
-
 export function OnboardingReviewDialog({
   application,
   open,
   onOpenChange,
 }: OnboardingReviewDialogProps) {
   const [showRedoConfirm, setShowRedoConfirm] = React.useState(false);
-  const redoMutation = useRequestRedoOnboarding();
+  const restartMutation = useRestartOnboarding();
 
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
     ? getCompanyOnboardingSteps(application.status)
     : getPersonalOnboardingSteps(application.status);
 
+  // Use the dynamic portal URL from the API response
   const handleOpenRegTank = () => {
-    window.open(REGTANK_PORTAL_URL, "_blank", "noopener,noreferrer");
+    if (application.regtankPortalUrl) {
+      window.open(application.regtankPortalUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleSSMApprove = () => {
@@ -116,16 +116,16 @@ export function OnboardingReviewDialog({
   };
 
   const handleRequestRedo = () => {
-    redoMutation.mutate(application.id, {
+    restartMutation.mutate(application.id, {
       onSuccess: (data) => {
-        toast.success("Redo onboarding requested", {
+        toast.success("Onboarding restarted", {
           description: data.message,
         });
         setShowRedoConfirm(false);
         onOpenChange(false);
       },
       onError: (error) => {
-        toast.error("Failed to request redo", {
+        toast.error("Failed to restart onboarding", {
           description: error.message,
         });
         setShowRedoConfirm(false);
@@ -177,7 +177,12 @@ export function OnboardingReviewDialog({
                   )}
                 </p>
               </div>
-              <Button variant="outline" onClick={handleOpenRegTank} className="w-full gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleOpenRegTank} 
+                className="w-full gap-2"
+                disabled={!application.regtankPortalUrl}
+              >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 View in RegTank Portal
               </Button>
@@ -212,7 +217,11 @@ export function OnboardingReviewDialog({
                   <li>Return here - status will update automatically via webhook</li>
                 </ol>
               </div>
-              <Button onClick={handleOpenRegTank} className="w-full gap-2">
+              <Button 
+                onClick={handleOpenRegTank} 
+                className="w-full gap-2"
+                disabled={!application.regtankPortalUrl}
+              >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal
               </Button>
@@ -224,10 +233,10 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={redoMutation.isPending}
+                disabled={restartMutation.isPending}
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                Request Redo Onboarding
+                Restart Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -260,7 +269,11 @@ export function OnboardingReviewDialog({
                   <li>Approve or reject based on the findings</li>
                 </ol>
               </div>
-              <Button onClick={handleOpenRegTank} className="w-full gap-2">
+              <Button 
+                onClick={handleOpenRegTank} 
+                className="w-full gap-2"
+                disabled={!application.regtankPortalUrl}
+              >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal for AML Review
               </Button>
@@ -272,10 +285,10 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={redoMutation.isPending}
+                disabled={restartMutation.isPending}
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                Request Redo Onboarding
+                Restart Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -304,10 +317,10 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={redoMutation.isPending}
+                disabled={restartMutation.isPending}
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                Request Redo Onboarding
+                Restart Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -331,10 +344,10 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={redoMutation.isPending}
+                disabled={restartMutation.isPending}
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                Request Redo Onboarding
+                Restart Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -358,10 +371,10 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={redoMutation.isPending}
+                disabled={restartMutation.isPending}
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                Request Redo Onboarding
+                Restart Onboarding
               </Button>
             </CardContent>
           </Card>
@@ -471,20 +484,21 @@ export function OnboardingReviewDialog({
       <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Request Redo Onboarding?</AlertDialogTitle>
+            <AlertDialogTitle>Restart Onboarding?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel the current onboarding and allow {application.userName} to restart
-              the onboarding process. The previous onboarding data will be archived.
+              This will call the RegTank restart API to create a new onboarding request. The current onboarding 
+              will be cancelled and {application.userName} will receive a new verification link. Personal 
+              information from the previous submission will be inherited.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={redoMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRequestRedo}
-              disabled={redoMutation.isPending}
+              disabled={restartMutation.isPending}
               className="gap-2"
             >
-              {redoMutation.isPending && (
+              {restartMutation.isPending && (
                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
               )}
               Confirm Redo

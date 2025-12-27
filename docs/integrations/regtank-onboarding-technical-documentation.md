@@ -108,11 +108,19 @@ Retrieves and validates RegTank configuration from environment variables.
 - `oauthUrl` - OAuth token endpoint URL
 - `apiBaseUrl` - RegTank API base URL
 - `onboardingProxyUrl` - Onboarding proxy URL (for verify links)
+- `adminPortalUrl` - Admin portal URL for direct links (derived from `apiBaseUrl` by removing `-server`)
 - `clientId` - OAuth client ID
 - `clientSecret` - OAuth client secret
 - `webhookSecret` - HMAC secret for webhook signature verification
 - `redirectUrlInvestor` - Callback URL for investor portal
 - `redirectUrlIssuer` - Callback URL for issuer portal
+
+**Admin Portal URL Derivation:**
+The admin portal URL is automatically derived from `REGTANK_API_BASE_URL`:
+- `https://shoraka-trial-server.regtank.com` → `https://shoraka-trial.regtank.com`
+- `https://shoraka-server.regtank.com` → `https://shoraka.regtank.com`
+
+This allows direct linking to onboarding records in the RegTank admin portal from the CashSouk admin panel.
 
 **Note:** Form IDs are not part of the config object. RegTank uses three different form IDs:
 - **Personal Account (Investor portal)**: Individual onboarding form ID
@@ -259,13 +267,21 @@ Fetches current onboarding status and details from RegTank.
 
 **Returns:** `RegTankOnboardingDetails` containing status, substatus, and additional fields
 
-#### `restartOnboarding(requestId: string): Promise<RegTankOnboardingResponse>`
+#### `restartOnboarding(requestId: string, options?): Promise<RegTankOnboardingResponse>`
 
-Restarts a failed or expired onboarding, generating a new verify link.
+Restarts an onboarding by creating a new record that inherits personal information from the original.
 
-**Endpoint:** `POST /v3/onboarding/indv/request/{requestId}/restart`
+**Endpoint:** `POST /v3/onboarding/indv/restart` (with `requestId` in body)
 
-**Returns:** New `RegTankOnboardingResponse` with new verify link
+**Important:** The restart endpoint returns a **new requestId** (e.g., `LD00001-R01` suffix indicates restart). 
+The old record should be marked as cancelled in the database and a new record created with the new requestId.
+
+**Parameters (optional):**
+- `language` - Language code (default: "EN")
+- `idType` - ID type override
+- `skipFormPage` - Skip form page (default: true)
+
+**Returns:** New `RegTankOnboardingResponse` with new requestId and verify link
 
 #### `setOnboardingSettings(settings: {...}): Promise<void>`
 
@@ -717,6 +733,26 @@ Updates dev database with webhook data.
 | GET | `/v1/regtank/status/:organizationId` | Get onboarding status |
 | POST | `/v1/regtank/retry/:organizationId` | Retry failed onboarding |
 | POST | `/v1/regtank/sync-status/:organizationId` | Manually sync status |
+
+### Admin Endpoints (Admin Role Required)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/v1/admin/onboarding-applications` | List onboarding applications with filters |
+| GET | `/v1/admin/onboarding-applications/pending-count` | Get count of applications requiring admin action |
+| POST | `/v1/admin/onboarding-applications/:id/restart` | Restart onboarding via RegTank restart API |
+
+**Admin Restart Flow:**
+When an admin restarts an onboarding, the system:
+1. Calls RegTank's `POST /v3/onboarding/indv/restart` with the original requestId
+2. RegTank returns a **new requestId** (e.g., `LD00001-R01` suffix)
+3. Marks the old database record as CANCELLED
+4. Creates a new database record with the new requestId
+5. Resets the organization's onboarding_status to PENDING
+6. Logs the action in onboarding_logs
+
+**Response Fields:**
+The `OnboardingApplicationResponse` includes `regtankPortalUrl` which provides a direct link to the onboarding record in RegTank admin portal (e.g., `https://shoraka-trial.regtank.com/app/liveness/LD00001?archived=false`).
 
 ### Public Endpoints (No Authentication)
 

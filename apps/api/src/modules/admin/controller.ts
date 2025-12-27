@@ -1287,10 +1287,43 @@ router.get(
 
 /**
  * @swagger
- * /v1/admin/onboarding-applications/:id/request-redo:
+ * /v1/admin/onboarding-applications/pending-count:
+ *   get:
+ *     summary: Get count of onboarding applications requiring admin action
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Count of pending applications
+ */
+router.get(
+  "/onboarding-applications/pending-count",
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await adminService.getPendingApprovalCount();
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/onboarding-applications/:id/restart:
  *   post:
- *     summary: Request a user to redo their onboarding (admin only)
- *     description: Cancels the current onboarding and resets organization status so user can start fresh
+ *     summary: Restart a user's onboarding via RegTank restart API (admin only)
+ *     description: |
+ *       Calls RegTank restart endpoint to create a new onboarding record with a new requestId.
+ *       The old record is marked as CANCELLED and the organization status is reset to PENDING.
+ *       The user will receive a new verification link to complete onboarding.
  *     tags: [Admin]
  *     security:
  *       - BearerAuth: []
@@ -1300,17 +1333,32 @@ router.get(
  *         required: true
  *         schema:
  *           type: string
- *         description: Onboarding application ID
+ *         description: Onboarding application ID (internal UUID, not RegTank requestId)
  *     responses:
  *       200:
- *         description: Redo request successful
+ *         description: Restart successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 verifyLink:
+ *                   type: string
+ *                   description: New verification link for the user
+ *                 newRequestId:
+ *                   type: string
+ *                   description: New RegTank requestId
  *       400:
- *         description: Invalid state (onboarding cannot be redone in current status)
+ *         description: Invalid state (onboarding cannot be restarted in current status)
  *       404:
  *         description: Onboarding not found
  */
 router.post(
-  "/onboarding-applications/:id/request-redo",
+  "/onboarding-applications/:id/restart",
   requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -1320,7 +1368,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.requestRedoOnboarding(req, id, req.user.user_id);
+      const result = await adminService.restartOnboarding(req, id, req.user.user_id);
 
       res.json({
         success: true,

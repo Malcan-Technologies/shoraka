@@ -36,7 +36,7 @@ export default function AdminHomePage() {
           <section className="space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Operations (Placeholder)</h2>
+                <h2 className="text-lg font-semibold text-foreground">Operations</h2>
                 <p className="text-sm text-muted-foreground">
                   Operational efficiency and processing metrics
                 </p>
@@ -52,7 +52,7 @@ export default function AdminHomePage() {
                 <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
               </Button>
             </div>
-            <OperationsSection loading={isLoading} />
+            <OperationsSection loading={isLoading} metrics={stats?.onboardingOperations} />
           </section>
 
           {/* Platform Overview Section */}

@@ -33,15 +33,19 @@ import type {
   GetOnboardingApplicationsQuery,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
+import { RegTankAPIClient } from "../regtank/api-client";
+import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
+  private regTankApiClient: RegTankAPIClient;
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
+    this.regTankApiClient = new RegTankAPIClient();
   }
 
   /**
@@ -453,18 +457,33 @@ export class AdminService {
         company: { total: number; onboarded: number; pending: number };
       };
     };
+    onboardingOperations: {
+      pending: number;
+      approved: number;
+      rejected: number;
+      expired: number;
+      avgTimeToApprovalMinutes: number | null;
+      avgTimeChangePercent: number | null;
+    };
   }> {
     const TREND_PERIOD_DAYS = 30;
 
     // Get all stats in parallel
-    const [totalStats, currentPeriodStats, previousPeriodStats, signupTrends, organizationStats] =
-      await Promise.all([
-        this.repository.getUserStats(),
-        this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
-        this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
-        this.repository.getSignupTrends(TREND_PERIOD_DAYS),
-        this.repository.getOrganizationStats(),
-      ]);
+    const [
+      totalStats,
+      currentPeriodStats,
+      previousPeriodStats,
+      signupTrends,
+      organizationStats,
+      onboardingOperations,
+    ] = await Promise.all([
+      this.repository.getUserStats(),
+      this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
+      this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
+      this.repository.getSignupTrends(TREND_PERIOD_DAYS),
+      this.repository.getOrganizationStats(),
+      this.repository.getOnboardingOperationsMetrics(),
+    ]);
 
     // Calculate percentage changes
     const calculatePercentageChange = (current: number, previous: number): number => {
@@ -510,6 +529,7 @@ export class AdminService {
       },
       signupTrends,
       organizations: organizationStats,
+      onboardingOperations,
     };
   }
 
@@ -1380,6 +1400,32 @@ export class AdminService {
   }
 
   /**
+   * Get count of onboarding applications requiring admin action
+   * Includes: PENDING_SSM_REVIEW, PENDING_APPROVAL, PENDING_AML
+   * Excludes: PENDING_ONBOARDING (user action, not admin)
+   */
+  async getPendingApprovalCount(): Promise<{ count: number }> {
+    // Get all applications (without pagination) to derive statuses
+    const { applications } = await this.regTankRepository.listOnboardingApplications({
+      page: 1,
+      pageSize: 1000, // Get all records for counting
+    });
+
+    // Map and filter for admin-actionable statuses
+    const pendingStatuses: OnboardingApprovalStatus[] = [
+      "PENDING_SSM_REVIEW",
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+    ];
+
+    const count = applications
+      .map((app) => this.mapToOnboardingApplicationResponse(app))
+      .filter((app) => pendingStatuses.includes(app.status)).length;
+
+    return { count };
+  }
+
+  /**
    * Map a RegTank onboarding record to the admin-friendly response format
    * Derives the approval status based on RegTank status and organization status
    */
@@ -1401,6 +1447,12 @@ export class AdminService {
     // Build user name
     const userName = `${record.user.first_name} ${record.user.last_name}`.trim();
 
+    // Build RegTank portal URL for direct linking to the onboarding record
+    const regtankConfig = getRegTankConfig();
+    const regtankPortalUrl = record.request_id
+      ? `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
+      : null;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1414,6 +1466,7 @@ export class AdminService {
       regtankRequestId: record.request_id,
       regtankStatus: record.status,
       regtankSubstatus: record.substatus,
+      regtankPortalUrl,
       status,
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
@@ -1497,23 +1550,25 @@ export class AdminService {
   }
 
   /**
-   * Request a user to redo their onboarding
-   * This cancels the current onboarding and resets the organization status
-   * so the user can start a fresh onboarding flow
+   * Restart a user's onboarding via RegTank restart API
+   * This calls the RegTank restart endpoint which creates a new record with a new requestId,
+   * marks the old record as CANCELLED, creates a new record in our DB, and resets org status.
+   *
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.4-individual-onboarding-endpoint-json-restart-onboarding
    */
-  async requestRedoOnboarding(
+  async restartOnboarding(
     req: Request,
     onboardingId: string,
     adminUserId: string
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; verifyLink?: string; newRequestId?: string }> {
     // Find the onboarding record
     const onboarding = await this.regTankRepository.findById(onboardingId);
     if (!onboarding) {
       throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
     }
 
-    // Define statuses that can be redone
-    const redoableStatuses = [
+    // Define statuses that can be restarted
+    const restartableStatuses = [
       "REJECTED",
       "EXPIRED",
       "PENDING_APPROVAL",
@@ -1521,23 +1576,51 @@ export class AdminService {
       "LIVENESS_PASSED",
       "WAIT_FOR_APPROVAL",
       "APPROVED",
+      "IN_PROGRESS",
+      "PENDING",
     ];
 
-    if (!redoableStatuses.includes(onboarding.status)) {
+    if (!restartableStatuses.includes(onboarding.status)) {
       throw new AppError(
         400,
         "INVALID_STATE",
-        `Cannot request redo for onboarding in status: ${onboarding.status}`
+        `Cannot restart onboarding in status: ${onboarding.status}`
       );
     }
 
-    const cancelReason = `Redo requested by admin ${adminUserId}`;
+    // Call RegTank restart API - this returns a NEW requestId
+    const regTankResponse = await this.regTankApiClient.restartOnboarding(onboarding.request_id);
 
-    // Mark the current onboarding as cancelled
+    const cancelReason = `Restarted by admin ${adminUserId}. New requestId: ${regTankResponse.requestId}`;
+
+    // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
 
-    // Reset the organization's onboarding status
+    // Determine organization ID
     const isInvestor = onboarding.portal_type === "investor";
+    const organizationId = isInvestor
+      ? onboarding.investor_organization_id
+      : onboarding.issuer_organization_id;
+
+    // Create new onboarding record with the new requestId from RegTank
+    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    await this.regTankRepository.createOnboarding({
+      userId: onboarding.user_id,
+      organizationId: organizationId || undefined,
+      organizationType: onboarding.organization_type,
+      portalType: onboarding.portal_type,
+      requestId: regTankResponse.requestId,
+      referenceId: `${organizationId}-restart-${Date.now()}`,
+      onboardingType: onboarding.onboarding_type,
+      verifyLink: regTankResponse.verifyLink,
+      verifyLinkExpiresAt: expiresAt,
+      status: "IN_PROGRESS",
+      regtankResponse: regTankResponse,
+    });
+
+    // Reset the organization's onboarding status
     if (isInvestor && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
@@ -1550,7 +1633,7 @@ export class AdminService {
       });
     }
 
-    // Log the onboarding redo request
+    // Log the onboarding restart request
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = isInvestor ? UserRole.INVESTOR : UserRole.ISSUER;
 
@@ -1564,30 +1647,34 @@ export class AdminService {
       deviceInfo,
       deviceType,
       metadata: {
-        onboardingId,
+        oldOnboardingId: onboardingId,
+        oldRequestId: onboarding.request_id,
+        newRequestId: regTankResponse.requestId,
         previousStatus: onboarding.status,
         requestedBy: adminUserId,
         organizationType: onboarding.organization_type,
-        organizationId: isInvestor
-          ? onboarding.investor_organization_id
-          : onboarding.issuer_organization_id,
+        organizationId,
       },
     });
 
     logger.info(
       {
-        onboardingId,
+        oldOnboardingId: onboardingId,
+        oldRequestId: onboarding.request_id,
+        newRequestId: regTankResponse.requestId,
         userId: onboarding.user_id,
         previousStatus: onboarding.status,
         adminUserId,
         portalType: onboarding.portal_type,
       },
-      "Onboarding redo requested by admin"
+      "Onboarding restarted by admin via RegTank restart API"
     );
 
     return {
       success: true,
-      message: "Onboarding has been cancelled. User can now restart the process.",
+      message: "Onboarding has been restarted. User will receive a new verification link.",
+      verifyLink: regTankResponse.verifyLink,
+      newRequestId: regTankResponse.requestId,
     };
   }
 }

@@ -185,17 +185,37 @@ export class RegTankAPIClient {
   }
 
   /**
-   * Restart onboarding (get new verifyLink)
+   * Restart onboarding (get new verifyLink and new requestId)
+   * 
+   * According to RegTank docs: POST /v3/onboarding/indv/restart
+   * The restart endpoint creates a new record that inherits personal information
+   * from the original record and returns a NEW requestId (e.g., LD00001-R01)
+   * 
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.4-individual-onboarding-endpoint-json-restart-onboarding
    */
   async restartOnboarding(
-    requestId: string
+    requestId: string,
+    options?: {
+      language?: string;
+      idType?: string;
+      skipFormPage?: boolean;
+    }
   ): Promise<RegTankOnboardingResponse> {
     logger.info({ requestId }, "Restarting RegTank onboarding");
 
     return this.makeRequest<RegTankOnboardingResponse>(
-      `/v3/onboarding/indv/request/${requestId}/restart`,
+      "/v3/onboarding/indv/restart",
       {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requestId,
+          language: options?.language || "EN",
+          idType: options?.idType,
+          skipFormPage: options?.skipFormPage ?? true,
+        }),
       }
     );
   }

@@ -40,13 +40,14 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
+import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 
-const navActions = [
+const navActionsConfig = [
   {
     title: "Onboarding Approval",
     url: "/onboarding-approval",
     icon: CheckBadgeIcon,
-    badge: 5, // Placeholder: pending approvals count
+    badgeKey: "onboardingApproval" as const,
   },
   {
     title: "Note Approval",
@@ -97,6 +98,12 @@ const navAudit = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
+  const { data: pendingCountData } = usePendingApprovalCount();
+
+  // Build badges dynamically
+  const badges: Record<string, number> = {
+    onboardingApproval: pendingCountData?.count || 0,
+  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -135,8 +142,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Actions</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navActions.map((item) => {
+              {navActionsConfig.map((item) => {
                 const Icon = item.icon;
+                const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -149,9 +157,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
-                    {item.badge !== undefined && item.badge > 0 && (
+                    {badgeCount > 0 && (
                       <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
-                        {item.badge}
+                        {badgeCount}
                       </SidebarMenuBadge>
                     )}
                   </SidebarMenuItem>

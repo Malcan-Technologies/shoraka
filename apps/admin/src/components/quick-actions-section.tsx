@@ -4,6 +4,7 @@ import * as React from "react";
 import { QuickActionCard } from "./quick-action-card";
 import { Button } from "./ui/button";
 import { ClipboardDocumentCheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
@@ -16,14 +17,15 @@ export function QuickActionsSection({
   onRefresh,
   isRefreshing = false,
 }: QuickActionsSectionProps) {
-  // Placeholder data for pending onboarding approvals
-  const pendingOnboardingCount = 5;
+  // Fetch real pending approval count from API
+  const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount();
+  const pendingOnboardingCount = pendingCountData?.count ?? 0;
 
   return (
     <section className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Quick Actions (Placeholder)</h2>
+          <h2 className="text-lg font-semibold text-foreground">Quick Actions</h2>
           <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
         </div>
         {onRefresh && (
@@ -54,7 +56,7 @@ export function QuickActionsSection({
                 ? "warning"
                 : "default"
           }
-          loading={loading}
+          loading={loading || isPendingCountLoading}
         />
         {/* Additional quick actions can be added here in the future */}
       </div>

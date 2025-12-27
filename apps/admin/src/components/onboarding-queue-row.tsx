@@ -22,34 +22,22 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       );
     case "PENDING_ONBOARDING":
       return (
-        <Badge className="bg-accent text-accent-foreground hover:bg-accent/80">
+        <Badge variant="outline" className="text-muted-foreground">
           Pending Onboarding
         </Badge>
       );
     case "PENDING_APPROVAL":
       return (
-        <Badge className="bg-blue-600 text-white hover:bg-blue-700">
+        <Badge className="bg-yellow-500 text-yellow-950 hover:bg-yellow-600">
           Pending Approval
         </Badge>
       );
     case "PENDING_AML":
-      return (
-        <Badge className="bg-[hsl(29.6_51%_28.8%)] text-white hover:bg-[hsl(29.6_51%_24%)]">
-          Pending AML
-        </Badge>
-      );
+      return <Badge className="bg-orange-500 text-white hover:bg-orange-600">Pending AML</Badge>;
     case "APPROVED":
-      return (
-        <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
-          Approved
-        </Badge>
-      );
+      return <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Approved</Badge>;
     case "REJECTED":
-      return (
-        <Badge variant="destructive">
-          Rejected
-        </Badge>
-      );
+      return <Badge variant="destructive">Rejected</Badge>;
     case "EXPIRED":
       return (
         <Badge variant="secondary" className="bg-muted text-muted-foreground">
@@ -78,11 +66,7 @@ function getTypeBadge(type: "PERSONAL" | "COMPANY") {
 
 function getPortalBadge(portal: "investor" | "issuer") {
   if (portal === "investor") {
-    return (
-      <Badge variant="secondary">
-        Investor
-      </Badge>
-    );
+    return <Badge variant="secondary">Investor</Badge>;
   }
   return (
     <Badge variant="secondary" className="bg-muted">
@@ -104,9 +88,9 @@ function formatDate(dateString: string) {
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
+  // Admin action required for SSM review, approval, and AML (not pending onboarding - that's user action)
   const needsAction =
     application.status === "PENDING_SSM_REVIEW" ||
-    application.status === "PENDING_ONBOARDING" ||
     application.status === "PENDING_APPROVAL" ||
     application.status === "PENDING_AML";
 

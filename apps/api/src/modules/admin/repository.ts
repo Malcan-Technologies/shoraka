@@ -1464,4 +1464,113 @@ export class AdminRepository {
       total: investorCount + issuerCount,
     };
   }
+
+  /**
+   * Get onboarding operations metrics for the dashboard
+   * Counts onboarding applications by status and calculates average approval time
+   */
+  async getOnboardingOperationsMetrics(): Promise<{
+    pending: number;
+    approved: number;
+    rejected: number;
+    expired: number;
+    avgTimeToApprovalMinutes: number | null;
+    avgTimeChangePercent: number | null;
+  }> {
+    // Count applications by status from regtank_onboarding table
+    const [pendingCount, approvedCount, rejectedCount, expiredCount] = await Promise.all([
+      // Pending includes: PENDING, IN_PROGRESS, LIVENESS_PASSED, WAIT_FOR_APPROVAL, PENDING_APPROVAL
+      prisma.regTankOnboarding.count({
+        where: {
+          status: {
+            in: ["PENDING", "IN_PROGRESS", "LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL"],
+          },
+        },
+      }),
+      prisma.regTankOnboarding.count({
+        where: { status: "APPROVED" },
+      }),
+      prisma.regTankOnboarding.count({
+        where: { status: "REJECTED" },
+      }),
+      prisma.regTankOnboarding.count({
+        where: { status: "EXPIRED" },
+      }),
+    ]);
+
+    // Calculate average time to approval for completed applications
+    // Get applications that were approved in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    // Get approved applications from current period (last 30 days)
+    const currentPeriodApproved = await prisma.regTankOnboarding.findMany({
+      where: {
+        status: "APPROVED",
+        completed_at: { gte: thirtyDaysAgo },
+      },
+      select: {
+        created_at: true,
+        completed_at: true,
+      },
+    });
+
+    // Get approved applications from previous period (30-60 days ago)
+    const previousPeriodApproved = await prisma.regTankOnboarding.findMany({
+      where: {
+        status: "APPROVED",
+        completed_at: {
+          gte: sixtyDaysAgo,
+          lt: thirtyDaysAgo,
+        },
+      },
+      select: {
+        created_at: true,
+        completed_at: true,
+      },
+    });
+
+    // Calculate average approval time for current period
+    let avgTimeToApprovalMinutes: number | null = null;
+    if (currentPeriodApproved.length > 0) {
+      const totalMinutes = currentPeriodApproved.reduce((sum, app) => {
+        if (app.completed_at) {
+          const diffMs = app.completed_at.getTime() - app.created_at.getTime();
+          return sum + diffMs / 1000 / 60; // Convert to minutes
+        }
+        return sum;
+      }, 0);
+      avgTimeToApprovalMinutes = Math.round(totalMinutes / currentPeriodApproved.length);
+    }
+
+    // Calculate average approval time for previous period
+    let avgTimeChangePercent: number | null = null;
+    if (previousPeriodApproved.length > 0 && avgTimeToApprovalMinutes !== null) {
+      const previousTotalMinutes = previousPeriodApproved.reduce((sum, app) => {
+        if (app.completed_at) {
+          const diffMs = app.completed_at.getTime() - app.created_at.getTime();
+          return sum + diffMs / 1000 / 60;
+        }
+        return sum;
+      }, 0);
+      const previousAvg = previousTotalMinutes / previousPeriodApproved.length;
+      if (previousAvg > 0) {
+        avgTimeChangePercent = Math.round(
+          ((avgTimeToApprovalMinutes - previousAvg) / previousAvg) * 100
+        );
+      }
+    }
+
+    return {
+      pending: pendingCount,
+      approved: approvedCount,
+      rejected: rejectedCount,
+      expired: expiredCount,
+      avgTimeToApprovalMinutes,
+      avgTimeChangePercent,
+    };
+  }
 }

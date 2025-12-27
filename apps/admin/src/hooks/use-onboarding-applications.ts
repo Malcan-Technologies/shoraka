@@ -30,14 +30,14 @@ export function useInvalidateOnboardingApplications() {
   };
 }
 
-export function useRequestRedoOnboarding() {
+export function useRestartOnboarding() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (onboardingId: string) => {
-      const response = await apiClient.requestRedoOnboarding(onboardingId);
+      const response = await apiClient.restartOnboarding(onboardingId);
       if (!response.success) {
         throw new Error(response.error.message);
       }

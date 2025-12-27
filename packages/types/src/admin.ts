@@ -151,6 +151,15 @@ export interface OrganizationStats {
   issuer: PortalOrganizationStats;
 }
 
+export interface OnboardingOperationsMetrics {
+  pending: number;
+  approved: number;
+  rejected: number;
+  expired: number;
+  avgTimeToApprovalMinutes: number | null;
+  avgTimeChangePercent: number | null;
+}
+
 export interface DashboardStatsResponse {
   users: {
     total: UserStatsWithTrend;
@@ -159,6 +168,7 @@ export interface DashboardStatsResponse {
   };
   signupTrends: SignupTrendItem[];
   organizations: OrganizationStats;
+  onboardingOperations?: OnboardingOperationsMetrics;
 }
 
 // Admin Management Types
@@ -390,6 +400,7 @@ export interface OnboardingApplicationResponse {
   regtankRequestId: string | null;
   regtankStatus: string | null;
   regtankSubstatus: string | null;
+  regtankPortalUrl: string | null;
   status: OnboardingApprovalStatus;
   ssmVerified: boolean;
   ssmVerifiedAt: string | null;
