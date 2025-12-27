@@ -1567,14 +1567,16 @@ export class AdminRepository {
 
   /**
    * Get onboarding operations metrics for the dashboard
-   * Counts onboarding applications by status and calculates average approval time
+   * Uses investor_organizations and issuer_organizations tables as source of truth
    * 
-   * Categories:
-   * - inProgress: User is still completing RegTank onboarding (PENDING, IN_PROGRESS, URL_GENERATED)
-   * - pending: User completed RegTank, waiting for admin approval (LIVENESS_PASSED, WAIT_FOR_APPROVAL, PENDING_APPROVAL)
-   * - approved: Admin approved
-   * - rejected: Admin rejected
-   * - expired: Link expired before completion
+   * Categories (based on organization onboarding_status):
+   * - inProgress: PENDING or IN_PROGRESS (user still completing onboarding)
+   * - pending: PENDING_APPROVAL or PENDING_AML (waiting for admin action)
+   * - approved: COMPLETED (onboarding fully complete, has onboarded_at date)
+   * - rejected: Count from regtank_onboarding (not tracked at org level)
+   * - expired: Count from regtank_onboarding (not tracked at org level)
+   * 
+   * Average time to approval: created_at to onboarded_at
    */
   async getOnboardingOperationsMetrics(): Promise<{
     inProgress: number;
@@ -1585,78 +1587,149 @@ export class AdminRepository {
     avgTimeToApprovalMinutes: number | null;
     avgTimeChangePercent: number | null;
   }> {
-    // Count applications by status from regtank_onboarding table
-    const [inProgressCount, pendingCount, approvedCount, rejectedCount, expiredCount] = await Promise.all([
-      // In Progress: User is still completing RegTank onboarding
-      prisma.regTankOnboarding.count({
+    // Count organizations by onboarding_status from both investor and issuer tables
+    const [
+      investorInProgress,
+      investorPending,
+      investorApproved,
+      issuerInProgress,
+      issuerPending,
+      issuerApproved,
+      rejectedCount,
+      expiredCount,
+    ] = await Promise.all([
+      // Investor: In Progress (PENDING or IN_PROGRESS)
+      prisma.investorOrganization.count({
         where: {
-          status: {
-            in: ["PENDING", "IN_PROGRESS", "URL_GENERATED"],
+          onboarding_status: {
+            in: [OnboardingStatus.PENDING, OnboardingStatus.IN_PROGRESS],
           },
         },
       }),
-      // Pending: User completed RegTank, waiting for admin approval
-      prisma.regTankOnboarding.count({
+      // Investor: Pending admin action (PENDING_APPROVAL or PENDING_AML)
+      prisma.investorOrganization.count({
         where: {
-          status: {
-            in: ["LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL"],
+          onboarding_status: {
+            in: [OnboardingStatus.PENDING_APPROVAL, OnboardingStatus.PENDING_AML],
           },
         },
       }),
-      prisma.regTankOnboarding.count({
-        where: { status: "APPROVED" },
+      // Investor: Approved/Completed
+      prisma.investorOrganization.count({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+        },
       }),
+      // Issuer: In Progress (PENDING or IN_PROGRESS)
+      prisma.issuerOrganization.count({
+        where: {
+          onboarding_status: {
+            in: [OnboardingStatus.PENDING, OnboardingStatus.IN_PROGRESS],
+          },
+        },
+      }),
+      // Issuer: Pending admin action (PENDING_APPROVAL or PENDING_AML)
+      prisma.issuerOrganization.count({
+        where: {
+          onboarding_status: {
+            in: [OnboardingStatus.PENDING_APPROVAL, OnboardingStatus.PENDING_AML],
+          },
+        },
+      }),
+      // Issuer: Approved/Completed
+      prisma.issuerOrganization.count({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+        },
+      }),
+      // Rejected: Only tracked in regtank_onboarding
       prisma.regTankOnboarding.count({
         where: { status: "REJECTED" },
       }),
+      // Expired: Only tracked in regtank_onboarding
       prisma.regTankOnboarding.count({
         where: { status: "EXPIRED" },
       }),
     ]);
 
-    // Calculate average time to approval for completed applications
-    // Time is measured from when onboarding record was created (created_at) 
-    // until admin approves (completed_at)
+    // Combine counts from both portals
+    const inProgressCount = investorInProgress + issuerInProgress;
+    const pendingCount = investorPending + issuerPending;
+    const approvedCount = investorApproved + issuerApproved;
+
+    // Calculate average time to approval for completed organizations
+    // Time is measured from created_at to onboarded_at
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-    // Get approved applications from current period (last 30 days)
-    const currentPeriodApproved = await prisma.regTankOnboarding.findMany({
-      where: {
-        status: "APPROVED",
-        completed_at: { gte: thirtyDaysAgo },
-      },
-      select: {
-        created_at: true,
-        completed_at: true,
-      },
-    });
-
-    // Get approved applications from previous period (30-60 days ago)
-    const previousPeriodApproved = await prisma.regTankOnboarding.findMany({
-      where: {
-        status: "APPROVED",
-        completed_at: {
-          gte: sixtyDaysAgo,
-          lt: thirtyDaysAgo,
+    // Get completed organizations from current period (last 30 days)
+    const [currentInvestorApproved, currentIssuerApproved] = await Promise.all([
+      prisma.investorOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          onboarded_at: { gte: thirtyDaysAgo },
         },
-      },
-      select: {
-        created_at: true,
-        completed_at: true,
-      },
-    });
+        select: {
+          created_at: true,
+          onboarded_at: true,
+        },
+      }),
+      prisma.issuerOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          onboarded_at: { gte: thirtyDaysAgo },
+        },
+        select: {
+          created_at: true,
+          onboarded_at: true,
+        },
+      }),
+    ]);
+
+    const currentPeriodApproved = [...currentInvestorApproved, ...currentIssuerApproved];
+
+    // Get completed organizations from previous period (30-60 days ago)
+    const [previousInvestorApproved, previousIssuerApproved] = await Promise.all([
+      prisma.investorOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          onboarded_at: {
+            gte: sixtyDaysAgo,
+            lt: thirtyDaysAgo,
+          },
+        },
+        select: {
+          created_at: true,
+          onboarded_at: true,
+        },
+      }),
+      prisma.issuerOrganization.findMany({
+        where: {
+          onboarding_status: OnboardingStatus.COMPLETED,
+          onboarded_at: {
+            gte: sixtyDaysAgo,
+            lt: thirtyDaysAgo,
+          },
+        },
+        select: {
+          created_at: true,
+          onboarded_at: true,
+        },
+      }),
+    ]);
+
+    const previousPeriodApproved = [...previousInvestorApproved, ...previousIssuerApproved];
 
     // Calculate average approval time for current period
-    // Time from created_at to completed_at (admin approves)
+    // Time from created_at to onboarded_at
     let avgTimeToApprovalMinutes: number | null = null;
     if (currentPeriodApproved.length > 0) {
-      const totalMinutes = currentPeriodApproved.reduce((sum, app) => {
-        if (app.completed_at) {
-          const diffMs = app.completed_at.getTime() - app.created_at.getTime();
+      const totalMinutes = currentPeriodApproved.reduce((sum, org) => {
+        if (org.onboarded_at) {
+          const diffMs = org.onboarded_at.getTime() - org.created_at.getTime();
           return sum + diffMs / 1000 / 60; // Convert to minutes
         }
         return sum;
@@ -1667,9 +1740,9 @@ export class AdminRepository {
     // Calculate average approval time for previous period
     let avgTimeChangePercent: number | null = null;
     if (previousPeriodApproved.length > 0 && avgTimeToApprovalMinutes !== null) {
-      const previousTotalMinutes = previousPeriodApproved.reduce((sum, app) => {
-        if (app.completed_at) {
-          const diffMs = app.completed_at.getTime() - app.created_at.getTime();
+      const previousTotalMinutes = previousPeriodApproved.reduce((sum, org) => {
+        if (org.onboarded_at) {
+          const diffMs = org.onboarded_at.getTime() - org.created_at.getTime();
           return sum + diffMs / 1000 / 60;
         }
         return sum;
