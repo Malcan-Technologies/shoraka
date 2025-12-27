@@ -815,10 +815,11 @@ export class RegTankService {
   ): Promise<void> {
     try {
       const userProfile = regtankDetails.userProfile || {};
-      const formContent = regtankDetails.formContent || {};
+      // formContent is nested inside userProfile, not at root level
+      const formContent = userProfile.formContent || {};
       const displayAreas = formContent.displayAreas || [];
       
-      // Extract basic user information with proper null handling
+      // Extract basic user information from userProfile only (not ocrResults)
       const firstName = this.normalizeValue(userProfile.firstName);
       const lastName = this.normalizeValue(userProfile.lastName);
       const middleName = this.normalizeValue(userProfile.middleName);
@@ -829,10 +830,10 @@ export class RegTankService {
       const address = this.normalizeValue(userProfile.address);
       const dateOfBirth = this.parseDate(userProfile.dateOfBirth);
       const documentType = this.normalizeValue(userProfile.documentType);
-      const documentNumber = this.normalizeValue(
-        userProfile.documentNum || userProfile.governmentIdNumber
-      );
+      // Use documentNum from userProfile (not ocrResults)
+      const documentNumber = this.normalizeValue(userProfile.documentNum || userProfile.governmentIdNumber);
       const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
+      // kycId is at root level, not in userProfile
       const kycId = this.normalizeValue(regtankDetails.kycId);
       
       // Extract display areas - store entire displayArea object as JSON
@@ -840,16 +841,31 @@ export class RegTankService {
       let wealthDeclaration = null;
       let complianceDeclaration = null;
       
+      logger.debug(
+        {
+          organizationId,
+          hasFormContent: !!formContent,
+          displayAreasCount: displayAreas.length,
+          displayAreaNames: displayAreas.map((a: any) => a.displayArea),
+          userProfileKeys: Object.keys(userProfile),
+        },
+        "Extracting display areas from RegTank response"
+      );
+      
       for (const area of displayAreas) {
-        if (area.displayArea === "Bank Account Details") {
+        const areaName = area?.displayArea;
+        if (areaName === "Bank Account Details") {
           // Store the entire displayArea object (includes displayArea name and content array)
           bankAccountDetails = area || null;
-        } else if (area.displayArea === "Wealth Declaration") {
+          logger.debug({ organizationId, found: "Bank Account Details" }, "Found Bank Account Details display area");
+        } else if (areaName === "Wealth Declaration") {
           // Store the entire displayArea object
           wealthDeclaration = area || null;
-        } else if (area.displayArea === "Compliance Declarations") {
+          logger.debug({ organizationId, found: "Wealth Declaration" }, "Found Wealth Declaration display area");
+        } else if (areaName === "Compliance Declarations") {
           // Store the entire displayArea object
           complianceDeclaration = area || null;
+          logger.debug({ organizationId, found: "Compliance Declarations" }, "Found Compliance Declarations display area");
         }
       }
       
@@ -861,55 +877,127 @@ export class RegTankService {
         ? regtankDetails.livenessCheckInfo
         : null;
       
+      // Log extracted values for debugging
+      logger.debug(
+        {
+          organizationId,
+          extracted: {
+            firstName,
+            lastName,
+            middleName,
+            nationality,
+            country,
+            idIssuingCountry,
+            gender,
+            address,
+            dateOfBirth: dateOfBirth ? dateOfBirth.toISOString() : null,
+            documentType,
+            documentNumber,
+            phoneNumber,
+            kycId,
+            hasBankAccountDetails: !!bankAccountDetails,
+            hasWealthDeclaration: !!wealthDeclaration,
+            hasComplianceDeclaration: !!complianceDeclaration,
+            hasDocumentInfo: !!documentInfo,
+            hasLivenessCheckInfo: !!livenessCheckInfo,
+          },
+        },
+        "Extracted values before database update"
+      );
+      
       // Update organization based on portal type
+      const updateData = {
+        first_name: firstName,
+        last_name: lastName,
+        middle_name: middleName,
+        nationality,
+        country,
+        id_issuing_country: idIssuingCountry,
+        gender,
+        address,
+        date_of_birth: dateOfBirth,
+        document_type: documentType,
+        document_number: documentNumber,
+        phone_number: phoneNumber,
+        kyc_id: kycId,
+        bank_account_details: bankAccountDetails,
+        wealth_declaration: wealthDeclaration,
+        compliance_declaration: complianceDeclaration,
+        document_info: documentInfo,
+        liveness_check_info: livenessCheckInfo,
+      };
+      
+      logger.info(
+        {
+          organizationId,
+          portalType,
+          updateDataKeys: Object.keys(updateData),
+          updateDataValues: {
+            firstName: updateData.first_name,
+            lastName: updateData.last_name,
+            kycId: updateData.kyc_id,
+            hasBankAccount: !!updateData.bank_account_details,
+            hasWealth: !!updateData.wealth_declaration,
+            hasCompliance: !!updateData.compliance_declaration,
+            hasDocumentInfo: !!updateData.document_info,
+            hasLivenessInfo: !!updateData.liveness_check_info,
+          },
+        },
+        "Updating organization with extracted RegTank data"
+      );
+      
       if (portalType === "investor") {
-        await prisma.investorOrganization.update({
+        // Verify organization exists before updating
+        const orgExists = await prisma.investorOrganization.findUnique({
           where: { id: organizationId },
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            middle_name: middleName,
-            nationality,
-            country,
-            id_issuing_country: idIssuingCountry,
-            gender,
-            address,
-            date_of_birth: dateOfBirth,
-            document_type: documentType,
-            document_number: documentNumber,
-            phone_number: phoneNumber,
-            kyc_id: kycId,
-            bank_account_details: bankAccountDetails,
-            wealth_declaration: wealthDeclaration,
-            compliance_declaration: complianceDeclaration,
-            document_info: documentInfo,
-            liveness_check_info: livenessCheckInfo,
-          },
+          select: { id: true },
         });
+        
+        if (!orgExists) {
+          throw new Error(`Investor organization ${organizationId} not found`);
+        }
+        
+        const updated = await prisma.investorOrganization.update({
+          where: { id: organizationId },
+          data: updateData,
+        });
+        
+        logger.info(
+          {
+            organizationId,
+            updatedFields: Object.keys(updateData).filter(key => updateData[key as keyof typeof updateData] !== null),
+            hasFirstName: !!updated.first_name,
+            hasLastName: !!updated.last_name,
+            hasKycId: !!updated.kyc_id,
+          },
+          "Successfully updated investor organization with RegTank data"
+        );
       } else {
-        await prisma.issuerOrganization.update({
+        // Verify organization exists before updating
+        const orgExists = await prisma.issuerOrganization.findUnique({
           where: { id: organizationId },
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            middle_name: middleName,
-            nationality,
-            country,
-            id_issuing_country: idIssuingCountry,
-            gender,
-            address,
-            date_of_birth: dateOfBirth,
-            document_type: documentType,
-            document_number: documentNumber,
-            phone_number: phoneNumber,
-            kyc_id: kycId,
-            bank_account_details: bankAccountDetails,
-            wealth_declaration: wealthDeclaration,
-            compliance_declaration: complianceDeclaration,
-            document_info: documentInfo,
-            liveness_check_info: livenessCheckInfo,
-          },
+          select: { id: true },
         });
+        
+        if (!orgExists) {
+          throw new Error(`Issuer organization ${organizationId} not found`);
+        }
+        
+        const updated = await prisma.issuerOrganization.update({
+          where: { id: organizationId },
+          data: updateData,
+        });
+        
+        logger.info(
+          {
+            organizationId,
+            updatedFields: Object.keys(updateData).filter(key => updateData[key as keyof typeof updateData] !== null),
+            hasFirstName: !!updated.first_name,
+            hasLastName: !!updated.last_name,
+            hasKycId: !!updated.kyc_id,
+          },
+          "Successfully updated issuer organization with RegTank data"
+        );
       }
       
       logger.info(
