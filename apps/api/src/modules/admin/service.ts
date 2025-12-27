@@ -1597,13 +1597,20 @@ export class AdminService {
     _portalType: string,
     orgOnboardingStatus: string
   ): OnboardingApprovalStatus {
-    // Check for final states first
+    // Check for final states first (these are specific to the regtank_onboarding record)
     if (regtankStatus === "REJECTED") {
       return "REJECTED";
     }
 
     if (regtankStatus === "EXPIRED") {
       return "EXPIRED";
+    }
+
+    // CANCELLED must be checked before organization status because cancelled records
+    // still point to the same organization which may have a different status from
+    // a new/restarted onboarding flow
+    if (regtankStatus === "CANCELLED") {
+      return "CANCELLED";
     }
 
     // Check organization onboarding status
@@ -1646,11 +1653,6 @@ export class AdminService {
     // If RegTank shows APPROVED but org status is not COMPLETED yet, it's pending AML
     if (regtankStatus === "APPROVED" && orgOnboardingStatus !== "COMPLETED") {
       return "PENDING_AML";
-    }
-
-    // Check for cancelled status (admin-initiated restart)
-    if (regtankStatus === "CANCELLED") {
-      return "CANCELLED";
     }
 
     // Default to pending onboarding for unknown statuses
