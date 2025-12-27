@@ -101,9 +101,136 @@ function shortenUrl(url: string): string {
   }
 }
 
+// Type for form field data from RegTank
+interface FormField {
+  fieldName: string;
+  fieldType: string;
+  fieldValue: string | boolean | string[] | null;
+  alias?: string;
+  cn?: boolean;
+}
+
+interface FormData {
+  content?: FormField[];
+  displayArea?: string;
+}
+
+// Check if data is a form data structure (has content array with fieldName/fieldValue)
+function isFormData(data: unknown): data is FormData {
+  if (typeof data !== "object" || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return Array.isArray(obj.content) && obj.content.length > 0 && 
+    obj.content.every((item: unknown) => 
+      typeof item === "object" && item !== null && "fieldName" in item
+    );
+}
+
+// Render form field value based on type
+function renderFormFieldValue(field: FormField): React.ReactNode {
+  const { fieldValue, fieldType } = field;
+  
+  if (fieldValue === null || fieldValue === undefined || fieldValue === "") {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  if (fieldType === "checkbox" && typeof fieldValue === "boolean") {
+    return fieldValue ? (
+      <span className="text-green-600 font-medium">✓ Yes</span>
+    ) : (
+      <span className="text-muted-foreground">No</span>
+    );
+  }
+  
+  if (fieldType === "multi-checkbox" && Array.isArray(fieldValue)) {
+    return (
+      <div className="flex flex-wrap gap-1.5 mt-1">
+        {fieldValue.map((item, idx) => (
+          <Badge key={idx} variant="secondary" className="text-xs">
+            {item}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+  
+  if (typeof fieldValue === "string" && isUrl(fieldValue)) {
+    return (
+      <a
+        href={fieldValue}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-primary hover:underline"
+      >
+        <LinkIcon className="h-3 w-3" />
+        <span className="truncate max-w-[200px]">{shortenUrl(fieldValue)}</span>
+        <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0" />
+      </a>
+    );
+  }
+  
+  return <span className="font-medium">{String(fieldValue)}</span>;
+}
+
+// Display form data with proper formatting
+function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNode }) {
+  const fields = data.content || [];
+  
+  // Filter out empty header-only fields and group by sections
+  const visibleFields = fields.filter(field => {
+    // Keep headers that have meaningful content (not just whitespace)
+    if (field.fieldType === "header") {
+      return field.fieldName.trim().length > 0;
+    }
+    return true;
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">{label}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {visibleFields.map((field, idx) => {
+          // Render headers as section dividers
+          if (field.fieldType === "header") {
+            const isSection = field.fieldName.endsWith(":") || field.fieldName.includes("Declaration");
+            return (
+              <div
+                key={idx}
+                className={
+                  isSection
+                    ? "text-xs font-semibold text-foreground pt-3 pb-1 border-t first:border-0 first:pt-0"
+                    : "text-xs text-muted-foreground pl-2"
+                }
+              >
+                {field.fieldName}
+              </div>
+            );
+          }
+          
+          // Use alias if available for cleaner display
+          const displayName = field.alias || field.fieldName;
+          
+          return (
+            <div key={idx} className="flex flex-col py-1.5 border-b last:border-0">
+              <div className="text-xs text-muted-foreground">{displayName}</div>
+              <div className="text-sm">{renderFormFieldValue(field)}</div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; label: React.ReactNode }) {
   if (!data || Object.keys(data).length === 0) {
     return null;
+  }
+
+  // Check if this is form data (from RegTank forms)
+  if (isFormData(data)) {
+    return <FormDataDisplay data={data} label={label} />;
   }
 
   const renderValue = (value: unknown): React.ReactNode => {
