@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
 import { OrganizationsTableRow } from "./organizations-table-row";
+import { OrganizationDetailDialog } from "./organization-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import type { OrganizationResponse } from "@cashsouk/types";
+import type { OrganizationResponse, PortalType } from "@cashsouk/types";
 
 interface OrganizationsTableProps {
   organizations: OrganizationResponse[];
@@ -51,6 +52,9 @@ function TableSkeleton() {
           <TableCell>
             <Skeleton className="h-5 w-24" />
           </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-16" />
+          </TableCell>
         </TableRow>
       ))}
     </>
@@ -69,6 +73,16 @@ export function OrganizationsTable({
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalOrganizations);
 
+  // State for detail dialog
+  const [selectedOrg, setSelectedOrg] = React.useState<{
+    portal: PortalType;
+    id: string;
+  } | null>(null);
+
+  const handleViewDetails = (org: OrganizationResponse) => {
+    setSelectedOrg({ portal: org.portal, id: org.id });
+  };
+
   return (
     <>
       <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
@@ -84,6 +98,7 @@ export function OrganizationsTable({
                 <TableHead className="text-sm font-semibold">Members</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
                 <TableHead className="text-sm font-semibold">Updated</TableHead>
+                <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -91,13 +106,17 @@ export function OrganizationsTable({
                 <TableSkeleton />
               ) : organizations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     No organizations found
                   </TableCell>
                 </TableRow>
               ) : (
                 organizations.map((org) => (
-                  <OrganizationsTableRow key={`${org.portal}-${org.id}`} organization={org} />
+                  <OrganizationsTableRow
+                    key={`${org.portal}-${org.id}`}
+                    organization={org}
+                    onViewDetails={handleViewDetails}
+                  />
                 ))
               )}
             </TableBody>
@@ -133,6 +152,16 @@ export function OrganizationsTable({
           </div>
         )}
       </div>
+
+      {/* Organization Detail Dialog */}
+      <OrganizationDetailDialog
+        portal={selectedOrg?.portal ?? null}
+        organizationId={selectedOrg?.id ?? null}
+        open={selectedOrg !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedOrg(null);
+        }}
+      />
     </>
   );
 }

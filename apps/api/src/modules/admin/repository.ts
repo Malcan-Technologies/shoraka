@@ -1466,6 +1466,93 @@ export class AdminRepository {
   }
 
   /**
+   * Get a single organization by portal type and ID with full details
+   */
+  async getOrganizationById(
+    portal: "investor" | "issuer",
+    id: string
+  ): Promise<{
+    id: string;
+    type: OrganizationType;
+    name: string | null;
+    registration_number: string | null;
+    onboarding_status: OnboardingStatus;
+    onboarded_at: Date | null;
+    created_at: Date;
+    updated_at: Date;
+    // RegTank extracted data
+    first_name: string | null;
+    last_name: string | null;
+    middle_name: string | null;
+    nationality: string | null;
+    country: string | null;
+    id_issuing_country: string | null;
+    gender: string | null;
+    address: string | null;
+    date_of_birth: Date | null;
+    phone_number: string | null;
+    document_type: string | null;
+    document_number: string | null;
+    kyc_id: string | null;
+    bank_account_details: unknown;
+    wealth_declaration: unknown;
+    compliance_declaration: unknown;
+    document_info: unknown;
+    liveness_check_info: unknown;
+    owner: {
+      user_id: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+    };
+    members: {
+      id: string;
+      user_id: string;
+      role: string;
+      created_at: Date;
+      user: {
+        first_name: string;
+        last_name: string;
+        email: string;
+      };
+    }[];
+  } | null> {
+    const include = {
+      owner: {
+        select: {
+          user_id: true,
+          email: true,
+          first_name: true,
+          last_name: true,
+        },
+      },
+      members: {
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    };
+
+    if (portal === "investor") {
+      return prisma.investorOrganization.findUnique({
+        where: { id },
+        include,
+      });
+    } else {
+      return prisma.issuerOrganization.findUnique({
+        where: { id },
+        include,
+      });
+    }
+  }
+
+  /**
    * Get onboarding operations metrics for the dashboard
    * Counts onboarding applications by status and calculates average approval time
    * 

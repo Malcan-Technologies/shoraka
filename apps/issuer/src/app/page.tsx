@@ -11,7 +11,7 @@ import { Separator } from "../components/ui/separator";
 function IssuerDashboardContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const { activeOrganization, isLoading: isOrgLoading, isOnboarded, organizations } = useOrganization();
+  const { activeOrganization, isLoading: isOrgLoading, isOnboarded, isPendingApproval, organizations } = useOrganization();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const hasRedirected = useRef(false);
 
@@ -24,6 +24,7 @@ function IssuerDashboardContent() {
       organizationsCount: organizations.length,
       hasActiveOrg: !!activeOrganization,
       isOnboarded,
+      isPendingApproval,
       checkingOnboarding,
     });
 
@@ -46,8 +47,16 @@ function IssuerDashboardContent() {
         return;
       }
       
-      // If active organization exists but not onboarded, redirect to onboarding
-      if (activeOrganization && !isOnboarded) {
+      // If active organization is pending approval, show dashboard with limited access
+      if (activeOrganization && isPendingApproval) {
+        console.log("[IssuerDashboard] Active org pending approval - showing dashboard with limited access");
+        setCheckingOnboarding(false);
+        hasRedirected.current = false;
+        return;
+      }
+      
+      // If active organization exists but not onboarded (and not pending approval), redirect to onboarding
+      if (activeOrganization && !isOnboarded && !isPendingApproval) {
         console.log("[IssuerDashboard] Active org not onboarded - redirecting to onboarding");
         if (!hasRedirected.current) {
           hasRedirected.current = true;
@@ -58,12 +67,15 @@ function IssuerDashboardContent() {
       
       // No active organization but has organizations
       // This can happen when state is still settling or there's a mismatch
-      // Check if any organization is onboarded and show dashboard if so
+      // Check if any organization is onboarded or pending approval and show dashboard if so
       if (!activeOrganization && organizations.length > 0) {
         const anyOnboarded = organizations.some(org => org.onboardingStatus === "COMPLETED");
-        console.log("[IssuerDashboard] No active org, but has organizations. Any onboarded:", anyOnboarded);
-        if (anyOnboarded) {
-          // There's an onboarded org but no active one selected yet
+        const anyPendingApproval = organizations.some(org => 
+          org.onboardingStatus === "PENDING_APPROVAL" || org.onboardingStatus === "PENDING_AML"
+        );
+        console.log("[IssuerDashboard] No active org, but has organizations. Any onboarded:", anyOnboarded, "Any pending:", anyPendingApproval);
+        if (anyOnboarded || anyPendingApproval) {
+          // There's an onboarded or pending approval org but no active one selected yet
           // The context should auto-select one, but if it doesn't after a short delay,
           // stop checking to prevent infinite loop and show dashboard anyway
           const timeoutId = setTimeout(() => {
@@ -73,7 +85,7 @@ function IssuerDashboardContent() {
           }, 1500);
           return () => clearTimeout(timeoutId);
         } else {
-          // No onboarded orgs, redirect to onboarding
+          // No onboarded or pending approval orgs, redirect to onboarding
           console.log("[IssuerDashboard] No onboarded orgs - redirecting to onboarding");
           if (!hasRedirected.current) {
             hasRedirected.current = true;
@@ -91,7 +103,7 @@ function IssuerDashboardContent() {
       console.log("[IssuerDashboard] Not authenticated - stopping check");
       setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, organizations, router]);
+  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, isPendingApproval, organizations, router]);
 
   // Safety timeout: If we've been checking for more than 3 seconds, stop checking
   useEffect(() => {
@@ -134,8 +146,9 @@ function IssuerDashboardContent() {
 
   const orgName = getOrgDisplayName();
   
-  // Check if organization is in PENDING_APPROVAL or REJECTED status
-  const isPendingApproval = activeOrganization?.onboardingStatus === "PENDING_APPROVAL" || 
+  // Check if organization is in PENDING_APPROVAL, PENDING_AML, or REJECTED status
+  const isPendingApprovalStatus = activeOrganization?.onboardingStatus === "PENDING_APPROVAL" || 
+    activeOrganization?.onboardingStatus === "PENDING_AML" ||
     activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
   const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
 
@@ -147,15 +160,15 @@ function IssuerDashboardContent() {
         <h1 className="text-lg font-semibold">Dashboard</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
-        {/* Overlay for PENDING_APPROVAL or REJECTED status */}
-        {(isPendingApproval || isRejected) && (
+        {/* Overlay for PENDING_APPROVAL, PENDING_AML, or REJECTED status */}
+        {(isPendingApprovalStatus || isRejected) && (
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="bg-card rounded-lg p-8 max-w-md mx-4 text-center border shadow-lg">
               <h2 className="text-2xl font-bold mb-4">
-                {isPendingApproval ? "Waiting for Approval" : "Account Rejected"}
+                {isPendingApprovalStatus ? "Waiting for Approval" : "Account Rejected"}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {isPendingApproval 
+                {isPendingApprovalStatus 
                   ? "Waiting for admin to approve. Your onboarding application is currently under review. You will be notified once the approval process is complete."
                   : "Your onboarding application has been rejected. Please contact support for more information."}
               </p>
@@ -166,7 +179,7 @@ function IssuerDashboardContent() {
           </div>
         )}
         
-        <div className={`space-y-8 p-2 md:p-4 ${(isPendingApproval || isRejected) ? "pointer-events-none opacity-50" : ""}`}>
+        <div className={`space-y-8 p-2 md:p-4 ${(isPendingApprovalStatus || isRejected) ? "pointer-events-none opacity-50" : ""}`}>
           {/* Welcome Section */}
           <section>
             <h2 className="text-2xl font-bold mb-2">Welcome back{orgName ? `, ${orgName}` : ""}!</h2>

@@ -351,6 +351,66 @@ router.get(
 
 /**
  * @swagger
+ * /v1/admin/organizations/{portal}/{id}:
+ *   get:
+ *     summary: Get organization details by portal type and ID (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: portal
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [investor, issuer]
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Organization details
+ *       404:
+ *         description: Organization not found
+ */
+router.get(
+  "/organizations/:portal/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+
+      const result = await adminService.getOrganizationDetail(portal, id);
+
+      if (!result) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+          ? new AppError(400, "VALIDATION_ERROR", error.message)
+          : error
+      );
+    }
+  }
+);
+
+/**
+ * @swagger
  * /v1/admin/access-logs:
  *   get:
  *     summary: List access logs with pagination and filters (admin only)

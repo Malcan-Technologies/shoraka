@@ -1356,6 +1356,108 @@ export class AdminService {
   }
 
   /**
+   * Get organization detail by portal and ID
+   */
+  async getOrganizationDetail(
+    portal: "investor" | "issuer",
+    id: string
+  ): Promise<{
+    id: string;
+    portal: "investor" | "issuer";
+    type: "PERSONAL" | "COMPANY";
+    name: string | null;
+    registrationNumber: string | null;
+    onboardingStatus: string;
+    onboardedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    owner: {
+      userId: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+    };
+    firstName: string | null;
+    lastName: string | null;
+    middleName: string | null;
+    nationality: string | null;
+    country: string | null;
+    idIssuingCountry: string | null;
+    gender: string | null;
+    address: string | null;
+    dateOfBirth: string | null;
+    phoneNumber: string | null;
+    documentType: string | null;
+    documentNumber: string | null;
+    kycId: string | null;
+    bankAccountDetails: Record<string, unknown> | null;
+    wealthDeclaration: Record<string, unknown> | null;
+    complianceDeclaration: Record<string, unknown> | null;
+    documentInfo: Record<string, unknown> | null;
+    livenessCheckInfo: Record<string, unknown> | null;
+    members: {
+      id: string;
+      userId: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: string;
+      createdAt: string;
+    }[];
+  } | null> {
+    const org = await this.repository.getOrganizationById(portal, id);
+
+    if (!org) {
+      return null;
+    }
+
+    return {
+      id: org.id,
+      portal,
+      type: org.type as "PERSONAL" | "COMPANY",
+      name: org.name,
+      registrationNumber: org.registration_number,
+      onboardingStatus: org.onboarding_status,
+      onboardedAt: org.onboarded_at?.toISOString() ?? null,
+      createdAt: org.created_at.toISOString(),
+      updatedAt: org.updated_at.toISOString(),
+      owner: {
+        userId: org.owner.user_id,
+        email: org.owner.email,
+        firstName: org.owner.first_name,
+        lastName: org.owner.last_name,
+      },
+      firstName: org.first_name,
+      lastName: org.last_name,
+      middleName: org.middle_name,
+      nationality: org.nationality,
+      country: org.country,
+      idIssuingCountry: org.id_issuing_country,
+      gender: org.gender,
+      address: org.address,
+      dateOfBirth: org.date_of_birth?.toISOString() ?? null,
+      phoneNumber: org.phone_number,
+      documentType: org.document_type,
+      documentNumber: org.document_number,
+      kycId: org.kyc_id,
+      bankAccountDetails: org.bank_account_details as Record<string, unknown> | null,
+      wealthDeclaration: org.wealth_declaration as Record<string, unknown> | null,
+      complianceDeclaration: org.compliance_declaration as Record<string, unknown> | null,
+      documentInfo: org.document_info as Record<string, unknown> | null,
+      livenessCheckInfo: org.liveness_check_info as Record<string, unknown> | null,
+      members: org.members.map((m) => ({
+        id: m.id,
+        userId: m.user_id,
+        firstName: m.user.first_name,
+        lastName: m.user.last_name,
+        email: m.user.email,
+        role: m.role,
+        createdAt: m.created_at.toISOString(),
+      })),
+    };
+  }
+
+  /**
    * List onboarding applications for admin approval queue
    * Combines data from regtank_onboarding with investor/issuer organizations
    * Maps RegTank statuses to admin-friendly approval statuses

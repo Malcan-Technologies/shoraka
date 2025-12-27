@@ -377,6 +377,59 @@ export interface OrganizationsResponse {
   pagination: PaginationResponse;
 }
 
+// Organization Detail Types (for View More modal)
+export interface OrganizationMemberDetail {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: "OWNER" | "DIRECTOR" | "MEMBER";
+  createdAt: string;
+}
+
+export interface OrganizationDetailResponse {
+  id: string;
+  portal: PortalType;
+  type: OrganizationTypeEnum;
+  name: string | null;
+  registrationNumber: string | null;
+  onboardingStatus: OnboardingStatusEnum;
+  onboardedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  // Owner info
+  owner: OrganizationOwner;
+
+  // RegTank extracted personal data
+  firstName: string | null;
+  lastName: string | null;
+  middleName: string | null;
+  nationality: string | null;
+  country: string | null;
+  idIssuingCountry: string | null;
+  gender: string | null;
+  address: string | null;
+  dateOfBirth: string | null;
+  phoneNumber: string | null;
+
+  // Document info
+  documentType: string | null;
+  documentNumber: string | null;
+  kycId: string | null;
+
+  // JSON fields (form content)
+  bankAccountDetails: Record<string, unknown> | null;
+  wealthDeclaration: Record<string, unknown> | null;
+  complianceDeclaration: Record<string, unknown> | null;
+  documentInfo: Record<string, unknown> | null;
+  livenessCheckInfo: Record<string, unknown> | null;
+
+  // Members
+  members: OrganizationMemberDetail[];
+}
+
 // Onboarding Applications Types (Admin Approval Queue)
 export type OnboardingApprovalStatus =
   | "PENDING_SSM_REVIEW"

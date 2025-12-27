@@ -1,6 +1,7 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
 import type { OrganizationResponse } from "@cashsouk/types";
 import {
@@ -9,14 +10,16 @@ import {
   CheckCircleIcon,
   ClockIcon,
   UsersIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
+  onViewDetails?: (organization: OrganizationResponse) => void;
 }
 
-export function OrganizationsTableRow({ organization }: OrganizationsTableRowProps) {
+export function OrganizationsTableRow({ organization, onViewDetails }: OrganizationsTableRowProps) {
   const displayName =
     organization.type === "COMPANY"
       ? organization.name || "Unnamed Company"
@@ -119,6 +122,19 @@ export function OrganizationsTableRow({ organization }: OrganizationsTableRowPro
       {/* Updated */}
       <TableCell className="text-sm text-muted-foreground">
         {formatDistanceToNow(new Date(organization.updatedAt), { addSuffix: true })}
+      </TableCell>
+
+      {/* Actions */}
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onViewDetails?.(organization)}
+          className="h-8 px-2"
+        >
+          <EyeIcon className="h-4 w-4 mr-1" />
+          View
+        </Button>
       </TableCell>
     </TableRow>
   );

@@ -28,6 +28,7 @@ import type {
   GetPendingInvitationsParams,
   PendingInvitationsResponse,
   GetOrganizationsParams,
+  OrganizationDetailResponse,
   OrganizationsResponse,
   GetOnboardingApplicationsParams,
   OnboardingApplicationsResponse,
@@ -234,6 +235,13 @@ export class ApiClient {
     if (params.onboardingStatus) queryParams.append("onboardingStatus", params.onboardingStatus);
 
     return this.get<OrganizationsResponse>(`/v1/admin/organizations?${queryParams.toString()}`);
+  }
+
+  async getOrganizationDetail(
+    portal: "investor" | "issuer",
+    id: string
+  ): Promise<ApiResponse<OrganizationDetailResponse> | ApiError> {
+    return this.get<OrganizationDetailResponse>(`/v1/admin/organizations/${portal}/${id}`);
   }
 
   // Admin - Onboarding Applications (Approval Queue)

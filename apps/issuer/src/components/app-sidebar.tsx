@@ -27,10 +27,12 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const { isOnboarded, organizations } = useOrganization();
+  const { isOnboarded, isPendingApproval, organizations } = useOrganization();
   const isOnboardingPage = pathname === "/onboarding-start";
-  // Disable navigation if on onboarding page OR if active org is not onboarded
-  const isDisabled = isOnboardingPage || (organizations.length > 0 && !isOnboarded);
+  // Disable navigation if on onboarding page OR if active org is not onboarded (except for pending approval)
+  const isDisabled = isOnboardingPage || (organizations.length > 0 && !isOnboarded && !isPendingApproval);
+  // For pending approval: only dashboard is enabled, other features disabled
+  const isFeaturesDisabled = isDisabled || isPendingApproval;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -119,10 +121,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                {isDisabled ? (
+                {isFeaturesDisabled ? (
                   <SidebarMenuButton
                     disabled
-                    tooltip="Complete onboarding to access"
+                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
                     className="opacity-50 cursor-not-allowed bg-muted text-muted-foreground"
                   >
                     <PlusIcon className="h-4 w-4" />
@@ -173,10 +175,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 )}
               </SidebarMenuItem>
               <SidebarMenuItem>
-                {isDisabled ? (
+                {isFeaturesDisabled ? (
                   <SidebarMenuButton
                     disabled
-                    tooltip="Complete onboarding to access"
+                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
                     className="opacity-50 cursor-not-allowed"
                   >
                     <UserCircleIcon className="h-4 w-4" />

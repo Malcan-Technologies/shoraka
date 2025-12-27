@@ -61,6 +61,7 @@ interface OrganizationContextType {
     redirectUrl?: string;
   }) => Promise<void>;
   isOnboarded: boolean;
+  isPendingApproval: boolean;
   portalType: PortalType;
 }
 
@@ -108,10 +109,19 @@ export function OrganizationProvider({
   }, [activeOrganizationId, organizations]);
 
   /**
-   * Check if the active organization is onboarded
+   * Check if the active organization is onboarded (COMPLETED status)
    */
   const isOnboarded = useMemo(() => {
     return activeOrganization?.onboardingStatus === "COMPLETED";
+  }, [activeOrganization]);
+
+  /**
+   * Check if the active organization is pending approval (awaiting admin review)
+   * These statuses should allow dashboard access but with limited features
+   */
+  const isPendingApproval = useMemo(() => {
+    const status = activeOrganization?.onboardingStatus;
+    return status === "PENDING_APPROVAL" || status === "PENDING_AML";
   }, [activeOrganization]);
 
   /**
@@ -434,6 +444,7 @@ export function OrganizationProvider({
         syncRegTankStatus,
         setOnboardingSettings,
         isOnboarded,
+        isPendingApproval,
         portalType,
       }}
     >
