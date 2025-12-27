@@ -13,15 +13,18 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
+import { AuthRepository } from "../auth/repository";
 
 export class RegTankService {
   private repository: RegTankRepository;
   private apiClient = getRegTankAPIClient();
   private organizationRepository: OrganizationRepository;
+  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.authRepository = new AuthRepository();
   }
 
   /**
@@ -148,11 +151,6 @@ export class RegTankService {
 
     // Prepare RegTank onboarding request
     const referenceId = organizationId; // Use organization ID as reference
-    // Set portal-specific redirectUrl
-    const redirectUrl =
-      portalType === "investor"
-        ? "https://investor.cashsouk.com/regtank-callback"
-        : "https://issuer.cashsouk.com/regtank-callback";
     
     // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
     // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
@@ -175,25 +173,10 @@ export class RegTankService {
       "RegTank webhook URL configured"
     );
 
-    // Set onboarding settings (redirect URL)
-    // According to RegTank docs, redirectUrl must be set via settings endpoint, not in request
+    // Set onboarding settings (no redirect URL - users navigate back manually)
     // Settings are per formId, so we need to set them once per formId
     // Note: formId is required - use investor personal form ID (investor portal only)
     const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
-    
-    // Check if redirectUrl is localhost - RegTank can't redirect to localhost!
-    if (redirectUrl.includes("localhost") || redirectUrl.includes("127.0.0.1")) {
-      logger.error(
-        {
-          redirectUrl,
-          message: "Localhost URLs are not accessible from RegTank servers. Use a public URL or ngrok for development.",
-        },
-        "Cannot use localhost for RegTank redirect URL"
-      );
-      throw new Error(
-        "Localhost URLs are not accessible from RegTank. Please use a public URL (e.g., ngrok) for development."
-      );
-    }
 
     // Check if webhookUrl is localhost
     if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
@@ -232,8 +215,8 @@ export class RegTankService {
       );
     }
 
-    // Set onboarding settings (redirect URL) - called once per formId
-    // Use portal-specific redirectUrl and required settings
+    // Set onboarding settings (no redirect URL) - called once per formId
+    // Users will navigate back manually after completing onboarding
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
@@ -241,11 +224,11 @@ export class RegTankService {
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
-        redirectUrl,
+        // redirectUrl removed - users navigate back manually
       });
       logger.info(
-        { formId, redirectUrl },
-        "RegTank onboarding settings configured successfully"
+        { formId },
+        "RegTank onboarding settings configured successfully (no redirect URL)"
       );
     } catch (error) {
       // Extract detailed error information
@@ -269,7 +252,6 @@ export class RegTankService {
         logger.warn(
           {
             formId,
-            redirectUrl,
             message: "RegTank settings not found, but continuing with onboarding request",
           },
           "RegTank settings do not exist yet, continuing with onboarding request"
@@ -280,7 +262,6 @@ export class RegTankService {
           {
             error: error instanceof Error ? error.message : String(error),
             formId,
-            redirectUrl,
             message: "Failed to set RegTank settings, but continuing with onboarding request",
           },
           "Failed to set RegTank onboarding settings (non-blocking)"
@@ -316,7 +297,6 @@ export class RegTankService {
         portalType,
         email: user.email,
         referenceId,
-        redirectUrl,
         webhookUrl,
         formId,
       },
@@ -717,6 +697,125 @@ export class RegTankService {
   }
 
   /**
+   * Extract data from RegTank API response and update organization
+   */
+  private async extractAndUpdateOrganizationData(
+    organizationId: string,
+    portalType: PortalType,
+    regtankDetails: any
+  ): Promise<void> {
+    try {
+      const userProfile = regtankDetails.userProfile || {};
+      const formContent = regtankDetails.formContent || {};
+      const displayAreas = formContent.displayAreas || [];
+      
+      // Extract basic user information
+      const firstName = userProfile.firstName || null;
+      const lastName = userProfile.lastName || null;
+      const middleName = userProfile.middleName || null;
+      const nationality = userProfile.nationality || null;
+      const country = userProfile.country || null;
+      const idIssuingCountry = userProfile.idIssuingCountry || null;
+      const gender = userProfile.gender || null;
+      const address = userProfile.address || null;
+      const dateOfBirth = userProfile.dateOfBirth ? new Date(userProfile.dateOfBirth) : null;
+      const documentType = userProfile.documentType || null;
+      const documentNumber = userProfile.documentNum || userProfile.governmentIdNumber || null;
+      const phoneNumber = userProfile.phoneNumber || null;
+      const kycId = regtankDetails.kycId || null;
+      
+      // Extract display areas
+      let bankAccountDetails = null;
+      let wealthDeclaration = null;
+      let complianceDeclaration = null;
+      
+      for (const area of displayAreas) {
+        if (area.displayArea === "Bank Account Details") {
+          bankAccountDetails = area.content || null;
+        } else if (area.displayArea === "Wealth Declaration") {
+          wealthDeclaration = area.content || null;
+        } else if (area.displayArea === "Compliance Declarations") {
+          complianceDeclaration = area.content || null;
+        }
+      }
+      
+      // Extract document info and liveness check info
+      const documentInfo = regtankDetails.documentInfo || null;
+      const livenessCheckInfo = regtankDetails.livenessCheckInfo || null;
+      
+      // Update organization based on portal type
+      if (portalType === "investor") {
+        await prisma.investorOrganization.update({
+          where: { id: organizationId },
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            middle_name: middleName,
+            nationality,
+            country,
+            id_issuing_country: idIssuingCountry,
+            gender,
+            address,
+            date_of_birth: dateOfBirth,
+            document_type: documentType,
+            document_number: documentNumber,
+            phone_number: phoneNumber,
+            kyc_id: kycId,
+            bank_account_details: bankAccountDetails,
+            wealth_declaration: wealthDeclaration,
+            compliance_declaration: complianceDeclaration,
+            document_info: documentInfo,
+            liveness_check_info: livenessCheckInfo,
+          },
+        });
+      } else {
+        await prisma.issuerOrganization.update({
+          where: { id: organizationId },
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            middle_name: middleName,
+            nationality,
+            country,
+            id_issuing_country: idIssuingCountry,
+            gender,
+            address,
+            date_of_birth: dateOfBirth,
+            document_type: documentType,
+            document_number: documentNumber,
+            phone_number: phoneNumber,
+            kyc_id: kycId,
+            bank_account_details: bankAccountDetails,
+            wealth_declaration: wealthDeclaration,
+            compliance_declaration: complianceDeclaration,
+            document_info: documentInfo,
+            liveness_check_info: livenessCheckInfo,
+          },
+        });
+      }
+      
+      logger.info(
+        {
+          organizationId,
+          portalType,
+          kycId,
+        },
+        "Extracted and updated organization data from RegTank"
+      );
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          organizationId,
+          portalType,
+        },
+        "Failed to extract and update organization data from RegTank"
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Handle webhook update from RegTank
    */
   async handleWebhookUpdate(
@@ -852,21 +951,35 @@ export class RegTankService {
       }
     }
 
-    // If approved, update organization status to COMPLETED
+    // If approved, fetch details from RegTank and update organization to PENDING_AML
     if (status === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 
-      // Update organization onboarding status
-      // Check if organization exists first to prevent errors
       try {
+        // Fetch full details from RegTank API
+        logger.info(
+          { requestId, organizationId, portalType },
+          "Fetching RegTank onboarding details after approval"
+        );
+        
+        const regtankDetails = await this.apiClient.queryOnboardingDetails(requestId);
+        
+        // Extract and update organization with RegTank data
+        await this.extractAndUpdateOrganizationData(
+          organizationId,
+          portalType,
+          regtankDetails
+        );
+        
+        // Update organization status to PENDING_AML (not COMPLETED)
         if (portalType === "investor") {
           const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (orgExists) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.COMPLETED
+              OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType }, "Updated investor organization status to COMPLETED");
+            logger.info({ organizationId, portalType }, "Updated investor organization status to PENDING_AML");
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -878,9 +991,9 @@ export class RegTankService {
           if (orgExists) {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.COMPLETED
+              OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType }, "Updated issuer organization status to COMPLETED");
+            logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML");
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -888,16 +1001,17 @@ export class RegTankService {
             );
           }
         }
-      } catch (orgError) {
+      } catch (error) {
         logger.error(
           {
-            error: orgError instanceof Error ? orgError.message : String(orgError),
+            error: error instanceof Error ? error.message : String(error),
             organizationId,
             portalType,
             requestId,
           },
-          "Failed to update organization status, continuing with user update"
+          "Failed to fetch RegTank details or update organization, continuing with webhook processing"
         );
+        // Don't throw - allow webhook to complete even if data extraction fails
       }
 
       // Update user's account array
@@ -953,6 +1067,62 @@ export class RegTankService {
           portalType,
         },
         "Organization onboarding completed via RegTank webhook"
+      );
+    }
+
+    // Create onboarding log entry for audit purposes
+    try {
+      const portalType = onboarding.portal_type as PortalType;
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      
+      // Determine event type based on status
+      let eventType = "WEBHOOK_RECEIVED";
+      if (statusUpper === "APPROVED") {
+        eventType = "WEBHOOK_APPROVED";
+      } else if (statusUpper === "REJECTED") {
+        eventType = "WEBHOOK_REJECTED";
+      } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {
+        eventType = "WEBHOOK_PENDING_APPROVAL";
+      } else if (statusUpper === "LIVENESS_PASSED") {
+        eventType = "WEBHOOK_LIVENESS_PASSED";
+      } else if (statusUpper === "FORM_FILLING" || statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED") {
+        eventType = "WEBHOOK_FORM_FILLING";
+      } else if (statusUpper === "IN_PROGRESS") {
+        eventType = "WEBHOOK_IN_PROGRESS";
+      }
+      
+      await this.authRepository.createOnboardingLog({
+        userId: onboarding.user_id,
+        role,
+        eventType,
+        portal: portalType,
+        metadata: {
+          requestId,
+          status: statusUpper,
+          substatus: substatus || null,
+          payload: payload,
+        },
+      });
+      
+      logger.debug(
+        {
+          requestId,
+          userId: onboarding.user_id,
+          role,
+          eventType,
+          portalType,
+        },
+        "Created onboarding log entry for webhook"
+      );
+    } catch (logError) {
+      // Log error but don't fail the webhook processing
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          requestId,
+          userId: onboarding.user_id,
+        },
+        "Failed to create onboarding log entry for webhook (non-blocking)"
       );
     }
 
@@ -1227,9 +1397,22 @@ export class RegTankService {
       );
     }
 
+    // Get user email for restart (required for corporate onboarding)
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { email: true },
+    });
+
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
     // Call RegTank restart API
     const regTankResponse = await this.apiClient.restartOnboarding(
-      existingOnboarding.request_id
+      existingOnboarding.request_id,
+      {
+        email: user.email, // Required for corporate onboarding restart
+      }
     );
 
     // Update onboarding record with new verifyLink

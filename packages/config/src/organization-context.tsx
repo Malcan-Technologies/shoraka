@@ -13,7 +13,7 @@ import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
 
 export type OrganizationType = "PERSONAL" | "COMPANY";
-export type OnboardingStatus = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "COMPLETED";
+export type OnboardingStatus = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
 export type OrganizationMemberRole = "OWNER" | "DIRECTOR" | "MEMBER";
 export type PortalType = "investor" | "issuer";
 
@@ -34,6 +34,8 @@ export interface Organization {
   onboardedAt: string | null;
   isOwner: boolean;
   members: OrganizationMember[];
+  regtankOnboardingStatus?: string | null;
+  regtankVerifyLink?: string | null;
   createdAt: string;
 }
 

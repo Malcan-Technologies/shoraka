@@ -17,6 +17,11 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
       last_name: string;
     };
   })[];
+  regtank_onboarding?: {
+    status: string;
+    verify_link: string | null;
+    request_id: string;
+  } | null;
 };
 
 export class OrganizationRepository {
@@ -101,7 +106,7 @@ export class OrganizationRepository {
    * Find investor organization by ID
    */
   async findInvestorOrganizationById(id: string): Promise<OrganizationWithMembers | null> {
-    return prisma.investorOrganization.findUnique({
+    const org = await prisma.investorOrganization.findUnique({
       where: { id },
       include: {
         members: {
@@ -116,15 +121,31 @@ export class OrganizationRepository {
             },
           },
         },
+        regtank_onboarding: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            verify_link: true,
+            request_id: true,
+          },
+        },
       },
     });
+    
+    if (!org) return null;
+    
+    return {
+      ...org,
+      regtank_onboarding: org.regtank_onboarding[0] || null,
+    } as OrganizationWithMembers;
   }
 
   /**
    * Find issuer organization by ID
    */
   async findIssuerOrganizationById(id: string): Promise<OrganizationWithMembers | null> {
-    return prisma.issuerOrganization.findUnique({
+    const org = await prisma.issuerOrganization.findUnique({
       where: { id },
       include: {
         members: {
@@ -139,15 +160,31 @@ export class OrganizationRepository {
             },
           },
         },
+        regtank_onboarding: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            verify_link: true,
+            request_id: true,
+          },
+        },
       },
     });
+    
+    if (!org) return null;
+    
+    return {
+      ...org,
+      regtank_onboarding: org.regtank_onboarding[0] || null,
+    } as OrganizationWithMembers;
   }
 
   /**
    * List all investor organizations for a user (as owner or member)
    */
   async listInvestorOrganizationsForUser(userId: string): Promise<OrganizationWithMembers[]> {
-    return prisma.investorOrganization.findMany({
+    const organizations = await prisma.investorOrganization.findMany({
       where: {
         OR: [
           { owner_user_id: userId },
@@ -167,16 +204,30 @@ export class OrganizationRepository {
             },
           },
         },
+        regtank_onboarding: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            verify_link: true,
+            request_id: true,
+          },
+        },
       },
       orderBy: { created_at: "asc" },
     });
+    
+    return organizations.map(org => ({
+      ...org,
+      regtank_onboarding: org.regtank_onboarding[0] || null,
+    })) as OrganizationWithMembers[];
   }
 
   /**
    * List all issuer organizations for a user (as owner or member)
    */
   async listIssuerOrganizationsForUser(userId: string): Promise<OrganizationWithMembers[]> {
-    return prisma.issuerOrganization.findMany({
+    const organizations = await prisma.issuerOrganization.findMany({
       where: {
         OR: [
           { owner_user_id: userId },
@@ -196,9 +247,23 @@ export class OrganizationRepository {
             },
           },
         },
+        regtank_onboarding: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            verify_link: true,
+            request_id: true,
+          },
+        },
       },
       orderBy: { created_at: "asc" },
     });
+    
+    return organizations.map(org => ({
+      ...org,
+      regtank_onboarding: org.regtank_onboarding[0] || null,
+    })) as OrganizationWithMembers[];
   }
 
   /**

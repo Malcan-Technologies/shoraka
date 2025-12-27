@@ -16,8 +16,10 @@ import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   EnvelopeIcon,
   UserCircleIcon,
@@ -141,14 +143,27 @@ function ProfileSkeleton() {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
+  const { activeOrganization } = useOrganization();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
+
+  // Block access if organization is in PENDING_APPROVAL or REJECTED status
+  useEffect(() => {
+    const isPendingApproval = activeOrganization?.onboardingStatus === "PENDING_APPROVAL" || 
+      activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
+    const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
+    
+    if (isPendingApproval || isRejected) {
+      router.replace("/");
+    }
+  }, [activeOrganization, router]);
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],

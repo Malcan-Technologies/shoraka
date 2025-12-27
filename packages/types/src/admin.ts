@@ -343,7 +343,7 @@ export interface PendingInvitationsResponse {
 // Organization Types
 export type PortalType = "investor" | "issuer";
 export type OrganizationTypeEnum = "PERSONAL" | "COMPANY";
-export type OnboardingStatusEnum = "PENDING" | "COMPLETED";
+export type OnboardingStatusEnum = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
 
 export interface OrganizationOwner {
   userId: string;

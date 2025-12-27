@@ -795,6 +795,32 @@ The `OnboardingApplicationResponse` includes `regtankPortalUrl` which provides a
 - `investor_organization` - Belongs to `InvestorOrganization` (optional)
 - `issuer_organization` - Belongs to `IssuerOrganization` (optional)
 
+### Organization Tables (InvestorOrganization & IssuerOrganization)
+
+Both `InvestorOrganization` and `IssuerOrganization` tables have been extended with fields to store RegTank-extracted data:
+
+**New RegTank Data Fields:**
+- `first_name`, `last_name`, `middle_name` (String?)
+- `nationality`, `country`, `id_issuing_country` (String?)
+- `gender` (String?)
+- `address` (String?)
+- `date_of_birth` (DateTime?)
+- `document_type`, `document_number` (String?)
+- `phone_number` (String?)
+- `kyc_id` (String?)
+- `bank_account_details` (Json?) - From formContent displayAreas
+- `wealth_declaration` (Json?) - From formContent displayAreas
+- `compliance_declaration` (Json?) - From formContent displayAreas
+- `document_info` (Json?) - From documentInfo
+- `liveness_check_info` (Json?) - From livenessCheckInfo
+
+**Data Extraction:**
+When an `APPROVED` webhook is received, the system:
+1. Calls `GET /v3/onboarding/indv/query?requestId={requestId}` to fetch full details
+2. Extracts data from `userProfile`, `formContent.displayAreas`, `documentInfo`, and `livenessCheckInfo`
+3. Updates the organization record with all extracted fields
+4. Sets organization status to `PENDING_AML`
+
 **Indexes:**
 - `request_id` (unique)
 - `reference_id` (unique)
@@ -809,6 +835,7 @@ enum OnboardingStatus {
   PENDING
   IN_PROGRESS
   PENDING_APPROVAL
+  PENDING_AML
   COMPLETED
 }
 ```
@@ -816,8 +843,15 @@ enum OnboardingStatus {
 **Status Flow:**
 - `PENDING` - Initial status for company accounts
 - `IN_PROGRESS` - Initial status for personal accounts (when user clicks "Yes, create Personal Account")
-- `PENDING_APPROVAL` - Set when liveness test completes (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` webhook received)
-- `COMPLETED` - Set when `APPROVED` webhook received
+- `PENDING_APPROVAL` - Set when liveness test completes (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` webhook received). Users can access dashboard with limited functionality (overlay shown).
+- `PENDING_AML` - Set when admin approves onboarding on RegTank portal and `APPROVED` webhook is received. System fetches full user details from RegTank API and extracts data to organization. Users can access everything but cannot apply for loans (future reference).
+- `COMPLETED` - Set after AML check completes (via separate process/endpoint)
+
+**Important:** Admin approval happens on RegTank portal side. When RegTank sends "APPROVED" webhook, the system automatically:
+1. Fetches full details via `GET /v3/onboarding/indv/query?requestId=`
+2. Extracts user profile and document information
+3. Updates organization with extracted data
+4. Sets organization status to `PENDING_AML` (NOT COMPLETED)
 
 ---
 
@@ -831,8 +865,8 @@ enum OnboardingStatus {
 - `REGTANK_CLIENT_ID` - OAuth client ID
 - `REGTANK_CLIENT_SECRET` - OAuth client secret
 - `REGTANK_WEBHOOK_SECRET` - HMAC secret for webhooks
-- `REGTANK_REDIRECT_URL_INVESTOR` - Investor callback URL
-- `REGTANK_REDIRECT_URL_ISSUER` - Issuer callback URL
+
+**Note:** `redirectUrl` has been removed from RegTank settings configuration. Users navigate back manually after completing onboarding on RegTank portal.
 
 **Form ID Configuration:**
 - `REGTANK_INVESTOR_PERSONAL_FORM_ID` - Form ID for personal account onboarding in investor portal (default: 1036131)
@@ -897,14 +931,20 @@ Configuration is loaded once at startup and cached. Missing required variables c
 8. RegTank sends webhook (async)
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
-       ├─> Updates database
-       ├─> Sets status to PENDING_APPROVAL when liveness completes
-       └─> Updates organization status if APPROVED
+       ├─> Creates onboarding_log entry for audit
+       ├─> Updates regtank_onboarding status
+       ├─> Sets organization status to PENDING_APPROVAL when liveness completes
+       └─> If APPROVED:
+           ├─> Fetches full details via GET /v3/onboarding/indv/query?requestId=
+           ├─> Extracts user profile and document information
+           ├─> Updates organization with extracted data (first_name, last_name, nationality, etc.)
+           └─> Sets organization status to PENDING_AML (NOT COMPLETED)
 
-9. User returns to callback page
-   ├─> Calls syncRegTankStatus() (fallback)
-   ├─> Polls for status updates
-   └─> Redirects to dashboard when complete
+9. User navigates back manually (no redirect URL)
+   ├─> Navbar shows status badge based on regtank_onboarding status
+   ├─> If in-progress status, clicking account redirects to verify_link
+   ├─> If EXPIRED, auto-restarts onboarding
+   └─> If PENDING_APPROVAL or REJECTED, dashboard shows overlay with limited access
 ```
 
 ---

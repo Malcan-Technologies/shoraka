@@ -58,6 +58,8 @@ async function listOrganizations(
             lastName: m.user.last_name,
             role: m.role,
           })),
+          regtankOnboardingStatus: org.regtank_onboarding?.status || null,
+          regtankVerifyLink: org.regtank_onboarding?.verify_link || null,
           createdAt: org.created_at,
         })),
         hasPersonalOrganization: hasPersonal,
@@ -135,6 +137,8 @@ async function getOrganization(
           lastName: m.user.last_name,
           role: m.role,
         })),
+        regtankOnboardingStatus: organization.regtank_onboarding?.status || null,
+        regtankVerifyLink: organization.regtank_onboarding?.verify_link || null,
         createdAt: organization.created_at,
       },
     });

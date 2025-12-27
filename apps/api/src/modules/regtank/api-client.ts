@@ -185,6 +185,20 @@ export class RegTankAPIClient {
   }
 
   /**
+   * Query onboarding details by requestId (for approved onboarding)
+   * Uses /v3/onboarding/indv/query endpoint to get full user profile and document information
+   */
+  async queryOnboardingDetails(
+    requestId: string
+  ): Promise<any> {
+    logger.debug({ requestId }, "Querying RegTank onboarding details");
+
+    return this.makeRequest<any>(
+      `/v3/onboarding/indv/query?requestId=${requestId}`
+    );
+  }
+
+  /**
    * Restart onboarding (get new verifyLink and new requestId)
    * 
    * According to RegTank docs: POST /v3/onboarding/indv/restart
@@ -196,12 +210,25 @@ export class RegTankAPIClient {
   async restartOnboarding(
     requestId: string,
     options?: {
+      email?: string; // Required for corporate onboarding restart
       language?: string;
       idType?: string;
       skipFormPage?: boolean;
     }
   ): Promise<RegTankOnboardingResponse> {
-    logger.info({ requestId }, "Restarting RegTank onboarding");
+    logger.info({ requestId, hasEmail: !!options?.email }, "Restarting RegTank onboarding");
+
+    const body: any = {
+      requestId,
+      language: options?.language || "EN",
+      idType: options?.idType,
+      skipFormPage: options?.skipFormPage ?? true,
+    };
+
+    // Include email if provided (required for corporate onboarding)
+    if (options?.email) {
+      body.email = options.email;
+    }
 
     return this.makeRequest<RegTankOnboardingResponse>(
       "/v3/onboarding/indv/restart",
@@ -210,12 +237,7 @@ export class RegTankAPIClient {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          requestId,
-          language: options?.language || "EN",
-          idType: options?.idType,
-          skipFormPage: options?.skipFormPage ?? true,
-        }),
+        body: JSON.stringify(body),
       }
     );
   }

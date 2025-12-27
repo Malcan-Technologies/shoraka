@@ -7,6 +7,7 @@ import { prismaDev } from "../../lib/prisma-dev";
 import { prisma } from "../../lib/prisma";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { PortalType } from "./types";
+import { AuthRepository } from "../auth/repository";
 
 /**
  * RegTank Dev Webhook Handler
@@ -484,6 +485,76 @@ export class RegTankDevWebhookHandler {
         "Organization onboarding completed via RegTank webhook (DEV database)"
       );
     }
+
+    // Create onboarding log entry for audit purposes (in production database)
+    // Note: We log to production database even for dev webhooks for unified audit trail
+    try {
+      const portalType = onboarding.portal_type as PortalType;
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      const authRepository = new AuthRepository();
+      
+      // Determine event type based on status
+      let eventType = "WEBHOOK_RECEIVED";
+      if (statusUpper === "APPROVED") {
+        eventType = "WEBHOOK_APPROVED";
+      } else if (statusUpper === "REJECTED") {
+        eventType = "WEBHOOK_REJECTED";
+      } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {
+        eventType = "WEBHOOK_PENDING_APPROVAL";
+      } else if (statusUpper === "LIVENESS_PASSED") {
+        eventType = "WEBHOOK_LIVENESS_PASSED";
+      } else if (statusUpper === "FORM_FILLING" || statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED") {
+        eventType = "WEBHOOK_FORM_FILLING";
+      } else if (statusUpper === "IN_PROGRESS") {
+        eventType = "WEBHOOK_IN_PROGRESS";
+      }
+      
+      await authRepository.createOnboardingLog({
+        userId: onboarding.user_id,
+        role,
+        eventType,
+        portal: portalType,
+        metadata: {
+          requestId,
+          status: statusUpper,
+          substatus: substatus || null,
+          payload: payload,
+          database: "dev", // Indicate this came from dev webhook handler
+        },
+      });
+      
+      logger.debug(
+        {
+          requestId,
+          userId: onboarding.user_id,
+          role,
+          eventType,
+          portalType,
+          database: "dev",
+        },
+        "Created onboarding log entry for webhook (dev handler)"
+      );
+    } catch (logError) {
+      // Log error but don't fail the webhook processing
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          requestId,
+          userId: onboarding.user_id,
+          database: "dev",
+        },
+        "Failed to create onboarding log entry for webhook (non-blocking)"
+      );
+    }
+
+    logger.info(
+      {
+        requestId,
+        status,
+        database: "dev",
+      },
+      "RegTank webhook processed successfully (DEV database)"
+    );
   }
 }
 

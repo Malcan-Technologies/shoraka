@@ -93,6 +93,11 @@ function InvestorDashboardContent() {
   };
 
   const orgName = getOrgDisplayName();
+  
+  // Check if organization is in PENDING_APPROVAL or REJECTED status
+  const isPendingApproval = activeOrganization?.onboardingStatus === "PENDING_APPROVAL" || 
+    activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
+  const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
 
   return (
     <>
@@ -101,8 +106,27 @@ function InvestorDashboardContent() {
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Dashboard</h1>
       </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="space-y-8 p-2 md:p-4">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
+        {/* Overlay for PENDING_APPROVAL or REJECTED status */}
+        {(isPendingApproval || isRejected) && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-card rounded-lg p-8 max-w-md mx-4 text-center border shadow-lg">
+              <h2 className="text-2xl font-bold mb-4">
+                {isPendingApproval ? "Waiting for Approval" : "Account Rejected"}
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                {isPendingApproval 
+                  ? "Your onboarding application is currently under review. You will be notified once the approval process is complete."
+                  : "Your onboarding application has been rejected. Please contact support for more information."}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You can switch between portals or logout, but other features are currently unavailable.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        <div className={`space-y-8 p-2 md:p-4 ${(isPendingApproval || isRejected) ? "pointer-events-none opacity-50" : ""}`}>
           {/* Welcome Section */}
           <section>
             <h2 className="text-2xl font-bold mb-2">Welcome back{orgName ? `, ${orgName}` : ""}!</h2>

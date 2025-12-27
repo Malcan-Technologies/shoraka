@@ -41,6 +41,7 @@ enum OnboardingStatus {
   PENDING
   IN_PROGRESS
   PENDING_APPROVAL
+  PENDING_AML
   COMPLETED
 }
 
@@ -254,6 +255,26 @@ model InvestorOrganization {
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
 
+  // RegTank extracted data
+  first_name          String?
+  last_name           String?
+  middle_name         String?
+  nationality         String?
+  country             String?
+  id_issuing_country String?
+  gender              String?
+  address             String?
+  date_of_birth       DateTime?
+  document_type       String?
+  document_number     String?
+  phone_number        String?
+  kyc_id              String?
+  bank_account_details Json? // From formContent displayAreas
+  wealth_declaration Json? // From formContent displayAreas
+  compliance_declaration Json? // From formContent displayAreas
+  document_info       Json? // From documentInfo
+  liveness_check_info Json? // From livenessCheckInfo
+
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
   regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
@@ -275,6 +296,26 @@ model IssuerOrganization {
   onboarded_at        DateTime?
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
+
+  // RegTank extracted data
+  first_name          String?
+  last_name           String?
+  middle_name         String?
+  nationality         String?
+  country             String?
+  id_issuing_country String?
+  gender              String?
+  address             String?
+  date_of_birth       DateTime?
+  document_type       String?
+  document_number     String?
+  phone_number        String?
+  kyc_id              String?
+  bank_account_details Json? // From formContent displayAreas
+  wealth_declaration Json? // From formContent displayAreas
+  compliance_declaration Json? // From formContent displayAreas
+  document_info       Json? // From documentInfo
+  liveness_check_info Json? // From livenessCheckInfo
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
