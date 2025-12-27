@@ -1457,9 +1457,9 @@ export class AdminService {
         createdAt: m.created_at.toISOString(),
       })),
       // Build RegTank portal URL from latest onboarding record
-      regtankRequestId: org.regtank_onboardings?.[0]?.request_id ?? null,
-      regtankPortalUrl: org.regtank_onboardings?.[0]?.request_id
-        ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboardings[0].request_id}?archived=false`
+      regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
+      regtankPortalUrl: org.regtank_onboarding?.[0]?.request_id
+        ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboarding[0].request_id}?archived=false`
         : null,
     };
   }

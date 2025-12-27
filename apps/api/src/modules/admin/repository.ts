@@ -1517,7 +1517,7 @@ export class AdminRepository {
       };
     }[];
     // Latest RegTank onboarding record (for portal link)
-    regtank_onboardings: {
+    regtank_onboarding: {
       request_id: string;
       status: string;
     }[];
@@ -1542,7 +1542,7 @@ export class AdminRepository {
           },
         },
       },
-      regtank_onboardings: {
+      regtank_onboarding: {
         select: {
           request_id: true,
           status: true,
