@@ -19,13 +19,9 @@ import { format } from "date-fns";
 import {
   UserIcon,
   BuildingOffice2Icon,
-  EnvelopeIcon,
   PhoneIcon,
-  MapPinIcon,
   IdentificationIcon,
   DocumentTextIcon,
-  GlobeAltIcon,
-  CalendarDaysIcon,
   CheckCircleIcon,
   ClockIcon,
   UsersIcon,
@@ -34,7 +30,10 @@ import {
   FaceSmileIcon,
   ArrowTopRightOnSquareIcon,
   LinkIcon,
+  ClipboardIcon,
+  ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 
 interface OrganizationDetailDialogProps {
   portal: PortalType | null;
@@ -66,6 +65,58 @@ function DetailRow({
       <div className="flex-1 min-w-0">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-sm font-medium break-words">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function CopyableField({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | null;
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  if (!value) {
+    return null;
+  }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      toast.success(`${label} copied to clipboard`);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(`Failed to copy ${label.toLowerCase()}`);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-3 py-2">
+      {Icon && (
+        <div className="flex h-5 w-5 items-center justify-center text-muted-foreground shrink-0 mt-0.5">
+          <Icon className="h-4 w-4" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <button
+          onClick={handleCopy}
+          className="inline-flex items-center gap-1.5 text-sm font-medium bg-background hover:bg-muted px-2 py-1 rounded border transition-colors cursor-pointer group mt-0.5"
+          title="Click to copy"
+        >
+          <span className="break-words text-left">{value}</span>
+          {copied ? (
+            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+          ) : (
+            <ClipboardIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+          )}
+        </button>
       </div>
     </div>
   );
@@ -119,20 +170,23 @@ interface FormData {
 function isFormData(data: unknown): data is FormData {
   if (typeof data !== "object" || data === null) return false;
   const obj = data as Record<string, unknown>;
-  return Array.isArray(obj.content) && obj.content.length > 0 && 
-    obj.content.every((item: unknown) => 
-      typeof item === "object" && item !== null && "fieldName" in item
-    );
+  return (
+    Array.isArray(obj.content) &&
+    obj.content.length > 0 &&
+    obj.content.every(
+      (item: unknown) => typeof item === "object" && item !== null && "fieldName" in item
+    )
+  );
 }
 
 // Render form field value based on type
 function renderFormFieldValue(field: FormField): React.ReactNode {
   const { fieldValue, fieldType } = field;
-  
+
   if (fieldValue === null || fieldValue === undefined || fieldValue === "") {
     return <span className="text-muted-foreground">-</span>;
   }
-  
+
   if (fieldType === "checkbox" && typeof fieldValue === "boolean") {
     return fieldValue ? (
       <span className="text-green-600 font-medium">✓ Yes</span>
@@ -140,7 +194,7 @@ function renderFormFieldValue(field: FormField): React.ReactNode {
       <span className="text-muted-foreground">No</span>
     );
   }
-  
+
   if (fieldType === "multi-checkbox" && Array.isArray(fieldValue)) {
     return (
       <div className="flex flex-wrap gap-1.5 mt-1">
@@ -152,7 +206,7 @@ function renderFormFieldValue(field: FormField): React.ReactNode {
       </div>
     );
   }
-  
+
   if (typeof fieldValue === "string" && isUrl(fieldValue)) {
     return (
       <a
@@ -167,16 +221,16 @@ function renderFormFieldValue(field: FormField): React.ReactNode {
       </a>
     );
   }
-  
+
   return <span className="font-medium">{String(fieldValue)}</span>;
 }
 
 // Display form data with proper formatting
 function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNode }) {
   const fields = data.content || [];
-  
+
   // Filter out empty header-only fields and group by sections
-  const visibleFields = fields.filter(field => {
+  const visibleFields = fields.filter((field) => {
     // Keep headers that have meaningful content (not just whitespace)
     if (field.fieldType === "header") {
       return field.fieldName.trim().length > 0;
@@ -193,7 +247,8 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
         {visibleFields.map((field, idx) => {
           // Render headers as section dividers
           if (field.fieldType === "header") {
-            const isSection = field.fieldName.endsWith(":") || field.fieldName.includes("Declaration");
+            const isSection =
+              field.fieldName.endsWith(":") || field.fieldName.includes("Declaration");
             return (
               <div
                 key={idx}
@@ -207,10 +262,10 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
               </div>
             );
           }
-          
+
           // Use alias if available for cleaner display
           const displayName = field.alias || field.fieldName;
-          
+
           return (
             <div key={idx} className="flex flex-col py-1.5 border-b last:border-0">
               <div className="text-xs text-muted-foreground">{displayName}</div>
@@ -223,7 +278,13 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
   );
 }
 
-function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; label: React.ReactNode }) {
+function JsonDisplay({
+  data,
+  label,
+}: {
+  data: Record<string, unknown> | null;
+  label: React.ReactNode;
+}) {
   if (!data || Object.keys(data).length === 0) {
     return null;
   }
@@ -234,7 +295,8 @@ function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; la
   }
 
   const renderValue = (value: unknown): React.ReactNode => {
-    if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>;
+    if (value === null || value === undefined)
+      return <span className="text-muted-foreground">-</span>;
     if (typeof value === "boolean") return value ? "Yes" : "No";
     // Check if string is a URL
     if (typeof value === "string" && isUrl(value)) {
@@ -269,9 +331,7 @@ function JsonDisplay({ data, label }: { data: Record<string, unknown> | null; la
       <CardContent className="space-y-2">
         {Object.entries(data).map(([key, value]) => (
           <div key={key} className="border-b last:border-0 pb-2 last:pb-0">
-            <div className="text-xs text-muted-foreground capitalize">
-              {key.replace(/_/g, " ")}
-            </div>
+            <div className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
             <div className="text-sm">{renderValue(value)}</div>
           </div>
         ))}
@@ -334,17 +394,8 @@ export function OrganizationDetailDialog({
           <DialogDescription className="flex items-center justify-between">
             <span>{org ? `Organization ID: ${org.id}` : "Loading organization details..."}</span>
             {org?.regtankPortalUrl && (
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="gap-1.5"
-              >
-                <a
-                  href={org.regtankPortalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
                   <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                   Open in RegTank
                 </a>
@@ -398,131 +449,14 @@ export function OrganizationDetailDialog({
                   <DetailRow
                     label="Onboarded At"
                     value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}
-                    icon={CalendarDaysIcon}
                   />
-                  <DetailRow
-                    label="Created"
-                    value={format(new Date(org.createdAt), "PPpp")}
-                    icon={CalendarDaysIcon}
-                  />
-                  <DetailRow
-                    label="Updated"
-                    value={format(new Date(org.updatedAt), "PPpp")}
-                    icon={CalendarDaysIcon}
-                  />
+                  <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} />
+                  <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} />
                 </div>
               </CardContent>
             </Card>
 
-            {/* Company Info (for COMPANY type) */}
-            {org.type === "COMPANY" && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <BuildingOffice2Icon className="h-4 w-4" />
-                    Company Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="Company Name" value={org.name} icon={BuildingOffice2Icon} />
-                    <DetailRow
-                      label="Registration Number (SSM)"
-                      value={org.registrationNumber}
-                      icon={IdentificationIcon}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Owner Info */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <UserIcon className="h-4 w-4" />
-                  Owner Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <DetailRow
-                    label="Name"
-                    value={`${org.owner.firstName} ${org.owner.lastName}`}
-                    icon={UserIcon}
-                  />
-                  <DetailRow label="Email" value={org.owner.email} icon={EnvelopeIcon} />
-                  <DetailRow label="User ID" value={org.owner.userId} icon={IdentificationIcon} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Personal Details (from RegTank) */}
-            {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <IdentificationIcon className="h-4 w-4" />
-                    Personal Details (KYC)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="First Name" value={org.firstName} icon={UserIcon} />
-                    <DetailRow label="Last Name" value={org.lastName} icon={UserIcon} />
-                    <DetailRow label="Middle Name" value={org.middleName} icon={UserIcon} />
-                    <DetailRow label="Gender" value={org.gender} icon={UserIcon} />
-                    <DetailRow
-                      label="Date of Birth"
-                      value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
-                      icon={CalendarDaysIcon}
-                    />
-                    <DetailRow label="Nationality" value={org.nationality} icon={GlobeAltIcon} />
-                    <DetailRow label="Country" value={org.country} icon={GlobeAltIcon} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Contact Info */}
-            {(org.phoneNumber || org.address) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <PhoneIcon className="h-4 w-4" />
-                    Contact Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-4">
-                    <DetailRow label="Phone Number" value={org.phoneNumber} icon={PhoneIcon} />
-                    <DetailRow label="Address" value={org.address} icon={MapPinIcon} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Document Info */}
-            {(org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Document Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="Document Type" value={org.documentType} icon={DocumentTextIcon} />
-                    <DetailRow label="Document Number" value={org.documentNumber} icon={IdentificationIcon} />
-                    <DetailRow label="ID Issuing Country" value={org.idIssuingCountry} icon={GlobeAltIcon} />
-                    <DetailRow label="KYC ID" value={org.kycId} icon={IdentificationIcon} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Members */}
+            {/* Members - moved to top for visibility */}
             {org.members.length > 0 && (
               <Card>
                 <CardHeader className="pb-3">
@@ -559,12 +493,94 @@ export function OrganizationDetailDialog({
               </Card>
             )}
 
+            {/* Company Info (for COMPANY type) */}
+            {org.type === "COMPANY" && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <BuildingOffice2Icon className="h-4 w-4" />
+                    Company Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Company Name" value={org.name} />
+                    <DetailRow label="Registration Number (SSM)" value={org.registrationNumber} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Personal Details (from RegTank) */}
+            {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <IdentificationIcon className="h-4 w-4" />
+                    Personal Details (KYC)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="First Name" value={org.firstName} />
+                    <DetailRow label="Last Name" value={org.lastName} />
+                    <DetailRow label="Middle Name" value={org.middleName} />
+                    <DetailRow label="Gender" value={org.gender} />
+                    <DetailRow
+                      label="Date of Birth"
+                      value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                    />
+                    <DetailRow label="Nationality" value={org.nationality} />
+                    <DetailRow label="Country" value={org.country} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Contact Info */}
+            {(org.phoneNumber || org.address) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <PhoneIcon className="h-4 w-4" />
+                    Contact Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4">
+                    <CopyableField label="Phone Number" value={org.phoneNumber} />
+                    <CopyableField label="Address" value={org.address} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Document Info */}
+            {(org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <DocumentTextIcon className="h-4 w-4" />
+                    Document Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow label="Document Type" value={org.documentType} />
+                    <DetailRow label="Document Number" value={org.documentNumber} />
+                    <DetailRow label="ID Issuing Country" value={org.idIssuingCountry} />
+                    <DetailRow label="KYC ID" value={org.kycId} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Separator />
 
             {/* JSON Data Sections */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground">Extended Data</h3>
-              
+
               <JsonDisplay
                 data={org.bankAccountDetails}
                 label={
@@ -621,4 +637,3 @@ export function OrganizationDetailDialog({
     </Dialog>
   );
 }
-
