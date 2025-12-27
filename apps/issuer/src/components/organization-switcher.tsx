@@ -78,15 +78,7 @@ function OnboardingStatusBadge({
     );
   }
   
-  if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-purple-700`}>
-        <ClockIcon className={iconSize} />
-        Pending Approval
-      </span>
-    );
-  }
-  
+  // Check REJECTED and EXPIRED first (these take priority over PENDING_APPROVAL)
   if (regtankStatus === "REJECTED") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-red-700`}>
@@ -101,6 +93,15 @@ function OnboardingStatusBadge({
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-orange-700`}>
         <ClockIcon className={iconSize} />
         Expired
+      </span>
+    );
+  }
+  
+  if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-purple-700`}>
+        <ClockIcon className={iconSize} />
+        Pending Approval
       </span>
     );
   }
@@ -255,7 +256,7 @@ export function OrganizationSwitcher() {
     );
   }
 
-  // On onboarding page - show simplified view
+  // On onboarding page - show simplified view with active organization badge
   if (isOnboardingPage) {
     return (
       <SidebarMenu>
@@ -267,16 +268,30 @@ export function OrganizationSwitcher() {
                 data-testid="organization-switcher"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
               >
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Plus className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  {activeOrganization ? (
+                    getOrgIcon()
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
                 </div>
                 <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate text-sm font-semibold text-foreground">
-                    Adding New Account
+                    {activeOrganization
+                      ? getOrgDisplayName(activeOrganization)
+                      : "Adding New Account"}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    Complete onboarding
-                  </span>
+                  {activeOrganization ? (
+                    <OnboardingStatusBadge 
+                      status={activeOrganization.onboardingStatus} 
+                      regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
+                      size="sm" 
+                    />
+                  ) : (
+                    <span className="truncate text-xs text-muted-foreground">
+                      Complete onboarding
+                    </span>
+                  )}
                 </div>
                 <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
               </SidebarMenuButton>
@@ -323,10 +338,27 @@ export function OrganizationSwitcher() {
                 disabled
                 className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20"
               >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Plus className="size-4" />
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  {activeOrganization ? (
+                    getOrgIcon()
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
                 </div>
-                <span className="text-sm font-medium text-foreground">Adding New Account...</span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {activeOrganization
+                      ? getOrgDisplayName(activeOrganization)
+                      : "Adding New Account..."}
+                  </div>
+                  {activeOrganization && (
+                    <OnboardingStatusBadge 
+                      status={activeOrganization.onboardingStatus} 
+                      regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
+                      size="sm" 
+                    />
+                  )}
+                </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

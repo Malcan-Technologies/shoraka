@@ -169,6 +169,21 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         referenceId: onboarding.reference_id,
       } as any);
     }
+
+    // If rejected, log it (organization status remains PENDING_APPROVAL but regtank_onboarding.status is REJECTED)
+    // The frontend badge will prioritize regtankStatus over organization onboarding_status
+    if (statusUpper === "REJECTED" && organizationId) {
+      logger.info(
+        {
+          organizationId,
+          portalType,
+          requestId,
+          status: statusUpper,
+          message: "Onboarding rejected on RegTank portal - regtank_onboarding.status updated to REJECTED",
+        },
+        "RegTank onboarding rejected - organization status remains PENDING_APPROVAL, regtank status is REJECTED"
+      );
+    }
   }
 }
 

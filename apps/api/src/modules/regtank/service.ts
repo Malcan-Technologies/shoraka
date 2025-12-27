@@ -136,6 +136,38 @@ export class RegTankService {
         },
         "Resuming existing onboarding for organization (not advanced enough)"
       );
+
+      // Ensure onboarding settings are configured before resuming
+      const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
+      const config = getRegTankConfig();
+      const redirectUrl = config.redirectUrlInvestor;
+      
+      try {
+        await this.apiClient.setOnboardingSettings({
+          formId,
+          livenessConfidence: 70,
+          approveMode: true,
+          kycApprovalTarget: "ACURIS",
+          enabledRegistrationEmail: false,
+          redirectUrl,
+        });
+        logger.info(
+          { formId, redirectUrl },
+          "RegTank onboarding settings configured successfully (resume)"
+        );
+      } catch (error) {
+        // Log but don't block - settings might already be configured
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            formId,
+            redirectUrl,
+            message: "Failed to set RegTank settings during resume, but continuing",
+          },
+          "Failed to set RegTank onboarding settings during resume (non-blocking)"
+        );
+      }
+
         return {
           verifyLink: existingOnboarding.verify_link,
           requestId: existingOnboarding.request_id,
@@ -494,6 +526,49 @@ export class RegTankService {
       ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)
     ) {
       if (existingOnboarding.verify_link) {
+        // Ensure onboarding settings are configured before resuming
+        const config = getRegTankConfig();
+        const redirectUrl = portalType === "investor" 
+          ? config.redirectUrlInvestor 
+          : config.redirectUrlIssuer;
+        
+        // Get formId based on portal type
+        let formIdToUse = formId;
+        if (!formIdToUse) {
+          if (portalType === "investor") {
+            formIdToUse = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
+          } else {
+            formIdToUse = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
+          }
+        }
+
+        try {
+          await this.apiClient.setOnboardingSettings({
+            formId: formIdToUse,
+            livenessConfidence: 90,
+            approveMode: true,
+            kycApprovalTarget: "ACURIS",
+            enabledRegistrationEmail: false,
+            redirectUrl,
+          });
+          logger.info(
+            { formId: formIdToUse, redirectUrl, portalType },
+            "RegTank onboarding settings configured successfully (corporate resume)"
+          );
+        } catch (error) {
+          // Log but don't block - settings might already be configured
+          logger.warn(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              formId: formIdToUse,
+              redirectUrl,
+              portalType,
+              message: "Failed to set RegTank settings during corporate resume, but continuing",
+            },
+            "Failed to set RegTank onboarding settings during corporate resume (non-blocking)"
+          );
+        }
+
         return {
           verifyLink: existingOnboarding.verify_link,
           requestId: existingOnboarding.request_id,
@@ -534,7 +609,7 @@ export class RegTankService {
     try {
       await this.apiClient.setOnboardingSettings({
         formId: formIdToUse,
-        livenessConfidence: 90,
+        livenessConfidence: 70,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
@@ -1406,6 +1481,55 @@ export class RegTankService {
 
     if (!user) {
       throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    // Determine formId and redirectUrl based on organization type and portal
+    const config = getRegTankConfig();
+    let formId: number;
+    let redirectUrl: string;
+
+    if (organization.type === OrganizationType.PERSONAL) {
+      // Personal onboarding
+      formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
+      redirectUrl = config.redirectUrlInvestor;
+    } else {
+      // Corporate onboarding
+      if (portalType === "investor") {
+        formId = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
+        redirectUrl = config.redirectUrlInvestor;
+      } else {
+        formId = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
+        redirectUrl = config.redirectUrlIssuer;
+      }
+    }
+
+    // Ensure onboarding settings are configured before restarting
+    try {
+      await this.apiClient.setOnboardingSettings({
+        formId,
+        livenessConfidence: organization.type === OrganizationType.PERSONAL ? 70 : 90,
+        approveMode: true,
+        kycApprovalTarget: "ACURIS",
+        enabledRegistrationEmail: false,
+        redirectUrl,
+      });
+      logger.info(
+        { formId, redirectUrl, organizationType: organization.type, portalType },
+        "RegTank onboarding settings configured successfully (retry)"
+      );
+    } catch (error) {
+      // Log but don't block - settings might already be configured
+      logger.warn(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          formId,
+          redirectUrl,
+          organizationType: organization.type,
+          portalType,
+          message: "Failed to set RegTank settings during retry, but continuing",
+        },
+        "Failed to set RegTank onboarding settings during retry (non-blocking)"
+      );
     }
 
     // Call RegTank restart API
