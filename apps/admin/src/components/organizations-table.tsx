@@ -15,6 +15,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { OrganizationResponse, PortalType } from "@cashsouk/types";
 
 interface OrganizationsTableProps {
+  portal: PortalType;
   organizations: OrganizationResponse[];
   loading: boolean;
   currentPage: number;
@@ -23,16 +24,13 @@ interface OrganizationsTableProps {
   onPageChange: (page: number) => void;
 }
 
-function TableSkeleton() {
+function TableSkeleton({ portal }: { portal: PortalType }) {
   return (
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
           <TableCell>
             <Skeleton className="h-5 w-40" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-16" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-20" />
@@ -43,6 +41,11 @@ function TableSkeleton() {
           <TableCell>
             <Skeleton className="h-5 w-20" />
           </TableCell>
+          {portal === "investor" && (
+            <TableCell>
+              <Skeleton className="h-5 w-16" />
+            </TableCell>
+          )}
           <TableCell>
             <Skeleton className="h-5 w-10" />
           </TableCell>
@@ -62,6 +65,7 @@ function TableSkeleton() {
 }
 
 export function OrganizationsTable({
+  portal,
   organizations,
   loading,
   currentPage,
@@ -72,6 +76,9 @@ export function OrganizationsTable({
   const totalPages = Math.ceil(totalOrganizations / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalOrganizations);
+
+  // Investor: 9 columns (no portal), Issuer: 8 columns (no portal, no sophisticated)
+  const columnCount = portal === "investor" ? 9 : 8;
 
   // State for detail dialog
   const [selectedOrg, setSelectedOrg] = React.useState<{
@@ -91,10 +98,12 @@ export function OrganizationsTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Organization</TableHead>
-                <TableHead className="text-sm font-semibold">Portal</TableHead>
                 <TableHead className="text-sm font-semibold">Type</TableHead>
                 <TableHead className="text-sm font-semibold">Owner</TableHead>
                 <TableHead className="text-sm font-semibold">Onboarding</TableHead>
+                {portal === "investor" && (
+                  <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
+                )}
                 <TableHead className="text-sm font-semibold">Members</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
                 <TableHead className="text-sm font-semibold">Updated</TableHead>
@@ -103,10 +112,10 @@ export function OrganizationsTable({
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeleton />
+                <TableSkeleton portal={portal} />
               ) : organizations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
                     No organizations found
                   </TableCell>
                 </TableRow>
@@ -115,6 +124,7 @@ export function OrganizationsTable({
                   <OrganizationsTableRow
                     key={`${org.portal}-${org.id}`}
                     organization={org}
+                    showSophisticated={portal === "investor"}
                     onViewDetails={handleViewDetails}
                   />
                 ))

@@ -1310,7 +1310,7 @@ export class AdminService {
     search?: string;
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
-    onboardingStatus?: "PENDING" | "COMPLETED";
+    onboardingStatus?: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1318,7 +1318,12 @@ export class AdminService {
       type: "PERSONAL" | "COMPANY";
       name: string | null;
       registrationNumber: string | null;
-      onboardingStatus: "PENDING" | "COMPLETED";
+      onboardingStatus:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "PENDING_AML"
+        | "COMPLETED";
       onboardedAt: string | null;
       owner: {
         userId: string;
@@ -1404,6 +1409,7 @@ export class AdminService {
       role: string;
       createdAt: string;
     }[];
+    isSophisticatedInvestor: boolean;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
   } | null> {
@@ -1456,12 +1462,68 @@ export class AdminService {
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
+      // Sophisticated investor status (only for investor portal, false for issuer)
+      isSophisticatedInvestor:
+        portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       regtankPortalUrl: org.regtank_onboarding?.[0]?.request_id
         ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboarding[0].request_id}?archived=false`
         : null,
     };
+  }
+
+  /**
+   * Update sophisticated investor status for an investor organization
+   * Only applicable for investor portal organizations
+   */
+  async updateSophisticatedStatus(
+    organizationId: string,
+    isSophisticatedInvestor: boolean,
+    adminUserId?: string
+  ): Promise<{ success: boolean }> {
+    const org = await prisma.investorOrganization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, owner_user_id: true, is_sophisticated_investor: true },
+    });
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Investor organization not found");
+    }
+
+    await prisma.investorOrganization.update({
+      where: { id: organizationId },
+      data: { is_sophisticated_investor: isSophisticatedInvestor },
+    });
+
+    // Log the sophisticated status update event
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: org.owner_user_id,
+        role: UserRole.INVESTOR,
+        event_type: "SOPHISTICATED_STATUS_UPDATED",
+        portal: "investor",
+        metadata: {
+          organizationId,
+          previousStatus: org.is_sophisticated_investor,
+          newStatus: isSophisticatedInvestor,
+          updatedBy: adminUserId || "admin",
+          action: isSophisticatedInvestor ? "granted" : "revoked",
+        },
+      },
+    });
+
+    logger.info(
+      {
+        organizationId,
+        previousStatus: org.is_sophisticated_investor,
+        newStatus: isSophisticatedInvestor,
+        updatedBy: adminUserId,
+      },
+      "Updated sophisticated investor status"
+    );
+
+    return { success: true };
   }
 
   /**

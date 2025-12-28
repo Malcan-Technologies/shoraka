@@ -13,7 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
-import { useOrganizationDetail } from "@/hooks/use-organization-detail";
+import { Switch } from "@/components/ui/switch";
+import {
+  useOrganizationDetail,
+  useUpdateSophisticatedStatus,
+} from "@/hooks/use-organization-detail";
 import type { PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
@@ -179,9 +183,53 @@ function isFormData(data: unknown): data is FormData {
   );
 }
 
+// Fields that should be copyable (by fieldName pattern)
+const COPYABLE_FIELD_PATTERNS = [
+  /bank.*account.*number/i,
+  /account.*number/i,
+  /phone/i,
+  /mobile/i,
+  /email/i,
+];
+
+function isCopyableField(fieldName: string): boolean {
+  return COPYABLE_FIELD_PATTERNS.some((pattern) => pattern.test(fieldName));
+}
+
+// Copyable value component for form fields
+function CopyableFormValue({ value, fieldName }: { value: string; fieldName: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      toast.success(`${fieldName} copied to clipboard`);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(`Failed to copy`);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1.5 font-medium bg-background hover:bg-muted px-2 py-1 rounded border transition-colors cursor-pointer group"
+      title="Click to copy"
+    >
+      <span>{value}</span>
+      {copied ? (
+        <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+      ) : (
+        <ClipboardIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+      )}
+    </button>
+  );
+}
+
 // Render form field value based on type
-function renderFormFieldValue(field: FormField): React.ReactNode {
-  const { fieldValue, fieldType } = field;
+function FormFieldValue({ field }: { field: FormField }): React.ReactNode {
+  const { fieldValue, fieldType, fieldName } = field;
 
   if (fieldValue === null || fieldValue === undefined || fieldValue === "") {
     return <span className="text-muted-foreground">-</span>;
@@ -220,6 +268,11 @@ function renderFormFieldValue(field: FormField): React.ReactNode {
         <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0" />
       </a>
     );
+  }
+
+  // Check if this field should be copyable
+  if (typeof fieldValue === "string" && isCopyableField(fieldName)) {
+    return <CopyableFormValue value={fieldValue} fieldName={field.alias || fieldName} />;
   }
 
   return <span className="font-medium">{String(fieldValue)}</span>;
@@ -269,7 +322,9 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
           return (
             <div key={idx} className="flex flex-col py-1.5 border-b last:border-0">
               <div className="text-xs text-muted-foreground">{displayName}</div>
-              <div className="text-sm">{renderFormFieldValue(field)}</div>
+              <div className="text-sm">
+                <FormFieldValue field={field} />
+              </div>
             </div>
           );
         })}
@@ -347,6 +402,25 @@ export function OrganizationDetailDialog({
   onOpenChange,
 }: OrganizationDetailDialogProps) {
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
+  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
+
+  const handleSophisticatedToggle = (checked: boolean) => {
+    if (!organizationId) return;
+
+    updateSophisticatedMutation.mutate(
+      { organizationId, isSophisticatedInvestor: checked },
+      {
+        onSuccess: () => {
+          toast.success(
+            checked ? "Marked as sophisticated investor" : "Removed sophisticated investor status"
+          );
+        },
+        onError: (error) => {
+          toast.error(`Failed to update status: ${error.message}`);
+        },
+      }
+    );
+  };
 
   const displayName = React.useMemo(() => {
     if (!org) return "";
@@ -446,6 +520,31 @@ export function OrganizationDetailDialog({
                       )}
                     </div>
                   </div>
+                  {/* Sophisticated Investor Status - only for investor portal */}
+                  {portal === "investor" && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Sophisticated Investor
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={org.isSophisticatedInvestor}
+                          onCheckedChange={handleSophisticatedToggle}
+                          disabled={updateSophisticatedMutation.isPending}
+                        />
+                        {org.isSophisticatedInvestor ? (
+                          <Badge className="bg-violet-500 text-white">
+                            <CheckCircleIcon className="h-3 w-3 mr-1" />
+                            Yes
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            No
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <DetailRow
                     label="Onboarded At"
                     value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}

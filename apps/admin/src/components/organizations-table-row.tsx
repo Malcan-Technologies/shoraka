@@ -11,15 +11,21 @@ import {
   ClockIcon,
   UsersIcon,
   EyeIcon,
+  StarIcon,
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
+  showSophisticated?: boolean;
   onViewDetails?: (organization: OrganizationResponse) => void;
 }
 
-export function OrganizationsTableRow({ organization, onViewDetails }: OrganizationsTableRowProps) {
+export function OrganizationsTableRow({
+  organization,
+  showSophisticated = false,
+  onViewDetails,
+}: OrganizationsTableRowProps) {
   const displayName =
     organization.type === "COMPANY"
       ? organization.name || "Unnamed Company"
@@ -53,26 +59,19 @@ export function OrganizationsTableRow({ organization, onViewDetails }: Organizat
         </div>
       </TableCell>
 
-      {/* Portal */}
-      <TableCell>
-        <Badge
-          variant="outline"
-          className={cn(
-            "capitalize",
-            organization.portal === "investor"
-              ? "border-primary/30 text-primary"
-              : "border-accent/30 text-accent"
-          )}
-        >
-          {organization.portal}
-        </Badge>
-      </TableCell>
-
       {/* Type */}
       <TableCell>
-        <Badge variant="secondary" className="capitalize">
-          {organization.type.toLowerCase()}
-        </Badge>
+        {organization.type === "COMPANY" ? (
+          <Badge variant="outline" className="border-blue-500/30 text-blue-600 bg-blue-500/10">
+            <BuildingOffice2Icon className="h-3 w-3 mr-1" />
+            Company
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="border-slate-500/30 text-slate-600 bg-slate-500/10">
+            <UserIcon className="h-3 w-3 mr-1" />
+            Personal
+          </Badge>
+        )}
       </TableCell>
 
       {/* Owner */}
@@ -88,23 +87,37 @@ export function OrganizationsTableRow({ organization, onViewDetails }: Organizat
       {/* Onboarding Status */}
       <TableCell>
         {organization.onboardingStatus === "COMPLETED" ? (
-          <Badge
-            variant="outline"
-            className="border-green-500/30 text-green-600 bg-green-500/10"
-          >
+          <Badge variant="outline" className="border-green-500/30 text-green-600 bg-green-500/10">
             <CheckCircleIcon className="h-3 w-3 mr-1" />
             Completed
           </Badge>
         ) : (
-          <Badge
-            variant="outline"
-            className="border-amber-500/30 text-amber-600 bg-amber-500/10"
-          >
+          <Badge variant="outline" className="border-amber-500/30 text-amber-600 bg-amber-500/10">
             <ClockIcon className="h-3 w-3 mr-1" />
-            Pending
+            {organization.onboardingStatus === "PENDING" && "Not Started"}
+            {organization.onboardingStatus === "IN_PROGRESS" && "In Progress"}
+            {organization.onboardingStatus === "PENDING_APPROVAL" && "Pending Approval"}
+            {organization.onboardingStatus === "PENDING_AML" && "Pending AML"}
           </Badge>
         )}
       </TableCell>
+
+      {/* Sophisticated Investor Status (only for investor portal) */}
+      {showSophisticated && (
+        <TableCell>
+          {organization.isSophisticatedInvestor ? (
+            <Badge
+              variant="outline"
+              className="border-violet-500/30 text-violet-600 bg-violet-500/10"
+            >
+              <StarIcon className="h-3 w-3 mr-1" />
+              Yes
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">No</span>
+          )}
+        </TableCell>
+      )}
 
       {/* Members */}
       <TableCell>
@@ -139,4 +152,3 @@ export function OrganizationsTableRow({ organization, onViewDetails }: Organizat
     </TableRow>
   );
 }
-

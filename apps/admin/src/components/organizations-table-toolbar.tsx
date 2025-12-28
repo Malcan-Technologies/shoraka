@@ -21,8 +21,6 @@ import {
 interface OrganizationsTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  portalFilter: string;
-  onPortalFilterChange: (value: string) => void;
   typeFilter: string;
   onTypeFilterChange: (value: string) => void;
   onboardingStatusFilter: string;
@@ -37,8 +35,6 @@ interface OrganizationsTableToolbarProps {
 export function OrganizationsTableToolbar({
   searchQuery,
   onSearchChange,
-  portalFilter,
-  onPortalFilterChange,
   typeFilter,
   onTypeFilterChange,
   onboardingStatusFilter,
@@ -53,12 +49,10 @@ export function OrganizationsTableToolbar({
 
   const hasFilters =
     searchQuery !== "" ||
-    portalFilter !== "all" ||
     typeFilter !== "all" ||
     onboardingStatusFilter !== "all";
 
   const activeFilterCount = [
-    portalFilter !== "all",
     typeFilter !== "all",
     onboardingStatusFilter !== "all",
   ].filter(Boolean).length;
@@ -97,14 +91,6 @@ export function OrganizationsTableToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Portal</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={portalFilter} onValueChange={onPortalFilterChange}>
-            <DropdownMenuRadioItem value="all">All Portals</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="investor">Investor</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="issuer">Issuer</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
           <DropdownMenuLabel>Type</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={typeFilter} onValueChange={onTypeFilterChange}>
             <DropdownMenuRadioItem value="all">All Types</DropdownMenuRadioItem>
@@ -120,7 +106,10 @@ export function OrganizationsTableToolbar({
           >
             <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING">Pending</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PENDING">Not Started</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="IN_PROGRESS">In Progress</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PENDING_APPROVAL">Pending Approval</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

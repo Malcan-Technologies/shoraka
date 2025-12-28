@@ -275,6 +275,9 @@ model InvestorOrganization {
   document_info       Json? // From documentInfo
   liveness_check_info Json? // From livenessCheckInfo
 
+  // Sophisticated investor classification (auto-computed from RegTank data)
+  is_sophisticated_investor Boolean @default(false)
+
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
   regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")

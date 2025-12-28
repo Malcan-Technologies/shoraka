@@ -808,6 +808,82 @@ export class RegTankService {
     }
   }
 
+  /**
+   * Determine if an investor qualifies as a sophisticated investor based on RegTank form data.
+   * 
+   * Criteria (any one = true):
+   * 1. Net Asset Value >= RM 3,000,000 (from wealth_declaration)
+   * 2. Professional Qualification = "Yes" (from compliance_declaration)
+   * 3. Experience Categories = "Yes" (from compliance_declaration)
+   * 
+   * @returns true if any criteria is met, false otherwise
+   */
+  private determineSophisticatedInvestorStatus(
+    wealthDeclaration: unknown,
+    complianceDeclaration: unknown,
+    organizationType: OrganizationType
+  ): boolean {
+    // For COMPANY type, return false for now (to be implemented later)
+    if (organizationType === "COMPANY") {
+      logger.debug("COMPANY type organization, sophisticated investor check skipped");
+      return false;
+    }
+
+    let isSophisticated = false;
+
+    // Check wealth declaration for net asset value >= RM 3,000,000
+    if (wealthDeclaration && typeof wealthDeclaration === "object") {
+      const wealthData = wealthDeclaration as { content?: Array<{ fieldName: string; fieldValue: string | number | null }> };
+      if (Array.isArray(wealthData.content)) {
+        for (const field of wealthData.content) {
+          if (field.fieldName && field.fieldName.toLowerCase().includes("net asset value")) {
+            const value = field.fieldValue;
+            if (value !== null && value !== undefined) {
+              // Parse the value - could be a string like "3,000,000" or a number
+              const numericValue = typeof value === "number" 
+                ? value 
+                : parseFloat(String(value).replace(/[^0-9.-]/g, ""));
+              
+              if (!isNaN(numericValue) && numericValue >= 3000000) {
+                logger.info({ netAssetValue: numericValue }, "Sophisticated investor: Net asset value >= RM 3,000,000");
+                isSophisticated = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Check compliance declaration for Professional Qualification and Experience Categories
+    if (complianceDeclaration && typeof complianceDeclaration === "object") {
+      const complianceData = complianceDeclaration as { content?: Array<{ fieldName: string; fieldValue: boolean | string | null }> };
+      if (Array.isArray(complianceData.content)) {
+        for (const field of complianceData.content) {
+          const fieldName = field.fieldName?.toLowerCase() || "";
+          const fieldValue = field.fieldValue;
+          
+          // Check Professional Qualification
+          if (fieldName.includes("professional qualification")) {
+            if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
+              logger.info({ fieldName: field.fieldName }, "Sophisticated investor: Professional Qualification = Yes");
+              isSophisticated = true;
+            }
+          }
+          
+          // Check Experience Categories
+          if (fieldName.includes("experience categories")) {
+            if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
+              logger.info({ fieldName: field.fieldName }, "Sophisticated investor: Experience Categories = Yes");
+              isSophisticated = true;
+            }
+          }
+        }
+      }
+    }
+
+    return isSophisticated;
+  }
+
   private async extractAndUpdateOrganizationData(
     organizationId: string,
     portalType: PortalType,
@@ -980,19 +1056,38 @@ export class RegTankService {
       );
       
       if (portalType === "investor") {
-        // Verify organization exists before updating
-        const orgExists = await prisma.investorOrganization.findUnique({
+        // Verify organization exists and get type before updating
+        const org = await prisma.investorOrganization.findUnique({
           where: { id: organizationId },
-          select: { id: true },
+          select: { id: true, type: true },
         });
         
-        if (!orgExists) {
+        if (!org) {
           throw new Error(`Investor organization ${organizationId} not found`);
         }
         
+        // Determine sophisticated investor status for investor organizations
+        const isSophisticatedInvestor = this.determineSophisticatedInvestorStatus(
+          wealthDeclaration,
+          complianceDeclaration,
+          org.type
+        );
+        
+        logger.info(
+          {
+            organizationId,
+            organizationType: org.type,
+            isSophisticatedInvestor,
+          },
+          "Determined sophisticated investor status"
+        );
+        
         const updated = await prisma.investorOrganization.update({
           where: { id: organizationId },
-          data: updateData,
+          data: {
+            ...updateData,
+            is_sophisticated_investor: isSophisticatedInvestor,
+          },
         });
         
         logger.info(

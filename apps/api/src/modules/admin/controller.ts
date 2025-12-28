@@ -23,6 +23,7 @@ import {
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
   getOnboardingApplicationsQuerySchema,
+  updateSophisticatedStatusSchema,
 } from "./schemas";
 
 const router = Router();
@@ -391,6 +392,73 @@ router.get(
       if (!result) {
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+          ? new AppError(400, "VALIDATION_ERROR", error.message)
+          : error
+      );
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/organizations/investor/{id}/sophisticated-status:
+ *   patch:
+ *     summary: Update sophisticated investor status (admin only)
+ *     description: Manually update the sophisticated investor classification for an investor organization
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Investor organization ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - isSophisticatedInvestor
+ *             properties:
+ *               isSophisticatedInvestor:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Organization not found
+ */
+router.patch(
+  "/organizations/investor/:id/sophisticated-status",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = updateSophisticatedStatusSchema.parse(req.body);
+      const adminUserId = res.locals.userId as string | undefined;
+
+      const result = await adminService.updateSophisticatedStatus(
+        id,
+        validated.isSophisticatedInvestor,
+        adminUserId
+      );
 
       res.json({
         success: true,

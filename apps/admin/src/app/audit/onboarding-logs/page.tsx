@@ -36,12 +36,16 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
   "ONBOARDING_COMPLETED",
   "ONBOARDING_STATUS_UPDATED",
+  "ONBOARDING_CANCELLED",
+  "SOPHISTICATED_STATUS_UPDATED",
 ];
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "ONBOARDING_STARTED", label: "Onboarding Started" },
   { value: "ONBOARDING_COMPLETED", label: "Onboarding Completed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
+  { value: "ONBOARDING_CANCELLED", label: "Onboarding Cancelled" },
+  { value: "SOPHISTICATED_STATUS_UPDATED", label: "Sophisticated Status Updated" },
 ];
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [

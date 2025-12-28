@@ -1278,7 +1278,7 @@ export class AdminRepository {
     search?: string;
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
-    onboardingStatus?: "PENDING" | "COMPLETED";
+    onboardingStatus?: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1286,7 +1286,7 @@ export class AdminRepository {
       type: "PERSONAL" | "COMPANY";
       name: string | null;
       registrationNumber: string | null;
-      onboardingStatus: "PENDING" | "COMPLETED";
+      onboardingStatus: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
       onboardedAt: Date | null;
       owner: {
         userId: string;
@@ -1303,22 +1303,9 @@ export class AdminRepository {
     const { page, pageSize, search, portal, type, onboardingStatus } = params;
 
     // Build where clauses for both tables
-    const buildWhere = () => {
-      const where: {
-        type?: OrganizationType;
-        onboarding_status?: OnboardingStatus;
-        OR?: Array<{
-          name?: { contains: string; mode: "insensitive" };
-          registration_number?: { contains: string; mode: "insensitive" };
-          owner?: {
-            OR: Array<{
-              first_name?: { contains: string; mode: "insensitive" };
-              last_name?: { contains: string; mode: "insensitive" };
-              email?: { contains: string; mode: "insensitive" };
-            }>;
-          };
-        }>;
-      } = {};
+    // Using a generic type that works for both InvestorOrganization and IssuerOrganization
+    const buildWhere = (): Prisma.InvestorOrganizationWhereInput => {
+      const where: Prisma.InvestorOrganizationWhereInput = {};
 
       if (type) {
         where.type = type as OrganizationType;
@@ -1329,19 +1316,31 @@ export class AdminRepository {
       }
 
       if (search) {
-        where.OR = [
-          { name: { contains: search, mode: "insensitive" } },
-          { registration_number: { contains: search, mode: "insensitive" } },
-          {
-            owner: {
-              OR: [
-                { first_name: { contains: search, mode: "insensitive" } },
-                { last_name: { contains: search, mode: "insensitive" } },
-                { email: { contains: search, mode: "insensitive" } },
-              ],
-            },
-          },
-        ];
+        // Split search into words and require all words to match somewhere
+        const searchTerms = search.trim().split(/\s+/).filter(Boolean);
+        
+        if (searchTerms.length === 1) {
+          // Single word: match against any field
+          const term = searchTerms[0];
+          where.OR = [
+            { name: { contains: term, mode: "insensitive" } },
+            { registration_number: { contains: term, mode: "insensitive" } },
+            { owner: { first_name: { contains: term, mode: "insensitive" } } },
+            { owner: { last_name: { contains: term, mode: "insensitive" } } },
+            { owner: { email: { contains: term, mode: "insensitive" } } },
+          ];
+        } else {
+          // Multiple words: each word must match at least one field (AND logic)
+          where.AND = searchTerms.map((term) => ({
+            OR: [
+              { name: { contains: term, mode: "insensitive" } },
+              { registration_number: { contains: term, mode: "insensitive" } },
+              { owner: { first_name: { contains: term, mode: "insensitive" } } },
+              { owner: { last_name: { contains: term, mode: "insensitive" } } },
+              { owner: { email: { contains: term, mode: "insensitive" } } },
+            ],
+          }));
+        }
       }
 
       return where;
@@ -1370,6 +1369,7 @@ export class AdminRepository {
       registration_number: string | null;
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
+      is_sophisticated_investor: boolean;
       created_at: Date;
       updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
@@ -1402,13 +1402,15 @@ export class AdminRepository {
     }
 
     if (!portal || portal === "issuer") {
+      // Cast where to IssuerOrganizationWhereInput since the structure is identical
+      const issuerWhere = where as Prisma.IssuerOrganizationWhereInput;
       [issuerOrgs, issuerCount] = await Promise.all([
         prisma.issuerOrganization.findMany({
-          where,
+          where: issuerWhere,
           include,
           orderBy: { created_at: "desc" },
         }),
-        prisma.issuerOrganization.count({ where }),
+        prisma.issuerOrganization.count({ where: issuerWhere }),
       ]);
     }
 
@@ -1420,7 +1422,7 @@ export class AdminRepository {
         type: org.type as "PERSONAL" | "COMPANY",
         name: org.name,
         registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as "PENDING" | "COMPLETED",
+        onboardingStatus: org.onboarding_status as "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1429,6 +1431,7 @@ export class AdminRepository {
           lastName: org.owner.last_name,
         },
         memberCount: org._count.members,
+        isSophisticatedInvestor: org.is_sophisticated_investor,
         createdAt: org.created_at,
         updatedAt: org.updated_at,
       })),
@@ -1438,7 +1441,7 @@ export class AdminRepository {
         type: org.type as "PERSONAL" | "COMPANY",
         name: org.name,
         registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as "PENDING" | "COMPLETED",
+        onboardingStatus: org.onboarding_status as "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1447,6 +1450,7 @@ export class AdminRepository {
           lastName: org.owner.last_name,
         },
         memberCount: org._count.members,
+        isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
         createdAt: org.created_at,
         updatedAt: org.updated_at,
       })),
@@ -1499,6 +1503,8 @@ export class AdminRepository {
     compliance_declaration: unknown;
     document_info: unknown;
     liveness_check_info: unknown;
+    // Sophisticated investor status (only for investor portal)
+    is_sophisticated_investor?: boolean;
     owner: {
       user_id: string;
       email: string;

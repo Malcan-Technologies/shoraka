@@ -188,10 +188,17 @@ export const getOrganizationsQuerySchema = z.object({
   search: z.string().optional(),
   portal: z.enum(["investor", "issuer"]).optional(),
   type: z.enum(["PERSONAL", "COMPANY"]).optional(),
-  onboardingStatus: z.enum(["PENDING", "COMPLETED"]).optional(),
+  onboardingStatus: z.enum(["PENDING", "IN_PROGRESS", "PENDING_APPROVAL", "PENDING_AML", "COMPLETED"]).optional(),
 });
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
+
+// Update sophisticated investor status schema
+export const updateSophisticatedStatusSchema = z.object({
+  isSophisticatedInvestor: z.boolean(),
+});
+
+export type UpdateSophisticatedStatusBody = z.infer<typeof updateSophisticatedStatusSchema>;
 
 // Onboarding Applications query schema (Admin Approval Queue)
 export const onboardingApprovalStatusEnum = z.enum([

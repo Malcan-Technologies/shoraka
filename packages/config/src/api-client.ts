@@ -244,6 +244,16 @@ export class ApiClient {
     return this.get<OrganizationDetailResponse>(`/v1/admin/organizations/${portal}/${id}`);
   }
 
+  async updateSophisticatedStatus(
+    organizationId: string,
+    isSophisticatedInvestor: boolean
+  ): Promise<ApiResponse<{ success: boolean }> | ApiError> {
+    return this.patch<{ success: boolean }>(
+      `/v1/admin/organizations/investor/${organizationId}/sophisticated-status`,
+      { isSophisticatedInvestor }
+    );
+  }
+
   // Admin - Onboarding Applications (Approval Queue)
   async getOnboardingApplications(
     params: GetOnboardingApplicationsParams

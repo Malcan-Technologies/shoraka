@@ -270,7 +270,8 @@ export type OnboardingEventType =
   | "ONBOARDING_STARTED"
   | "ONBOARDING_COMPLETED"
   | "ONBOARDING_CANCELLED"
-  | "ONBOARDING_STATUS_UPDATED";
+  | "ONBOARDING_STATUS_UPDATED"
+  | "SOPHISTICATED_STATUS_UPDATED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -361,6 +362,7 @@ export interface OrganizationResponse {
   onboardedAt: string | null;
   owner: OrganizationOwner;
   memberCount: number;
+  isSophisticatedInvestor: boolean; // Only applicable for investor portal
   createdAt: string;
   updatedAt: string;
 }
@@ -428,6 +430,9 @@ export interface OrganizationDetailResponse {
 
   // Members
   members: OrganizationMemberDetail[];
+
+  // Sophisticated investor status (only for investor portal)
+  isSophisticatedInvestor: boolean;
 
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
