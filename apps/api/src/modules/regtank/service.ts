@@ -81,12 +81,8 @@ export class RegTankService {
     // Get organization
     const organization =
       portalType === "investor"
-        ? await this.organizationRepository.findInvestorOrganizationById(
-            organizationId
-          )
-        : await this.organizationRepository.findIssuerOrganizationById(
-            organizationId
-          );
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
@@ -94,20 +90,12 @@ export class RegTankService {
 
     // Verify user owns the organization
     if (organization.owner_user_id !== userId) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only the organization owner can start onboarding"
-      );
+      throw new AppError(403, "FORBIDDEN", "Only the organization owner can start onboarding");
     }
 
     // Check if organization is already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
-      throw new AppError(
-        400,
-        "ALREADY_COMPLETED",
-        "Onboarding is already completed"
-      );
+      throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
     }
 
     // Check if we should resume existing onboarding for this organization
@@ -141,7 +129,7 @@ export class RegTankService {
       const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
       const config = getRegTankConfig();
       const redirectUrl = config.redirectUrlInvestor;
-      
+
       try {
         await this.apiClient.setOnboardingSettings({
           formId,
@@ -168,34 +156,31 @@ export class RegTankService {
         );
       }
 
-        return {
-          verifyLink: existingOnboarding.verify_link,
-          requestId: existingOnboarding.request_id,
-          expiresIn: existingOnboarding.verify_link_expires_at
-            ? Math.floor(
-                (existingOnboarding.verify_link_expires_at.getTime() -
-                  Date.now()) /
-                  1000
-              )
-            : 86400,
+      return {
+        verifyLink: existingOnboarding.verify_link,
+        requestId: existingOnboarding.request_id,
+        expiresIn: existingOnboarding.verify_link_expires_at
+          ? Math.floor((existingOnboarding.verify_link_expires_at.getTime() - Date.now()) / 1000)
+          : 86400,
         organizationType: existingOnboarding.organization_type,
-        };
+      };
     }
 
     // Prepare RegTank onboarding request
     const referenceId = organizationId; // Use organization ID as reference
-    
+
     // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
     // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
     // Otherwise, use /v1/webhooks/regtank (production)
     const webhookMode = process.env.REGTANK_WEBHOOK_MODE || "prod";
-    const webhookEndpoint = webhookMode === "dev" ? "/v1/webhooks/regtank/dev" : "/v1/webhooks/regtank";
-    
-    const webhookUrl = process.env.API_URL 
+    const webhookEndpoint =
+      webhookMode === "dev" ? "/v1/webhooks/regtank/dev" : "/v1/webhooks/regtank";
+
+    const webhookUrl = process.env.API_URL
       ? `${process.env.API_URL}${webhookEndpoint}`
-      : process.env.FRONTEND_URL 
-      ? `${process.env.FRONTEND_URL}${webhookEndpoint}`
-      : `https://api.cashsouk.com${webhookEndpoint}`;
+      : process.env.FRONTEND_URL
+        ? `${process.env.FRONTEND_URL}${webhookEndpoint}`
+        : `https://api.cashsouk.com${webhookEndpoint}`;
 
     logger.info(
       {
@@ -216,7 +201,8 @@ export class RegTankService {
       logger.error(
         {
           webhookUrl,
-          message: "Localhost URLs are not accessible from RegTank servers. Use a public URL or ngrok for development.",
+          message:
+            "Localhost URLs are not accessible from RegTank servers. Use a public URL or ngrok for development.",
         },
         "Cannot use localhost for RegTank webhook URL"
       );
@@ -232,17 +218,15 @@ export class RegTankService {
         webhookUrl,
         webhookEnabled: true,
       });
-      logger.info(
-        { webhookUrl },
-        "RegTank webhook preferences configured successfully"
-      );
+      logger.info({ webhookUrl }, "RegTank webhook preferences configured successfully");
     } catch (error) {
       // Log but don't block - webhook preferences might already be set
       logger.warn(
         {
           error: error instanceof Error ? error.message : String(error),
           webhookUrl,
-          message: "Failed to set RegTank webhook preferences, but continuing with onboarding request",
+          message:
+            "Failed to set RegTank webhook preferences, but continuing with onboarding request",
         },
         "Failed to set RegTank webhook preferences (non-blocking)"
       );
@@ -252,7 +236,7 @@ export class RegTankService {
     // Redirect URL points to dashboard so users are redirected back after completing onboarding
     const config = getRegTankConfig();
     const redirectUrl = config.redirectUrlInvestor;
-    
+
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
@@ -262,10 +246,7 @@ export class RegTankService {
         enabledRegistrationEmail: false,
         redirectUrl,
       });
-      logger.info(
-        { formId, redirectUrl },
-        "RegTank onboarding settings configured successfully"
-      );
+      logger.info({ formId, redirectUrl }, "RegTank onboarding settings configured successfully");
     } catch (error) {
       // Extract detailed error information
       let errorMessage = "Failed to configure RegTank settings";
@@ -278,12 +259,12 @@ export class RegTankService {
       }
 
       // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
-      const isSettingsNotFound = 
-        error instanceof AppError && 
+      const isSettingsNotFound =
+        error instanceof AppError &&
         error.code === "REGTANK_API_ERROR" &&
-        (errorMessage.includes("SettingInfo does not exist") || 
-         errorMessage.includes("ERROR_DATA_NOT_FOUND"));
-      
+        (errorMessage.includes("SettingInfo does not exist") ||
+          errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+
       if (isSettingsNotFound) {
         logger.warn(
           {
@@ -342,9 +323,7 @@ export class RegTankService {
     // Call RegTank API
     let regTankResponse;
     try {
-      regTankResponse = await this.apiClient.createIndividualOnboarding(
-        onboardingRequest
-      );
+      regTankResponse = await this.apiClient.createIndividualOnboarding(onboardingRequest);
     } catch (error) {
       logger.error(
         {
@@ -374,9 +353,8 @@ export class RegTankService {
     // For personal accounts, organization is already IN_PROGRESS when user clicks "Yes"
     // Set reg_tank_onboarding status to IN_PROGRESS to match organization status
     // For company accounts, start with PENDING
-    const initialStatus = organization.type === OrganizationType.PERSONAL 
-      ? "IN_PROGRESS" 
-      : "PENDING";
+    const initialStatus =
+      organization.type === OrganizationType.PERSONAL ? "IN_PROGRESS" : "PENDING";
 
     // Store onboarding record
     await this.repository.createOnboarding({
@@ -394,8 +372,7 @@ export class RegTankService {
     });
 
     // Log onboarding started event
-    const { ipAddress, userAgent, deviceInfo, deviceType } =
-      extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
     await prisma.onboardingLog.create({
@@ -452,8 +429,10 @@ export class RegTankService {
     // Get formName from environment variables based on portal type
     const formName =
       portalType === "investor"
-        ? process.env.REGTANK_INVESTOR_CORPORATE_FORM_NAME || "Business End User Onboarding Example Form1"
-        : process.env.REGTANK_ISSUER_CORPORATE_FORM_NAME || "Business End User Onboarding Example Form1";
+        ? process.env.REGTANK_INVESTOR_CORPORATE_FORM_NAME ||
+          "Business End User Onboarding Example Form1"
+        : process.env.REGTANK_ISSUER_CORPORATE_FORM_NAME ||
+          "Business End User Onboarding Example Form1";
 
     logger.info(
       {
@@ -478,12 +457,8 @@ export class RegTankService {
     // Get organization
     const organization =
       portalType === "investor"
-        ? await this.organizationRepository.findInvestorOrganizationById(
-            organizationId
-          )
-        : await this.organizationRepository.findIssuerOrganizationById(
-            organizationId
-          );
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
@@ -491,20 +466,12 @@ export class RegTankService {
 
     // Verify user owns the organization
     if (organization.owner_user_id !== userId) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only the organization owner can start onboarding"
-      );
+      throw new AppError(403, "FORBIDDEN", "Only the organization owner can start onboarding");
     }
 
     // Check if organization is already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
-      throw new AppError(
-        400,
-        "ALREADY_COMPLETED",
-        "Onboarding is already completed"
-      );
+      throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
     }
 
     // Verify organization is COMPANY type
@@ -521,17 +488,13 @@ export class RegTankService {
       organizationId,
       portalType
     );
-    if (
-      existingOnboarding &&
-      ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)
-    ) {
+    if (existingOnboarding && ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)) {
       if (existingOnboarding.verify_link) {
         // Ensure onboarding settings are configured before resuming
         const config = getRegTankConfig();
-        const redirectUrl = portalType === "investor" 
-          ? config.redirectUrlInvestor 
-          : config.redirectUrlIssuer;
-        
+        const redirectUrl =
+          portalType === "investor" ? config.redirectUrlInvestor : config.redirectUrlIssuer;
+
         // Get formId based on portal type
         let formIdToUse = formId;
         if (!formIdToUse) {
@@ -573,11 +536,7 @@ export class RegTankService {
           verifyLink: existingOnboarding.verify_link,
           requestId: existingOnboarding.request_id,
           expiresIn: existingOnboarding.verify_link_expires_at
-            ? Math.floor(
-                (existingOnboarding.verify_link_expires_at.getTime() -
-                  Date.now()) /
-                  1000
-              )
+            ? Math.floor((existingOnboarding.verify_link_expires_at.getTime() - Date.now()) / 1000)
             : 86400,
           organizationType: organization.type,
         };
@@ -586,12 +545,11 @@ export class RegTankService {
 
     // Prepare RegTank corporate onboarding request
     const referenceId = organizationId; // Use organization ID as reference
-    
+
     // Get portal-specific redirectUrl from config
     const config = getRegTankConfig();
-    const redirectUrl = portalType === "investor" 
-      ? config.redirectUrlInvestor 
-      : config.redirectUrlIssuer;
+    const redirectUrl =
+      portalType === "investor" ? config.redirectUrlInvestor : config.redirectUrlIssuer;
 
     // Get formId from parameter, or use portal-specific default
     // Determine formId based on portal type if not provided in request
@@ -631,12 +589,12 @@ export class RegTankService {
       }
 
       // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
-      const isSettingsNotFound = 
-        error instanceof AppError && 
+      const isSettingsNotFound =
+        error instanceof AppError &&
         error.code === "REGTANK_API_ERROR" &&
-        (errorMessage.includes("SettingInfo does not exist") || 
-         errorMessage.includes("ERROR_DATA_NOT_FOUND"));
-      
+        (errorMessage.includes("SettingInfo does not exist") ||
+          errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+
       if (isSettingsNotFound) {
         logger.warn(
           {
@@ -685,9 +643,7 @@ export class RegTankService {
     // Call RegTank API
     let regTankResponse;
     try {
-      regTankResponse = await this.apiClient.createCorporateOnboarding(
-        onboardingRequest
-      );
+      regTankResponse = await this.apiClient.createCorporateOnboarding(onboardingRequest);
     } catch (error) {
       logger.error(
         {
@@ -733,8 +689,7 @@ export class RegTankService {
     });
 
     // Log onboarding started event
-    const { ipAddress, userAgent, deviceInfo, deviceType } =
-      extractRequestMetadata(req);
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
     await prisma.onboardingLog.create({
@@ -779,7 +734,13 @@ export class RegTankService {
    * Normalize value - convert empty strings, "null" strings, and undefined to actual null
    */
   private normalizeValue(value: any): any {
-    if (value === null || value === undefined || value === "" || value === "null" || String(value).trim() === "") {
+    if (
+      value === null ||
+      value === undefined ||
+      value === "" ||
+      value === "null" ||
+      String(value).trim() === ""
+    ) {
       return null;
     }
     return value;
@@ -810,12 +771,12 @@ export class RegTankService {
 
   /**
    * Determine if an investor qualifies as a sophisticated investor based on RegTank form data.
-   * 
+   *
    * Criteria (any one = true):
    * 1. Net Asset Value >= RM 3,000,000 (from wealth_declaration)
    * 2. Professional Qualification = "Yes" (from compliance_declaration)
    * 3. Experience Categories = "Yes" (from compliance_declaration)
-   * 
+   *
    * @returns true if any criteria is met, false otherwise
    */
   private determineSophisticatedInvestorStatus(
@@ -833,19 +794,25 @@ export class RegTankService {
 
     // Check wealth declaration for net asset value >= RM 3,000,000
     if (wealthDeclaration && typeof wealthDeclaration === "object") {
-      const wealthData = wealthDeclaration as { content?: Array<{ fieldName: string; fieldValue: string | number | null }> };
+      const wealthData = wealthDeclaration as {
+        content?: Array<{ fieldName: string; fieldValue: string | number | null }>;
+      };
       if (Array.isArray(wealthData.content)) {
         for (const field of wealthData.content) {
           if (field.fieldName && field.fieldName.toLowerCase().includes("net asset value")) {
             const value = field.fieldValue;
             if (value !== null && value !== undefined) {
               // Parse the value - could be a string like "3,000,000" or a number
-              const numericValue = typeof value === "number" 
-                ? value 
-                : parseFloat(String(value).replace(/[^0-9.-]/g, ""));
-              
+              const numericValue =
+                typeof value === "number"
+                  ? value
+                  : parseFloat(String(value).replace(/[^0-9.-]/g, ""));
+
               if (!isNaN(numericValue) && numericValue >= 3000000) {
-                logger.info({ netAssetValue: numericValue }, "Sophisticated investor: Net asset value >= RM 3,000,000");
+                logger.info(
+                  { netAssetValue: numericValue },
+                  "Sophisticated investor: Net asset value >= RM 3,000,000"
+                );
                 isSophisticated = true;
               }
             }
@@ -856,24 +823,32 @@ export class RegTankService {
 
     // Check compliance declaration for Professional Qualification and Experience Categories
     if (complianceDeclaration && typeof complianceDeclaration === "object") {
-      const complianceData = complianceDeclaration as { content?: Array<{ fieldName: string; fieldValue: boolean | string | null }> };
+      const complianceData = complianceDeclaration as {
+        content?: Array<{ fieldName: string; fieldValue: boolean | string | null }>;
+      };
       if (Array.isArray(complianceData.content)) {
         for (const field of complianceData.content) {
           const fieldName = field.fieldName?.toLowerCase() || "";
           const fieldValue = field.fieldValue;
-          
+
           // Check Professional Qualification
           if (fieldName.includes("professional qualification")) {
             if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
-              logger.info({ fieldName: field.fieldName }, "Sophisticated investor: Professional Qualification = Yes");
+              logger.info(
+                { fieldName: field.fieldName },
+                "Sophisticated investor: Professional Qualification = Yes"
+              );
               isSophisticated = true;
             }
           }
-          
+
           // Check Experience Categories
           if (fieldName.includes("experience categories")) {
             if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
-              logger.info({ fieldName: field.fieldName }, "Sophisticated investor: Experience Categories = Yes");
+              logger.info(
+                { fieldName: field.fieldName },
+                "Sophisticated investor: Experience Categories = Yes"
+              );
               isSophisticated = true;
             }
           }
@@ -895,7 +870,7 @@ export class RegTankService {
       // formContent is nested inside userProfile, not at root level
       const formContent = userProfile.formContent || {};
       const displayAreas = formContent.displayAreas || [];
-      
+
       // Extract basic user information from userProfile only (not ocrResults)
       const firstName = this.normalizeValue(userProfile.firstName);
       const lastName = this.normalizeValue(userProfile.lastName);
@@ -908,34 +883,50 @@ export class RegTankService {
       const dateOfBirth = this.parseDate(userProfile.dateOfBirth);
       const documentType = this.normalizeValue(userProfile.documentType);
       // Use documentNum from userProfile (not ocrResults)
-      const documentNumber = this.normalizeValue(userProfile.documentNum || userProfile.governmentIdNumber);
+      const documentNumber = this.normalizeValue(
+        userProfile.documentNum || userProfile.governmentIdNumber
+      );
       const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
       // kycId is at root level, not in userProfile
       // Try multiple possible locations/field names for kycId
       // Also check nested locations (userProfile, documentInfo, etc.)
       let kycId = this.normalizeValue(regtankDetails.kycId);
-      
+
       // If kycId is not found in regtankDetails, try to get it from webhook payloads (KYC webhook requestId)
       if (!kycId && requestId) {
         const onboarding = await this.repository.findByRequestId(requestId);
         if (onboarding?.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
           for (const payload of onboarding.webhook_payloads) {
-            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            if (payload && typeof payload === "object" && !Array.isArray(payload)) {
               const payloadObj = payload as Record<string, any>;
               // KYC webhooks have requestId that is the kycId (starts with "KYC")
-              if (payloadObj.requestId && typeof payloadObj.requestId === 'string' && payloadObj.requestId.startsWith('KYC')) {
+              if (
+                payloadObj.requestId &&
+                typeof payloadObj.requestId === "string" &&
+                payloadObj.requestId.startsWith("KYC")
+              ) {
                 kycId = payloadObj.requestId;
                 logger.info(
-                  { organizationId, requestId, kycId, webhookType: payloadObj.webhookType || 'unknown' },
+                  {
+                    organizationId,
+                    requestId,
+                    kycId,
+                    webhookType: payloadObj.webhookType || "unknown",
+                  },
                   "Extracted kycId from KYC webhook requestId in extractAndUpdateOrganizationData"
                 );
                 break;
               }
               // Also check if kycId field exists directly in payload
-              if (payloadObj.kycId && typeof payloadObj.kycId === 'string') {
+              if (payloadObj.kycId && typeof payloadObj.kycId === "string") {
                 kycId = payloadObj.kycId;
                 logger.info(
-                  { organizationId, requestId, kycId, webhookType: payloadObj.webhookType || 'unknown' },
+                  {
+                    organizationId,
+                    requestId,
+                    kycId,
+                    webhookType: payloadObj.webhookType || "unknown",
+                  },
                   "Extracted kycId from webhook payload in extractAndUpdateOrganizationData"
                 );
                 break;
@@ -944,12 +935,12 @@ export class RegTankService {
           }
         }
       }
-      
+
       // Extract display areas - store entire displayArea object as JSON
       let bankAccountDetails = null;
       let wealthDeclaration = null;
       let complianceDeclaration = null;
-      
+
       logger.debug(
         {
           organizationId,
@@ -960,32 +951,43 @@ export class RegTankService {
         },
         "Extracting display areas from RegTank response"
       );
-      
+
       for (const area of displayAreas) {
         const areaName = area?.displayArea;
         if (areaName === "Bank Account Details") {
           // Store the entire displayArea object (includes displayArea name and content array)
           bankAccountDetails = area || null;
-          logger.debug({ organizationId, found: "Bank Account Details" }, "Found Bank Account Details display area");
+          logger.debug(
+            { organizationId, found: "Bank Account Details" },
+            "Found Bank Account Details display area"
+          );
         } else if (areaName === "Wealth Declaration") {
           // Store the entire displayArea object
           wealthDeclaration = area || null;
-          logger.debug({ organizationId, found: "Wealth Declaration" }, "Found Wealth Declaration display area");
+          logger.debug(
+            { organizationId, found: "Wealth Declaration" },
+            "Found Wealth Declaration display area"
+          );
         } else if (areaName === "Compliance Declarations") {
           // Store the entire displayArea object
           complianceDeclaration = area || null;
-          logger.debug({ organizationId, found: "Compliance Declarations" }, "Found Compliance Declarations display area");
+          logger.debug(
+            { organizationId, found: "Compliance Declarations" },
+            "Found Compliance Declarations display area"
+          );
         }
       }
-      
+
       // Extract document info and liveness check info - ensure they're proper objects or null
-      const documentInfo = regtankDetails.documentInfo && typeof regtankDetails.documentInfo === "object" 
-        ? regtankDetails.documentInfo 
-        : null;
-      const livenessCheckInfo = regtankDetails.livenessCheckInfo && typeof regtankDetails.livenessCheckInfo === "object"
-        ? regtankDetails.livenessCheckInfo
-        : null;
-      
+      const documentInfo =
+        regtankDetails.documentInfo && typeof regtankDetails.documentInfo === "object"
+          ? regtankDetails.documentInfo
+          : null;
+      const livenessCheckInfo =
+        regtankDetails.livenessCheckInfo && typeof regtankDetails.livenessCheckInfo === "object"
+          ? regtankDetails.livenessCheckInfo
+          : null;
+
       // Log extracted values for debugging
       logger.debug(
         {
@@ -1013,7 +1015,7 @@ export class RegTankService {
         },
         "Extracted values before database update"
       );
-      
+
       // Update organization based on portal type
       const updateData = {
         first_name: firstName,
@@ -1035,7 +1037,7 @@ export class RegTankService {
         document_info: documentInfo,
         liveness_check_info: livenessCheckInfo,
       };
-      
+
       logger.info(
         {
           organizationId,
@@ -1054,25 +1056,25 @@ export class RegTankService {
         },
         "Updating organization with extracted RegTank data"
       );
-      
+
       if (portalType === "investor") {
         // Verify organization exists and get type before updating
         const org = await prisma.investorOrganization.findUnique({
           where: { id: organizationId },
           select: { id: true, type: true },
         });
-        
+
         if (!org) {
           throw new Error(`Investor organization ${organizationId} not found`);
         }
-        
+
         // Determine sophisticated investor status for investor organizations
         const isSophisticatedInvestor = this.determineSophisticatedInvestorStatus(
           wealthDeclaration,
           complianceDeclaration,
           org.type
         );
-        
+
         logger.info(
           {
             organizationId,
@@ -1081,16 +1083,21 @@ export class RegTankService {
           },
           "Determined sophisticated investor status"
         );
-        
+
         const updated = await prisma.investorOrganization.update({
           where: { id: organizationId },
-          data: updateData,
+          data: {
+            ...updateData,
+            is_sophisticated_investor: isSophisticatedInvestor,
+          },
         });
-        
+
         logger.info(
           {
             organizationId,
-            updatedFields: Object.keys(updateData).filter(key => updateData[key as keyof typeof updateData] !== null),
+            updatedFields: Object.keys(updateData).filter(
+              (key) => updateData[key as keyof typeof updateData] !== null
+            ),
             hasFirstName: !!updated.first_name,
             hasLastName: !!updated.last_name,
             hasKycId: !!updated.kyc_id,
@@ -1103,20 +1110,22 @@ export class RegTankService {
           where: { id: organizationId },
           select: { id: true },
         });
-        
+
         if (!orgExists) {
           throw new Error(`Issuer organization ${organizationId} not found`);
         }
-        
+
         const updated = await prisma.issuerOrganization.update({
           where: { id: organizationId },
           data: updateData,
         });
-        
+
         logger.info(
           {
             organizationId,
-            updatedFields: Object.keys(updateData).filter(key => updateData[key as keyof typeof updateData] !== null),
+            updatedFields: Object.keys(updateData).filter(
+              (key) => updateData[key as keyof typeof updateData] !== null
+            ),
             hasFirstName: !!updated.first_name,
             hasLastName: !!updated.last_name,
             hasKycId: !!updated.kyc_id,
@@ -1124,7 +1133,7 @@ export class RegTankService {
           "Successfully updated issuer organization with RegTank data"
         );
       }
-      
+
       logger.info(
         {
           organizationId,
@@ -1169,9 +1178,7 @@ export class RegTankService {
   /**
    * Handle webhook update from RegTank
    */
-  async handleWebhookUpdate(
-    payload: RegTankWebhookPayload
-  ): Promise<void> {
+  async handleWebhookUpdate(payload: RegTankWebhookPayload): Promise<void> {
     const { requestId, status, substatus } = payload;
 
     logger.info(
@@ -1187,10 +1194,7 @@ export class RegTankService {
     let onboarding = await this.repository.findByRequestId(requestId);
 
     if (!onboarding) {
-      logger.warn(
-        { requestId },
-        "Webhook received for unknown requestId"
-      );
+      logger.warn({ requestId }, "Webhook received for unknown requestId");
       throw new AppError(
         404,
         "ONBOARDING_NOT_FOUND",
@@ -1203,15 +1207,19 @@ export class RegTankService {
 
     // Update status
     const statusUpper = status.toUpperCase();
-    
+
     // Status transition logic:
     // IN_PROGRESS → FORM_FILLING → LIVENESS_PASSED → PENDING_APPROVAL → APPROVED/REJECTED
-    
+
     // Map RegTank status to our internal status
     let internalStatus = statusUpper;
-    
+
     // Map form filling statuses (before liveness test)
-    if (statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED" || statusUpper === "LIVENESS_STARTED") {
+    if (
+      statusUpper === "PROCESSING" ||
+      statusUpper === "ID_UPLOADED" ||
+      statusUpper === "LIVENESS_STARTED"
+    ) {
       internalStatus = "FORM_FILLING";
     } else if (statusUpper === "LIVENESS_PASSED") {
       internalStatus = "LIVENESS_PASSED";
@@ -1220,11 +1228,10 @@ export class RegTankService {
     } else if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
       internalStatus = statusUpper;
     }
-    
+
     // Detect when liveness test is completed (for organization status updates)
-    const isLivenessCompleted = 
-      statusUpper === "LIVENESS_PASSED" || 
-      statusUpper === "WAIT_FOR_APPROVAL";
+    const isLivenessCompleted =
+      statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL";
 
     const updateData: {
       status: string;
@@ -1251,10 +1258,11 @@ export class RegTankService {
     // Update organization to PENDING_APPROVAL when liveness test completes
     if (isLivenessCompleted && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
-      
+
       try {
         if (portalType === "investor") {
-          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          const orgExists =
+            await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (orgExists) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
@@ -1271,7 +1279,8 @@ export class RegTankService {
             );
           }
         } else {
-          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          const orgExists =
+            await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (orgExists) {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
@@ -1312,30 +1321,32 @@ export class RegTankService {
           { requestId, organizationId, portalType },
           "Waiting 3 seconds before fetching RegTank onboarding details to allow KYC webhooks to arrive"
         );
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
         // Fetch full details from RegTank API
         logger.info(
           { requestId, organizationId, portalType },
           "Fetching RegTank onboarding details after approval"
         );
-        
+
         // Re-fetch onboarding record to get latest webhook payloads (including any KYC webhooks that arrived)
         const updatedOnboarding = await this.repository.findByRequestId(requestId);
         if (updatedOnboarding) {
           onboarding = updatedOnboarding;
         }
-        
+
         const regtankDetails = await this.apiClient.queryOnboardingDetails(requestId);
-        
+
         // Log the response structure to debug kycId extraction
         // Check all possible locations for kycId
         const allKeys = Object.keys(regtankDetails);
-        const kycLikeKeys = allKeys.filter(key => 
-          key.toLowerCase().includes('kyc') || 
-          (typeof regtankDetails[key] === 'string' && (regtankDetails[key] as string).startsWith('KYC'))
+        const kycLikeKeys = allKeys.filter(
+          (key) =>
+            key.toLowerCase().includes("kyc") ||
+            (typeof regtankDetails[key] === "string" &&
+              (regtankDetails[key] as string).startsWith("KYC"))
         );
-        
+
         logger.info(
           {
             requestId,
@@ -1345,7 +1356,7 @@ export class RegTankService {
             kycIdType: typeof regtankDetails.kycId,
             topLevelKeys: allKeys.slice(0, 40),
             kycLikeKeys,
-            kycLikeValues: kycLikeKeys.map(key => ({ key, value: regtankDetails[key] })),
+            kycLikeValues: kycLikeKeys.map((key) => ({ key, value: regtankDetails[key] })),
             // Check if response is wrapped
             hasData: "data" in regtankDetails,
             hasResult: "result" in regtankDetails,
@@ -1362,28 +1373,40 @@ export class RegTankService {
           },
           "RegTank query response received - comprehensive kycId check"
         );
-        
+
         // Try to get kycId from stored onboarding record's webhook payloads (KYC webhooks)
         // kycId might not be in the query response immediately, but may be in KYC webhook payloads
         let kycIdFromWebhooks: string | null = null;
         if (onboarding.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
           for (const payload of onboarding.webhook_payloads) {
-            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            if (payload && typeof payload === "object" && !Array.isArray(payload)) {
               const payloadObj = payload as Record<string, any>;
               // KYC webhooks have requestId that is the kycId
-              if (payloadObj.requestId && typeof payloadObj.requestId === 'string' && payloadObj.requestId.startsWith('KYC')) {
+              if (
+                payloadObj.requestId &&
+                typeof payloadObj.requestId === "string" &&
+                payloadObj.requestId.startsWith("KYC")
+              ) {
                 kycIdFromWebhooks = payloadObj.requestId;
                 logger.info(
-                  { requestId, kycIdFromWebhooks, webhookType: payloadObj.webhookType || 'unknown' },
+                  {
+                    requestId,
+                    kycIdFromWebhooks,
+                    webhookType: payloadObj.webhookType || "unknown",
+                  },
                   "Found kycId in stored webhook payloads"
                 );
                 break;
               }
               // Also check if kycId field exists directly
-              if (payloadObj.kycId && typeof payloadObj.kycId === 'string') {
+              if (payloadObj.kycId && typeof payloadObj.kycId === "string") {
                 kycIdFromWebhooks = payloadObj.kycId;
                 logger.info(
-                  { requestId, kycIdFromWebhooks, webhookType: payloadObj.webhookType || 'unknown' },
+                  {
+                    requestId,
+                    kycIdFromWebhooks,
+                    webhookType: payloadObj.webhookType || "unknown",
+                  },
                   "Found kycId field in stored webhook payloads"
                 );
                 break;
@@ -1391,7 +1414,7 @@ export class RegTankService {
             }
           }
         }
-        
+
         // If kycId is not in query response but found in webhooks, add it to regtankDetails
         if (!regtankDetails.kycId && kycIdFromWebhooks) {
           regtankDetails.kycId = kycIdFromWebhooks;
@@ -1400,7 +1423,7 @@ export class RegTankService {
             "Added kycId from webhook payloads to regtankDetails"
           );
         }
-        
+
         // Extract and update organization with RegTank data
         await this.extractAndUpdateOrganizationData(
           organizationId,
@@ -1408,20 +1431,24 @@ export class RegTankService {
           regtankDetails,
           requestId
         );
-        
+
         // Update organization status to PENDING_AML
         // After RegTank onboarding approval, we wait for AML screening to complete (separate webhook)
         // When AML webhook arrives, we will transition to:
         // - PERSONAL accounts: PENDING_FINAL_APPROVAL (no SSM needed)
         // - COMPANY accounts: PENDING_SSM_REVIEW (SSM verification required)
         if (portalType === "investor") {
-          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          const org =
+            await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType, orgType: org.type }, "Updated investor organization status to PENDING_AML after RegTank onboarding approval");
+            logger.info(
+              { organizationId, portalType, orgType: org.type },
+              "Updated investor organization status to PENDING_AML after RegTank onboarding approval"
+            );
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -1435,7 +1462,10 @@ export class RegTankService {
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML after RegTank onboarding approval");
+            logger.info(
+              { organizationId, portalType },
+              "Updated issuer organization status to PENDING_AML after RegTank onboarding approval"
+            );
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -1462,12 +1492,9 @@ export class RegTankService {
       });
 
       if (user) {
-        const accountArrayField =
-          portalType === "investor" ? "investor_account" : "issuer_account";
+        const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
         const currentArray =
-          portalType === "investor"
-            ? user.investor_account
-            : user.issuer_account;
+          portalType === "investor" ? user.investor_account : user.issuer_account;
 
         // Find the first 'temp' and replace it with the organization ID
         const tempIndex = currentArray.indexOf("temp");
@@ -1485,8 +1512,7 @@ export class RegTankService {
       }
 
       // Log onboarding completed
-      const role =
-        portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
       await prisma.onboardingLog.create({
         data: {
@@ -1516,7 +1542,7 @@ export class RegTankService {
     try {
       const portalType = onboarding.portal_type as PortalType;
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-      
+
       // Determine event type based on status
       let eventType = "WEBHOOK_RECEIVED";
       if (statusUpper === "APPROVED") {
@@ -1527,12 +1553,16 @@ export class RegTankService {
         eventType = "WEBHOOK_PENDING_APPROVAL";
       } else if (statusUpper === "LIVENESS_PASSED") {
         eventType = "WEBHOOK_LIVENESS_PASSED";
-      } else if (statusUpper === "FORM_FILLING" || statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED") {
+      } else if (
+        statusUpper === "FORM_FILLING" ||
+        statusUpper === "PROCESSING" ||
+        statusUpper === "ID_UPLOADED"
+      ) {
         eventType = "WEBHOOK_FORM_FILLING";
       } else if (statusUpper === "IN_PROGRESS") {
         eventType = "WEBHOOK_IN_PROGRESS";
       }
-      
+
       await this.authRepository.createOnboardingLog({
         userId: onboarding.user_id,
         role,
@@ -1545,7 +1575,7 @@ export class RegTankService {
           payload: payload,
         },
       });
-      
+
       logger.debug(
         {
           requestId,
@@ -1595,29 +1625,19 @@ export class RegTankService {
     // Verify organization access
     const organization =
       portalType === "investor"
-        ? await this.organizationRepository.findInvestorOrganizationById(
-            organizationId
-          )
-        : await this.organizationRepository.findIssuerOrganizationById(
-            organizationId
-          );
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
     }
 
     // Check access
-    const isMember = organization.members.some(
-      (m: { user_id: string }) => m.user_id === userId
-    );
+    const isMember = organization.members.some((m: { user_id: string }) => m.user_id === userId);
     const isOwner = organization.owner_user_id === userId;
 
     if (!isMember && !isOwner) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "You do not have access to this organization"
-      );
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
     }
 
     // Find onboarding record
@@ -1658,29 +1678,19 @@ export class RegTankService {
     // Verify organization access
     const organization =
       portalType === "investor"
-        ? await this.organizationRepository.findInvestorOrganizationById(
-            organizationId
-          )
-        : await this.organizationRepository.findIssuerOrganizationById(
-            organizationId
-          );
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
     }
 
     // Check access
-    const isMember = organization.members.some(
-      (m: { user_id: string }) => m.user_id === userId
-    );
+    const isMember = organization.members.some((m: { user_id: string }) => m.user_id === userId);
     const isOwner = organization.owner_user_id === userId;
 
     if (!isMember && !isOwner) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "You do not have access to this organization"
-      );
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
     }
 
     // Find onboarding record
@@ -1720,7 +1730,10 @@ export class RegTankService {
       }
 
       // Set completed_at if status is APPROVED or REJECTED
-      if (details.status.toUpperCase() === "APPROVED" || details.status.toUpperCase() === "REJECTED") {
+      if (
+        details.status.toUpperCase() === "APPROVED" ||
+        details.status.toUpperCase() === "REJECTED"
+      ) {
         updateData.completedAt = new Date();
       }
 
@@ -1734,11 +1747,11 @@ export class RegTankService {
             { requestId: onboarding.request_id, organizationId, portalType },
             "Fetching RegTank onboarding details after approval (manual sync)"
           );
-          
+
           const regtankDetails = await this.apiClient.queryOnboardingDetails(onboarding.request_id);
 
-		  logger.info(regtankDetails, "RegTank details");
-          
+          logger.info(regtankDetails, "RegTank details");
+
           // Extract and update organization with RegTank data
           await this.extractAndUpdateOrganizationData(
             organizationId,
@@ -1746,20 +1759,24 @@ export class RegTankService {
             regtankDetails,
             onboarding.request_id
           );
-          
+
           // Update organization status to PENDING_AML
           // After RegTank onboarding approval, we wait for AML screening to complete (separate webhook)
           // When AML webhook arrives, we will transition to:
           // - PERSONAL accounts: PENDING_FINAL_APPROVAL (no SSM needed)
           // - COMPANY accounts: PENDING_SSM_REVIEW (SSM verification required)
           if (portalType === "investor") {
-            const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+            const org =
+              await this.organizationRepository.findInvestorOrganizationById(organizationId);
             if (org) {
               await this.organizationRepository.updateInvestorOrganizationOnboarding(
                 organizationId,
                 OnboardingStatus.PENDING_AML
               );
-              logger.info({ organizationId, portalType, orgType: org.type }, "Updated investor organization status to PENDING_AML via manual sync after RegTank onboarding approval");
+              logger.info(
+                { organizationId, portalType, orgType: org.type },
+                "Updated investor organization status to PENDING_AML via manual sync after RegTank onboarding approval"
+              );
             } else {
               logger.warn(
                 { organizationId, requestId: onboarding.request_id },
@@ -1767,13 +1784,17 @@ export class RegTankService {
               );
             }
           } else {
-            const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+            const org =
+              await this.organizationRepository.findIssuerOrganizationById(organizationId);
             if (org) {
               await this.organizationRepository.updateIssuerOrganizationOnboarding(
                 organizationId,
                 OnboardingStatus.PENDING_AML
               );
-              logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML via manual sync after RegTank onboarding approval");
+              logger.info(
+                { organizationId, portalType },
+                "Updated issuer organization status to PENDING_AML via manual sync after RegTank onboarding approval"
+              );
             } else {
               logger.warn(
                 { organizationId, requestId: onboarding.request_id },
@@ -1863,19 +1884,11 @@ export class RegTankService {
     // Verify access
     const organization =
       portalType === "investor"
-        ? await this.organizationRepository.findInvestorOrganizationById(
-            organizationId
-          )
-        : await this.organizationRepository.findIssuerOrganizationById(
-            organizationId
-          );
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!organization || organization.owner_user_id !== userId) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only the organization owner can retry onboarding"
-      );
+      throw new AppError(403, "FORBIDDEN", "Only the organization owner can retry onboarding");
     }
 
     // Get user email for restart (required for corporate onboarding)
@@ -1938,12 +1951,9 @@ export class RegTankService {
     }
 
     // Call RegTank restart API
-    const regTankResponse = await this.apiClient.restartOnboarding(
-      existingOnboarding.request_id,
-      {
-        email: user.email, // Required for corporate onboarding restart
-      }
-    );
+    const regTankResponse = await this.apiClient.restartOnboarding(existingOnboarding.request_id, {
+      email: user.email, // Required for corporate onboarding restart
+    });
 
     // Update onboarding record with new verifyLink
     const expiresIn = regTankResponse.expiredIn || 86400;
@@ -1951,9 +1961,7 @@ export class RegTankService {
 
     // For personal accounts, set to IN_PROGRESS to match organization status
     // For company accounts, set to PENDING
-    const retryStatus = organization.type === OrganizationType.PERSONAL 
-      ? "IN_PROGRESS" 
-      : "PENDING";
+    const retryStatus = organization.type === OrganizationType.PERSONAL ? "IN_PROGRESS" : "PENDING";
 
     await this.repository.updateStatus(existingOnboarding.request_id, {
       status: retryStatus,
@@ -2011,4 +2019,3 @@ export class RegTankService {
     return this.apiClient.getOnboardingSettings(formId);
   }
 }
-
