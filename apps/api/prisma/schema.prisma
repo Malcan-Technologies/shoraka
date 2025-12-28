@@ -278,6 +278,13 @@ model InvestorOrganization {
   // Sophisticated investor classification (auto-computed from RegTank data)
   is_sophisticated_investor Boolean @default(false)
 
+  // Approval workflow flags
+  onboarding_approved Boolean @default(false)
+  aml_approved        Boolean @default(false)
+  tnc_accepted        Boolean @default(false)
+  deposit_received    Boolean @default(false)
+  ssm_approved        Boolean @default(false)
+
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
   regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
@@ -319,6 +326,12 @@ model IssuerOrganization {
   compliance_declaration Json? // From formContent displayAreas
   document_info       Json? // From documentInfo
   liveness_check_info Json? // From livenessCheckInfo
+
+  // Approval workflow flags
+  onboarding_approved Boolean @default(false)
+  aml_approved        Boolean @default(false)
+  tnc_accepted        Boolean @default(false)
+  ssm_checked         Boolean @default(false)
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
