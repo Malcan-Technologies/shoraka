@@ -1084,10 +1084,7 @@ export class RegTankService {
         
         const updated = await prisma.investorOrganization.update({
           where: { id: organizationId },
-          data: {
-            ...updateData,
-            is_sophisticated_investor: isSophisticatedInvestor,
-          },
+          data: updateData,
         });
         
         logger.info(
@@ -1721,6 +1718,31 @@ export class RegTankService {
           );
           
           const regtankDetails = await this.apiClient.queryOnboardingDetails(onboarding.request_id);
+          
+          // Extract kycId from regtankDetails (check multiple possible locations)
+          const userProfile = regtankDetails.userProfile || {};
+          const extractedKycId = this.normalizeValue(
+            regtankDetails.kycId || 
+            regtankDetails.kyc_id || 
+            (regtankDetails as any).KYCId ||
+            (regtankDetails as any).KYC_ID ||
+            (userProfile as any).kycId ||
+            (userProfile as any).kyc_id ||
+            (regtankDetails.documentInfo as any)?.kycId ||
+            (regtankDetails.livenessCheckInfo as any)?.kycId
+          );
+          
+          // Log extracted kycId for debugging
+          logger.info(
+            {
+              requestId: onboarding.request_id,
+              organizationId,
+              kycIdExtracted: extractedKycId,
+              kycIdRaw: regtankDetails.kycId,
+              hasKycId: !!extractedKycId,
+            },
+            "Extracted kycId from RegTank details before organization data update"
+          );
           
           // Extract and update organization with RegTank data
           await this.extractAndUpdateOrganizationData(
