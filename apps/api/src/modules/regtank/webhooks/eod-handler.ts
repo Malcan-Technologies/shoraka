@@ -3,6 +3,7 @@ import { RegTankEODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
+import { Prisma } from "@prisma/client";
 
 /**
  * EOD (Entity Onboarding Data) Webhook Handler
@@ -36,7 +37,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     }
 
     // Append to history
-    await this.repository.appendWebhookPayload(requestId, payload);
+    await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
     // Status transition logic
     const statusUpper = status.toUpperCase();

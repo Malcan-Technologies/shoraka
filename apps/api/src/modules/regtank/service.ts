@@ -7,7 +7,7 @@ import {
   RegTankWebhookPayload,
   PortalType,
 } from "./types";
-import { OnboardingStatus, OrganizationType, UserRole } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, UserRole, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -390,7 +390,7 @@ export class RegTankService {
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
       status: initialStatus,
-      regtankResponse: regTankResponse,
+      regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
     // Log onboarding started event
@@ -729,7 +729,7 @@ export class RegTankService {
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
       status: initialStatus,
-      regtankResponse: regTankResponse,
+      regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
     // Log onboarding started event

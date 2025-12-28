@@ -278,23 +278,35 @@ export class ApiClient {
 
   // Request redo onboarding for an application
   // Restart onboarding for an application via RegTank restart API
-  async restartOnboarding(
-    onboardingId: string
-  ): Promise<ApiResponse<{ 
-    success: boolean; 
-    message: string; 
-    verifyLink?: string; 
-    newRequestId?: string;
-  }> | ApiError> {
-    return this.post<{ 
-      success: boolean; 
-      message: string; 
-      verifyLink?: string; 
+  async restartOnboarding(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        verifyLink?: string;
+        newRequestId?: string;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      verifyLink?: string;
       newRequestId?: string;
-    }>(
-      `/v1/admin/onboarding-applications/${onboardingId}/restart`,
-      {}
-    );
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/restart`, {});
+  }
+
+  // Complete final approval for an onboarding application
+  async completeFinalApproval(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/complete-final-approval`, {});
   }
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {

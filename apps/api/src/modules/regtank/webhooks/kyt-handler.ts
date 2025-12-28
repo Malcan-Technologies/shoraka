@@ -2,6 +2,7 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankKYTWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
+import { Prisma } from "@prisma/client";
 
 /**
  * KYT (Know Your Transaction) Webhook Handler
@@ -66,7 +67,7 @@ export class KYTWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(
       onboarding.request_id,
-      payload
+      payload as Prisma.InputJsonValue
     );
 
     logger.info(

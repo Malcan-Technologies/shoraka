@@ -45,9 +45,7 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
                   </div>
                 ) : (
                   <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {stepIdx + 1}
-                    </span>
+                    <span className="text-xs font-medium text-muted-foreground">{stepIdx + 1}</span>
                   </div>
                 )}
               </div>
@@ -58,8 +56,8 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
                     step.status === "current"
                       ? "text-primary"
                       : step.status === "completed"
-                      ? "text-foreground"
-                      : "text-muted-foreground"
+                        ? "text-foreground"
+                        : "text-muted-foreground"
                   )}
                 >
                   {step.label}
@@ -78,7 +76,8 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
 
 // Helper function to generate steps for Personal onboarding
 export function getPersonalOnboardingSteps(
-  status: string
+  status: string,
+  isCompleted: boolean = false
 ): ApprovalStep[] {
   const steps: ApprovalStep[] = [
     {
@@ -99,6 +98,12 @@ export function getPersonalOnboardingSteps(
       description: "Complete AML screening in RegTank",
       status: "pending",
     },
+    {
+      id: "final",
+      label: "Final Approval",
+      description: "Complete onboarding and activate account",
+      status: "pending",
+    },
   ];
 
   switch (status) {
@@ -115,6 +120,7 @@ export function getPersonalOnboardingSteps(
     case "APPROVED":
       steps[1].status = "completed";
       steps[2].status = "completed";
+      steps[3].status = isCompleted ? "completed" : "current";
       break;
     case "REJECTED":
     case "EXPIRED":
@@ -127,7 +133,8 @@ export function getPersonalOnboardingSteps(
 
 // Helper function to generate steps for Company onboarding
 export function getCompanyOnboardingSteps(
-  status: string
+  status: string,
+  isCompleted: boolean = false
 ): ApprovalStep[] {
   const steps: ApprovalStep[] = [
     {
@@ -154,6 +161,12 @@ export function getCompanyOnboardingSteps(
       description: "Complete AML screening in RegTank",
       status: "pending",
     },
+    {
+      id: "final",
+      label: "Final Approval",
+      description: "Complete onboarding and activate account",
+      status: "pending",
+    },
   ];
 
   switch (status) {
@@ -177,6 +190,7 @@ export function getCompanyOnboardingSteps(
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "completed";
+      steps[4].status = isCompleted ? "completed" : "current";
       break;
     case "REJECTED":
     case "EXPIRED":
@@ -186,4 +200,3 @@ export function getCompanyOnboardingSteps(
 
   return steps;
 }
-

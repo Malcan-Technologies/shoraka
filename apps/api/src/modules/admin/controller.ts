@@ -382,7 +382,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
-      
+
       if (portal !== "investor" && portal !== "issuer") {
         throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
       }
@@ -403,8 +403,8 @@ router.get(
         error instanceof AppError
           ? error
           : error instanceof Error
-          ? new AppError(400, "VALIDATION_ERROR", error.message)
-          : error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
       );
     }
   }
@@ -470,8 +470,8 @@ router.patch(
         error instanceof AppError
           ? error
           : error instanceof Error
-          ? new AppError(400, "VALIDATION_ERROR", error.message)
-          : error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
       );
     }
   }
@@ -1497,6 +1497,39 @@ router.post(
       }
 
       const result = await adminService.restartOnboarding(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /admin/onboarding-applications/:id/complete-final-approval
+ * Complete final approval for an onboarding application
+ * Marks the organization as fully onboarded after all prerequisite checks are complete
+ */
+router.post(
+  "/onboarding-applications/:id/complete-final-approval",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding ID is required");
+      }
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.completeFinalApproval(req, id, req.user.user_id);
 
       res.json({
         success: true,

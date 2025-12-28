@@ -49,3 +49,22 @@ export function useRestartOnboarding() {
   });
 }
 
+export function useCompleteFinalApproval() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (onboardingId: string) => {
+      const response = await apiClient.completeFinalApproval(onboardingId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    },
+  });
+}
+

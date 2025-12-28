@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma";
-import { RegTankOnboarding, OrganizationType } from "@prisma/client";
+import { RegTankOnboarding, OrganizationType, Prisma } from "@prisma/client";
 
 export type RegTankOnboardingWithRelations = RegTankOnboarding & {
   user: {
@@ -36,7 +36,7 @@ export class RegTankRepository {
     verifyLinkExpiresAt?: Date;
     status: string;
     substatus?: string;
-    regtankResponse?: any;
+    regtankResponse?: Prisma.InputJsonValue;
   }): Promise<RegTankOnboarding> {
     // Set the appropriate organization ID field based on portal type
     const investorOrgId = data.portalType === "investor" ? data.organizationId : null;
@@ -246,13 +246,16 @@ export class RegTankRepository {
   /**
    * Append webhook payload to the webhook_payloads array
    */
-  async appendWebhookPayload(requestId: string, payload: any): Promise<RegTankOnboarding> {
+  async appendWebhookPayload(
+    requestId: string,
+    payload: Prisma.InputJsonValue
+  ): Promise<RegTankOnboarding> {
     const existing = await prisma.regTankOnboarding.findUnique({
       where: { request_id: requestId },
       select: { webhook_payloads: true },
     });
 
-    const currentPayloads = (existing?.webhook_payloads as any[]) || [];
+    const currentPayloads = (existing?.webhook_payloads as Prisma.InputJsonValue[]) || [];
     const updatedPayloads = [...currentPayloads, payload];
 
     return prisma.regTankOnboarding.update({
@@ -341,7 +344,10 @@ export class RegTankRepository {
   /**
    * Update RegTank response data
    */
-  async updateRegTankResponse(requestId: string, response: any): Promise<RegTankOnboarding> {
+  async updateRegTankResponse(
+    requestId: string,
+    response: Prisma.InputJsonValue
+  ): Promise<RegTankOnboarding> {
     return prisma.regTankOnboarding.update({
       where: { request_id: requestId },
       data: {
@@ -368,7 +374,7 @@ export class RegTankRepository {
     const skip = (page - 1) * pageSize;
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.RegTankOnboardingWhereInput = {};
 
     if (portal) {
       where.portal_type = portal;
@@ -415,6 +421,10 @@ export class RegTankRepository {
               registration_number: true,
               onboarding_status: true,
               onboarded_at: true,
+              onboarding_approved: true,
+              aml_approved: true,
+              tnc_accepted: true,
+              ssm_approved: true,
             },
           },
           issuer_organization: {
@@ -425,6 +435,10 @@ export class RegTankRepository {
               registration_number: true,
               onboarding_status: true,
               onboarded_at: true,
+              onboarding_approved: true,
+              aml_approved: true,
+              tnc_accepted: true,
+              ssm_checked: true,
             },
           },
         },
@@ -451,6 +465,10 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     registration_number: string | null;
     onboarding_status: string;
     onboarded_at: Date | null;
+    onboarding_approved: boolean;
+    aml_approved: boolean;
+    tnc_accepted: boolean;
+    ssm_approved: boolean;
   } | null;
   issuer_organization: {
     id: string;
@@ -459,5 +477,9 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     registration_number: string | null;
     onboarding_status: string;
     onboarded_at: Date | null;
+    onboarding_approved: boolean;
+    aml_approved: boolean;
+    tnc_accepted: boolean;
+    ssm_checked: boolean;
   } | null;
 };

@@ -5,7 +5,7 @@ import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { OnboardingStatus } from "@prisma/client";
+import { OnboardingStatus, Prisma } from "@prisma/client";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -43,7 +43,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     }
 
     // Append to history
-    await this.repository.appendWebhookPayload(requestId, payload);
+    await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
     // Status transition logic
     const statusUpper = status.toUpperCase();

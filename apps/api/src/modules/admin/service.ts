@@ -1627,6 +1627,28 @@ export class AdminService {
       ? `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
       : null;
 
+    // Get approval flags based on portal type
+    const isInvestorOrg = record.portal_type === "investor";
+    const investorOrg = record.investor_organization;
+    const issuerOrg = record.issuer_organization;
+
+    // For investors, use investor_organization fields; for issuers, use issuer_organization fields
+    const onboardingApproved = isInvestorOrg
+      ? (investorOrg?.onboarding_approved ?? false)
+      : (issuerOrg?.onboarding_approved ?? false);
+    const amlApproved = isInvestorOrg
+      ? (investorOrg?.aml_approved ?? false)
+      : (issuerOrg?.aml_approved ?? false);
+    const tncAccepted = isInvestorOrg
+      ? (investorOrg?.tnc_accepted ?? false)
+      : (issuerOrg?.tnc_accepted ?? false);
+    // SSM approval: for investors use ssm_approved, for issuers use ssm_checked
+    const ssmApproved = isInvestorOrg
+      ? (investorOrg?.ssm_approved ?? false)
+      : (issuerOrg?.ssm_checked ?? false);
+
+    const isCompleted = orgOnboardingStatus === "COMPLETED";
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1647,6 +1669,11 @@ export class AdminService {
       ssmVerifiedBy: null,
       submittedAt: record.created_at.toISOString(),
       completedAt: record.completed_at?.toISOString() || null,
+      onboardingApproved,
+      amlApproved,
+      tncAccepted,
+      ssmApproved,
+      isCompleted,
     };
   }
 
@@ -1802,7 +1829,7 @@ export class AdminService {
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
       status: "IN_PROGRESS",
-      regtankResponse: regTankResponse,
+      regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
     // Reset the organization's onboarding status
@@ -1858,6 +1885,155 @@ export class AdminService {
       message: "Onboarding has been restarted. User will receive a new verification link.",
       verifyLink: regTankResponse.verifyLink,
       newRequestId: regTankResponse.requestId,
+    };
+  }
+
+  /**
+   * Complete final approval for an onboarding application
+   * This marks the organization as fully onboarded after all prerequisite checks are complete
+   *
+   * Requirements:
+   * - Personal (Investor): onboarding_approved, aml_approved, tnc_accepted
+   * - Company (Investor/Issuer): onboarding_approved, aml_approved, tnc_accepted, ssm_approved/ssm_checked
+   */
+  async completeFinalApproval(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Check if already completed
+    if (org.onboarding_status === "COMPLETED") {
+      throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
+    }
+
+    // Get approval flags based on organization type
+    const isCompany = onboarding.organization_type === "COMPANY";
+
+    if (isInvestor && onboarding.investor_organization) {
+      const investorOrg = onboarding.investor_organization;
+
+      // Check required flags for personal investor
+      if (!investorOrg.onboarding_approved) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding approval is required");
+      }
+      if (!investorOrg.aml_approved) {
+        throw new AppError(400, "VALIDATION_ERROR", "AML approval is required");
+      }
+      if (!investorOrg.tnc_accepted) {
+        throw new AppError(400, "VALIDATION_ERROR", "Terms and conditions acceptance is required");
+      }
+
+      // For company accounts, also check SSM approval
+      if (isCompany && !investorOrg.ssm_approved) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "SSM approval is required for company accounts"
+        );
+      }
+
+      // Update investor organization
+      await prisma.investorOrganization.update({
+        where: { id: org.id },
+        data: {
+          onboarding_status: "COMPLETED",
+          onboarded_at: new Date(),
+          admin_approved_at: new Date(),
+        },
+      });
+    } else if (!isInvestor && onboarding.issuer_organization) {
+      const issuerOrg = onboarding.issuer_organization;
+
+      // Check required flags for issuer (always company)
+      if (!issuerOrg.onboarding_approved) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding approval is required");
+      }
+      if (!issuerOrg.aml_approved) {
+        throw new AppError(400, "VALIDATION_ERROR", "AML approval is required");
+      }
+      if (!issuerOrg.tnc_accepted) {
+        throw new AppError(400, "VALIDATION_ERROR", "Terms and conditions acceptance is required");
+      }
+      if (!issuerOrg.ssm_checked) {
+        throw new AppError(400, "VALIDATION_ERROR", "SSM check is required for issuer accounts");
+      }
+
+      // Update issuer organization
+      await prisma.issuerOrganization.update({
+        where: { id: org.id },
+        data: {
+          onboarding_status: "COMPLETED",
+          onboarded_at: new Date(),
+          admin_approved_at: new Date(),
+        },
+      });
+    }
+
+    // Create onboarding log entry
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: onboarding.user_id,
+        event_type: "FINAL_APPROVAL_COMPLETED",
+        role: isInvestor ? "INVESTOR" : "ISSUER",
+        portal: onboarding.portal_type,
+        ip_address:
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        user_agent: req.headers["user-agent"] || null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          portalType: onboarding.portal_type,
+          approvedBy: adminUserId,
+          regtankRequestId: onboarding.request_id,
+        },
+      },
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        organizationId: org.id,
+        userId: onboarding.user_id,
+        adminUserId,
+        portalType: onboarding.portal_type,
+        organizationType: onboarding.organization_type,
+      },
+      "Final approval completed by admin"
+    );
+
+    return {
+      success: true,
+      message: "Onboarding has been completed successfully. The user is now fully onboarded.",
     };
   }
 }

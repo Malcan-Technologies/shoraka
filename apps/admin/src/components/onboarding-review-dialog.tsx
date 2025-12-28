@@ -28,7 +28,7 @@ import {
   getCompanyOnboardingSteps,
 } from "./approval-progress-stepper";
 import { SSMVerificationPanel } from "./ssm-verification-panel";
-import { useRestartOnboarding } from "@/hooks/use-onboarding-applications";
+import { useRestartOnboarding, useCompleteFinalApproval } from "@/hooks/use-onboarding-applications";
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -87,12 +87,26 @@ export function OnboardingReviewDialog({
   onOpenChange,
 }: OnboardingReviewDialogProps) {
   const [showRedoConfirm, setShowRedoConfirm] = React.useState(false);
+  const [showFinalApprovalConfirm, setShowFinalApprovalConfirm] = React.useState(false);
   const restartMutation = useRestartOnboarding();
+  const finalApprovalMutation = useCompleteFinalApproval();
 
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
-    ? getCompanyOnboardingSteps(application.status)
-    : getPersonalOnboardingSteps(application.status);
+    ? getCompanyOnboardingSteps(application.status, application.isCompleted)
+    : getPersonalOnboardingSteps(application.status, application.isCompleted);
+
+  // Check if all required approval flags are met
+  const hasOnboardingApproval = application.onboardingApproved;
+  const hasAmlApproval = application.amlApproved;
+  const hasTncAccepted = application.tncAccepted;
+  const hasSsmApproval = application.ssmApproved;
+
+  // For personal investor: onboarding_approved, aml_approved, tnc_accepted
+  // For company (investor/issuer): onboarding_approved, aml_approved, tnc_accepted, ssm_approved
+  const allRequirementsMet = isCompany
+    ? hasOnboardingApproval && hasAmlApproval && hasTncAccepted && hasSsmApproval
+    : hasOnboardingApproval && hasAmlApproval && hasTncAccepted;
 
   // Use the dynamic portal URL from the API response
   const handleOpenRegTank = () => {
@@ -129,6 +143,24 @@ export function OnboardingReviewDialog({
           description: error.message,
         });
         setShowRedoConfirm(false);
+      },
+    });
+  };
+
+  const handleFinalApproval = () => {
+    finalApprovalMutation.mutate(application.id, {
+      onSuccess: (data) => {
+        toast.success("Onboarding completed", {
+          description: data.message,
+        });
+        setShowFinalApprovalConfirm(false);
+        onOpenChange(false);
+      },
+      onError: (error) => {
+        toast.error("Failed to complete onboarding", {
+          description: error.message,
+        });
+        setShowFinalApprovalConfirm(false);
       },
     });
   };
@@ -295,23 +327,126 @@ export function OnboardingReviewDialog({
         );
 
       case "APPROVED":
+        // If already completed, show completed state
+        if (application.isCompleted) {
+          return (
+            <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+                  <div>
+                    <p className="font-semibold text-lg text-emerald-900 dark:text-emerald-100">
+                      Onboarding Complete
+                    </p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                      This user has completed all verification steps and is fully onboarded.
+                    </p>
+                  </div>
+                </div>
+                <Separator />
+                <div className="text-sm text-muted-foreground">
+                  If needed, you can request the user to redo their onboarding:
+                </div>
+                <Button
+                  onClick={() => setShowRedoConfirm(true)}
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={restartMutation.isPending}
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  Restart Onboarding
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        }
+
+        // Show Final Approval section with checklist
         return (
-          <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
-                <div>
-                  <p className="font-semibold text-lg text-emerald-900 dark:text-emerald-100">
-                    Onboarding Approved
-                  </p>
-                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                    This user has completed all verification steps and is fully approved.
-                  </p>
+          <Card className="border-blue-500/30 bg-blue-50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600" />
+                Final Approval Required
+              </CardTitle>
+              <CardDescription>
+                RegTank verification is complete. Review the checklist below and complete the final
+                approval to activate the user&apos;s account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Approval Checklist */}
+              <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+                <p className="text-sm font-medium">Approval Checklist:</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {hasOnboardingApproval ? (
+                      <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className={`text-sm ${hasOnboardingApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                      Onboarding Approved
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasAmlApproval ? (
+                      <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className={`text-sm ${hasAmlApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                      AML Approved
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasTncAccepted ? (
+                      <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className={`text-sm ${hasTncAccepted ? "text-foreground" : "text-muted-foreground"}`}>
+                      Terms & Conditions Accepted
+                    </span>
+                  </div>
+                  {isCompany && (
+                    <div className="flex items-center gap-2">
+                      {hasSsmApproval ? (
+                        <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                      ) : (
+                        <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <span className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                        SSM Approved
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Complete Onboarding Button */}
+              <Button
+                onClick={() => setShowFinalApprovalConfirm(true)}
+                className="w-full gap-2"
+                disabled={!allRequirementsMet || finalApprovalMutation.isPending}
+              >
+                {finalApprovalMutation.isPending ? (
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircleIcon className="h-4 w-4" />
+                )}
+                Complete Onboarding
+              </Button>
+
+              {!allRequirementsMet && (
+                <p className="text-xs text-muted-foreground text-center">
+                  All checklist items must be completed before final approval.
+                </p>
+              )}
+
               <Separator />
               <div className="text-sm text-muted-foreground">
-                If needed, you can request the user to redo their onboarding:
+                Or request the user to redo their onboarding:
               </div>
               <Button
                 onClick={() => setShowRedoConfirm(true)}
@@ -502,6 +637,32 @@ export function OnboardingReviewDialog({
                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
               )}
               Confirm Redo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Final Approval Confirmation Dialog */}
+      <AlertDialog open={showFinalApprovalConfirm} onOpenChange={setShowFinalApprovalConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Onboarding?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark {application.userName}&apos;s onboarding as complete. They will gain full
+              access to the {application.portal} portal. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={finalApprovalMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleFinalApproval}
+              disabled={finalApprovalMutation.isPending}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              {finalApprovalMutation.isPending && (
+                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+              )}
+              Complete Onboarding
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

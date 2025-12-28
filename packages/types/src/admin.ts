@@ -273,7 +273,8 @@ export type OnboardingEventType =
   | "ONBOARDING_COMPLETED"
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"
-  | "SOPHISTICATED_STATUS_UPDATED";
+  | "SOPHISTICATED_STATUS_UPDATED"
+  | "FINAL_APPROVAL_COMPLETED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -345,7 +346,12 @@ export interface PendingInvitationsResponse {
 // Organization Types
 export type PortalType = "investor" | "issuer";
 export type OrganizationTypeEnum = "PERSONAL" | "COMPANY";
-export type OnboardingStatusEnum = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
+export type OnboardingStatusEnum =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "PENDING_APPROVAL"
+  | "PENDING_AML"
+  | "COMPLETED";
 
 export interface OrganizationOwner {
   userId: string;
@@ -472,6 +478,12 @@ export interface OnboardingApplicationResponse {
   ssmVerifiedBy: string | null;
   submittedAt: string;
   completedAt: string | null;
+  // Approval workflow flags
+  onboardingApproved: boolean;
+  amlApproved: boolean;
+  tncAccepted: boolean;
+  ssmApproved: boolean;
+  isCompleted: boolean;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

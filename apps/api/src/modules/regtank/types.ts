@@ -69,6 +69,7 @@ export interface RegTankOnboardingResponse {
   verifyLink: string;
   expiredIn: number; // seconds
   timestamp: string;
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -122,6 +123,7 @@ export interface RegTankIndividualOnboardingWebhook {
     idNumber?: string;
   };
   confidence?: number;
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -140,6 +142,7 @@ export interface RegTankCODWebhook {
   corpIndvDirectorCount: number;
   corpIndvShareholderCount: number;
   corpBizShareholderCount: number;
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -152,6 +155,7 @@ export interface RegTankEODWebhook {
   timestamp: string;
   confidence: number;
   kycId: string;
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -171,6 +175,7 @@ export interface RegTankKYCWebhook {
   timestamp: string;
   onboardingId?: string;
   tags: string[];
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -190,6 +195,7 @@ export interface RegTankKYBWebhook {
   timestamp: string;
   onboardingId?: string;
   tags: string[];
+  [key: string]: unknown; // Allow storage as JSON
 }
 
 /**
@@ -206,5 +212,6 @@ export interface RegTankKYTWebhook {
   messageStatus: string;
   assignee: string;
   timestamp: string;
+  [key: string]: unknown; // Allow storage as JSON
 }
 
