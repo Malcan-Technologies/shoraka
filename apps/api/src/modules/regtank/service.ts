@@ -912,38 +912,7 @@ export class RegTankService {
       // kycId is at root level, not in userProfile
       // Try multiple possible locations/field names for kycId
       // Also check nested locations (userProfile, documentInfo, etc.)
-      let kycId = this.normalizeValue(
-        regtankDetails.kycId || 
-        regtankDetails.kyc_id || 
-        (regtankDetails as any).KYCId ||
-        (regtankDetails as any).KYC_ID ||
-        // Check nested locations
-        (userProfile as any).kycId ||
-        (userProfile as any).kyc_id ||
-        (regtankDetails.documentInfo as any)?.kycId ||
-        (regtankDetails.livenessCheckInfo as any)?.kycId
-      );
-      
-      // Log the raw kycId value for debugging
-      logger.info(
-        {
-          organizationId,
-          kycIdRaw: regtankDetails.kycId,
-          kycIdExtracted: kycId,
-          kycIdType: typeof regtankDetails.kycId,
-          hasKycId: "kycId" in regtankDetails,
-          hasKycIdInUserProfile: "kycId" in userProfile,
-          regtankDetailsKeys: Object.keys(regtankDetails).slice(0, 30), // First 30 keys for debugging
-          // Check all string values that start with "KYC" in case it's named differently
-          kycLikeValues: Object.entries(regtankDetails)
-            .filter(([key, value]) => 
-              typeof value === 'string' && 
-              (value.startsWith('KYC') || key.toLowerCase().includes('kyc'))
-            )
-            .slice(0, 10),
-        },
-        "Checking kycId in RegTank response - all locations checked"
-      );
+      let kycId = this.normalizeValue(regtankDetails.kycId);
       
       // Extract display areas - store entire displayArea object as JSON
       let bankAccountDetails = null;
@@ -1718,31 +1687,8 @@ export class RegTankService {
           );
           
           const regtankDetails = await this.apiClient.queryOnboardingDetails(onboarding.request_id);
-          
-          // Extract kycId from regtankDetails (check multiple possible locations)
-          const userProfile = regtankDetails.userProfile || {};
-          const extractedKycId = this.normalizeValue(
-            regtankDetails.kycId || 
-            regtankDetails.kyc_id || 
-            (regtankDetails as any).KYCId ||
-            (regtankDetails as any).KYC_ID ||
-            (userProfile as any).kycId ||
-            (userProfile as any).kyc_id ||
-            (regtankDetails.documentInfo as any)?.kycId ||
-            (regtankDetails.livenessCheckInfo as any)?.kycId
-          );
-          
-          // Log extracted kycId for debugging
-          logger.info(
-            {
-              requestId: onboarding.request_id,
-              organizationId,
-              kycIdExtracted: extractedKycId,
-              kycIdRaw: regtankDetails.kycId,
-              hasKycId: !!extractedKycId,
-            },
-            "Extracted kycId from RegTank details before organization data update"
-          );
+
+		  logger.info(regtankDetails, "RegTank details");
           
           // Extract and update organization with RegTank data
           await this.extractAndUpdateOrganizationData(
