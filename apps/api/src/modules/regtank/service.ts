@@ -887,7 +887,8 @@ export class RegTankService {
   private async extractAndUpdateOrganizationData(
     organizationId: string,
     portalType: PortalType,
-    regtankDetails: any
+    regtankDetails: any,
+    requestId?: string
   ): Promise<void> {
     try {
       const userProfile = regtankDetails.userProfile || {};
@@ -913,6 +914,36 @@ export class RegTankService {
       // Try multiple possible locations/field names for kycId
       // Also check nested locations (userProfile, documentInfo, etc.)
       let kycId = this.normalizeValue(regtankDetails.kycId);
+      
+      // If kycId is not found in regtankDetails, try to get it from webhook payloads (KYC webhook requestId)
+      if (!kycId && requestId) {
+        const onboarding = await this.repository.findByRequestId(requestId);
+        if (onboarding?.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
+          for (const payload of onboarding.webhook_payloads) {
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+              const payloadObj = payload as Record<string, any>;
+              // KYC webhooks have requestId that is the kycId (starts with "KYC")
+              if (payloadObj.requestId && typeof payloadObj.requestId === 'string' && payloadObj.requestId.startsWith('KYC')) {
+                kycId = payloadObj.requestId;
+                logger.info(
+                  { organizationId, requestId, kycId, webhookType: payloadObj.webhookType || 'unknown' },
+                  "Extracted kycId from KYC webhook requestId in extractAndUpdateOrganizationData"
+                );
+                break;
+              }
+              // Also check if kycId field exists directly in payload
+              if (payloadObj.kycId && typeof payloadObj.kycId === 'string') {
+                kycId = payloadObj.kycId;
+                logger.info(
+                  { organizationId, requestId, kycId, webhookType: payloadObj.webhookType || 'unknown' },
+                  "Extracted kycId from webhook payload in extractAndUpdateOrganizationData"
+                );
+                break;
+              }
+            }
+          }
+        }
+      }
       
       // Extract display areas - store entire displayArea object as JSON
       let bankAccountDetails = null;
@@ -1153,7 +1184,7 @@ export class RegTankService {
     );
 
     // Find onboarding record
-    const onboarding = await this.repository.findByRequestId(requestId);
+    let onboarding = await this.repository.findByRequestId(requestId);
 
     if (!onboarding) {
       logger.warn(
@@ -1208,7 +1239,7 @@ export class RegTankService {
     }
 
     // Set completed_at if status is APPROVED or REJECTED
-    if (status === "APPROVED" || status === "REJECTED") {
+    if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
 
@@ -1272,15 +1303,28 @@ export class RegTankService {
     }
 
     // If approved, fetch details from RegTank and update organization to PENDING_AML
-    if (status === "APPROVED" && organizationId) {
+    if (statusUpper === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 
       try {
+        // Wait 3 seconds to allow KYC webhooks to arrive and be stored
+        logger.info(
+          { requestId, organizationId, portalType },
+          "Waiting 3 seconds before fetching RegTank onboarding details to allow KYC webhooks to arrive"
+        );
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
         // Fetch full details from RegTank API
         logger.info(
           { requestId, organizationId, portalType },
           "Fetching RegTank onboarding details after approval"
         );
+        
+        // Re-fetch onboarding record to get latest webhook payloads (including any KYC webhooks that arrived)
+        const updatedOnboarding = await this.repository.findByRequestId(requestId);
+        if (updatedOnboarding) {
+          onboarding = updatedOnboarding;
+        }
         
         const regtankDetails = await this.apiClient.queryOnboardingDetails(requestId);
         
@@ -1361,7 +1405,8 @@ export class RegTankService {
         await this.extractAndUpdateOrganizationData(
           organizationId,
           portalType,
-          regtankDetails
+          regtankDetails,
+          requestId
         );
         
         // Update organization status to PENDING_AML
@@ -1675,14 +1720,14 @@ export class RegTankService {
       }
 
       // Set completed_at if status is APPROVED or REJECTED
-      if (details.status === "APPROVED" || details.status === "REJECTED") {
+      if (details.status.toUpperCase() === "APPROVED" || details.status.toUpperCase() === "REJECTED") {
         updateData.completedAt = new Date();
       }
 
       await this.repository.updateStatus(onboarding.request_id, updateData);
 
       // If approved, fetch details from RegTank and update organization to PENDING_AML (same logic as webhook handler)
-      if (details.status === "APPROVED") {
+      if (details.status.toUpperCase() === "APPROVED") {
         try {
           // Fetch full details from RegTank API
           logger.info(
@@ -1698,7 +1743,8 @@ export class RegTankService {
           await this.extractAndUpdateOrganizationData(
             organizationId,
             portalType,
-            regtankDetails
+            regtankDetails,
+            onboarding.request_id
           );
           
           // Update organization status to PENDING_AML
