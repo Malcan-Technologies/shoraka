@@ -222,7 +222,7 @@ export class RegTankAPIClient {
       requestId,
       language: options?.language || "EN",
       idType: options?.idType,
-      skipFormPage: options?.skipFormPage ?? true,
+      skipFormPage: options?.skipFormPage ?? false, // Default false so user completes full form
     };
 
     // Include email if provided (required for corporate onboarding)

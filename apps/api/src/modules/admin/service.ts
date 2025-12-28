@@ -1628,6 +1628,14 @@ export class AdminService {
       ? `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
       : null;
 
+    // Build KYC portal URL for AML review (uses kyc_id from organization)
+    const kycId = isInvestor
+      ? record.investor_organization?.kyc_id
+      : record.issuer_organization?.kyc_id;
+    const kycPortalUrl = kycId
+      ? `${regtankConfig.adminPortalUrl}/app/screen-kyc/result/${kycId}`
+      : null;
+
     // Get approval flags based on portal type
     const isInvestorOrg = record.portal_type === "investor";
     const investorOrg = record.investor_organization;
@@ -1664,6 +1672,7 @@ export class AdminService {
       regtankStatus: record.status,
       regtankSubstatus: record.substatus,
       regtankPortalUrl,
+      kycPortalUrl,
       status,
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,

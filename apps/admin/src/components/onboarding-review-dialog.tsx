@@ -120,6 +120,13 @@ export function OnboardingReviewDialog({
     }
   };
 
+  // Open KYC/AML review page in RegTank portal
+  const handleOpenKycReview = () => {
+    if (application.kycPortalUrl) {
+      window.open(application.kycPortalUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
   const handleSSMApprove = () => {
     ssmApprovalMutation.mutate(application.id, {
       onSuccess: (data) => {
@@ -299,23 +306,18 @@ export function OnboardingReviewDialog({
               <div className="rounded-lg bg-muted/50 p-4 space-y-2">
                 <p className="text-sm font-medium">Instructions:</p>
                 <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Click the button below to open RegTank portal</li>
-                  <li>Navigate to the AML screening section</li>
-                  <li className="flex flex-wrap items-center gap-1.5">
-                    <span>Search for the user by email:</span>
-                    <CopyableEmail email={application.userEmail} />
-                  </li>
+                  <li>Click the button below to open KYC/AML screening page</li>
                   <li>Review the AML screening results</li>
                   <li>Approve or reject based on the findings</li>
                 </ol>
               </div>
               <Button
-                onClick={handleOpenRegTank}
+                onClick={handleOpenKycReview}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl}
+                disabled={!application.kycPortalUrl}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                Open RegTank Portal for AML Review
+                Open KYC/AML Review
               </Button>
               <Separator />
               <div className="text-sm text-muted-foreground">

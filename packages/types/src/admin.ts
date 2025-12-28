@@ -476,6 +476,7 @@ export interface OnboardingApplicationResponse {
   regtankStatus: string | null;
   regtankSubstatus: string | null;
   regtankPortalUrl: string | null;
+  kycPortalUrl: string | null;
   status: OnboardingApprovalStatus;
   ssmVerified: boolean;
   ssmVerifiedAt: string | null;

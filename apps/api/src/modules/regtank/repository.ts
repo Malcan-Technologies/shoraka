@@ -425,6 +425,7 @@ export class RegTankRepository {
               aml_approved: true,
               tnc_accepted: true,
               ssm_approved: true,
+              kyc_id: true,
             },
           },
           issuer_organization: {
@@ -439,6 +440,7 @@ export class RegTankRepository {
               aml_approved: true,
               tnc_accepted: true,
               ssm_checked: true,
+              kyc_id: true,
             },
           },
         },
@@ -469,6 +471,7 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     aml_approved: boolean;
     tnc_accepted: boolean;
     ssm_approved: boolean;
+    kyc_id: string | null;
   } | null;
   issuer_organization: {
     id: string;
@@ -481,5 +484,6 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     aml_approved: boolean;
     tnc_accepted: boolean;
     ssm_checked: boolean;
+    kyc_id: string | null;
   } | null;
 };
