@@ -158,7 +158,9 @@ export interface OnboardingOperationsMetrics {
   rejected: number;
   expired: number;
   avgTimeToApprovalMinutes: number | null;
-  avgTimeChangePercent: number | null;
+  avgTimeToApprovalChangePercent: number | null;
+  avgTimeToOnboardingMinutes: number | null;
+  avgTimeToOnboardingChangePercent: number | null;
 }
 
 export interface DashboardStatsResponse {

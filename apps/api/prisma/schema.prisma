@@ -284,6 +284,7 @@ model InvestorOrganization {
   tnc_accepted        Boolean @default(false)
   deposit_received    Boolean @default(false)
   ssm_approved        Boolean @default(false)
+  admin_approved_at   DateTime?
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
@@ -332,6 +333,7 @@ model IssuerOrganization {
   aml_approved        Boolean @default(false)
   tnc_accepted        Boolean @default(false)
   ssm_checked         Boolean @default(false)
+  admin_approved_at   DateTime?
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]

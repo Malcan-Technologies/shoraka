@@ -1591,7 +1591,9 @@ export class AdminRepository {
     rejected: number;
     expired: number;
     avgTimeToApprovalMinutes: number | null;
-    avgTimeChangePercent: number | null;
+    avgTimeToApprovalChangePercent: number | null;
+    avgTimeToOnboardingMinutes: number | null;
+    avgTimeToOnboardingChangePercent: number | null;
   }> {
     // Count organizations by onboarding_status from both investor and issuer tables
     const [
@@ -1672,7 +1674,8 @@ export class AdminRepository {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
     // Get completed organizations from current period (last 30 days)
-    const [currentInvestorApproved, currentIssuerApproved] = await Promise.all([
+    // Include regtank_onboarding to get completed_at for approval time calculation
+    const [currentInvestorCompleted, currentIssuerCompleted] = await Promise.all([
       prisma.investorOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
@@ -1681,6 +1684,13 @@ export class AdminRepository {
         select: {
           created_at: true,
           onboarded_at: true,
+          admin_approved_at: true,
+          regtank_onboarding: {
+            where: { status: "APPROVED" },
+            orderBy: { completed_at: "desc" },
+            take: 1,
+            select: { completed_at: true },
+          },
         },
       }),
       prisma.issuerOrganization.findMany({
@@ -1691,14 +1701,21 @@ export class AdminRepository {
         select: {
           created_at: true,
           onboarded_at: true,
+          admin_approved_at: true,
+          regtank_onboarding: {
+            where: { status: "APPROVED" },
+            orderBy: { completed_at: "desc" },
+            take: 1,
+            select: { completed_at: true },
+          },
         },
       }),
     ]);
 
-    const currentPeriodApproved = [...currentInvestorApproved, ...currentIssuerApproved];
+    const currentPeriodCompleted = [...currentInvestorCompleted, ...currentIssuerCompleted];
 
     // Get completed organizations from previous period (30-60 days ago)
-    const [previousInvestorApproved, previousIssuerApproved] = await Promise.all([
+    const [previousInvestorCompleted, previousIssuerCompleted] = await Promise.all([
       prisma.investorOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
@@ -1710,6 +1727,13 @@ export class AdminRepository {
         select: {
           created_at: true,
           onboarded_at: true,
+          admin_approved_at: true,
+          regtank_onboarding: {
+            where: { status: "APPROVED" },
+            orderBy: { completed_at: "desc" },
+            take: 1,
+            select: { completed_at: true },
+          },
         },
       }),
       prisma.issuerOrganization.findMany({
@@ -1723,40 +1747,77 @@ export class AdminRepository {
         select: {
           created_at: true,
           onboarded_at: true,
+          admin_approved_at: true,
+          regtank_onboarding: {
+            where: { status: "APPROVED" },
+            orderBy: { completed_at: "desc" },
+            take: 1,
+            select: { completed_at: true },
+          },
         },
       }),
     ]);
 
-    const previousPeriodApproved = [...previousInvestorApproved, ...previousIssuerApproved];
+    const previousPeriodCompleted = [...previousInvestorCompleted, ...previousIssuerCompleted];
 
-    // Calculate average approval time for current period
-    // Time from created_at to onboarded_at
+    // Calculate average time to approval (regtank completed_at to admin_approved_at)
+    // This measures how long admin takes to approve after RegTank completes
     let avgTimeToApprovalMinutes: number | null = null;
-    if (currentPeriodApproved.length > 0) {
-      const totalMinutes = currentPeriodApproved.reduce((sum, org) => {
-        if (org.onboarded_at) {
-          const diffMs = org.onboarded_at.getTime() - org.created_at.getTime();
-          return sum + diffMs / 1000 / 60; // Convert to minutes
-        }
-        return sum;
+    const currentWithApproval = currentPeriodCompleted.filter(
+      (org) => org.admin_approved_at && org.regtank_onboarding[0]?.completed_at
+    );
+    if (currentWithApproval.length > 0) {
+      const totalMinutes = currentWithApproval.reduce((sum, org) => {
+        const regtankCompletedAt = org.regtank_onboarding[0]!.completed_at!;
+        const diffMs = org.admin_approved_at!.getTime() - regtankCompletedAt.getTime();
+        return sum + diffMs / 1000 / 60;
       }, 0);
-      avgTimeToApprovalMinutes = Math.round(totalMinutes / currentPeriodApproved.length);
+      avgTimeToApprovalMinutes = Math.round(totalMinutes / currentWithApproval.length);
     }
 
-    // Calculate average approval time for previous period
-    let avgTimeChangePercent: number | null = null;
-    if (previousPeriodApproved.length > 0 && avgTimeToApprovalMinutes !== null) {
-      const previousTotalMinutes = previousPeriodApproved.reduce((sum, org) => {
-        if (org.onboarded_at) {
-          const diffMs = org.onboarded_at.getTime() - org.created_at.getTime();
-          return sum + diffMs / 1000 / 60;
-        }
-        return sum;
+    // Calculate average time to approval change percent
+    let avgTimeToApprovalChangePercent: number | null = null;
+    const previousWithApproval = previousPeriodCompleted.filter(
+      (org) => org.admin_approved_at && org.regtank_onboarding[0]?.completed_at
+    );
+    if (previousWithApproval.length > 0 && avgTimeToApprovalMinutes !== null) {
+      const previousTotalMinutes = previousWithApproval.reduce((sum, org) => {
+        const regtankCompletedAt = org.regtank_onboarding[0]!.completed_at!;
+        const diffMs = org.admin_approved_at!.getTime() - regtankCompletedAt.getTime();
+        return sum + diffMs / 1000 / 60;
       }, 0);
-      const previousAvg = previousTotalMinutes / previousPeriodApproved.length;
+      const previousAvg = previousTotalMinutes / previousWithApproval.length;
       if (previousAvg > 0) {
-        avgTimeChangePercent = Math.round(
+        avgTimeToApprovalChangePercent = Math.round(
           ((avgTimeToApprovalMinutes - previousAvg) / previousAvg) * 100
+        );
+      }
+    }
+
+    // Calculate average time to onboarding (created_at to onboarded_at)
+    // This measures total time from organization creation to fully onboarded
+    let avgTimeToOnboardingMinutes: number | null = null;
+    const currentWithOnboarding = currentPeriodCompleted.filter((org) => org.onboarded_at);
+    if (currentWithOnboarding.length > 0) {
+      const totalMinutes = currentWithOnboarding.reduce((sum, org) => {
+        const diffMs = org.onboarded_at!.getTime() - org.created_at.getTime();
+        return sum + diffMs / 1000 / 60;
+      }, 0);
+      avgTimeToOnboardingMinutes = Math.round(totalMinutes / currentWithOnboarding.length);
+    }
+
+    // Calculate average time to onboarding change percent
+    let avgTimeToOnboardingChangePercent: number | null = null;
+    const previousWithOnboarding = previousPeriodCompleted.filter((org) => org.onboarded_at);
+    if (previousWithOnboarding.length > 0 && avgTimeToOnboardingMinutes !== null) {
+      const previousTotalMinutes = previousWithOnboarding.reduce((sum, org) => {
+        const diffMs = org.onboarded_at!.getTime() - org.created_at.getTime();
+        return sum + diffMs / 1000 / 60;
+      }, 0);
+      const previousAvg = previousTotalMinutes / previousWithOnboarding.length;
+      if (previousAvg > 0) {
+        avgTimeToOnboardingChangePercent = Math.round(
+          ((avgTimeToOnboardingMinutes - previousAvg) / previousAvg) * 100
         );
       }
     }
@@ -1768,7 +1829,9 @@ export class AdminRepository {
       rejected: rejectedCount,
       expired: expiredCount,
       avgTimeToApprovalMinutes,
-      avgTimeChangePercent,
+      avgTimeToApprovalChangePercent,
+      avgTimeToOnboardingMinutes,
+      avgTimeToOnboardingChangePercent,
     };
   }
 }

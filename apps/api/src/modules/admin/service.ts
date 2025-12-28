@@ -464,7 +464,9 @@ export class AdminService {
       rejected: number;
       expired: number;
       avgTimeToApprovalMinutes: number | null;
-      avgTimeChangePercent: number | null;
+      avgTimeToApprovalChangePercent: number | null;
+      avgTimeToOnboardingMinutes: number | null;
+      avgTimeToOnboardingChangePercent: number | null;
     };
   }> {
     const TREND_PERIOD_DAYS = 30;

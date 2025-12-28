@@ -63,7 +63,9 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
   const rejected = metrics?.rejected ?? 0;
   const expired = metrics?.expired ?? 0;
   const avgTimeToApprovalMinutes = metrics?.avgTimeToApprovalMinutes ?? null;
-  const avgTimeChangePercent = metrics?.avgTimeChangePercent ?? null;
+  const avgTimeToApprovalChangePercent = metrics?.avgTimeToApprovalChangePercent ?? null;
+  const avgTimeToOnboardingMinutes = metrics?.avgTimeToOnboardingMinutes ?? null;
+  const avgTimeToOnboardingChangePercent = metrics?.avgTimeToOnboardingChangePercent ?? null;
 
   const total = inProgress + pending + approved + rejected + expired;
 
@@ -92,7 +94,8 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
     );
   }
 
-  const isTimeImproved = avgTimeChangePercent !== null && avgTimeChangePercent < 0;
+  const isApprovalTimeImproved = avgTimeToApprovalChangePercent !== null && avgTimeToApprovalChangePercent < 0;
+  const isOnboardingTimeImproved = avgTimeToOnboardingChangePercent !== null && avgTimeToOnboardingChangePercent < 0;
 
   return (
     <Card className="rounded-2xl shadow-sm">
@@ -198,7 +201,7 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
             </div>
 
             {/* Metrics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Average Time to Approval */}
               <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted shrink-0">
@@ -212,14 +215,42 @@ export function OperationsSection({ loading = false, metrics }: OperationsSectio
                     <span className="text-2xl font-bold text-foreground tabular-nums">
                       {formatApprovalTime(avgTimeToApprovalMinutes)}
                     </span>
-                    {avgTimeChangePercent !== null && (
+                    {avgTimeToApprovalChangePercent !== null && (
                       <span
                         className={cn(
                           "text-sm font-medium",
-                          isTimeImproved ? "text-green-600" : "text-primary"
+                          isApprovalTimeImproved ? "text-green-600" : "text-primary"
                         )}
                       >
-                        {isTimeImproved ? "↓" : "↑"} {Math.abs(avgTimeChangePercent)}%
+                        {isApprovalTimeImproved ? "↓" : "↑"} {Math.abs(avgTimeToApprovalChangePercent)}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">vs last 30 days</p>
+                </div>
+              </div>
+
+              {/* Average Time to Onboarding */}
+              <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted shrink-0">
+                  <ClockIcon className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Avg. Time to Onboarding
+                  </p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-foreground tabular-nums">
+                      {formatApprovalTime(avgTimeToOnboardingMinutes)}
+                    </span>
+                    {avgTimeToOnboardingChangePercent !== null && (
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          isOnboardingTimeImproved ? "text-green-600" : "text-primary"
+                        )}
+                      >
+                        {isOnboardingTimeImproved ? "↓" : "↑"} {Math.abs(avgTimeToOnboardingChangePercent)}%
                       </span>
                     )}
                   </div>
