@@ -14,12 +14,6 @@ interface OnboardingQueueRowProps {
 
 function getStatusBadge(status: OnboardingApprovalStatus) {
   switch (status) {
-    case "PENDING_SSM_REVIEW":
-      return (
-        <Badge className="bg-secondary text-secondary-foreground hover:bg-secondary/80">
-          Pending SSM Review
-        </Badge>
-      );
     case "PENDING_ONBOARDING":
       return (
         <Badge variant="outline" className="text-muted-foreground">
@@ -34,8 +28,20 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       );
     case "PENDING_AML":
       return <Badge className="bg-orange-500 text-white hover:bg-orange-600">Pending AML</Badge>;
-    case "APPROVED":
-      return <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Approved</Badge>;
+    case "PENDING_SSM_REVIEW":
+      return (
+        <Badge className="bg-amber-600 text-white hover:bg-amber-700">
+          Pending SSM Review
+        </Badge>
+      );
+    case "PENDING_FINAL_APPROVAL":
+      return (
+        <Badge className="bg-blue-500 text-white hover:bg-blue-600">
+          Pending Final Approval
+        </Badge>
+      );
+    case "COMPLETED":
+      return <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Completed</Badge>;
     case "REJECTED":
       return <Badge variant="destructive">Rejected</Badge>;
     case "EXPIRED":
@@ -94,11 +100,12 @@ function formatDate(dateString: string) {
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
-  // Admin action required for SSM review, approval, and AML (not pending onboarding - that's user action)
+  // Admin action required for approval, AML, SSM review, or final approval (not pending onboarding - that's user action)
   const needsAction =
-    application.status === "PENDING_SSM_REVIEW" ||
     application.status === "PENDING_APPROVAL" ||
-    application.status === "PENDING_AML";
+    application.status === "PENDING_AML" ||
+    application.status === "PENDING_SSM_REVIEW" ||
+    application.status === "PENDING_FINAL_APPROVAL";
 
   return (
     <>

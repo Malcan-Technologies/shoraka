@@ -28,7 +28,11 @@ import {
   getCompanyOnboardingSteps,
 } from "./approval-progress-stepper";
 import { SSMVerificationPanel } from "./ssm-verification-panel";
-import { useRestartOnboarding, useCompleteFinalApproval } from "@/hooks/use-onboarding-applications";
+import {
+  useRestartOnboarding,
+  useCompleteFinalApproval,
+  useApproveSsmVerification,
+} from "@/hooks/use-onboarding-applications";
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -90,11 +94,12 @@ export function OnboardingReviewDialog({
   const [showFinalApprovalConfirm, setShowFinalApprovalConfirm] = React.useState(false);
   const restartMutation = useRestartOnboarding();
   const finalApprovalMutation = useCompleteFinalApproval();
+  const ssmApprovalMutation = useApproveSsmVerification();
 
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
-    ? getCompanyOnboardingSteps(application.status, application.isCompleted)
-    : getPersonalOnboardingSteps(application.status, application.isCompleted);
+    ? getCompanyOnboardingSteps(application.status)
+    : getPersonalOnboardingSteps(application.status);
 
   // Check if all required approval flags are met
   const hasOnboardingApproval = application.onboardingApproved;
@@ -116,10 +121,19 @@ export function OnboardingReviewDialog({
   };
 
   const handleSSMApprove = () => {
-    toast.success("SSM verification approved", {
-      description: `Company ${application.organizationName} has been verified.`,
+    ssmApprovalMutation.mutate(application.id, {
+      onSuccess: (data) => {
+        toast.success("SSM verification approved", {
+          description: data.message,
+        });
+        onOpenChange(false);
+      },
+      onError: (error) => {
+        toast.error("Failed to approve SSM verification", {
+          description: error.message,
+        });
+      },
     });
-    onOpenChange(false);
   };
 
   const handleSSMReject = () => {
@@ -177,15 +191,6 @@ export function OnboardingReviewDialog({
 
   const renderCurrentStepContent = () => {
     switch (application.status) {
-      case "PENDING_SSM_REVIEW":
-        return (
-          <SSMVerificationPanel
-            application={application}
-            onApprove={handleSSMApprove}
-            onReject={handleSSMReject}
-          />
-        );
-
       case "PENDING_ONBOARDING":
         return (
           <Card className="border-accent/30 bg-accent/5">
@@ -195,8 +200,8 @@ export function OnboardingReviewDialog({
                 Waiting for User
               </CardTitle>
               <CardDescription>
-                The user is currently completing their identity verification on RegTank. 
-                Status will update automatically when they finish.
+                The user is currently completing their identity verification on RegTank. Status will
+                update automatically when they finish.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -205,13 +210,16 @@ export function OnboardingReviewDialog({
                 <p className="text-sm text-muted-foreground">
                   RegTank Status: <span className="font-mono">{application.regtankStatus}</span>
                   {application.regtankSubstatus && (
-                    <> / <span className="font-mono">{application.regtankSubstatus}</span></>
+                    <>
+                      {" "}
+                      / <span className="font-mono">{application.regtankSubstatus}</span>
+                    </>
                   )}
                 </p>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={handleOpenRegTank} 
+              <Button
+                variant="outline"
+                onClick={handleOpenRegTank}
                 className="w-full gap-2"
                 disabled={!application.regtankPortalUrl}
               >
@@ -249,8 +257,8 @@ export function OnboardingReviewDialog({
                   <li>Return here - status will update automatically via webhook</li>
                 </ol>
               </div>
-              <Button 
-                onClick={handleOpenRegTank} 
+              <Button
+                onClick={handleOpenRegTank}
                 className="w-full gap-2"
                 disabled={!application.regtankPortalUrl}
               >
@@ -301,8 +309,8 @@ export function OnboardingReviewDialog({
                   <li>Approve or reject based on the findings</li>
                 </ol>
               </div>
-              <Button 
-                onClick={handleOpenRegTank} 
+              <Button
+                onClick={handleOpenRegTank}
                 className="w-full gap-2"
                 disabled={!application.regtankPortalUrl}
               >
@@ -326,41 +334,18 @@ export function OnboardingReviewDialog({
           </Card>
         );
 
-      case "APPROVED":
-        // If already completed, show completed state
-        if (application.isCompleted) {
-          return (
-            <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-              <CardContent className="pt-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
-                  <div>
-                    <p className="font-semibold text-lg text-emerald-900 dark:text-emerald-100">
-                      Onboarding Complete
-                    </p>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                      This user has completed all verification steps and is fully onboarded.
-                    </p>
-                  </div>
-                </div>
-                <Separator />
-                <div className="text-sm text-muted-foreground">
-                  If needed, you can request the user to redo their onboarding:
-                </div>
-                <Button
-                  onClick={() => setShowRedoConfirm(true)}
-                  variant="outline"
-                  className="w-full gap-2"
-                  disabled={restartMutation.isPending}
-                >
-                  <ArrowPathIcon className="h-4 w-4" />
-                  Restart Onboarding
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        }
+      case "PENDING_SSM_REVIEW":
+        // For company accounts, show SSM verification
+        return (
+          <SSMVerificationPanel
+            application={application}
+            onApprove={handleSSMApprove}
+            onReject={handleSSMReject}
+            disabled={ssmApprovalMutation.isPending}
+          />
+        );
 
+      case "PENDING_FINAL_APPROVAL":
         // Show Final Approval section with checklist
         return (
           <Card className="border-blue-500/30 bg-blue-50 dark:bg-blue-950/20">
@@ -370,8 +355,8 @@ export function OnboardingReviewDialog({
                 Final Approval Required
               </CardTitle>
               <CardDescription>
-                RegTank verification is complete. Review the checklist below and complete the final
-                approval to activate the user&apos;s account.
+                All verification steps are complete. Review the checklist below and complete the
+                final approval to activate the user&apos;s account.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -385,7 +370,9 @@ export function OnboardingReviewDialog({
                     ) : (
                       <XCircleIcon className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <span className={`text-sm ${hasOnboardingApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-sm ${hasOnboardingApproval ? "text-foreground" : "text-muted-foreground"}`}
+                    >
                       Onboarding Approved
                     </span>
                   </div>
@@ -395,7 +382,9 @@ export function OnboardingReviewDialog({
                     ) : (
                       <XCircleIcon className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <span className={`text-sm ${hasAmlApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-sm ${hasAmlApproval ? "text-foreground" : "text-muted-foreground"}`}
+                    >
                       AML Approved
                     </span>
                   </div>
@@ -405,7 +394,9 @@ export function OnboardingReviewDialog({
                     ) : (
                       <XCircleIcon className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <span className={`text-sm ${hasTncAccepted ? "text-foreground" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-sm ${hasTncAccepted ? "text-foreground" : "text-muted-foreground"}`}
+                    >
                       Terms & Conditions Accepted
                     </span>
                   </div>
@@ -416,7 +407,9 @@ export function OnboardingReviewDialog({
                       ) : (
                         <XCircleIcon className="h-5 w-5 text-muted-foreground" />
                       )}
-                      <span className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}>
+                      <span
+                        className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
+                      >
                         SSM Approved
                       </span>
                     </div>
@@ -447,6 +440,38 @@ export function OnboardingReviewDialog({
               <Separator />
               <div className="text-sm text-muted-foreground">
                 Or request the user to redo their onboarding:
+              </div>
+              <Button
+                onClick={() => setShowRedoConfirm(true)}
+                variant="outline"
+                className="w-full gap-2"
+                disabled={restartMutation.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Restart Onboarding
+              </Button>
+            </CardContent>
+          </Card>
+        );
+
+      case "COMPLETED":
+        return (
+          <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+                <div>
+                  <p className="font-semibold text-lg text-emerald-900 dark:text-emerald-100">
+                    Onboarding Complete
+                  </p>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                    This user has completed all verification steps and is fully onboarded.
+                  </p>
+                </div>
+              </div>
+              <Separator />
+              <div className="text-sm text-muted-foreground">
+                If needed, you can request the user to redo their onboarding:
               </div>
               <Button
                 onClick={() => setShowRedoConfirm(true)}
@@ -621,9 +646,10 @@ export function OnboardingReviewDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Restart Onboarding?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will call the RegTank restart API to create a new onboarding request. The current onboarding 
-              will be cancelled and {application.userName} will receive a new verification link. Personal 
-              information from the previous submission will be inherited.
+              This will call the RegTank restart API to create a new onboarding request. The current
+              onboarding will be cancelled and {application.userName} will receive a new
+              verification link. Personal information from the previous submission will be
+              inherited.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -633,9 +659,7 @@ export function OnboardingReviewDialog({
               disabled={restartMutation.isPending}
               className="gap-2"
             >
-              {restartMutation.isPending && (
-                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-              )}
+              {restartMutation.isPending && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
               Confirm Redo
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -648,8 +672,8 @@ export function OnboardingReviewDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Complete Onboarding?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark {application.userName}&apos;s onboarding as complete. They will gain full
-              access to the {application.portal} portal. This action cannot be undone.
+              This will mark {application.userName}&apos;s onboarding as complete. They will gain
+              full access to the {application.portal} portal. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -670,4 +694,3 @@ export function OnboardingReviewDialog({
     </Dialog>
   );
 }
-

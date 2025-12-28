@@ -274,7 +274,8 @@ export type OnboardingEventType =
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"
   | "SOPHISTICATED_STATUS_UPDATED"
-  | "FINAL_APPROVAL_COMPLETED";
+  | "FINAL_APPROVAL_COMPLETED"
+  | "SSM_APPROVED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -351,6 +352,8 @@ export type OnboardingStatusEnum =
   | "IN_PROGRESS"
   | "PENDING_APPROVAL"
   | "PENDING_AML"
+  | "PENDING_SSM_REVIEW"
+  | "PENDING_FINAL_APPROVAL"
   | "COMPLETED";
 
 export interface OrganizationOwner {
@@ -449,11 +452,12 @@ export interface OrganizationDetailResponse {
 
 // Onboarding Applications Types (Admin Approval Queue)
 export type OnboardingApprovalStatus =
-  | "PENDING_SSM_REVIEW"
   | "PENDING_ONBOARDING"
   | "PENDING_APPROVAL"
   | "PENDING_AML"
-  | "APPROVED"
+  | "PENDING_SSM_REVIEW"
+  | "PENDING_FINAL_APPROVAL"
+  | "COMPLETED"
   | "REJECTED"
   | "EXPIRED"
   | "CANCELLED";

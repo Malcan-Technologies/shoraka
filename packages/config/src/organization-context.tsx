@@ -13,7 +13,14 @@ import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
 
 export type OrganizationType = "PERSONAL" | "COMPANY";
-export type OnboardingStatus = "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
+export type OnboardingStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "PENDING_APPROVAL"
+  | "PENDING_AML"
+  | "PENDING_SSM_REVIEW"
+  | "PENDING_FINAL_APPROVAL"
+  | "COMPLETED";
 export type OrganizationMemberRole = "OWNER" | "DIRECTOR" | "MEMBER";
 export type PortalType = "investor" | "issuer";
 
@@ -48,10 +55,34 @@ interface OrganizationContextType {
   refreshOrganizations: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   completeOnboarding: (organizationId: string) => Promise<void>;
-  startRegTankOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
-  startIndividualOnboarding: (organizationId: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
-  startCorporateOnboarding: (organizationId: string, companyName: string) => Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }>;
-  syncRegTankStatus: (organizationId: string) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
+  startRegTankOnboarding: (
+    organizationId: string
+  ) => Promise<{
+    verifyLink: string;
+    requestId: string;
+    expiresIn: number;
+    organizationType: string;
+  }>;
+  startIndividualOnboarding: (
+    organizationId: string
+  ) => Promise<{
+    verifyLink: string;
+    requestId: string;
+    expiresIn: number;
+    organizationType: string;
+  }>;
+  startCorporateOnboarding: (
+    organizationId: string,
+    companyName: string
+  ) => Promise<{
+    verifyLink: string;
+    requestId: string;
+    expiresIn: number;
+    organizationType: string;
+  }>;
+  syncRegTankStatus: (
+    organizationId: string
+  ) => Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }>;
   setOnboardingSettings: (settings: {
     formId: number;
     livenessConfidence: number;
@@ -85,11 +116,7 @@ interface OrganizationProviderProps {
  * OrganizationProvider component that manages organization state
  * Each portal (investor/issuer) has its own organization context
  */
-export function OrganizationProvider({
-  children,
-  portalType,
-  apiUrl,
-}: OrganizationProviderProps) {
+export function OrganizationProvider({ children, portalType, apiUrl }: OrganizationProviderProps) {
   const { getAccessToken, isAuthenticated } = useAuthToken();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(null);
@@ -121,7 +148,12 @@ export function OrganizationProvider({
    */
   const isPendingApproval = useMemo(() => {
     const status = activeOrganization?.onboardingStatus;
-    return status === "PENDING_APPROVAL" || status === "PENDING_AML";
+    return (
+      status === "PENDING_APPROVAL" ||
+      status === "PENDING_AML" ||
+      status === "PENDING_SSM_REVIEW" ||
+      status === "PENDING_FINAL_APPROVAL"
+    );
   }, [activeOrganization]);
 
   /**
@@ -298,7 +330,14 @@ export function OrganizationProvider({
    * @deprecated Use startIndividualOnboarding or startCorporateOnboarding instead
    */
   const startRegTankOnboarding = useCallback(
-    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+    async (
+      organizationId: string
+    ): Promise<{
+      verifyLink: string;
+      requestId: string;
+      expiresIn: number;
+      organizationType: string;
+    }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
         verifyLink: string;
@@ -324,7 +363,14 @@ export function OrganizationProvider({
    * Returns the verify link to redirect user to RegTank portal
    */
   const startIndividualOnboarding = useCallback(
-    async (organizationId: string): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+    async (
+      organizationId: string
+    ): Promise<{
+      verifyLink: string;
+      requestId: string;
+      expiresIn: number;
+      organizationType: string;
+    }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
         verifyLink: string;
@@ -353,7 +399,12 @@ export function OrganizationProvider({
     async (
       organizationId: string,
       companyName: string
-    ): Promise<{ verifyLink: string; requestId: string; expiresIn: number; organizationType: string }> => {
+    ): Promise<{
+      verifyLink: string;
+      requestId: string;
+      expiresIn: number;
+      organizationType: string;
+    }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
         verifyLink: string;
@@ -380,7 +431,9 @@ export function OrganizationProvider({
    * Useful when webhooks are delayed or not configured
    */
   const syncRegTankStatus = useCallback(
-    async (organizationId: string): Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }> => {
+    async (
+      organizationId: string
+    ): Promise<{ status: string; substatus?: string; requestId: string; synced: boolean }> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
         status: string;
@@ -463,4 +516,3 @@ export function useOrganization() {
   }
   return context;
 }
-

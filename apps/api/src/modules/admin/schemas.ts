@@ -202,11 +202,12 @@ export type UpdateSophisticatedStatusBody = z.infer<typeof updateSophisticatedSt
 
 // Onboarding Applications query schema (Admin Approval Queue)
 export const onboardingApprovalStatusEnum = z.enum([
-  "PENDING_SSM_REVIEW",
   "PENDING_ONBOARDING",
   "PENDING_APPROVAL",
   "PENDING_AML",
-  "APPROVED",
+  "PENDING_SSM_REVIEW",
+  "PENDING_FINAL_APPROVAL",
+  "COMPLETED",
   "REJECTED",
   "EXPIRED",
   "CANCELLED",

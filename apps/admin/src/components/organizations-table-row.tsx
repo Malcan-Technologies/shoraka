@@ -98,6 +98,8 @@ export function OrganizationsTableRow({
             {organization.onboardingStatus === "IN_PROGRESS" && "In Progress"}
             {organization.onboardingStatus === "PENDING_APPROVAL" && "Pending Approval"}
             {organization.onboardingStatus === "PENDING_AML" && "Pending AML"}
+            {organization.onboardingStatus === "PENDING_SSM_REVIEW" && "Pending SSM"}
+            {organization.onboardingStatus === "PENDING_FINAL_APPROVAL" && "Pending Final"}
           </Badge>
         )}
       </TableCell>

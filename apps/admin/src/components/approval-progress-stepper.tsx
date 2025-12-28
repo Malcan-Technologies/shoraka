@@ -75,10 +75,7 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
 }
 
 // Helper function to generate steps for Personal onboarding
-export function getPersonalOnboardingSteps(
-  status: string,
-  isCompleted: boolean = false
-): ApprovalStep[] {
+export function getPersonalOnboardingSteps(status: string): ApprovalStep[] {
   const steps: ApprovalStep[] = [
     {
       id: "review",
@@ -117,10 +114,15 @@ export function getPersonalOnboardingSteps(
       steps[1].status = "completed";
       steps[2].status = "current";
       break;
-    case "APPROVED":
+    case "PENDING_FINAL_APPROVAL":
       steps[1].status = "completed";
       steps[2].status = "completed";
-      steps[3].status = isCompleted ? "completed" : "current";
+      steps[3].status = "current";
+      break;
+    case "COMPLETED":
+      steps[1].status = "completed";
+      steps[2].status = "completed";
+      steps[3].status = "completed";
       break;
     case "REJECTED":
     case "EXPIRED":
@@ -132,22 +134,13 @@ export function getPersonalOnboardingSteps(
 }
 
 // Helper function to generate steps for Company onboarding
-export function getCompanyOnboardingSteps(
-  status: string,
-  isCompleted: boolean = false
-): ApprovalStep[] {
+export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
   const steps: ApprovalStep[] = [
     {
       id: "review",
       label: "Review Application",
       description: "View company details and submitted documents",
       status: "completed",
-    },
-    {
-      id: "ssm",
-      label: "SSM Verification",
-      description: "Verify company against SSM records",
-      status: "pending",
     },
     {
       id: "onboarding",
@@ -162,6 +155,12 @@ export function getCompanyOnboardingSteps(
       status: "pending",
     },
     {
+      id: "ssm",
+      label: "SSM Verification",
+      description: "Verify company against SSM records",
+      status: "pending",
+    },
+    {
       id: "final",
       label: "Final Approval",
       description: "Complete onboarding and activate account",
@@ -170,27 +169,32 @@ export function getCompanyOnboardingSteps(
   ];
 
   switch (status) {
-    case "PENDING_SSM_REVIEW":
+    case "PENDING_ONBOARDING":
       steps[1].status = "current";
       break;
-    case "PENDING_ONBOARDING":
-      steps[1].status = "completed";
-      steps[2].status = "current";
-      break;
     case "PENDING_APPROVAL":
-      steps[1].status = "completed";
-      steps[2].status = "current";
+      steps[1].status = "current";
       break;
     case "PENDING_AML":
+      steps[1].status = "completed";
+      steps[2].status = "current";
+      break;
+    case "PENDING_SSM_REVIEW":
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "current";
       break;
-    case "APPROVED":
+    case "PENDING_FINAL_APPROVAL":
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "completed";
-      steps[4].status = isCompleted ? "completed" : "current";
+      steps[4].status = "current";
+      break;
+    case "COMPLETED":
+      steps[1].status = "completed";
+      steps[2].status = "completed";
+      steps[3].status = "completed";
+      steps[4].status = "completed";
       break;
     case "REJECTED":
     case "EXPIRED":

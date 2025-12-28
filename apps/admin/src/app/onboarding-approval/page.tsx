@@ -93,9 +93,10 @@ export default function OnboardingApprovalPage() {
   // Count items requiring admin action (excludes PENDING_ONBOARDING which is user action)
   const pendingCount = applications.filter(
     (app) =>
-      app.status === "PENDING_SSM_REVIEW" ||
       app.status === "PENDING_APPROVAL" ||
-      app.status === "PENDING_AML"
+      app.status === "PENDING_AML" ||
+      app.status === "PENDING_SSM_REVIEW" ||
+      app.status === "PENDING_FINAL_APPROVAL"
   ).length;
 
   return (
@@ -233,9 +234,6 @@ export default function OnboardingApprovalPage() {
                   }}
                 >
                   <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
-                    Pending SSM Review
-                  </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_ONBOARDING">
                     In Progress
                   </DropdownMenuRadioItem>
@@ -243,7 +241,13 @@ export default function OnboardingApprovalPage() {
                     Pending Approval
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
+                    Pending SSM Review
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
+                    Pending Final Approval
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="EXPIRED">Expired</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="CANCELLED">Cancelled</DropdownMenuRadioItem>

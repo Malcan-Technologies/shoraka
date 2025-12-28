@@ -309,6 +309,20 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/complete-final-approval`, {});
   }
 
+  // Approve SSM verification for a company organization
+  async approveSsmVerification(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-ssm`, {});
+  }
+
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.get<{ user: UserResponse }>(`/v1/admin/users/${id}`);
   }

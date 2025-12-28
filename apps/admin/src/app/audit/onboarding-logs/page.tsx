@@ -39,6 +39,7 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_CANCELLED",
   "SOPHISTICATED_STATUS_UPDATED",
   "FINAL_APPROVAL_COMPLETED",
+  "SSM_APPROVED",
 ];
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
@@ -48,6 +49,7 @@ const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "ONBOARDING_CANCELLED", label: "Onboarding Cancelled" },
   { value: "SOPHISTICATED_STATUS_UPDATED", label: "Sophisticated Status Updated" },
   { value: "FINAL_APPROVAL_COMPLETED", label: "Final Approval Completed" },
+  { value: "SSM_APPROVED", label: "SSM Approved" },
 ];
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [

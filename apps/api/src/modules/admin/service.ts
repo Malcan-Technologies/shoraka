@@ -8,6 +8,7 @@ import {
   OnboardingLog,
   SecurityLog,
   OrganizationType,
+  OnboardingStatus,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -1681,13 +1682,15 @@ export class AdminService {
    * Derive the admin-friendly approval status from RegTank status and organization status
    *
    * Status mapping:
-   * - PENDING_SSM_REVIEW: Company in issuer portal without SSM verification
    * - PENDING_ONBOARDING: User is in the process of completing RegTank onboarding
-   * - PENDING_APPROVAL: Completed RegTank onboarding, awaiting admin approval
-   * - PENDING_AML: Onboarding approved, awaiting AML check
-   * - APPROVED: Fully approved
+   * - PENDING_APPROVAL: Completed RegTank onboarding, awaiting admin approval of identity
+   * - PENDING_AML: Identity approved, awaiting AML screening approval
+   * - PENDING_SSM_REVIEW: AML approved (company only), awaiting SSM verification
+   * - PENDING_FINAL_APPROVAL: All checks done, awaiting final approval to activate account
+   * - COMPLETED: Fully onboarded
    * - REJECTED: Rejected at any stage
    * - EXPIRED: RegTank link expired
+   * - CANCELLED: Onboarding was cancelled/restarted
    */
   private deriveApprovalStatus(
     regtankStatus: string,
@@ -1711,18 +1714,22 @@ export class AdminService {
       return "CANCELLED";
     }
 
-    // Check organization onboarding status
+    // Check organization onboarding status - these are the definitive states
     if (orgOnboardingStatus === "COMPLETED") {
-      return "APPROVED";
+      return "COMPLETED";
+    }
+
+    if (orgOnboardingStatus === "PENDING_FINAL_APPROVAL") {
+      return "PENDING_FINAL_APPROVAL";
+    }
+
+    if (orgOnboardingStatus === "PENDING_SSM_REVIEW") {
+      return "PENDING_SSM_REVIEW";
     }
 
     if (orgOnboardingStatus === "PENDING_AML") {
       return "PENDING_AML";
     }
-
-    // For company issuers, check if SSM verification is needed
-    // Currently SSM verification is not tracked in the database, so we skip this
-    // When implemented, add: if (orgType === "COMPANY" && portalType === "issuer" && !ssmVerified) return "PENDING_SSM_REVIEW"
 
     // RegTank in-progress statuses
     const inProgressStatuses = [
@@ -1746,11 +1753,6 @@ export class AdminService {
 
     if (pendingApprovalStatuses.includes(regtankStatus)) {
       return "PENDING_APPROVAL";
-    }
-
-    // If RegTank shows APPROVED but org status is not COMPLETED yet, it's pending AML
-    if (regtankStatus === "APPROVED" && orgOnboardingStatus !== "COMPLETED") {
-      return "PENDING_AML";
     }
 
     // Default to pending onboarding for unknown statuses
@@ -2034,6 +2036,113 @@ export class AdminService {
     return {
       success: true,
       message: "Onboarding has been completed successfully. The user is now fully onboarded.",
+    };
+  }
+
+  /**
+   * Approve SSM verification for a company organization
+   * Sets ssm_approved = true for the organization
+   */
+  async approveSsmVerification(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    // SSM verification only applies to company type
+    if (onboarding.organization_type !== "COMPANY") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "SSM verification is only applicable for company accounts"
+      );
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Update the organization's ssm_approved flag and transition to PENDING_FINAL_APPROVAL
+    // For company accounts, SSM approval is required before final approval step
+    const now = new Date();
+    if (isInvestor && onboarding.investor_organization) {
+      await prisma.investorOrganization.update({
+        where: { id: org.id },
+        data: {
+          ssm_approved: true,
+          onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+        },
+      });
+    } else if (!isInvestor && onboarding.issuer_organization) {
+      await prisma.issuerOrganization.update({
+        where: { id: org.id },
+        data: {
+          ssm_checked: true,
+          onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+        },
+      });
+    }
+
+    // Create onboarding log entry with dedicated SSM_APPROVED event type
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: onboarding.user_id,
+        event_type: "SSM_APPROVED",
+        role: isInvestor ? "INVESTOR" : "ISSUER",
+        portal: onboarding.portal_type,
+        ip_address:
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        user_agent: req.headers["user-agent"] || null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          portalType: onboarding.portal_type,
+          approvedBy: adminUserId,
+          regtankRequestId: onboarding.request_id,
+          adminApprovedAt: now.toISOString(),
+        },
+      },
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        organizationId: org.id,
+        userId: onboarding.user_id,
+        adminUserId,
+        portalType: onboarding.portal_type,
+      },
+      "SSM verification approved by admin"
+    );
+
+    return {
+      success: true,
+      message: "SSM verification has been approved successfully.",
     };
   }
 }

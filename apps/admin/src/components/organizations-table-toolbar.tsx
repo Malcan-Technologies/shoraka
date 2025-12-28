@@ -110,6 +110,8 @@ export function OrganizationsTableToolbar({
             <DropdownMenuRadioItem value="IN_PROGRESS">In Progress</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="PENDING_APPROVAL">Pending Approval</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">Pending SSM Review</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">Pending Final Approval</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

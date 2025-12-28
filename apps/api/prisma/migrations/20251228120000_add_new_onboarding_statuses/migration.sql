@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "OnboardingStatus" ADD VALUE 'PENDING_SSM_REVIEW';
+ALTER TYPE "OnboardingStatus" ADD VALUE 'PENDING_FINAL_APPROVAL';

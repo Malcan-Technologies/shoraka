@@ -1364,15 +1364,19 @@ export class RegTankService {
           regtankDetails
         );
         
-        // Update organization status to PENDING_AML (not COMPLETED)
+        // Update organization status to PENDING_AML
+        // After RegTank onboarding approval, we wait for AML screening to complete (separate webhook)
+        // When AML webhook arrives, we will transition to:
+        // - PERSONAL accounts: PENDING_FINAL_APPROVAL (no SSM needed)
+        // - COMPANY accounts: PENDING_SSM_REVIEW (SSM verification required)
         if (portalType === "investor") {
-          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (orgExists) {
+          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (org) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType }, "Updated investor organization status to PENDING_AML");
+            logger.info({ organizationId, portalType, orgType: org.type }, "Updated investor organization status to PENDING_AML after RegTank onboarding approval");
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -1380,13 +1384,13 @@ export class RegTankService {
             );
           }
         } else {
-          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (orgExists) {
+          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (org) {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML");
+            logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML after RegTank onboarding approval");
           } else {
             logger.warn(
               { organizationId, requestId },
@@ -1697,15 +1701,19 @@ export class RegTankService {
             regtankDetails
           );
           
-          // Update organization status to PENDING_AML (not COMPLETED)
+          // Update organization status to PENDING_AML
+          // After RegTank onboarding approval, we wait for AML screening to complete (separate webhook)
+          // When AML webhook arrives, we will transition to:
+          // - PERSONAL accounts: PENDING_FINAL_APPROVAL (no SSM needed)
+          // - COMPANY accounts: PENDING_SSM_REVIEW (SSM verification required)
           if (portalType === "investor") {
-            const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-            if (orgExists) {
+            const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+            if (org) {
               await this.organizationRepository.updateInvestorOrganizationOnboarding(
                 organizationId,
                 OnboardingStatus.PENDING_AML
               );
-              logger.info({ organizationId, portalType }, "Updated investor organization status to PENDING_AML via manual sync");
+              logger.info({ organizationId, portalType, orgType: org.type }, "Updated investor organization status to PENDING_AML via manual sync after RegTank onboarding approval");
             } else {
               logger.warn(
                 { organizationId, requestId: onboarding.request_id },
@@ -1713,13 +1721,13 @@ export class RegTankService {
               );
             }
           } else {
-            const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-            if (orgExists) {
+            const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+            if (org) {
               await this.organizationRepository.updateIssuerOrganizationOnboarding(
                 organizationId,
                 OnboardingStatus.PENDING_AML
               );
-              logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML via manual sync");
+              logger.info({ organizationId, portalType }, "Updated issuer organization status to PENDING_AML via manual sync after RegTank onboarding approval");
             } else {
               logger.warn(
                 { organizationId, requestId: onboarding.request_id },
