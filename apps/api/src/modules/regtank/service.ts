@@ -1263,6 +1263,21 @@ export class RegTankService {
 
     await this.repository.updateStatus(requestId, updateData);
 
+    // Log the status update for verification
+    logger.info(
+      {
+        requestId,
+        regtankStatus: statusUpper,
+        internalStatus,
+        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id,
+        portalType: onboarding.portal_type,
+        note: internalStatus === "PENDING_AML" 
+          ? "Status set to PENDING_AML (will remain until final approval)" 
+          : `Status set to ${internalStatus}`,
+      },
+      "[RegTank Webhook] Updated regtank_onboarding.status"
+    );
+
     // Update organization status based on RegTank status
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
 

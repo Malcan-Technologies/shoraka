@@ -3,6 +3,9 @@ import { RegTankKYCWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { Prisma } from "@prisma/client";
+import { OrganizationRepository } from "../../organization/repository";
+import { OnboardingStatus } from "@prisma/client";
+import { prisma } from "../../../lib/prisma";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -13,11 +16,13 @@ import { Prisma } from "@prisma/client";
  */
 export class KYCWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
+  private organizationRepository: OrganizationRepository;
   private provider: "ACURIS" | "DOWJONES";
 
   constructor(provider: "ACURIS" | "DOWJONES" = "ACURIS") {
     super();
     this.repository = new RegTankRepository();
+    this.organizationRepository = new OrganizationRepository();
     this.provider = provider;
   }
 
@@ -158,8 +163,119 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       "[KYC Webhook] ✓ Successfully processed and linked to onboarding record"
     );
 
-    // TODO: Handle KYC results - may need to update organization risk level or status
-    // This depends on business logic requirements
+    // Handle KYC approval - update regtank_onboarding status and organization aml_approved flag
+    const statusUpper = status?.toUpperCase();
+    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const portalType = onboarding.portal_type;
+
+    if (statusUpper === "APPROVED" && organizationId) {
+      try {
+        logger.info(
+          {
+            kycRequestId: requestId,
+            onboardingRequestId: onboarding.request_id,
+            organizationId,
+            portalType,
+            riskLevel,
+            riskScore,
+          },
+          "[KYC Webhook] Processing KYC approval - updating regtank_onboarding status and organization aml_approved flag"
+        );
+
+        // Update regtank_onboarding.status to APPROVED
+        await this.repository.updateStatus(onboarding.request_id, {
+          status: "APPROVED",
+        });
+
+        logger.info(
+          {
+            kycRequestId: requestId,
+            onboardingRequestId: onboarding.request_id,
+            previousRegTankStatus: onboarding.status,
+            newRegTankStatus: "APPROVED",
+          },
+          "[KYC Webhook] ✓ Updated regtank_onboarding.status to APPROVED"
+        );
+
+        if (portalType === "investor" && onboarding.investor_organization_id) {
+          const org = await this.organizationRepository.findInvestorOrganizationById(
+            onboarding.investor_organization_id
+          );
+          if (org) {
+            // Update aml_approved flag and status to PENDING_FINAL_APPROVAL
+            await prisma.investorOrganization.update({
+              where: { id: onboarding.investor_organization_id },
+              data: { 
+                aml_approved: true,
+                onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+              },
+            });
+
+            logger.info(
+              {
+                kycRequestId: requestId,
+                onboardingRequestId: onboarding.request_id,
+                organizationId: onboarding.investor_organization_id,
+                organizationType: org.type,
+                previousStatus: org.onboarding_status,
+                newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                amlApproved: true,
+              },
+              "[KYC Webhook] ✓ Updated investor organization: aml_approved=true, status=PENDING_FINAL_APPROVAL"
+            );
+          }
+        } else if (portalType === "issuer" && onboarding.issuer_organization_id) {
+          const org = await this.organizationRepository.findIssuerOrganizationById(
+            onboarding.issuer_organization_id
+          );
+          if (org) {
+            // Update aml_approved flag and status to PENDING_FINAL_APPROVAL
+            await prisma.issuerOrganization.update({
+              where: { id: onboarding.issuer_organization_id },
+              data: { 
+                aml_approved: true,
+                onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+              },
+            });
+
+            logger.info(
+              {
+                kycRequestId: requestId,
+                onboardingRequestId: onboarding.request_id,
+                organizationId: onboarding.issuer_organization_id,
+                previousStatus: org.onboarding_status,
+                newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                amlApproved: true,
+              },
+              "[KYC Webhook] ✓ Updated issuer organization: aml_approved=true, status=PENDING_FINAL_APPROVAL"
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            kycRequestId: requestId,
+            onboardingRequestId: onboarding.request_id,
+            organizationId,
+            portalType,
+            status: statusUpper,
+          },
+          "[KYC Webhook] Failed to update organization aml_approved flag"
+        );
+        // Don't throw - allow webhook to complete even if organization update fails
+      }
+    } else if (statusUpper && statusUpper !== "APPROVED") {
+      logger.debug(
+        {
+          kycRequestId: requestId,
+          onboardingRequestId: onboarding.request_id,
+          status: statusUpper,
+          note: "KYC status is not APPROVED, skipping organization update",
+        },
+        "[KYC Webhook] KYC status is not APPROVED, no organization update needed"
+      );
+    }
   }
 }
 

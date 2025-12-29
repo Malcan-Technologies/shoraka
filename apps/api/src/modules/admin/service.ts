@@ -1856,34 +1856,16 @@ export class AdminService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Reset the organization's onboarding status and clear all approval workflow flags
+    // Reset the organization's onboarding status
     if (isInvestorPortal && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          is_sophisticated_investor: false,
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          deposit_received: false,
-          ssm_approved: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
+        data: { onboarding_status: "PENDING" },
       });
     } else if (onboarding.issuer_organization_id) {
       await prisma.issuerOrganization.update({
         where: { id: onboarding.issuer_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          ssm_checked: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
+        data: { onboarding_status: "PENDING" },
       });
     }
 
@@ -2042,19 +2024,45 @@ export class AdminService {
     // Update RegTank onboarding status to COMPLETED
     // Status flow: IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED
     // Final approval means all checks (including AML) are done
-    await this.regTankRepository.updateStatus(onboarding.request_id, {
-      status: "COMPLETED",
-      completedAt: new Date(),
-    });
-
+    const previousRegTankStatus = onboarding.status;
+    
     logger.info(
       {
         onboardingId,
         regtankRequestId: onboarding.request_id,
         organizationId: org.id,
-        previousStatus: onboarding.status,
+        previousRegTankStatus,
+        organizationOnboardingStatus: org.onboarding_status,
+        amlApproved: isInvestor 
+          ? onboarding.investor_organization?.aml_approved 
+          : onboarding.issuer_organization?.aml_approved,
+        note: "About to update regtank_onboarding.status to COMPLETED after final approval",
       },
-      "Updated RegTank onboarding status to COMPLETED after final approval"
+      "[Final Approval] Current regtank_onboarding status before update"
+    );
+
+    await this.regTankRepository.updateStatus(onboarding.request_id, {
+      status: "COMPLETED",
+      completedAt: new Date(),
+    });
+
+    // Verify the update by fetching the record again
+    const updatedOnboarding = await this.regTankRepository.findByRequestId(onboarding.request_id);
+    
+    logger.info(
+      {
+        onboardingId,
+        regtankRequestId: onboarding.request_id,
+        organizationId: org.id,
+        previousRegTankStatus,
+        newRegTankStatus: updatedOnboarding?.status || "NOT_FOUND",
+        organizationOnboardingStatus: "COMPLETED",
+        amlApproved: isInvestor 
+          ? onboarding.investor_organization?.aml_approved 
+          : onboarding.issuer_organization?.aml_approved,
+        completedAt: updatedOnboarding?.completed_at,
+      },
+      "[Final Approval] ✓ Successfully updated regtank_onboarding.status to COMPLETED"
     );
 
     // Create onboarding log entry
