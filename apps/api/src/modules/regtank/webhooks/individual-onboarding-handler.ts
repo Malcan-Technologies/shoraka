@@ -45,7 +45,9 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
-    // Status transition logic
+    // Status transition logic for regtank_onboarding table:
+    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
+    // Note: Final approval is done on our side, not in RegTank
     const statusUpper = status.toUpperCase();
     let internalStatus = statusUpper;
 
@@ -56,7 +58,11 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       internalStatus = "LIVENESS_PASSED";
     } else if (statusUpper === "WAIT_FOR_APPROVAL") {
       internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+    } else if (statusUpper === "APPROVED") {
+      // When RegTank approves, set status to PENDING_AML (not APPROVED)
+      // Final approval (COMPLETED) happens on our side after AML approval
+      internalStatus = "PENDING_AML";
+    } else if (statusUpper === "REJECTED") {
       internalStatus = statusUpper;
     }
 
@@ -69,7 +75,9 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       status: internalStatus,
     };
 
-    if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+    // Set completed_at only if REJECTED
+    // APPROVED from RegTank becomes PENDING_AML, completed_at set when status becomes COMPLETED
+    if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
 

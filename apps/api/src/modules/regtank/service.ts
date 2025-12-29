@@ -1212,8 +1212,9 @@ export class RegTankService {
     // Update status
     const statusUpper = status.toUpperCase();
 
-    // Status transition logic:
-    // IN_PROGRESS → FORM_FILLING → LIVENESS_PASSED → PENDING_APPROVAL → APPROVED/REJECTED
+    // Status transition logic for regtank_onboarding table:
+    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
+    // Note: Final approval is done on our side, not in RegTank
 
     // Map RegTank status to our internal status
     let internalStatus = statusUpper;
@@ -1229,7 +1230,11 @@ export class RegTankService {
       internalStatus = "LIVENESS_PASSED";
     } else if (statusUpper === "WAIT_FOR_APPROVAL") {
       internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+    } else if (statusUpper === "APPROVED") {
+      // When RegTank approves, set status to PENDING_AML (not APPROVED)
+      // Final approval (COMPLETED) happens on our side after AML approval
+      internalStatus = "PENDING_AML";
+    } else if (statusUpper === "REJECTED") {
       internalStatus = statusUpper;
     }
 
@@ -1249,8 +1254,10 @@ export class RegTankService {
       updateData.substatus = substatus;
     }
 
-    // Set completed_at if status is APPROVED or REJECTED
-    if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+    // Set completed_at if status is REJECTED
+    // Note: APPROVED from RegTank becomes PENDING_AML, so we don't set completed_at yet
+    // completed_at will be set when status becomes COMPLETED after final approval
+    if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
 
@@ -1315,7 +1322,8 @@ export class RegTankService {
       }
     }
 
-    // If approved, fetch details from RegTank and update organization to PENDING_AML
+    // If approved by RegTank, fetch details and update organization to PENDING_AML
+    // RegTank onboarding status is now PENDING_AML (not APPROVED)
     if (statusUpper === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 

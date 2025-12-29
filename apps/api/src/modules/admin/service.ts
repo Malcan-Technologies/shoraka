@@ -2008,6 +2008,24 @@ export class AdminService {
       });
     }
 
+    // Update RegTank onboarding status to COMPLETED
+    // Status flow: IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED
+    // Final approval means all checks (including AML) are done
+    await this.regTankRepository.updateStatus(onboarding.request_id, {
+      status: "COMPLETED",
+      completedAt: new Date(),
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        regtankRequestId: onboarding.request_id,
+        organizationId: org.id,
+        previousStatus: onboarding.status,
+      },
+      "Updated RegTank onboarding status to COMPLETED after final approval"
+    );
+
     // Create onboarding log entry
     await prisma.onboardingLog.create({
       data: {
