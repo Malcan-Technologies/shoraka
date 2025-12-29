@@ -1843,16 +1843,34 @@ export class AdminService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Reset the organization's onboarding status
+    // Reset the organization's onboarding status and clear all approval workflow flags
     if (isInvestorPortal && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
-        data: { onboarding_status: "PENDING" },
+        data: {
+          onboarding_status: "PENDING",
+          is_sophisticated_investor: false,
+          onboarding_approved: false,
+          aml_approved: false,
+          tnc_accepted: false,
+          deposit_received: false,
+          ssm_approved: false,
+          admin_approved_at: null,
+          onboarded_at: null,
+        },
       });
     } else if (onboarding.issuer_organization_id) {
       await prisma.issuerOrganization.update({
         where: { id: onboarding.issuer_organization_id },
-        data: { onboarding_status: "PENDING" },
+        data: {
+          onboarding_status: "PENDING",
+          onboarding_approved: false,
+          aml_approved: false,
+          tnc_accepted: false,
+          ssm_checked: false,
+          admin_approved_at: null,
+          onboarded_at: null,
+        },
       });
     }
 

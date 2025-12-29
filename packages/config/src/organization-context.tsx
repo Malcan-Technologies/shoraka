@@ -20,7 +20,8 @@ export type OnboardingStatus =
   | "PENDING_AML"
   | "PENDING_SSM_REVIEW"
   | "PENDING_FINAL_APPROVAL"
-  | "COMPLETED";
+  | "COMPLETED"
+  | "REJECTED";
 export type OrganizationMemberRole = "OWNER" | "DIRECTOR" | "MEMBER";
 export type PortalType = "investor" | "issuer";
 

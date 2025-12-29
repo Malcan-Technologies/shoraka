@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon } from "@heroicons/react/24/solid";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import type { Organization } from "@cashsouk/config";
 
 interface OnboardingStep {
@@ -9,6 +9,7 @@ interface OnboardingStep {
   label: string;
   isCompleted: boolean;
   isCurrent: boolean;
+  isRejected?: boolean;
 }
 
 interface OnboardingStatusCardProps {
@@ -20,22 +21,28 @@ interface OnboardingStatusCardProps {
 /**
  * Determine the current onboarding step based on organization status
  * Steps for Investor Portal:
- * 1. Onboarding - Complete when organization exists (user has submitted onboarding)
+ * 1. Onboarding - Complete when organization exists (user has submitted onboarding), or Rejected if status is REJECTED
  * 2. Accepting User Agreement - Complete when tncAccepted === true
  * 3. Account Approval - Complete when onboardingStatus === 'COMPLETED' (admin approved)
  * 4. Deposit - Complete when depositReceived === true
  */
 function getOnboardingSteps(organization: Organization): OnboardingStep[] {
+  const isRejected = organization.onboardingStatus === "REJECTED";
+
   // Onboarding is complete once the organization exists (user submitted their KYC form)
   // If we're showing this component, the organization exists, so onboarding is always complete
-  const onboardingComplete = true;
-  const tncComplete = organization.tncAccepted === true;
+  // UNLESS it was rejected
+  const onboardingComplete = !isRejected;
+  const tncComplete = !isRejected && organization.tncAccepted === true;
   const accountApprovalComplete = organization.onboardingStatus === "COMPLETED";
   const depositComplete = organization.depositReceived === true;
 
   // Determine current step (first incomplete step)
   let currentStepId = "";
-  if (!tncComplete) {
+  if (isRejected) {
+    // If rejected, no current step - we show the rejection state
+    currentStepId = "";
+  } else if (!tncComplete) {
     currentStepId = "tnc";
   } else if (!accountApprovalComplete) {
     currentStepId = "approval";
@@ -49,7 +56,8 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
       id: "onboarding",
       label: "Onboarding",
       isCompleted: onboardingComplete,
-      isCurrent: false, // Never current since it's always complete when org exists
+      isCurrent: false, // Never current since it's always complete when org exists (or rejected)
+      isRejected,
     },
     {
       id: "tnc",
@@ -72,7 +80,11 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
   ];
 }
 
-export function OnboardingStatusCard({ organization, userName, actionButton }: OnboardingStatusCardProps) {
+export function OnboardingStatusCard({
+  organization,
+  userName,
+  actionButton,
+}: OnboardingStatusCardProps) {
   const steps = getOnboardingSteps(organization);
   const allComplete = steps.every((step) => step.isCompleted);
 
@@ -82,9 +94,11 @@ export function OnboardingStatusCard({ organization, userName, actionButton }: O
   }
 
   // Get display name
-  const displayName = userName || (organization.type === "PERSONAL" 
-    ? "Personal Account" 
-    : organization.name || "Company Account");
+  const displayName =
+    userName ||
+    (organization.type === "PERSONAL"
+      ? "Personal Account"
+      : organization.name || "Company Account");
 
   return (
     <div className="w-full">
@@ -112,15 +126,19 @@ export function OnboardingStatusCard({ organization, userName, actionButton }: O
                   className={`
                     flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all
                     ${
-                      step.isCompleted
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : step.isCurrent
-                        ? "bg-background border-primary border-[3px] ring-4 ring-primary/20"
-                        : "bg-muted border-muted-foreground/30 text-muted-foreground"
+                      step.isRejected
+                        ? "bg-destructive border-destructive text-destructive-foreground"
+                        : step.isCompleted
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : step.isCurrent
+                            ? "bg-background border-primary border-[3px] ring-4 ring-primary/20"
+                            : "bg-muted border-muted-foreground/30 text-muted-foreground"
                     }
                   `}
                 >
-                  {step.isCompleted ? (
+                  {step.isRejected ? (
+                    <XMarkIcon className="w-5 h-5" />
+                  ) : step.isCompleted ? (
                     <CheckIcon className="w-5 h-5" />
                   ) : step.isCurrent ? (
                     <div className="w-3 h-3 rounded-full bg-primary" />
@@ -131,7 +149,7 @@ export function OnboardingStatusCard({ organization, userName, actionButton }: O
                 <span
                   className={`
                     mt-2 text-xs md:text-sm font-medium text-center w-[80px] md:w-[100px] min-h-[2.5rem]
-                    ${step.isCurrent ? "text-primary" : step.isCompleted ? "text-foreground" : "text-muted-foreground"}
+                    ${step.isRejected ? "text-destructive" : step.isCurrent ? "text-primary" : step.isCompleted ? "text-foreground" : "text-muted-foreground"}
                   `}
                 >
                   {step.label}
@@ -143,7 +161,11 @@ export function OnboardingStatusCard({ organization, userName, actionButton }: O
                 <div className="flex-1 h-0.5 mx-2 -mt-6">
                   <div
                     className={`h-full transition-all ${
-                      step.isCompleted ? "bg-primary" : "bg-muted-foreground/30"
+                      step.isRejected
+                        ? "bg-destructive/30"
+                        : step.isCompleted
+                          ? "bg-primary"
+                          : "bg-muted-foreground/30"
                     }`}
                   />
                 </div>
@@ -158,4 +180,3 @@ export function OnboardingStatusCard({ organization, userName, actionButton }: O
 
 export { getOnboardingSteps };
 export type { OnboardingStep };
-

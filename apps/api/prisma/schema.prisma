@@ -45,6 +45,7 @@ enum OnboardingStatus {
   PENDING_SSM_REVIEW
   PENDING_FINAL_APPROVAL
   COMPLETED
+  REJECTED
 }
 
 enum OrganizationMemberRole {

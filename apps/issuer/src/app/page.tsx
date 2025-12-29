@@ -9,14 +9,20 @@ import { useOrganization } from "@cashsouk/config";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import { Button } from "../components/ui/button";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 
 function IssuerDashboardContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const { activeOrganization, isLoading: isOrgLoading, isOnboarded, isPendingApproval, organizations } = useOrganization();
+  const {
+    activeOrganization,
+    isLoading: isOrgLoading,
+    isOnboarded,
+    isPendingApproval,
+    organizations,
+  } = useOrganization();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const hasRedirected = useRef(false);
 
@@ -31,22 +37,29 @@ function IssuerDashboardContent() {
         }
         return;
       }
-      
+
       // If active organization exists and is onboarded, show dashboard
       if (activeOrganization && isOnboarded) {
         setCheckingOnboarding(false);
         hasRedirected.current = false;
         return;
       }
-      
+
       // If active organization is pending approval, show dashboard with limited access
       if (activeOrganization && isPendingApproval) {
         setCheckingOnboarding(false);
         hasRedirected.current = false;
         return;
       }
-      
-      // If active organization exists but not onboarded (and not pending approval), redirect to onboarding
+
+      // If active organization is rejected, show dashboard with rejection notice
+      if (activeOrganization && activeOrganization.onboardingStatus === "REJECTED") {
+        setCheckingOnboarding(false);
+        hasRedirected.current = false;
+        return;
+      }
+
+      // If active organization exists but not onboarded (and not pending approval or rejected), redirect to onboarding
       if (activeOrganization && !isOnboarded && !isPendingApproval) {
         if (!hasRedirected.current) {
           hasRedirected.current = true;
@@ -54,21 +67,23 @@ function IssuerDashboardContent() {
         }
         return;
       }
-      
+
       // No active organization but has organizations
       // This can happen when state is still settling or there's a mismatch
-      // Check if any organization is onboarded or pending approval and show dashboard if so
+      // Check if any organization is onboarded, pending approval, or rejected and show dashboard if so
       if (!activeOrganization && organizations.length > 0) {
-        const anyOnboarded = organizations.some(org => org.onboardingStatus === "COMPLETED");
-        const anyPendingApproval = organizations.some(org => 
-          org.onboardingStatus === "PENDING_APPROVAL" || org.onboardingStatus === "PENDING_AML"
+        const anyOnboarded = organizations.some((org) => org.onboardingStatus === "COMPLETED");
+        const anyPendingApproval = organizations.some(
+          (org) =>
+            org.onboardingStatus === "PENDING_APPROVAL" || org.onboardingStatus === "PENDING_AML"
         );
-        if (anyOnboarded || anyPendingApproval) {
-          // There's an onboarded or pending approval org but no active one selected yet
+        const anyRejected = organizations.some((org) => org.onboardingStatus === "REJECTED");
+        if (anyOnboarded || anyPendingApproval || anyRejected) {
+          // There's an onboarded, pending approval, or rejected org but no active one selected yet
           // The context should auto-select one, just wait a bit
           return;
         } else {
-          // No onboarded or pending approval orgs, redirect to onboarding
+          // No onboarded, pending approval, or rejected orgs, redirect to onboarding
           if (!hasRedirected.current) {
             hasRedirected.current = true;
             router.push("/onboarding-start");
@@ -79,7 +94,15 @@ function IssuerDashboardContent() {
     } else if (isAuthenticated === false) {
       setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, isOrgLoading, activeOrganization, isOnboarded, isPendingApproval, organizations, router]);
+  }, [
+    isAuthenticated,
+    isOrgLoading,
+    activeOrganization,
+    isOnboarded,
+    isPendingApproval,
+    organizations,
+    router,
+  ]);
 
   // Show loading while checking auth or onboarding
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
@@ -101,31 +124,32 @@ function IssuerDashboardContent() {
   // Get display name from organization - use firstName + lastName from RegTank data
   const getDisplayName = () => {
     if (!activeOrganization) return "";
-    
+
     // Use firstName + lastName if available (from RegTank onboarding)
     if (activeOrganization.firstName && activeOrganization.lastName) {
       return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
     }
-    
+
     // Fallback to organization name for company accounts
     if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
       return activeOrganization.name;
     }
-    
+
     // Default fallback
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   };
-  
+
   const displayName = getDisplayName();
 
   // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
   const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
   const currentStep = steps.find((step) => step.isCurrent);
-  
+
   // Check if user needs to complete specific steps
   const needsTncAcceptance = currentStep?.id === "tnc";
   const isAwaitingApproval = currentStep?.id === "approval";
+  const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
 
   return (
     <>
@@ -149,18 +173,48 @@ function IssuerDashboardContent() {
                   </Button>
                 }
               />
-              
+
               {/* Step-specific cards */}
-              {needsTncAcceptance && (
-                <TermsAcceptanceCard organizationId={activeOrganization.id} />
-              )}
-              
+              {needsTncAcceptance && <TermsAcceptanceCard organizationId={activeOrganization.id} />}
+
               {isAwaitingApproval && (
                 <div className="rounded-xl border bg-card p-6">
                   <h3 className="text-lg font-semibold mb-2">Awaiting Approval</h3>
                   <p className="text-muted-foreground">
-                    Your account is currently under review. You will be notified once the approval process is complete.
+                    Your account is currently under review. You will be notified once the approval
+                    process is complete.
                   </p>
+                </div>
+              )}
+
+              {isRejected && (
+                <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-destructive" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-destructive mb-2">
+                        Onboarding Rejected
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Your onboarding application has been rejected. If you believe this was a
+                        mistake, please contact our support team to request a review of your
+                        application.
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-3">
+                        Email:{" "}
+                        <a
+                          href="mailto:support@cashsouk.my"
+                          className="text-primary hover:underline"
+                        >
+                          support@cashsouk.my
+                        </a>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </section>
@@ -183,7 +237,6 @@ function IssuerDashboardContent() {
               </Button>
             </section>
           )}
-
         </div>
       </div>
     </>

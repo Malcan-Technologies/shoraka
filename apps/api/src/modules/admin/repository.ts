@@ -97,9 +97,7 @@ export class AdminRepository {
     const investorCountMap = new Map(
       investorCounts.map((item) => [item.owner_user_id, item._count])
     );
-    const issuerCountMap = new Map(
-      issuerCounts.map((item) => [item.owner_user_id, item._count])
-    );
+    const issuerCountMap = new Map(issuerCounts.map((item) => [item.owner_user_id, item._count]));
 
     // Add organization counts to users
     const usersWithCounts = users.map((user) => ({
@@ -1286,7 +1284,12 @@ export class AdminRepository {
       type: "PERSONAL" | "COMPANY";
       name: string | null;
       registrationNumber: string | null;
-      onboardingStatus: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
+      onboardingStatus:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "PENDING_AML"
+        | "COMPLETED";
       onboardedAt: Date | null;
       owner: {
         userId: string;
@@ -1318,7 +1321,7 @@ export class AdminRepository {
       if (search) {
         // Split search into words and require all words to match somewhere
         const searchTerms = search.trim().split(/\s+/).filter(Boolean);
-        
+
         if (searchTerms.length === 1) {
           // Single word: match against any field
           const term = searchTerms[0];
@@ -1422,7 +1425,12 @@ export class AdminRepository {
         type: org.type as "PERSONAL" | "COMPANY",
         name: org.name,
         registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED",
+        onboardingStatus: org.onboarding_status as
+          | "PENDING"
+          | "IN_PROGRESS"
+          | "PENDING_APPROVAL"
+          | "PENDING_AML"
+          | "COMPLETED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1441,7 +1449,12 @@ export class AdminRepository {
         type: org.type as "PERSONAL" | "COMPANY",
         name: org.name,
         registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED",
+        onboardingStatus: org.onboarding_status as
+          | "PENDING"
+          | "IN_PROGRESS"
+          | "PENDING_APPROVAL"
+          | "PENDING_AML"
+          | "COMPLETED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1574,14 +1587,14 @@ export class AdminRepository {
   /**
    * Get onboarding operations metrics for the dashboard
    * Uses investor_organizations and issuer_organizations tables as source of truth
-   * 
+   *
    * Categories (based on organization onboarding_status):
    * - inProgress: PENDING or IN_PROGRESS (user still completing onboarding)
    * - pending: PENDING_APPROVAL or PENDING_AML (waiting for admin action)
    * - approved: COMPLETED (onboarding fully complete, has onboarded_at date)
    * - rejected: Count from regtank_onboarding (not tracked at org level)
    * - expired: Count from regtank_onboarding (not tracked at org level)
-   * 
+   *
    * Average time to approval: created_at to onboarded_at
    */
   async getOnboardingOperationsMetrics(): Promise<{
@@ -1650,11 +1663,16 @@ export class AdminRepository {
           onboarding_status: OnboardingStatus.COMPLETED,
         },
       }),
-      // Rejected: Only tracked in regtank_onboarding
-      prisma.regTankOnboarding.count({
-        where: { status: "REJECTED" },
-      }),
-      // Expired: Only tracked in regtank_onboarding
+      // Rejected: Count from organization tables using the REJECTED onboarding status
+      Promise.all([
+        prisma.investorOrganization.count({
+          where: { onboarding_status: OnboardingStatus.REJECTED },
+        }),
+        prisma.issuerOrganization.count({
+          where: { onboarding_status: OnboardingStatus.REJECTED },
+        }),
+      ]).then(([investor, issuer]) => investor + issuer),
+      // Expired: Only tracked in regtank_onboarding (organizations don't have EXPIRED status)
       prisma.regTankOnboarding.count({
         where: { status: "EXPIRED" },
       }),
@@ -1675,11 +1693,19 @@ export class AdminRepository {
 
     // Get completed organizations from current period (last 30 days)
     // Include regtank_onboarding to get completed_at for approval time calculation
+    // Use admin_approved_at as fallback filter since onboarded_at might not be set on older records
+    // Exclude records where both timestamps are null (shouldn't happen for COMPLETED, but just in case)
     const [currentInvestorCompleted, currentIssuerCompleted] = await Promise.all([
       prisma.investorOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
-          onboarded_at: { gte: thirtyDaysAgo },
+          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
+          AND: {
+            OR: [
+              { onboarded_at: { gte: thirtyDaysAgo } },
+              { admin_approved_at: { gte: thirtyDaysAgo } },
+            ],
+          },
         },
         select: {
           created_at: true,
@@ -1696,7 +1722,13 @@ export class AdminRepository {
       prisma.issuerOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
-          onboarded_at: { gte: thirtyDaysAgo },
+          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
+          AND: {
+            OR: [
+              { onboarded_at: { gte: thirtyDaysAgo } },
+              { admin_approved_at: { gte: thirtyDaysAgo } },
+            ],
+          },
         },
         select: {
           created_at: true,
@@ -1715,13 +1747,18 @@ export class AdminRepository {
     const currentPeriodCompleted = [...currentInvestorCompleted, ...currentIssuerCompleted];
 
     // Get completed organizations from previous period (30-60 days ago)
+    // Use admin_approved_at as fallback filter since onboarded_at might not be set on older records
+    // Exclude records where both timestamps are null
     const [previousInvestorCompleted, previousIssuerCompleted] = await Promise.all([
       prisma.investorOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
-          onboarded_at: {
-            gte: sixtyDaysAgo,
-            lt: thirtyDaysAgo,
+          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
+          AND: {
+            OR: [
+              { onboarded_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+              { admin_approved_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+            ],
           },
         },
         select: {
@@ -1739,9 +1776,12 @@ export class AdminRepository {
       prisma.issuerOrganization.findMany({
         where: {
           onboarding_status: OnboardingStatus.COMPLETED,
-          onboarded_at: {
-            gte: sixtyDaysAgo,
-            lt: thirtyDaysAgo,
+          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
+          AND: {
+            OR: [
+              { onboarded_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+              { admin_approved_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+            ],
           },
         },
         select: {
@@ -1794,13 +1834,17 @@ export class AdminRepository {
       }
     }
 
-    // Calculate average time to onboarding (created_at to onboarded_at)
+    // Calculate average time to onboarding (created_at to onboarded_at or admin_approved_at)
     // This measures total time from organization creation to fully onboarded
+    // Use admin_approved_at as fallback for older records where onboarded_at might not be set
     let avgTimeToOnboardingMinutes: number | null = null;
-    const currentWithOnboarding = currentPeriodCompleted.filter((org) => org.onboarded_at);
+    const currentWithOnboarding = currentPeriodCompleted.filter(
+      (org) => org.onboarded_at || org.admin_approved_at
+    );
     if (currentWithOnboarding.length > 0) {
       const totalMinutes = currentWithOnboarding.reduce((sum, org) => {
-        const diffMs = org.onboarded_at!.getTime() - org.created_at.getTime();
+        const completedAt = org.onboarded_at || org.admin_approved_at;
+        const diffMs = completedAt!.getTime() - org.created_at.getTime();
         return sum + diffMs / 1000 / 60;
       }, 0);
       avgTimeToOnboardingMinutes = Math.round(totalMinutes / currentWithOnboarding.length);
@@ -1808,10 +1852,13 @@ export class AdminRepository {
 
     // Calculate average time to onboarding change percent
     let avgTimeToOnboardingChangePercent: number | null = null;
-    const previousWithOnboarding = previousPeriodCompleted.filter((org) => org.onboarded_at);
+    const previousWithOnboarding = previousPeriodCompleted.filter(
+      (org) => org.onboarded_at || org.admin_approved_at
+    );
     if (previousWithOnboarding.length > 0 && avgTimeToOnboardingMinutes !== null) {
       const previousTotalMinutes = previousWithOnboarding.reduce((sum, org) => {
-        const diffMs = org.onboarded_at!.getTime() - org.created_at.getTime();
+        const completedAt = org.onboarded_at || org.admin_approved_at;
+        const diffMs = completedAt!.getTime() - org.created_at.getTime();
         return sum + diffMs / 1000 / 60;
       }, 0);
       const previousAvg = previousTotalMinutes / previousWithOnboarding.length;
