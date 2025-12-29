@@ -318,6 +318,7 @@ export class RegTankDevWebhookHandler {
               where: { id: organizationId },
               data: {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
               },
             });
             logger.info(
@@ -340,6 +341,7 @@ export class RegTankDevWebhookHandler {
               where: { id: organizationId },
               data: {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
               },
             });
             logger.info(

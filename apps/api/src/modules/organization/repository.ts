@@ -299,12 +299,23 @@ export class OrganizationRepository {
     id: string,
     status: OnboardingStatus
   ): Promise<InvestorOrganization> {
+    const updateData: {
+      onboarding_status: OnboardingStatus;
+      onboarded_at: Date | null;
+      onboarding_approved?: boolean;
+    } = {
+      onboarding_status: status,
+      onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
+    };
+
+    // Set onboarding_approved to true when status is PENDING_APPROVAL
+    if (status === OnboardingStatus.PENDING_APPROVAL) {
+      updateData.onboarding_approved = true;
+    }
+
     return prisma.investorOrganization.update({
       where: { id },
-      data: {
-        onboarding_status: status,
-        onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
-      },
+      data: updateData,
     });
   }
 
@@ -315,12 +326,23 @@ export class OrganizationRepository {
     id: string,
     status: OnboardingStatus
   ): Promise<IssuerOrganization> {
+    const updateData: {
+      onboarding_status: OnboardingStatus;
+      onboarded_at: Date | null;
+      onboarding_approved?: boolean;
+    } = {
+      onboarding_status: status,
+      onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
+    };
+
+    // Set onboarding_approved to true when status is PENDING_APPROVAL
+    if (status === OnboardingStatus.PENDING_APPROVAL) {
+      updateData.onboarding_approved = true;
+    }
+
     return prisma.issuerOrganization.update({
       where: { id },
-      data: {
-        onboarding_status: status,
-        onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
-      },
+      data: updateData,
     });
   }
 

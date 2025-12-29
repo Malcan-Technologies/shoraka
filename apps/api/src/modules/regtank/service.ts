@@ -133,7 +133,7 @@ export class RegTankService {
       try {
         await this.apiClient.setOnboardingSettings({
           formId,
-          livenessConfidence: 70,
+          livenessConfidence: 90,
           approveMode: true,
           kycApprovalTarget: "ACURIS",
           enabledRegistrationEmail: false,
@@ -240,7 +240,7 @@ export class RegTankService {
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
-        livenessConfidence: 70,
+        livenessConfidence: 90,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
@@ -567,7 +567,7 @@ export class RegTankService {
     try {
       await this.apiClient.setOnboardingSettings({
         formId: formIdToUse,
-        livenessConfidence: 70,
+        livenessConfidence: 90,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
@@ -1925,7 +1925,7 @@ export class RegTankService {
     try {
       await this.apiClient.setOnboardingSettings({
         formId,
-        livenessConfidence: organization.type === OrganizationType.PERSONAL ? 70 : 90,
+        livenessConfidence: organization.type === OrganizationType.PERSONAL ? 90 : 90,
         approveMode: true,
         kycApprovalTarget: "ACURIS",
         enabledRegistrationEmail: false,
