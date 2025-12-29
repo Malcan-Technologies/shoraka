@@ -383,7 +383,7 @@ export function OrganizationSwitcher() {
                 onClick={() => {
                   if (allowsAccountAccess) {
                     // Navigate to account page when Current Action is clicked
-                    router.push("/account");
+                    router.push("/");
                   }
                 }}
                 className={`flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 ${
