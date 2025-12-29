@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter, ScrollArea, Checkbox } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -61,44 +62,7 @@ export function TermsAcceptanceCard({ organizationId, onAccepted }: TermsAccepta
       <CardContent>
         <ScrollArea className="h-[300px] md:h-[400px] rounded-md border p-4">
           <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-            {/* Render T&C as markdown-like content */}
-            {TERMS_AND_CONDITIONS.split("\n").map((line, index) => {
-              if (line.startsWith("# ")) {
-                return (
-                  <h1 key={index} className="text-lg font-bold mt-4 mb-2">
-                    {line.replace("# ", "")}
-                  </h1>
-                );
-              } else if (line.startsWith("## ")) {
-                return (
-                  <h2 key={index} className="text-base font-semibold mt-4 mb-2">
-                    {line.replace("## ", "")}
-                  </h2>
-                );
-              } else if (line.startsWith("---")) {
-                return <hr key={index} className="my-4" />;
-              } else if (line.match(/^\d+\.\s/)) {
-                return (
-                  <p key={index} className="ml-4 mb-1 text-sm">
-                    {line}
-                  </p>
-                );
-              } else if (line.startsWith("- ")) {
-                return (
-                  <p key={index} className="ml-6 mb-1 text-sm">
-                    • {line.replace("- ", "")}
-                  </p>
-                );
-              } else if (line.trim() === "") {
-                return <br key={index} />;
-              } else {
-                return (
-                  <p key={index} className="mb-2 text-sm">
-                    {line}
-                  </p>
-                );
-              }
-            })}
+            <ReactMarkdown>{TERMS_AND_CONDITIONS}</ReactMarkdown>
           </div>
         </ScrollArea>
       </CardContent>
