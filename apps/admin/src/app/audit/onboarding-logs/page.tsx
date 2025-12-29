@@ -40,6 +40,7 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "SOPHISTICATED_STATUS_UPDATED",
   "FINAL_APPROVAL_COMPLETED",
   "SSM_APPROVED",
+  "TNC_ACCEPTED",
 ];
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
@@ -50,6 +51,7 @@ const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "SOPHISTICATED_STATUS_UPDATED", label: "Sophisticated Status Updated" },
   { value: "FINAL_APPROVAL_COMPLETED", label: "Final Approval Completed" },
   { value: "SSM_APPROVED", label: "SSM Approved" },
+  { value: "TNC_ACCEPTED", label: "T&C Accepted" },
 ];
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -157,10 +159,7 @@ export default function OnboardingLogsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Event Type</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={eventTypeFilter}
-                  onValueChange={setEventTypeFilter}
-                >
+                <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={setEventTypeFilter}>
                   <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
                   {EVENT_TYPE_OPTIONS.map((option) => (
                     <DropdownMenuRadioItem key={option.value} value={option.value}>
@@ -213,10 +212,7 @@ export default function OnboardingLogsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={dateRangeFilter}
-                  onValueChange={setDateRangeFilter}
-                >
+                <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={setDateRangeFilter}>
                   <DropdownMenuRadioItem value="all">All Time</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="24h">Last 24 Hours</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="7d">Last 7 Days</DropdownMenuRadioItem>
@@ -251,7 +247,8 @@ export default function OnboardingLogsPage() {
             <OnboardingLogsExportButton
               filters={{
                 search: searchQuery || undefined,
-                eventType: eventTypeFilter !== "all" ? (eventTypeFilter as OnboardingEventType) : undefined,
+                eventType:
+                  eventTypeFilter !== "all" ? (eventTypeFilter as OnboardingEventType) : undefined,
                 eventTypes: eventTypeFilter === "all" ? ONBOARDING_EVENT_TYPES : undefined,
                 role: roleFilter !== "all" ? roleFilter : undefined,
                 dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
@@ -299,4 +296,3 @@ export default function OnboardingLogsPage() {
     </>
   );
 }
-

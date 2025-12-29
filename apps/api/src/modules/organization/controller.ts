@@ -51,16 +51,35 @@ async function listOrganizations(
           onboardingStatus: org.onboarding_status,
           onboardedAt: org.onboarded_at,
           isOwner: org.owner_user_id === userId,
-          members: org.members.map((m: { user_id: string; user: { email: string; first_name: string; last_name: string }; role: string }) => ({
-            id: m.user_id,
-            email: m.user.email,
-            firstName: m.user.first_name,
-            lastName: m.user.last_name,
-            role: m.role,
-          })),
+          members: org.members.map(
+            (m: {
+              user_id: string;
+              user: { email: string; first_name: string; last_name: string };
+              role: string;
+            }) => ({
+              id: m.user_id,
+              email: m.user.email,
+              firstName: m.user.first_name,
+              lastName: m.user.last_name,
+              role: m.role,
+            })
+          ),
           regtankOnboardingStatus: org.regtank_onboarding?.status || null,
           regtankVerifyLink: org.regtank_onboarding?.verify_link || null,
           createdAt: org.created_at,
+          // Approval workflow flags
+          onboardingApproved: org.onboarding_approved,
+          amlApproved: org.aml_approved,
+          tncAccepted: org.tnc_accepted,
+          // Investor-specific flags
+          ...(portalType === "investor" && {
+            depositReceived: (org as { deposit_received?: boolean }).deposit_received ?? false,
+            ssmApproved: (org as { ssm_approved?: boolean }).ssm_approved ?? false,
+          }),
+          // Issuer-specific flags
+          ...(portalType === "issuer" && {
+            ssmChecked: (org as { ssm_checked?: boolean }).ssm_checked ?? false,
+          }),
         })),
         hasPersonalOrganization: hasPersonal,
       },
@@ -130,16 +149,36 @@ async function getOrganization(
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
         isOwner: organization.owner_user_id === userId,
-        members: organization.members.map((m: { user_id: string; user: { email: string; first_name: string; last_name: string }; role: string }) => ({
-          id: m.user_id,
-          email: m.user.email,
-          firstName: m.user.first_name,
-          lastName: m.user.last_name,
-          role: m.role,
-        })),
+        members: organization.members.map(
+          (m: {
+            user_id: string;
+            user: { email: string; first_name: string; last_name: string };
+            role: string;
+          }) => ({
+            id: m.user_id,
+            email: m.user.email,
+            firstName: m.user.first_name,
+            lastName: m.user.last_name,
+            role: m.role,
+          })
+        ),
         regtankOnboardingStatus: organization.regtank_onboarding?.status || null,
         regtankVerifyLink: organization.regtank_onboarding?.verify_link || null,
         createdAt: organization.created_at,
+        // Approval workflow flags
+        onboardingApproved: organization.onboarding_approved,
+        amlApproved: organization.aml_approved,
+        tncAccepted: organization.tnc_accepted,
+        // Investor-specific flags
+        ...(portalType === "investor" && {
+          depositReceived:
+            (organization as { deposit_received?: boolean }).deposit_received ?? false,
+          ssmApproved: (organization as { ssm_approved?: boolean }).ssm_approved ?? false,
+        }),
+        // Issuer-specific flags
+        ...(portalType === "issuer" && {
+          ssmChecked: (organization as { ssm_checked?: boolean }).ssm_checked ?? false,
+        }),
       },
     });
   } catch (error) {
@@ -182,12 +221,7 @@ async function completeOnboarding(
  * POST /v1/organizations/investor/:id/members
  * POST /v1/organizations/issuer/:id/members
  */
-async function addMember(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-  portalType: PortalType
-) {
+async function addMember(req: Request, res: Response, next: NextFunction, portalType: PortalType) {
   try {
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
@@ -231,6 +265,27 @@ async function removeMember(
 }
 
 /**
+ * Accept Terms and Conditions for an organization
+ * POST /v1/organizations/investor/:id/accept-tnc
+ * POST /v1/organizations/issuer/:id/accept-tnc
+ */
+async function acceptTnc(req: Request, res: Response, next: NextFunction, portalType: PortalType) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+
+    const result = await organizationService.acceptTnc(req, userId, id, portalType);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create router for organization routes
  */
 export function createOrganizationRouter(): Router {
@@ -248,6 +303,9 @@ export function createOrganizationRouter(): Router {
   );
   router.post("/investor/:id/complete-onboarding", requireAuth, (req, res, next) =>
     completeOnboarding(req, res, next, "investor")
+  );
+  router.post("/investor/:id/accept-tnc", requireAuth, (req, res, next) =>
+    acceptTnc(req, res, next, "investor")
   );
   router.post("/investor/:id/members", requireAuth, (req, res, next) =>
     addMember(req, res, next, "investor")
@@ -269,6 +327,9 @@ export function createOrganizationRouter(): Router {
   router.post("/issuer/:id/complete-onboarding", requireAuth, (req, res, next) =>
     completeOnboarding(req, res, next, "issuer")
   );
+  router.post("/issuer/:id/accept-tnc", requireAuth, (req, res, next) =>
+    acceptTnc(req, res, next, "issuer")
+  );
   router.post("/issuer/:id/members", requireAuth, (req, res, next) =>
     addMember(req, res, next, "issuer")
   );
@@ -278,4 +339,3 @@ export function createOrganizationRouter(): Router {
 
   return router;
 }
-

@@ -733,7 +733,7 @@ export class RegTankService {
   /**
    * Normalize value - convert empty strings, "null" strings, and undefined to actual null
    */
-  private normalizeValue(value: any): any {
+  private normalizeValue(value: unknown): string | null {
     if (
       value === null ||
       value === undefined ||
@@ -743,18 +743,21 @@ export class RegTankService {
     ) {
       return null;
     }
-    return value;
+    return typeof value === "string" ? value : String(value);
   }
 
   /**
    * Parse date safely, handling various formats and null values
    */
-  private parseDate(value: any): Date | null {
+  private parseDate(value: unknown): Date | null {
     if (!value || value === "null" || value === "") {
       return null;
     }
     try {
-      const date = new Date(value);
+      // Narrow the type for Date constructor
+      const dateValue =
+        typeof value === "string" || typeof value === "number" ? value : String(value);
+      const date = new Date(dateValue);
       if (isNaN(date.getTime())) {
         logger.warn({ value }, "Invalid date format, returning null");
         return null;
@@ -862,7 +865,8 @@ export class RegTankService {
   private async extractAndUpdateOrganizationData(
     organizationId: string,
     portalType: PortalType,
-    regtankDetails: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    regtankDetails: Record<string, any>,
     requestId?: string
   ): Promise<void> {
     try {
@@ -898,7 +902,7 @@ export class RegTankService {
         if (onboarding?.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
           for (const payload of onboarding.webhook_payloads) {
             if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-              const payloadObj = payload as Record<string, any>;
+              const payloadObj = payload as Record<string, unknown>;
               // KYC webhooks have requestId that is the kycId (starts with "KYC")
               if (
                 payloadObj.requestId &&
@@ -946,7 +950,7 @@ export class RegTankService {
           organizationId,
           hasFormContent: !!formContent,
           displayAreasCount: displayAreas.length,
-          displayAreaNames: displayAreas.map((a: any) => a.displayArea),
+          displayAreaNames: displayAreas.map((a: { displayArea?: string }) => a.displayArea),
           userProfileKeys: Object.keys(userProfile),
         },
         "Extracting display areas from RegTank response"
@@ -1365,7 +1369,7 @@ export class RegTankService {
               requestId: regtankDetails.requestId,
               status: regtankDetails.status,
               kycId: regtankDetails.kycId,
-              kycStatus: (regtankDetails as any).kycStatus,
+              kycStatus: (regtankDetails as Record<string, unknown>).kycStatus,
               hasUserProfile: !!regtankDetails.userProfile,
             },
             // Check if kycId might be in a nested object
@@ -1380,7 +1384,7 @@ export class RegTankService {
         if (onboarding.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
           for (const payload of onboarding.webhook_payloads) {
             if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-              const payloadObj = payload as Record<string, any>;
+              const payloadObj = payload as Record<string, unknown>;
               // KYC webhooks have requestId that is the kycId
               if (
                 payloadObj.requestId &&
@@ -2015,7 +2019,7 @@ export class RegTankService {
    * Get onboarding settings (per formId)
    * Wrapper method for admin endpoints
    */
-  async getOnboardingSettings(formId: number): Promise<any> {
+  async getOnboardingSettings(formId: number): Promise<unknown> {
     return this.apiClient.getOnboardingSettings(formId);
   }
 }

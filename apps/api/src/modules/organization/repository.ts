@@ -22,12 +22,19 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
     verify_link: string | null;
     request_id: string;
   } | null;
+  // Approval workflow flags
+  onboarding_approved: boolean;
+  aml_approved: boolean;
+  tnc_accepted: boolean;
+  deposit_received?: boolean; // Only for investor organizations
+  ssm_approved?: boolean; // Only for investor organizations
+  ssm_checked?: boolean; // Only for issuer organizations
 };
 
 export class OrganizationRepository {
   /**
    * Create an investor organization
-   * 
+   *
    * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
    * Company accounts start with PENDING. Status is updated via RegTank webhooks:
    * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
@@ -47,16 +54,17 @@ export class OrganizationRepository {
         registration_number: data.registrationNumber,
         // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
         // Company accounts: PENDING (will be updated when onboarding starts)
-        onboarding_status: data.type === OrganizationType.PERSONAL 
-          ? OnboardingStatus.IN_PROGRESS 
-          : OnboardingStatus.PENDING,
+        onboarding_status:
+          data.type === OrganizationType.PERSONAL
+            ? OnboardingStatus.IN_PROGRESS
+            : OnboardingStatus.PENDING,
       },
     });
   }
 
   /**
    * Create an issuer organization
-   * 
+   *
    * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
    * Company accounts start with PENDING. Status is updated via RegTank webhooks:
    * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
@@ -76,9 +84,10 @@ export class OrganizationRepository {
         registration_number: data.registrationNumber,
         // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
         // Company accounts: PENDING (will be updated when onboarding starts)
-        onboarding_status: data.type === OrganizationType.PERSONAL 
-          ? OnboardingStatus.IN_PROGRESS 
-          : OnboardingStatus.PENDING,
+        onboarding_status:
+          data.type === OrganizationType.PERSONAL
+            ? OnboardingStatus.IN_PROGRESS
+            : OnboardingStatus.PENDING,
       },
     });
   }
@@ -132,9 +141,9 @@ export class OrganizationRepository {
         },
       },
     });
-    
+
     if (!org) return null;
-    
+
     return {
       ...org,
       regtank_onboarding: org.regtank_onboarding[0] || null,
@@ -171,9 +180,9 @@ export class OrganizationRepository {
         },
       },
     });
-    
+
     if (!org) return null;
-    
+
     return {
       ...org,
       regtank_onboarding: org.regtank_onboarding[0] || null,
@@ -186,10 +195,7 @@ export class OrganizationRepository {
   async listInvestorOrganizationsForUser(userId: string): Promise<OrganizationWithMembers[]> {
     const organizations = await prisma.investorOrganization.findMany({
       where: {
-        OR: [
-          { owner_user_id: userId },
-          { members: { some: { user_id: userId } } },
-        ],
+        OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
       },
       include: {
         members: {
@@ -216,8 +222,8 @@ export class OrganizationRepository {
       },
       orderBy: { created_at: "asc" },
     });
-    
-    return organizations.map(org => ({
+
+    return organizations.map((org) => ({
       ...org,
       regtank_onboarding: org.regtank_onboarding[0] || null,
     })) as OrganizationWithMembers[];
@@ -229,10 +235,7 @@ export class OrganizationRepository {
   async listIssuerOrganizationsForUser(userId: string): Promise<OrganizationWithMembers[]> {
     const organizations = await prisma.issuerOrganization.findMany({
       where: {
-        OR: [
-          { owner_user_id: userId },
-          { members: { some: { user_id: userId } } },
-        ],
+        OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
       },
       include: {
         members: {
@@ -259,8 +262,8 @@ export class OrganizationRepository {
       },
       orderBy: { created_at: "asc" },
     });
-    
-    return organizations.map(org => ({
+
+    return organizations.map((org) => ({
       ...org,
       regtank_onboarding: org.regtank_onboarding[0] || null,
     })) as OrganizationWithMembers[];
@@ -435,4 +438,3 @@ export class OrganizationRepository {
     });
   }
 }
-

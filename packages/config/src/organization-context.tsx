@@ -44,6 +44,15 @@ export interface Organization {
   regtankOnboardingStatus?: string | null;
   regtankVerifyLink?: string | null;
   createdAt: string;
+  // Approval workflow flags
+  onboardingApproved?: boolean;
+  amlApproved?: boolean;
+  tncAccepted?: boolean;
+  // Investor-specific flags
+  depositReceived?: boolean;
+  ssmApproved?: boolean;
+  // Issuer-specific flags
+  ssmChecked?: boolean;
 }
 
 interface OrganizationContextType {
@@ -55,17 +64,13 @@ interface OrganizationContextType {
   refreshOrganizations: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   completeOnboarding: (organizationId: string) => Promise<void>;
-  startRegTankOnboarding: (
-    organizationId: string
-  ) => Promise<{
+  startRegTankOnboarding: (organizationId: string) => Promise<{
     verifyLink: string;
     requestId: string;
     expiresIn: number;
     organizationType: string;
   }>;
-  startIndividualOnboarding: (
-    organizationId: string
-  ) => Promise<{
+  startIndividualOnboarding: (organizationId: string) => Promise<{
     verifyLink: string;
     requestId: string;
     expiresIn: number;
@@ -91,6 +96,7 @@ interface OrganizationContextType {
     enabledRegistrationEmail?: boolean;
     redirectUrl?: string;
   }) => Promise<void>;
+  acceptTnc: (organizationId: string) => Promise<{ success: boolean; tncAccepted: boolean }>;
   isOnboarded: boolean;
   isPendingApproval: boolean;
   portalType: PortalType;
@@ -480,6 +486,38 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
     [apiUrl, getAccessToken]
   );
 
+  /**
+   * Accept Terms and Conditions for an organization
+   */
+  const acceptTnc = useCallback(
+    async (organizationId: string): Promise<{ success: boolean; tncAccepted: boolean }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{ success: boolean; tncAccepted: boolean }>(
+        `/v1/organizations/${portalType}/${organizationId}/accept-tnc`,
+        {}
+      );
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to accept Terms and Conditions");
+      }
+
+      // Update local state
+      setOrganizations((prev) =>
+        prev.map((org) =>
+          org.id === organizationId
+            ? {
+                ...org,
+                tncAccepted: result.data.tncAccepted,
+              }
+            : org
+        )
+      );
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -496,6 +534,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         startCorporateOnboarding,
         syncRegTankStatus,
         setOnboardingSettings,
+        acceptTnc,
         isOnboarded,
         isPendingApproval,
         portalType,

@@ -275,7 +275,8 @@ export type OnboardingEventType =
   | "ONBOARDING_STATUS_UPDATED"
   | "SOPHISTICATED_STATUS_UPDATED"
   | "FINAL_APPROVAL_COMPLETED"
-  | "SSM_APPROVED";
+  | "SSM_APPROVED"
+  | "TNC_ACCEPTED";
 
 export interface OnboardingLogUser {
   first_name: string;

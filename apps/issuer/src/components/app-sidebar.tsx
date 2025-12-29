@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import { APP_VERSION, useOrganization } from "@cashsouk/config";
-import { HomeIcon, PlusIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -116,41 +116,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        {/* Quick Action */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                {isFeaturesDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
-                    className="opacity-50 cursor-not-allowed bg-muted text-muted-foreground"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    <span>Get Financed</span>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    tooltip="Get Financed"
-                    className="group/btn bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                  >
-                    <Link href="/loans/new">
-                      <PlusIcon className="h-4 w-4 transition-transform duration-200 group-hover/btn:rotate-90" />
-                      <span>Get Financed</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <div className="px-2">
-          <Separator className="my-2" />
-        </div>
-
         {/* Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>

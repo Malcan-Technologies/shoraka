@@ -78,3 +78,4 @@ export { NotFound } from "./components/not-found";
 export { InfoTooltip } from "./info-tooltip";
 export { CopyableField } from "./copyable-field";
 export { Progress } from "./components/progress";
+export { Checkbox } from "./components/checkbox";

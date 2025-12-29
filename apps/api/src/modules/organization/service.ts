@@ -67,10 +67,7 @@ export class OrganizationService {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
     }
 
-    logger.info(
-      { userId, portalType, orgType, name: input.name },
-      "Creating organization"
-    );
+    logger.info({ userId, portalType, orgType, name: input.name }, "Creating organization");
 
     // Create the organization
     let organization: InvestorOrganization | IssuerOrganization;
@@ -125,10 +122,11 @@ export class OrganizationService {
     // Add role if not present
     const roleNeedsToBeAdded = !user.roles.includes(role);
     const updatedRoles = roleNeedsToBeAdded ? [...user.roles, role] : user.roles;
-    
+
     // Get current account array and append a new 'temp' entry
-    const currentAccountArray = portalType === "investor" ? user.investor_account : user.issuer_account;
-    
+    const currentAccountArray =
+      portalType === "investor" ? user.investor_account : user.issuer_account;
+
     const updateData: {
       roles: UserRole[];
       investor_account?: { set: string[] };
@@ -151,7 +149,14 @@ export class OrganizationService {
     });
 
     logger.info(
-      { userId, role, portalType, roleAdded: roleNeedsToBeAdded, accountArrayLength: updateData.investor_account?.set.length || updateData.issuer_account?.set.length },
+      {
+        userId,
+        role,
+        portalType,
+        roleAdded: roleNeedsToBeAdded,
+        accountArrayLength:
+          updateData.investor_account?.set.length || updateData.issuer_account?.set.length,
+      },
       "User roles and account arrays updated after organization creation"
     );
 
@@ -249,10 +254,7 @@ export class OrganizationService {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
     }
 
-    logger.info(
-      { organizationId, portalType, userId },
-      "Completing organization onboarding"
-    );
+    logger.info({ organizationId, portalType, userId }, "Completing organization onboarding");
 
     const updatedOrg =
       portalType === "investor"
@@ -265,10 +267,7 @@ export class OrganizationService {
             OnboardingStatus.COMPLETED
           );
 
-    logger.info(
-      { organizationId, portalType },
-      "Organization onboarding completed"
-    );
+    logger.info({ organizationId, portalType }, "Organization onboarding completed");
 
     // Update user's account array: replace 'temp' with organization ID
     const user = await prisma.user.findUnique({
@@ -278,7 +277,7 @@ export class OrganizationService {
     if (user) {
       const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
       const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
-      
+
       // Find the first 'temp' and replace it with the organization ID
       const tempIndex = currentArray.indexOf("temp");
       if (tempIndex !== -1) {
@@ -348,7 +347,9 @@ export class OrganizationService {
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
     // Only owner or directors can add members
-    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
     const canManage =
       organization.owner_user_id === userId ||
       userMember?.role === OrganizationMemberRole.OWNER ||
@@ -375,9 +376,7 @@ export class OrganizationService {
     }
 
     const role =
-      input.role === "DIRECTOR"
-        ? OrganizationMemberRole.DIRECTOR
-        : OrganizationMemberRole.MEMBER;
+      input.role === "DIRECTOR" ? OrganizationMemberRole.DIRECTOR : OrganizationMemberRole.MEMBER;
 
     logger.info(
       { organizationId, targetUserId: targetUser.user_id, role },
@@ -422,7 +421,9 @@ export class OrganizationService {
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
     // Only owner or directors can remove members
-    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
     const canManage =
       organization.owner_user_id === userId ||
       userMember?.role === OrganizationMemberRole.OWNER ||
@@ -438,15 +439,14 @@ export class OrganizationService {
     }
 
     // Check if target is a member
-    const targetMember = organization.members.find((m: { user_id: string }) => m.user_id === targetUserId);
+    const targetMember = organization.members.find(
+      (m: { user_id: string }) => m.user_id === targetUserId
+    );
     if (!targetMember) {
       throw new AppError(404, "NOT_FOUND", "Member not found in organization");
     }
 
-    logger.info(
-      { organizationId, targetUserId },
-      "Removing member from organization"
-    );
+    logger.info({ organizationId, targetUserId }, "Removing member from organization");
 
     if (portalType === "investor") {
       await this.repository.removeInvestorOrganizationMember(organizationId, targetUserId);
@@ -474,5 +474,82 @@ export class OrganizationService {
     }
     return this.repository.hasPersonalIssuerOrganization(userId);
   }
-}
 
+  /**
+   * Accept Terms and Conditions for an organization
+   */
+  async acceptTnc(
+    req: Request,
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<{ success: boolean; tncAccepted: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only owner can accept T&C
+    if (organization.owner_user_id !== userId) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Only the organization owner can accept Terms and Conditions"
+      );
+    }
+
+    // Check if already accepted
+    if ((organization as { tnc_accepted?: boolean }).tnc_accepted) {
+      return { success: true, tncAccepted: true };
+    }
+
+    logger.info(
+      { organizationId, portalType, userId },
+      "Accepting Terms and Conditions for organization"
+    );
+
+    // Update the organization's tnc_accepted flag
+    if (portalType === "investor") {
+      await prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: { tnc_accepted: true },
+      });
+    } else {
+      await prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: { tnc_accepted: true },
+      });
+    }
+
+    // Log the T&C acceptance event
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const portal = getPortalFromRole(role);
+
+    // Get user for logging
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (user) {
+      await this.authRepository.createOnboardingLog({
+        userId: user.user_id,
+        role,
+        eventType: "TNC_ACCEPTED",
+        portal,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        metadata: {
+          organizationId,
+          organizationType: organization.type,
+          organizationName: organization.name,
+          role,
+        },
+      });
+
+      logger.info({ userId, organizationId, portalType, role }, "T&C acceptance event logged");
+    }
+
+    return { success: true, tncAccepted: true };
+  }
+}
