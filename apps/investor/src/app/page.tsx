@@ -115,11 +115,25 @@ function InvestorDashboardContent() {
     return null;
   }
 
-  // Get display name from organization
-  const displayName =
-    activeOrganization?.type === "PERSONAL"
-      ? "Personal Account"
-      : activeOrganization?.name || "Company Account";
+  // Get display name from organization - use firstName + lastName from RegTank data
+  const getDisplayName = () => {
+    if (!activeOrganization) return "";
+
+    // Use firstName + lastName if available (from RegTank onboarding)
+    if (activeOrganization.firstName && activeOrganization.lastName) {
+      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
+    }
+
+    // Fallback to organization name for company accounts
+    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
+      return activeOrganization.name;
+    }
+
+    // Default fallback
+    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
+  };
+
+  const displayName = getDisplayName();
 
   // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];

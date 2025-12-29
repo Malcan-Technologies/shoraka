@@ -24,6 +24,12 @@ import { useOrganization, type Organization, type OnboardingStatus, createApiCli
 import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
+  // Use firstName + lastName if available (from RegTank onboarding)
+  if (org.firstName && org.lastName) {
+    return `${org.firstName} ${org.lastName}`;
+  }
+  
+  // Fallback to company name or default
   return org.name || "Company Account";
 }
 

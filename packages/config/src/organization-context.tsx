@@ -36,6 +36,8 @@ export interface Organization {
   id: string;
   type: OrganizationType;
   name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   registrationNumber: string | null;
   onboardingStatus: OnboardingStatus;
   onboardedAt: string | null;
@@ -275,6 +277,8 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         id: result.data.id,
         type: result.data.type,
         name: result.data.name,
+        firstName: null, // Will be populated from RegTank data after onboarding
+        lastName: null,
         registrationNumber: result.data.registrationNumber,
         onboardingStatus: result.data.onboardingStatus,
         onboardedAt: null,

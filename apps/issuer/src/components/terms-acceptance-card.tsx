@@ -60,8 +60,8 @@ export function TermsAcceptanceCard({ organizationId, onAccepted }: TermsAccepta
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px] md:h-[400px] rounded-md border p-4">
-          <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+        <ScrollArea className="h-[400px] md:h-[500px] lg:h-[600px] rounded-md border p-4">
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-xl prose-h1:mt-0 prose-h1:mb-6 prose-h2:text-base prose-h2:mt-8 prose-h2:mb-3 prose-p:text-sm prose-p:leading-relaxed prose-p:my-2 prose-li:text-sm prose-li:my-1 prose-ul:my-3 prose-ul:pl-6 prose-ul:list-disc prose-ol:my-3 prose-ol:pl-6 prose-ol:list-decimal prose-strong:text-foreground prose-hr:my-6">
             <ReactMarkdown>{TERMS_AND_CONDITIONS}</ReactMarkdown>
           </div>
         </ScrollArea>

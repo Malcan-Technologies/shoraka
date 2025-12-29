@@ -30,39 +30,53 @@ To use the Platform as an Issuer, you must:
 
 ## 4. Account Registration and Security
 
-4.1. You are responsible for maintaining the confidentiality of your account credentials.
+**4.1. Account Credentials**
+You are responsible for maintaining the confidentiality of your account credentials.
 
-4.2. You agree to notify us immediately of any unauthorized use of your account.
+**4.2. Unauthorized Use**
+You agree to notify us immediately of any unauthorized use of your account.
 
-4.3. You are responsible for all activities that occur under your account.
+**4.3. Account Responsibility**
+You are responsible for all activities that occur under your account.
 
 ## 5. Financing Application
 
-5.1. All financing applications are subject to approval by CashSouk.
+**5.1. Subject to Approval**
+All financing applications are subject to approval by CashSouk.
 
-5.2. CashSouk reserves the right to reject any application without providing reasons.
+**5.2. Right to Reject**
+CashSouk reserves the right to reject any application without providing reasons.
 
-5.3. Approval of an application does not guarantee that the financing will be fully funded.
+**5.3. No Funding Guarantee**
+Approval of an application does not guarantee that the financing will be fully funded.
 
-5.4. You agree to provide accurate and complete information in your application.
+**5.4. Accurate Information**
+You agree to provide accurate and complete information in your application.
 
 ## 6. Repayment Obligations
 
-6.1. You agree to repay all amounts borrowed according to the agreed schedule.
+**6.1. Repayment Schedule**
+You agree to repay all amounts borrowed according to the agreed schedule.
 
-6.2. Late payments may incur additional fees and penalties as disclosed in your loan agreement.
+**6.2. Late Payment Fees**
+Late payments may incur additional fees and penalties as disclosed in your loan agreement.
 
-6.3. Failure to repay may result in legal action and reporting to credit bureaus.
+**6.3. Legal Action**
+Failure to repay may result in legal action and reporting to credit bureaus.
 
-6.4. CashSouk may engage collection agencies for overdue amounts.
+**6.4. Collection**
+CashSouk may engage collection agencies for overdue amounts.
 
 ## 7. Platform Fees
 
-7.1. CashSouk may charge fees for services provided through the Platform.
+**7.1. Service Fees**
+CashSouk may charge fees for services provided through the Platform.
 
-7.2. All applicable fees will be disclosed before you confirm any transaction.
+**7.2. Fee Disclosure**
+All applicable fees will be disclosed before you confirm any transaction.
 
-7.3. Fee schedules are subject to change with prior notice.
+**7.3. Fee Changes**
+Fee schedules are subject to change with prior notice.
 
 ## 8. Issuer Obligations
 
@@ -76,37 +90,49 @@ As an Issuer, you agree to:
 
 ## 9. Privacy and Data Protection
 
-9.1. Your personal and business data will be collected, used, and protected in accordance with our Privacy Policy.
+**9.1. Data Collection**
+Your personal and business data will be collected, used, and protected in accordance with our Privacy Policy.
 
-9.2. By using the Platform, you consent to the collection and use of your data as described in our Privacy Policy.
+**9.2. Consent**
+By using the Platform, you consent to the collection and use of your data as described in our Privacy Policy.
 
-9.3. Your information may be shared with Investors and third-party service providers as necessary.
+**9.3. Data Sharing**
+Your information may be shared with Investors and third-party service providers as necessary.
 
 ## 10. Intellectual Property
 
-10.1. All content on the Platform is owned by CashSouk or its licensors.
+**10.1. Ownership**
+All content on the Platform is owned by CashSouk or its licensors.
 
-10.2. You may not copy, modify, distribute, or create derivative works without our express permission.
+**10.2. Restrictions**
+You may not copy, modify, distribute, or create derivative works without our express permission.
 
 ## 11. Limitation of Liability
 
-11.1. CashSouk shall not be liable for any indirect, incidental, special, or consequential damages.
+**11.1. Indirect Damages**
+CashSouk shall not be liable for any indirect, incidental, special, or consequential damages.
 
-11.2. Our total liability shall not exceed the amount of fees paid by you in the 12 months preceding the claim.
+**11.2. Liability Cap**
+Our total liability shall not exceed the amount of fees paid by you in the 12 months preceding the claim.
 
 ## 12. Dispute Resolution
 
-12.1. Any disputes arising from these Terms shall be resolved through negotiation in good faith.
+**12.1. Negotiation**
+Any disputes arising from these Terms shall be resolved through negotiation in good faith.
 
-12.2. If negotiation fails, disputes shall be submitted to arbitration in Malaysia.
+**12.2. Arbitration**
+If negotiation fails, disputes shall be submitted to arbitration in Malaysia.
 
 ## 13. Amendments
 
-13.1. CashSouk reserves the right to modify these Terms at any time.
+**13.1. Right to Modify**
+CashSouk reserves the right to modify these Terms at any time.
 
-13.2. We will notify you of material changes through the Platform or via email.
+**13.2. Notification**
+We will notify you of material changes through the Platform or via email.
 
-13.3. Continued use of the Platform after changes constitutes acceptance of the modified Terms.
+**13.3. Acceptance**
+Continued use of the Platform after changes constitutes acceptance of the modified Terms.
 
 ## 14. Governing Law
 
@@ -116,8 +142,8 @@ These Terms shall be governed by and construed in accordance with the laws of Ma
 
 For questions about these Terms, please contact us at:
 
-- Email: support@cashsouk.com
-- Address: [Company Address]
+- **Email:** support@cashsouk.com
+- **Address:** [Company Address]
 
 ---
 

@@ -24,9 +24,17 @@ import { useOrganization, type Organization, type OnboardingStatus, createApiCli
 import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
+  // Personal accounts always show as "Personal Account" in sidebar
   if (org.type === "PERSONAL") {
     return "Personal Account";
   }
+  
+  // For company accounts, use firstName + lastName if available
+  if (org.firstName && org.lastName) {
+    return `${org.firstName} ${org.lastName}`;
+  }
+  
+  // Fallback to company name or default
   return org.name || "Company Account";
 }
 

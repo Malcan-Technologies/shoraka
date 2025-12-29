@@ -20,35 +20,36 @@ interface OnboardingStatusCardProps {
 /**
  * Determine the current onboarding step based on organization status
  * Steps for Investor Portal:
- * 1. Onboarding - Complete when onboardingApproved === true
+ * 1. Onboarding - Complete when organization exists (user has submitted onboarding)
  * 2. Accepting User Agreement - Complete when tncAccepted === true
- * 3. Account Approval - Complete when onboardingStatus === 'COMPLETED'
+ * 3. Account Approval - Complete when onboardingStatus === 'COMPLETED' (admin approved)
  * 4. Deposit - Complete when depositReceived === true
  */
 function getOnboardingSteps(organization: Organization): OnboardingStep[] {
-  const onboardingComplete = organization.onboardingApproved === true;
+  // Onboarding is complete once the organization exists (user submitted their KYC form)
+  // If we're showing this component, the organization exists, so onboarding is always complete
+  const onboardingComplete = true;
   const tncComplete = organization.tncAccepted === true;
   const accountApprovalComplete = organization.onboardingStatus === "COMPLETED";
   const depositComplete = organization.depositReceived === true;
 
   // Determine current step (first incomplete step)
-  let currentStepId = "onboarding";
-  if (onboardingComplete && !tncComplete) {
+  let currentStepId = "";
+  if (!tncComplete) {
     currentStepId = "tnc";
-  } else if (onboardingComplete && tncComplete && !accountApprovalComplete) {
+  } else if (!accountApprovalComplete) {
     currentStepId = "approval";
-  } else if (onboardingComplete && tncComplete && accountApprovalComplete && !depositComplete) {
+  } else if (!depositComplete) {
     currentStepId = "deposit";
-  } else if (onboardingComplete && tncComplete && accountApprovalComplete && depositComplete) {
-    currentStepId = ""; // All complete
   }
+  // If all complete, currentStepId remains ""
 
   return [
     {
       id: "onboarding",
       label: "Onboarding",
       isCompleted: onboardingComplete,
-      isCurrent: currentStepId === "onboarding",
+      isCurrent: false, // Never current since it's always complete when org exists
     },
     {
       id: "tnc",
