@@ -14,6 +14,7 @@ interface OnboardingStep {
 interface OnboardingStatusCardProps {
   organization: Organization;
   userName?: string;
+  actionButton?: React.ReactNode;
 }
 
 /**
@@ -51,13 +52,13 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
     },
     {
       id: "tnc",
-      label: "Accepting User Agreement",
+      label: "User Agreement",
       isCompleted: tncComplete,
       isCurrent: currentStepId === "tnc",
     },
     {
       id: "approval",
-      label: "Account approval",
+      label: "Approval",
       isCompleted: accountApprovalComplete,
       isCurrent: currentStepId === "approval",
     },
@@ -70,7 +71,7 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
   ];
 }
 
-export function OnboardingStatusCard({ organization, userName }: OnboardingStatusCardProps) {
+export function OnboardingStatusCard({ organization, userName, actionButton }: OnboardingStatusCardProps) {
   const steps = getOnboardingSteps(organization);
   const allComplete = steps.every((step) => step.isCompleted);
 
@@ -96,6 +97,7 @@ export function OnboardingStatusCard({ organization, userName }: OnboardingStatu
             Browse and invest in verified loan opportunities from your dashboard
           </p>
         </div>
+        {actionButton}
       </div>
 
       {/* Stepper */}
@@ -127,7 +129,7 @@ export function OnboardingStatusCard({ organization, userName }: OnboardingStatu
                 </div>
                 <span
                   className={`
-                    mt-2 text-xs md:text-sm font-medium text-center max-w-[80px] md:max-w-[100px]
+                    mt-2 text-xs md:text-sm font-medium text-center w-[80px] md:w-[100px] min-h-[2.5rem]
                     ${step.isCurrent ? "text-primary" : step.isCompleted ? "text-foreground" : "text-muted-foreground"}
                   `}
                 >

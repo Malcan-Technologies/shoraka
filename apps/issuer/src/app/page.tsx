@@ -113,39 +113,27 @@ function IssuerDashboardContent() {
   const needsTncAcceptance = currentStep?.id === "tnc";
   const isAwaitingApproval = currentStep?.id === "approval";
 
-  // Check if Get Financed should be enabled (all onboarding steps complete)
-  const canApply = allStepsComplete;
-
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Dashboard</h1>
-        <div className="ml-auto">
-          {canApply ? (
-            <Button asChild className="gap-2">
-              <Link href="/loans/new">
-                <PlusIcon className="h-4 w-4" />
-                Get Financed
-              </Link>
-            </Button>
-          ) : (
-            <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
-              <PlusIcon className="h-4 w-4" />
-              Get Financed
-            </Button>
-          )}
-        </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-8 p-2 md:p-4">
           {/* Onboarding Status Section - shown when not all steps are complete */}
           {activeOrganization && !allStepsComplete && (
             <section className="space-y-6">
-              <OnboardingStatusCard 
-                organization={activeOrganization} 
+              <OnboardingStatusCard
+                organization={activeOrganization}
                 userName={displayName}
+                actionButton={
+                  <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
+                    <PlusIcon className="h-4 w-4" />
+                    Get Financed
+                  </Button>
+                }
               />
               
               {/* Step-specific cards */}
@@ -166,45 +154,22 @@ function IssuerDashboardContent() {
 
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
-            <section>
-              <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-              <p className="text-[17px] leading-7 text-muted-foreground">
-                Manage your financing requests and track your applications from your dashboard.
-              </p>
+            <section className="flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
+                <p className="text-[17px] leading-7 text-muted-foreground">
+                  Manage your financing requests and track your applications from your dashboard.
+                </p>
+              </div>
+              <Button asChild className="gap-2">
+                <Link href="/loans/new">
+                  <PlusIcon className="h-4 w-4" />
+                  Get Financed
+                </Link>
+              </Button>
             </section>
           )}
 
-          {/* Dashboard Content - always visible */}
-          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Active Requests</h3>
-              <p className="text-3xl font-bold text-primary">0</p>
-              <p className="text-sm text-muted-foreground mt-1">Pending applications</p>
-            </div>
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Total Funded</h3>
-              <p className="text-3xl font-bold">RM 0.00</p>
-              <p className="text-sm text-muted-foreground mt-1">Approved financing</p>
-            </div>
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Repayments Due</h3>
-              <p className="text-3xl font-bold text-amber-600">RM 0.00</p>
-              <p className="text-sm text-muted-foreground mt-1">Outstanding amount</p>
-            </div>
-          </section>
-
-          {/* Recent Applications Placeholder */}
-          <section>
-            <h3 className="text-xl font-semibold mb-4">Recent Applications</h3>
-            <div className="rounded-xl border bg-card p-8 text-center">
-              <p className="text-muted-foreground">
-                You haven't submitted any financing applications yet.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Start by creating a new financing request.
-              </p>
-            </div>
-          </section>
         </div>
       </div>
     </>

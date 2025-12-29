@@ -13,6 +13,7 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { DepositCard } from "../components/deposit-card";
+import { AccountOverviewCard } from "../components/account-overview-card";
 
 function InvestorDashboardContent() {
   const { isAuthenticated } = useAuth();
@@ -130,8 +131,8 @@ function InvestorDashboardContent() {
   const needsDeposit = currentStep?.id === "deposit";
   const isAwaitingApproval = currentStep?.id === "approval";
 
-  // Check if Invest Now should be enabled (all onboarding steps complete)
-  const canInvest = allStepsComplete;
+  // Account overview is enabled only when onboarding is complete
+  const isAccountEnabled = activeOrganization?.onboardingStatus === "COMPLETED";
 
   return (
     <>
@@ -139,28 +140,22 @@ function InvestorDashboardContent() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Dashboard</h1>
-        <div className="ml-auto">
-          {canInvest ? (
-            <Button asChild className="gap-2">
-              <Link href="/investments">
-                <PlusIcon className="h-4 w-4" />
-                Invest now
-              </Link>
-            </Button>
-          ) : (
-            <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
-              <PlusIcon className="h-4 w-4" />
-              Invest now
-            </Button>
-          )}
-        </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-8 p-2 md:p-4">
           {/* Onboarding Status Section - shown when not all steps are complete */}
           {activeOrganization && !allStepsComplete && (
             <section className="space-y-6">
-              <OnboardingStatusCard organization={activeOrganization} userName={displayName} />
+              <OnboardingStatusCard
+                organization={activeOrganization}
+                userName={displayName}
+                actionButton={
+                  <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
+                    <PlusIcon className="h-4 w-4" />
+                    Invest now
+                  </Button>
+                }
+              />
 
               {/* Step-specific cards */}
               {needsTncAcceptance && <TermsAcceptanceCard organizationId={activeOrganization.id} />}
@@ -181,45 +176,24 @@ function InvestorDashboardContent() {
 
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
-            <section>
-              <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-              <p className="text-[17px] leading-7 text-muted-foreground">
-                Browse and invest in verified loan opportunities from your dashboard.
-              </p>
+            <section className="flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
+                <p className="text-[17px] leading-7 text-muted-foreground">
+                  Browse and invest in verified loan opportunities from your dashboard.
+                </p>
+              </div>
+              <Button asChild className="gap-2">
+                <Link href="/investments">
+                  <PlusIcon className="h-4 w-4" />
+                  Invest now
+                </Link>
+              </Button>
             </section>
           )}
 
-          {/* Dashboard Content - always visible */}
-          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Portfolio Value</h3>
-              <p className="text-3xl font-bold text-primary">RM 0.00</p>
-              <p className="text-sm text-muted-foreground mt-1">Total invested</p>
-            </div>
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Active Investments</h3>
-              <p className="text-3xl font-bold">0</p>
-              <p className="text-sm text-muted-foreground mt-1">Ongoing investments</p>
-            </div>
-            <div className="rounded-xl border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-2">Total Returns</h3>
-              <p className="text-3xl font-bold text-green-600">RM 0.00</p>
-              <p className="text-sm text-muted-foreground mt-1">Earnings to date</p>
-            </div>
-          </section>
-
-          {/* Available Opportunities Placeholder */}
-          <section>
-            <h3 className="text-xl font-semibold mb-4">Available Opportunities</h3>
-            <div className="rounded-xl border bg-card p-8 text-center">
-              <p className="text-muted-foreground">
-                No investment opportunities available at this time.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Check back later for new financing opportunities.
-              </p>
-            </div>
-          </section>
+          {/* Account Overview Card - always visible, disabled when onboarding incomplete */}
+          <AccountOverviewCard isDisabled={!isAccountEnabled} />
         </div>
       </div>
     </>
