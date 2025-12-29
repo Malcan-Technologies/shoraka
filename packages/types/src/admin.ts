@@ -355,7 +355,8 @@ export type OnboardingStatusEnum =
   | "PENDING_AML"
   | "PENDING_SSM_REVIEW"
   | "PENDING_FINAL_APPROVAL"
-  | "COMPLETED";
+  | "COMPLETED"
+  | "REJECTED";
 
 export interface OrganizationOwner {
   userId: string;
@@ -375,6 +376,7 @@ export interface OrganizationResponse {
   owner: OrganizationOwner;
   memberCount: number;
   isSophisticatedInvestor: boolean; // Only applicable for investor portal
+  depositReceived: boolean; // Only applicable for investor portal
   createdAt: string;
   updatedAt: string;
 }

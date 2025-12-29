@@ -112,6 +112,7 @@ export function OrganizationsTableToolbar({
             <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">Pending SSM Review</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">Pending Final Approval</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

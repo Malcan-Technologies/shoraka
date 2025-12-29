@@ -1276,7 +1276,15 @@ export class AdminRepository {
     search?: string;
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
-    onboardingStatus?: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
+    onboardingStatus?:
+      | "PENDING"
+      | "IN_PROGRESS"
+      | "PENDING_APPROVAL"
+      | "PENDING_AML"
+      | "PENDING_SSM_REVIEW"
+      | "PENDING_FINAL_APPROVAL"
+      | "COMPLETED"
+      | "REJECTED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1289,7 +1297,10 @@ export class AdminRepository {
         | "IN_PROGRESS"
         | "PENDING_APPROVAL"
         | "PENDING_AML"
-        | "COMPLETED";
+        | "PENDING_SSM_REVIEW"
+        | "PENDING_FINAL_APPROVAL"
+        | "COMPLETED"
+        | "REJECTED";
       onboardedAt: Date | null;
       owner: {
         userId: string;
@@ -1298,6 +1309,8 @@ export class AdminRepository {
         lastName: string;
       };
       memberCount: number;
+      isSophisticatedInvestor: boolean;
+      depositReceived: boolean;
       createdAt: Date;
       updatedAt: Date;
     }[];
@@ -1373,6 +1386,7 @@ export class AdminRepository {
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
       is_sophisticated_investor: boolean;
+      deposit_received: boolean;
       created_at: Date;
       updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
@@ -1430,7 +1444,10 @@ export class AdminRepository {
           | "IN_PROGRESS"
           | "PENDING_APPROVAL"
           | "PENDING_AML"
-          | "COMPLETED",
+          | "PENDING_SSM_REVIEW"
+          | "PENDING_FINAL_APPROVAL"
+          | "COMPLETED"
+          | "REJECTED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1440,6 +1457,7 @@ export class AdminRepository {
         },
         memberCount: org._count.members,
         isSophisticatedInvestor: org.is_sophisticated_investor,
+        depositReceived: org.deposit_received,
         createdAt: org.created_at,
         updatedAt: org.updated_at,
       })),
@@ -1454,7 +1472,10 @@ export class AdminRepository {
           | "IN_PROGRESS"
           | "PENDING_APPROVAL"
           | "PENDING_AML"
-          | "COMPLETED",
+          | "PENDING_SSM_REVIEW"
+          | "PENDING_FINAL_APPROVAL"
+          | "COMPLETED"
+          | "REJECTED",
         onboardedAt: org.onboarded_at,
         owner: {
           userId: org.owner.user_id || "",
@@ -1464,6 +1485,7 @@ export class AdminRepository {
         },
         memberCount: org._count.members,
         isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
+        depositReceived: false, // Issuers don't have deposit received status
         createdAt: org.created_at,
         updatedAt: org.updated_at,
       })),
@@ -1712,7 +1734,7 @@ export class AdminRepository {
           onboarded_at: true,
           admin_approved_at: true,
           regtank_onboarding: {
-            where: { status: "APPROVED" },
+            where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
             select: { completed_at: true },
@@ -1735,7 +1757,7 @@ export class AdminRepository {
           onboarded_at: true,
           admin_approved_at: true,
           regtank_onboarding: {
-            where: { status: "APPROVED" },
+            where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
             select: { completed_at: true },
@@ -1766,7 +1788,7 @@ export class AdminRepository {
           onboarded_at: true,
           admin_approved_at: true,
           regtank_onboarding: {
-            where: { status: "APPROVED" },
+            where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
             select: { completed_at: true },
@@ -1789,7 +1811,7 @@ export class AdminRepository {
           onboarded_at: true,
           admin_approved_at: true,
           regtank_onboarding: {
-            where: { status: "APPROVED" },
+            where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
             select: { completed_at: true },

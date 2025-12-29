@@ -1313,7 +1313,15 @@ export class AdminService {
     search?: string;
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
-    onboardingStatus?: "PENDING" | "IN_PROGRESS" | "PENDING_APPROVAL" | "PENDING_AML" | "COMPLETED";
+    onboardingStatus?:
+      | "PENDING"
+      | "IN_PROGRESS"
+      | "PENDING_APPROVAL"
+      | "PENDING_AML"
+      | "PENDING_SSM_REVIEW"
+      | "PENDING_FINAL_APPROVAL"
+      | "COMPLETED"
+      | "REJECTED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1326,7 +1334,10 @@ export class AdminService {
         | "IN_PROGRESS"
         | "PENDING_APPROVAL"
         | "PENDING_AML"
-        | "COMPLETED";
+        | "PENDING_SSM_REVIEW"
+        | "PENDING_FINAL_APPROVAL"
+        | "COMPLETED"
+        | "REJECTED";
       onboardedAt: string | null;
       owner: {
         userId: string;
@@ -1335,6 +1346,8 @@ export class AdminService {
         lastName: string;
       };
       memberCount: number;
+      isSophisticatedInvestor: boolean;
+      depositReceived: boolean;
       createdAt: string;
       updatedAt: string;
     }[];
