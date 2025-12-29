@@ -188,7 +188,9 @@ export const getOrganizationsQuerySchema = z.object({
   search: z.string().optional(),
   portal: z.enum(["investor", "issuer"]).optional(),
   type: z.enum(["PERSONAL", "COMPANY"]).optional(),
-  onboardingStatus: z.enum(["PENDING", "IN_PROGRESS", "PENDING_APPROVAL", "PENDING_AML", "COMPLETED"]).optional(),
+  onboardingStatus: z
+    .enum(["PENDING", "IN_PROGRESS", "PENDING_APPROVAL", "PENDING_AML", "COMPLETED"])
+    .optional(),
 });
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
@@ -220,6 +222,11 @@ export const getOnboardingApplicationsQuerySchema = z.object({
   portal: z.enum(["investor", "issuer"]).optional(),
   type: z.enum(["PERSONAL", "COMPANY"]).optional(),
   status: onboardingApprovalStatusEnum.optional(),
+  excludeStatuses: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(",") : undefined))
+    .pipe(z.array(onboardingApprovalStatusEnum).optional()),
 });
 
 export type GetOnboardingApplicationsQuery = z.infer<typeof getOnboardingApplicationsQuerySchema>;

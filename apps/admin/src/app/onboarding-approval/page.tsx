@@ -15,6 +15,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   MagnifyingGlassIcon,
@@ -39,6 +41,9 @@ export default function OnboardingApprovalPage() {
   const [portalFilter, setPortalFilter] = React.useState<PortalFilter>("all");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const [hideCancelled, setHideCancelled] = React.useState(true);
+  const [hideInProgress, setHideInProgress] = React.useState(false);
+  const [hideExpired, setHideExpired] = React.useState(true);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
 
@@ -62,8 +67,25 @@ export default function OnboardingApprovalPage() {
       portal: portalFilter !== "all" ? portalFilter : undefined,
       type: typeFilter !== "all" ? typeFilter : undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
+      excludeStatuses: (() => {
+        const excluded: ("CANCELLED" | "PENDING_ONBOARDING" | "EXPIRED")[] = [];
+        if (hideCancelled) excluded.push("CANCELLED");
+        if (hideInProgress) excluded.push("PENDING_ONBOARDING");
+        if (hideExpired) excluded.push("EXPIRED");
+        return excluded.length > 0 ? excluded : undefined;
+      })(),
     }),
-    [currentPage, pageSize, debouncedSearch, portalFilter, typeFilter, statusFilter]
+    [
+      currentPage,
+      pageSize,
+      debouncedSearch,
+      portalFilter,
+      typeFilter,
+      statusFilter,
+      hideCancelled,
+      hideInProgress,
+      hideExpired,
+    ]
   );
 
   const { data, isLoading, isError, error, refetch, isFetching } =
@@ -80,11 +102,20 @@ export default function OnboardingApprovalPage() {
     setPortalFilter("all");
     setTypeFilter("all");
     setStatusFilter("all");
+    setHideCancelled(true);
+    setHideInProgress(false);
+    setHideExpired(true);
     setCurrentPage(1);
   };
 
   const hasFilters =
-    searchQuery !== "" || portalFilter !== "all" || typeFilter !== "all" || statusFilter !== "all";
+    searchQuery !== "" ||
+    portalFilter !== "all" ||
+    typeFilter !== "all" ||
+    statusFilter !== "all" ||
+    !hideCancelled ||
+    hideInProgress ||
+    !hideExpired;
 
   // Get applications data
   const applications = data?.applications || [];
@@ -217,9 +248,12 @@ export default function OnboardingApprovalPage() {
                 <Button variant="outline" className="gap-2 h-11 rounded-xl">
                   <FunnelIcon className="h-4 w-4" />
                   Status
-                  {statusFilter !== "all" && (
+                  {(statusFilter !== "all" || !hideCancelled || hideInProgress || !hideExpired) && (
                     <Badge variant="secondary" className="ml-1">
-                      1
+                      {(statusFilter !== "all" ? 1 : 0) +
+                        (!hideCancelled ? 1 : 0) +
+                        (hideInProgress ? 1 : 0) +
+                        (!hideExpired ? 1 : 0)}
                     </Badge>
                   )}
                 </Button>
@@ -252,6 +286,22 @@ export default function OnboardingApprovalPage() {
                   <DropdownMenuRadioItem value="EXPIRED">Expired</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="CANCELLED">Cancelled</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={hideInProgress}
+                  onCheckedChange={setHideInProgress}
+                >
+                  Hide In Progress
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={hideExpired} onCheckedChange={setHideExpired}>
+                  Hide Expired
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={hideCancelled}
+                  onCheckedChange={setHideCancelled}
+                >
+                  Hide Cancelled
+                </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

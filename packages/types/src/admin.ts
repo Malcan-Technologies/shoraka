@@ -484,7 +484,7 @@ export interface OnboardingApplicationResponse {
   ssmVerified: boolean;
   ssmVerifiedAt: string | null;
   ssmVerifiedBy: string | null;
-  submittedAt: string;
+  submittedAt: string | null;
   completedAt: string | null;
   // Approval workflow flags
   onboardingApproved: boolean;
@@ -499,6 +499,7 @@ export interface GetOnboardingApplicationsParams extends PaginationParams {
   portal?: PortalType;
   type?: OrganizationTypeEnum;
   status?: OnboardingApprovalStatus;
+  excludeStatuses?: OnboardingApprovalStatus[];
 }
 
 export interface OnboardingApplicationsResponse {

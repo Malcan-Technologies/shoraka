@@ -30,13 +30,11 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       return <Badge className="bg-orange-500 text-white hover:bg-orange-600">Pending AML</Badge>;
     case "PENDING_SSM_REVIEW":
       return (
-        <Badge className="bg-amber-600 text-white hover:bg-amber-700">
-          Pending SSM Review
-        </Badge>
+        <Badge className="bg-amber-600 text-white hover:bg-amber-700">Pending SSM Review</Badge>
       );
     case "PENDING_FINAL_APPROVAL":
       return (
-        <Badge className="bg-blue-500 text-white hover:bg-blue-600">
+        <Badge className="bg-purple-500 text-white hover:bg-purple-600">
           Pending Final Approval
         </Badge>
       );
@@ -87,7 +85,8 @@ function getPortalBadge(portal: "investor" | "issuer") {
   );
 }
 
-function formatDate(dateString: string) {
+function formatDate(dateString: string | null | undefined) {
+  if (!dateString) return "-";
   return new Intl.DateTimeFormat("en-MY", {
     day: "numeric",
     month: "short",
@@ -139,15 +138,17 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
         </TableCell>
         <TableCell>{getStatusBadge(application.status)}</TableCell>
         <TableCell>
-          <Button
-            variant={needsAction ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDialogOpen(true)}
-            className="gap-1.5"
-          >
-            <EyeIcon className="h-4 w-4" />
-            Review
-          </Button>
+          {application.status !== "CANCELLED" && (
+            <Button
+              variant={needsAction ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+              className="gap-1.5"
+            >
+              <EyeIcon className="h-4 w-4" />
+              Review
+            </Button>
+          )}
         </TableCell>
       </TableRow>
 

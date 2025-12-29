@@ -186,7 +186,8 @@ export function OnboardingReviewDialog({
     });
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "-";
     return new Intl.DateTimeFormat("en-MY", {
       day: "numeric",
       month: "long",

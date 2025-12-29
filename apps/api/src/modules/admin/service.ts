@@ -1570,9 +1570,16 @@ export class AdminService {
     );
 
     // Filter by status if specified (post-processing since status is derived)
-    const filteredApplications = params.status
+    let filteredApplications = params.status
       ? mappedApplications.filter((app) => app.status === params.status)
       : mappedApplications;
+
+    // Exclude statuses if specified
+    if (params.excludeStatuses && params.excludeStatuses.length > 0) {
+      filteredApplications = filteredApplications.filter(
+        (app) => !params.excludeStatuses!.includes(app.status)
+      );
+    }
 
     return {
       applications: filteredApplications,
@@ -1693,7 +1700,7 @@ export class AdminService {
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
       ssmVerifiedBy: null,
-      submittedAt: record.completed_at?.toISOString() || record.created_at.toISOString(),
+      submittedAt: record.completed_at?.toISOString() || null,
       completedAt: onboardedAt?.toISOString() || null,
       onboardingApproved,
       amlApproved,
