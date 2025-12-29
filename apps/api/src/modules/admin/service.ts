@@ -1808,6 +1808,7 @@ export class AdminService {
       "LIVENESS_PASSED",
       "WAIT_FOR_APPROVAL",
       "APPROVED",
+      "COMPLETED",
       "IN_PROGRESS",
       "PENDING",
     ];
