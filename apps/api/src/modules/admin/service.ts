@@ -1671,6 +1671,9 @@ export class AdminService {
 
     const isCompleted = orgOnboardingStatus === "COMPLETED";
 
+    // Use onboarded_at from organization table for completedAt (more accurate than regtank completed_at)
+    const onboardedAt = org?.onboarded_at;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1690,8 +1693,8 @@ export class AdminService {
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
       ssmVerifiedBy: null,
-      submittedAt: record.created_at.toISOString(),
-      completedAt: record.completed_at?.toISOString() || null,
+      submittedAt: record.completed_at?.toISOString() || record.created_at.toISOString(),
+      completedAt: onboardedAt?.toISOString() || null,
       onboardingApproved,
       amlApproved,
       tncAccepted,
@@ -2026,7 +2029,7 @@ export class AdminService {
     // Status flow: IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED
     // Final approval means all checks (including AML) are done
     const previousRegTankStatus = onboarding.status;
-    
+
     logger.info(
       {
         onboardingId,
@@ -2034,8 +2037,8 @@ export class AdminService {
         organizationId: org.id,
         previousRegTankStatus,
         organizationOnboardingStatus: org.onboarding_status,
-        amlApproved: isInvestor 
-          ? onboarding.investor_organization?.aml_approved 
+        amlApproved: isInvestor
+          ? onboarding.investor_organization?.aml_approved
           : onboarding.issuer_organization?.aml_approved,
         note: "About to update regtank_onboarding.status to COMPLETED after final approval",
       },
@@ -2049,7 +2052,7 @@ export class AdminService {
 
     // Verify the update by fetching the record again
     const updatedOnboarding = await this.regTankRepository.findByRequestId(onboarding.request_id);
-    
+
     logger.info(
       {
         onboardingId,
@@ -2058,8 +2061,8 @@ export class AdminService {
         previousRegTankStatus,
         newRegTankStatus: updatedOnboarding?.status || "NOT_FOUND",
         organizationOnboardingStatus: "COMPLETED",
-        amlApproved: isInvestor 
-          ? onboarding.investor_organization?.aml_approved 
+        amlApproved: isInvestor
+          ? onboarding.investor_organization?.aml_approved
           : onboarding.issuer_organization?.aml_approved,
         completedAt: updatedOnboarding?.completed_at,
       },
