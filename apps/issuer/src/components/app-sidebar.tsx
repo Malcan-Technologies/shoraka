@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
@@ -27,12 +27,24 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const { isOnboarded, isPendingApproval, organizations } = useOrganization();
+  const { isOnboarded, isPendingApproval, organizations, activeOrganization } = useOrganization();
   const isOnboardingPage = pathname === "/onboarding-start";
+  
+  // Check if organization has a status that allows Account/Profile access
+  const allowsAccountAccess = useMemo(() => {
+    const status = activeOrganization?.onboardingStatus;
+    return (
+      status === "PENDING_AML" ||
+      status === "PENDING_FINAL_APPROVAL" ||
+      status === "COMPLETED"
+    );
+  }, [activeOrganization]);
+  
   // Disable navigation if on onboarding page OR if active org is not onboarded (except for pending approval)
   const isDisabled = isOnboardingPage || (organizations.length > 0 && !isOnboarded && !isPendingApproval);
   // For pending approval: only dashboard is enabled, other features disabled
-  const isFeaturesDisabled = isDisabled || isPendingApproval;
+  // BUT allow Account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
+  const isFeaturesDisabled = (isDisabled || isPendingApproval) && !allowsAccountAccess;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

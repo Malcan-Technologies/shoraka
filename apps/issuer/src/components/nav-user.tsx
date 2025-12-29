@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BadgeCheck, ChevronsUpDown, LogOut, ArrowLeftRight } from "lucide-react";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logout } from "../lib/auth";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
@@ -39,8 +39,21 @@ export function NavUser() {
   const { isMobile } = useSidebar();
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const isOnboarding = pathname === "/onboarding-start";
+  const { activeOrganization } = useOrganization();
   const { getAccessToken, signOut } = useAuthToken();
+
+  // Check if organization has a status that allows Profile access
+  const allowsProfileAccess = useMemo(() => {
+    const status = activeOrganization?.onboardingStatus;
+    return (
+      status === "PENDING_AML" ||
+      status === "PENDING_FINAL_APPROVAL" ||
+      status === "COMPLETED"
+    );
+  }, [activeOrganization]);
+
+  // Profile should be disabled only if on onboarding page AND status doesn't allow access
+  const isProfileDisabled = pathname === "/onboarding-start" && !allowsProfileAccess;
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],
@@ -142,7 +155,7 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              {isOnboarding ? (
+              {isProfileDisabled ? (
                 <DropdownMenuItem disabled className="cursor-not-allowed opacity-50">
                   <BadgeCheck />
                   Profile

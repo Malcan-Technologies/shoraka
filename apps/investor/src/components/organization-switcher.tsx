@@ -150,6 +150,13 @@ export function OrganizationSwitcher() {
 
   const isOnboardingPage = pathname === "/onboarding-start";
   
+  // Check if organization has a status that allows Account/Profile access
+  const allowsAccountAccess = activeOrganization && (
+    activeOrganization.onboardingStatus === "PENDING_AML" ||
+    activeOrganization.onboardingStatus === "PENDING_FINAL_APPROVAL" ||
+    activeOrganization.onboardingStatus === "COMPLETED"
+  );
+  
   // Sort organizations with personal account first
   const sortedOrganizations = sortOrganizations(organizations);
   
@@ -355,8 +362,16 @@ export function OrganizationSwitcher() {
                 Current Action
               </DropdownMenuLabel>
               <DropdownMenuItem
-                disabled
-                className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20"
+                disabled={!allowsAccountAccess}
+                onClick={() => {
+                  if (allowsAccountAccess) {
+                    // Navigate to account page when Current Action is clicked
+                    router.push("/account");
+                  }
+                }}
+                className={`flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 ${
+                  allowsAccountAccess ? "cursor-pointer hover:bg-accent/10" : "opacity-50"
+                }`}
               >
                 <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   {activeOrganization ? (
