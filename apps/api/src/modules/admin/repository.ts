@@ -1334,7 +1334,7 @@ export class AdminRepository {
       if (search) {
         // Split search into words and require all words to match somewhere
         const searchTerms = search.trim().split(/\s+/).filter(Boolean);
-
+        
         if (searchTerms.length === 1) {
           // Single word: match against any field
           const term = searchTerms[0];
@@ -1609,14 +1609,14 @@ export class AdminRepository {
   /**
    * Get onboarding operations metrics for the dashboard
    * Uses investor_organizations and issuer_organizations tables as source of truth
-   *
+   * 
    * Categories (based on organization onboarding_status):
    * - inProgress: PENDING or IN_PROGRESS (user still completing onboarding)
    * - pending: PENDING_APPROVAL or PENDING_AML (waiting for admin action)
    * - approved: COMPLETED (onboarding fully complete, has onboarded_at date)
    * - rejected: Count from regtank_onboarding (not tracked at org level)
    * - expired: Count from regtank_onboarding (not tracked at org level)
-   *
+   * 
    * Average time to approval: created_at to onboarded_at
    */
   async getOnboardingOperationsMetrics(): Promise<{
@@ -1692,7 +1692,7 @@ export class AdminRepository {
         }),
         prisma.issuerOrganization.count({
           where: { onboarding_status: OnboardingStatus.REJECTED },
-        }),
+      }),
       ]).then(([investor, issuer]) => investor + issuer),
       // Expired: Only tracked in regtank_onboarding (organizations don't have EXPIRED status)
       prisma.regTankOnboarding.count({

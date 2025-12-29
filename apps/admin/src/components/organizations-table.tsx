@@ -46,9 +46,9 @@ function TableSkeleton({ portal }: { portal: PortalType }) {
               <TableCell>
                 <Skeleton className="h-5 w-16" />
               </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-16" />
-              </TableCell>
+            <TableCell>
+              <Skeleton className="h-5 w-16" />
+            </TableCell>
             </>
           )}
           <TableCell>
@@ -108,7 +108,7 @@ export function OrganizationsTable({
                 <TableHead className="text-sm font-semibold">Onboarding</TableHead>
                 {portal === "investor" && (
                   <>
-                    <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
+                  <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
                     <TableHead className="text-sm font-semibold">Deposit</TableHead>
                   </>
                 )}

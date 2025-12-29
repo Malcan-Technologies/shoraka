@@ -114,19 +114,19 @@ export function OrganizationsTableRow({
       {/* Sophisticated Investor Status (only for investor portal) */}
       {showSophisticated && (
         <>
-          <TableCell>
-            {organization.isSophisticatedInvestor ? (
-              <Badge
-                variant="outline"
-                className="border-violet-500/30 text-violet-600 bg-violet-500/10"
-              >
-                <StarIcon className="h-3 w-3 mr-1" />
-                Yes
-              </Badge>
-            ) : (
-              <span className="text-muted-foreground text-sm">No</span>
-            )}
-          </TableCell>
+        <TableCell>
+          {organization.isSophisticatedInvestor ? (
+            <Badge
+              variant="outline"
+              className="border-violet-500/30 text-violet-600 bg-violet-500/10"
+            >
+              <StarIcon className="h-3 w-3 mr-1" />
+              Yes
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">No</span>
+          )}
+        </TableCell>
           {/* Deposit Received Status (only for investor portal) */}
           <TableCell>
             {organization.depositReceived ? (
