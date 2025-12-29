@@ -73,6 +73,15 @@ function OnboardingStatusBadge({
     );
   }
   
+  if (status === "PENDING_FINAL_APPROVAL") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
+        <ClockIcon className={iconSize} />
+        Pending Final Approval
+      </span>
+    );
+  }
+  
   // Check regtank status for in-progress statuses
   const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
   if (regtankStatus && inProgressStatuses.includes(regtankStatus)) {
