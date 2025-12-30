@@ -45,15 +45,9 @@ function OnboardingStartPageContent() {
     setMounted(true);
   }, []);
 
-  // Check organization status and redirect accordingly
+  // Check organization status and redirect accordingly (except PENDING - no auto-redirect to RegTank)
   useEffect(() => {
     if (orgLoading || !activeOrganization) return;
-
-    // If status is PENDING, redirect to RegTank portal (verifyLink)
-    if ((activeOrganization.onboardingStatus === "PENDING" || activeOrganization.regtankOnboardingStatus === "PENDING") && activeOrganization.regtankVerifyLink) {
-      window.location.href = activeOrganization.regtankVerifyLink;
-      return;
-    }
 
     // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
     const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];

@@ -1513,10 +1513,38 @@ export class RegTankService {
           const org =
             await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
+            const previousStatus = org.onboarding_status;
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_AML
             );
+            
+            // Create onboarding status updated log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_AML,
+                  trigger: "REGTANK_APPROVED",
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create onboarding status updated log (non-blocking)"
+              );
+            }
+            
             logger.info(
               { organizationId, portalType, orgType: org.type },
               "Updated investor organization status to PENDING_AML after RegTank onboarding approval"
@@ -1530,10 +1558,38 @@ export class RegTankService {
         } else {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
+            const previousStatus = org.onboarding_status;
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_AML
             );
+            
+            // Create onboarding status updated log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_AML,
+                  trigger: "REGTANK_APPROVED",
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create onboarding status updated log (non-blocking)"
+              );
+            }
+            
             logger.info(
               { organizationId, portalType },
               "Updated issuer organization status to PENDING_AML after RegTank onboarding approval"

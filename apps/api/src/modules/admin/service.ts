@@ -1583,15 +1583,17 @@ export class AdminService {
       );
     }
 
+    // Calculate total count: use filtered count if status filter or excludeStatuses is applied
+    const shouldUseFilteredCount = params.status || (params.excludeStatuses && params.excludeStatuses.length > 0);
+    const finalTotalCount = shouldUseFilteredCount ? filteredApplications.length : totalCount;
+
     return {
       applications: filteredApplications,
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
-        totalCount: params.status ? filteredApplications.length : totalCount,
-        totalPages: Math.ceil(
-          (params.status ? filteredApplications.length : totalCount) / params.pageSize
-        ),
+        totalCount: finalTotalCount,
+        totalPages: Math.ceil(finalTotalCount / params.pageSize),
       },
     };
   }
@@ -2199,6 +2201,7 @@ export class AdminService {
     // Update the organization's ssm_approved flag and transition to PENDING_FINAL_APPROVAL
     // For company accounts, SSM approval is required before final approval step
     const now = new Date();
+    const previousStatus = org.onboarding_status;
     if (isInvestor && onboarding.investor_organization) {
       await prisma.investorOrganization.update({
         where: { id: org.id },
@@ -2239,6 +2242,44 @@ export class AdminService {
         },
       },
     });
+
+    // Create onboarding status updated log if status changed
+    if (previousStatus !== OnboardingStatus.PENDING_FINAL_APPROVAL) {
+      try {
+        await prisma.onboardingLog.create({
+          data: {
+            user_id: onboarding.user_id,
+            event_type: "ONBOARDING_STATUS_UPDATED",
+            role: isInvestor ? "INVESTOR" : "ISSUER",
+            portal: onboarding.portal_type,
+            ip_address:
+              (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+            user_agent: req.headers["user-agent"] || null,
+            device_info: null,
+            device_type: null,
+            metadata: {
+              organizationId: org.id,
+              organizationType: onboarding.organization_type,
+              portalType: onboarding.portal_type,
+              previousStatus,
+              newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+              trigger: "SSM_APPROVED",
+              approvedBy: adminUserId,
+              regtankRequestId: onboarding.request_id,
+            },
+          },
+        });
+      } catch (logError) {
+        logger.error(
+          {
+            error: logError instanceof Error ? logError.message : String(logError),
+            organizationId: org.id,
+            onboardingId,
+          },
+          "Failed to create onboarding status updated log (non-blocking)"
+        );
+      }
+    }
 
     logger.info(
       {

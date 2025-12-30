@@ -4,7 +4,7 @@ import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
-import { OnboardingStatus } from "@prisma/client";
+import { OnboardingStatus, UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 
 /**
@@ -202,6 +202,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.investor_organization_id
           );
           if (org) {
+            const previousStatus = org.onboarding_status;
             // Update aml_approved flag, status to PENDING_FINAL_APPROVAL, and store KYC response
             await prisma.investorOrganization.update({
               where: { id: onboarding.investor_organization_id },
@@ -211,6 +212,35 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 kyc_response: payload as Prisma.InputJsonValue,
               },
             });
+
+            // Create onboarding status updated log
+            try {
+              await prisma.onboardingLog.create({
+                data: {
+                  user_id: onboarding.user_id,
+                  role: UserRole.INVESTOR,
+                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  portal: portalType,
+                  metadata: {
+                    organizationId: onboarding.investor_organization_id,
+                    kycRequestId: requestId,
+                    onboardingRequestId: onboarding.request_id,
+                    previousStatus,
+                    newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                    trigger: "KYC_APPROVED",
+                  },
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId: onboarding.investor_organization_id,
+                  kycRequestId: requestId,
+                },
+                "Failed to create onboarding status updated log (non-blocking)"
+              );
+            }
 
             logger.info(
               {
@@ -230,6 +260,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.issuer_organization_id
           );
           if (org) {
+            const previousStatus = org.onboarding_status;
             // Update aml_approved flag, status to PENDING_FINAL_APPROVAL, and store KYC response
             await prisma.issuerOrganization.update({
               where: { id: onboarding.issuer_organization_id },
@@ -239,6 +270,35 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 kyc_response: payload as Prisma.InputJsonValue,
               },
             });
+
+            // Create onboarding status updated log
+            try {
+              await prisma.onboardingLog.create({
+                data: {
+                  user_id: onboarding.user_id,
+                  role: UserRole.ISSUER,
+                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  portal: portalType,
+                  metadata: {
+                    organizationId: onboarding.issuer_organization_id,
+                    kycRequestId: requestId,
+                    onboardingRequestId: onboarding.request_id,
+                    previousStatus,
+                    newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                    trigger: "KYC_APPROVED",
+                  },
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId: onboarding.issuer_organization_id,
+                  kycRequestId: requestId,
+                },
+                "Failed to create onboarding status updated log (non-blocking)"
+              );
+            }
 
             logger.info(
               {
