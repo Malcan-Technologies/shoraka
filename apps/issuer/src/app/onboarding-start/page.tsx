@@ -45,6 +45,33 @@ function OnboardingStartPageContent() {
     setMounted(true);
   }, []);
 
+  // Check organization status and redirect accordingly
+  useEffect(() => {
+    if (orgLoading || !activeOrganization) return;
+
+    // If status is PENDING, redirect to RegTank portal (verifyLink)
+    if ((activeOrganization.onboardingStatus === "PENDING" || activeOrganization.regtankOnboardingStatus === "PENDING") && activeOrganization.regtankVerifyLink) {
+      window.location.href = activeOrganization.regtankVerifyLink;
+      return;
+    }
+
+    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
+    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+    const hasAdminHandledStatus = adminHandledStatuses.includes(activeOrganization.onboardingStatus) ||
+      (activeOrganization.regtankOnboardingStatus && adminHandledStatuses.includes(activeOrganization.regtankOnboardingStatus));
+
+    if (hasAdminHandledStatus) {
+      router.replace("/");
+      return;
+    }
+
+    // If status is REJECTED, redirect to dashboard (will show rejection message)
+    if (activeOrganization.onboardingStatus === "REJECTED" || activeOrganization.regtankOnboardingStatus === "REJECTED") {
+      router.replace("/");
+      return;
+    }
+  }, [activeOrganization, orgLoading, router]);
+
   // Cancel onboarding when user navigates away or closes tab
   useEffect(() => {
     if (!onboardingStarted) return;
@@ -300,27 +327,23 @@ function OnboardingStartPageContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-2">
-                {activeOrganization?.onboardingStatus !== "COMPLETED" && (
-                  <Button
-                    variant="action"
-                    className="w-full h-11 text-[15px]"
-                    onClick={handleStartOnboarding}
-                  >
-                    <span>Start Onboarding</span>
-                    <ArrowRightIcon className="h-4 w-4 ml-2" />
-                  </Button>
-                )}
+                <Button
+                  variant="action"
+                  className="w-full h-11 text-[15px]"
+                  onClick={handleStartOnboarding}
+                >
+                  <span>Start Onboarding</span>
+                  <ArrowRightIcon className="h-4 w-4 ml-2" />
+                </Button>
 
-                {activeOrganization?.onboardingStatus !== "COMPLETED" && (
-                  <div className="relative py-2">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-border" />
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="bg-card px-2 text-muted-foreground">or</span>
-                    </div>
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border" />
                   </div>
-                )}
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
 
                 <Button
                   variant="ghost"
@@ -332,9 +355,7 @@ function OnboardingStartPageContent() {
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground pt-2">
-                  {activeOrganization?.onboardingStatus === "COMPLETED"
-                    ? "Your account is already verified"
-                    : "Complete your onboarding to access your issuer dashboard"}
+                  Complete your onboarding to access your issuer dashboard
                 </p>
               </CardContent>
             </Card>

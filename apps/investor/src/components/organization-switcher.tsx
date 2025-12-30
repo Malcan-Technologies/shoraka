@@ -167,13 +167,6 @@ export function OrganizationSwitcher() {
 
   const isOnboardingPage = pathname === "/onboarding-start";
   
-  // Check if organization has a status that allows Account/Profile access
-  const allowsAccountAccess = activeOrganization && (
-    activeOrganization.onboardingStatus === "PENDING_AML" ||
-    activeOrganization.onboardingStatus === "PENDING_FINAL_APPROVAL" ||
-    activeOrganization.onboardingStatus === "COMPLETED"
-  );
-  
   // Sort organizations with personal account first
   const sortedOrganizations = sortOrganizations(organizations);
   
@@ -184,6 +177,20 @@ export function OrganizationSwitcher() {
   
   // Check if there are any onboarded organizations to go back to
   const hasOnboardedOrganizations = onboardedOrganizations.length > 0;
+
+  // Get pending organizations (only PENDING status, not admin-handled statuses) for Current Action section
+  const pendingOrganizations = sortOrganizations(
+    organizations.filter((org) => {
+      // Only show PENDING status - other pending statuses are handled by admin
+      const isPending = org.onboardingStatus === "PENDING" ||
+        org.regtankOnboardingStatus === "PENDING";
+      // Only include if it has a verifyLink
+      return isPending && org.regtankVerifyLink;
+    })
+  );
+  
+  // Check if there are any pending organizations
+  const hasPendingOrganizations = pendingOrganizations.length > 0;
 
   const handleAddOrganization = () => {
     router.push("/onboarding-start");
@@ -197,18 +204,31 @@ export function OrganizationSwitcher() {
       return;
     }
     
-    // Check if organization has a pending status (not COMPLETED) and has a verifyLink
-    // Redirect to RegTank portal instead of going to /onboarding-start
-    const pendingStatuses = ["PENDING", "PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
-    const hasPendingStatus = org.onboardingStatus !== "COMPLETED" && 
-      (pendingStatuses.includes(org.onboardingStatus) || 
-       (org.regtankOnboardingStatus && pendingStatuses.includes(org.regtankOnboardingStatus)));
-    
-    if (hasPendingStatus && org.regtankVerifyLink) {
-      // Validate that organization belongs to current portal
-      // For COMPANY accounts, we can validate using companyName (org.name)
-      // The organization should already be filtered by portalType in the context
+    // If status is PENDING, redirect to RegTank portal (verifyLink)
+    if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
       window.location.href = org.regtankVerifyLink;
+      return;
+    }
+    
+    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
+    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
+      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
+    
+    if (hasAdminHandledStatus) {
+      switchOrganization(org.id);
+      setTimeout(() => {
+        router.replace("/");
+      }, 50);
+      return;
+    }
+    
+    // If status is REJECTED, redirect to dashboard (will show rejection message)
+    if (org.onboardingStatus === "REJECTED" || org.regtankOnboardingStatus === "REJECTED") {
+      switchOrganization(org.id);
+      setTimeout(() => {
+        router.replace("/");
+      }, 50);
       return;
     }
     
@@ -257,17 +277,8 @@ export function OrganizationSwitcher() {
 
     switchOrganization(org.id);
     
-    // Check if organization is in a restricted status (PENDING_APPROVAL, PENDING_AML, or REJECTED)
-    const isPendingApproval = org.onboardingStatus === "PENDING_APPROVAL" || 
-      org.onboardingStatus === "PENDING_AML" ||
-      org.regtankOnboardingStatus === "PENDING_APPROVAL";
-    const isRejected = org.regtankOnboardingStatus === "REJECTED";
-    const isRestricted = isPendingApproval || isRejected;
-    
-    // Only redirect to dashboard if organization is COMPLETED
-    // For PENDING_APPROVAL/REJECTED, allow switching but don't force redirect
-    // If already on dashboard, the overlay will handle blocking interactions
-    if (org.onboardingStatus === "COMPLETED" && !isRestricted) {
+    // Redirect to dashboard for COMPLETED status
+    if (org.onboardingStatus === "COMPLETED") {
       setTimeout(() => {
         router.replace("/");
       }, 50);
@@ -390,43 +401,39 @@ export function OrganizationSwitcher() {
                   <DropdownMenuSeparator className="my-2" />
                 </>
               )}
-              <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Current Action
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                disabled={!allowsAccountAccess}
-                onClick={() => {
-                  if (allowsAccountAccess) {
-                    // Navigate to account page when Current Action is clicked
-                    router.push("/");
-                  }
-                }}
-                className={`flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 ${
-                  allowsAccountAccess ? "cursor-pointer hover:bg-accent/10" : "opacity-50"
-                }`}
-              >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  {activeOrganization ? (
-                    getOrgIcon(activeOrganization)
-                  ) : (
-                    <Plus className="size-4" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-sm font-medium text-foreground">
-                    {activeOrganization
-                      ? getOrgDisplayName(activeOrganization)
-                      : "Adding New Account..."}
-                  </div>
-                  {activeOrganization && (
-                    <OnboardingStatusBadge 
-                      status={activeOrganization.onboardingStatus} 
-                      regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-                      size="sm" 
-                    />
-                  )}
-                </div>
-              </DropdownMenuItem>
+              {/* Show Current Action section with pending accounts */}
+              {hasPendingOrganizations && (
+                <>
+                  <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Current Action
+                  </DropdownMenuLabel>
+                  {pendingOrganizations.map((org) => (
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => {
+                        if (org.regtankVerifyLink) {
+                          window.location.href = org.regtankVerifyLink;
+                        }
+                      }}
+                      className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 cursor-pointer hover:bg-accent/10"
+                    >
+                      <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        {getOrgIcon(org)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {getOrgDisplayName(org)}
+                        </div>
+                        <OnboardingStatusBadge 
+                          status={org.onboardingStatus} 
+                          regtankStatus={org.regtankOnboardingStatus || undefined}
+                          size="sm" 
+                        />
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
