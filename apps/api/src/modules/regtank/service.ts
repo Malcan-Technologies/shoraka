@@ -885,9 +885,9 @@ export class RegTankService {
       const gender = this.normalizeValue(userProfile.gender);
       const address = this.normalizeValue(userProfile.address);
       const dateOfBirth = this.parseDate(userProfile.dateOfBirth);
-      const documentType = this.normalizeValue(userProfile.documentType);
+      let documentType = this.normalizeValue(userProfile.documentType);
       // Use documentNum from userProfile (not ocrResults)
-      const documentNumber = this.normalizeValue(
+      let documentNumber = this.normalizeValue(
         userProfile.documentNum || userProfile.governmentIdNumber
       );
       const phoneNumber = this.normalizeValue(userProfile.phoneNumber);
@@ -896,45 +896,90 @@ export class RegTankService {
       // Also check nested locations (userProfile, documentInfo, etc.)
       let kycId = this.normalizeValue(regtankDetails.kycId);
 
+      // Fetch onboarding record once to use for both kycId and OCR extraction
+      let onboardingWithWebhooks = null;
+      if (requestId) {
+        onboardingWithWebhooks = await this.repository.findByRequestId(requestId);
+      }
+
       // If kycId is not found in regtankDetails, try to get it from webhook payloads (KYC webhook requestId)
-      if (!kycId && requestId) {
-        const onboarding = await this.repository.findByRequestId(requestId);
-        if (onboarding?.webhook_payloads && Array.isArray(onboarding.webhook_payloads)) {
-          for (const payload of onboarding.webhook_payloads) {
-            if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-              const payloadObj = payload as Record<string, unknown>;
-              // KYC webhooks have requestId that is the kycId (starts with "KYC")
-              if (
-                payloadObj.requestId &&
-                typeof payloadObj.requestId === "string" &&
-                payloadObj.requestId.startsWith("KYC")
-              ) {
-                kycId = payloadObj.requestId;
+      if (!kycId && onboardingWithWebhooks?.webhook_payloads && Array.isArray(onboardingWithWebhooks.webhook_payloads)) {
+        for (const payload of onboardingWithWebhooks.webhook_payloads) {
+          if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+            const payloadObj = payload as Record<string, unknown>;
+            // KYC webhooks have requestId that is the kycId (starts with "KYC")
+            if (
+              payloadObj.requestId &&
+              typeof payloadObj.requestId === "string" &&
+              payloadObj.requestId.startsWith("KYC")
+            ) {
+              kycId = payloadObj.requestId;
+              logger.info(
+                {
+                  organizationId,
+                  requestId,
+                  kycId,
+                  webhookType: payloadObj.webhookType || "unknown",
+                },
+                "Extracted kycId from KYC webhook requestId in extractAndUpdateOrganizationData"
+              );
+              break;
+            }
+            // Also check if kycId field exists directly in payload
+            if (payloadObj.kycId && typeof payloadObj.kycId === "string") {
+              kycId = payloadObj.kycId;
+              logger.info(
+                {
+                  organizationId,
+                  requestId,
+                  kycId,
+                  webhookType: payloadObj.webhookType || "unknown",
+                },
+                "Extracted kycId from webhook payload in extractAndUpdateOrganizationData"
+              );
+              break;
+            }
+          }
+        }
+      }
+
+      // Extract OCR data (idNumber and idType) from Individual Onboarding webhook payloads
+      // OCR results are more accurate than userProfile values, so we prioritize them
+      if (onboardingWithWebhooks?.webhook_payloads && Array.isArray(onboardingWithWebhooks.webhook_payloads)) {
+        for (const payload of onboardingWithWebhooks.webhook_payloads) {
+          if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+            const payloadObj = payload as Record<string, unknown>;
+            // Individual Onboarding webhooks have ocrResults field
+            if (payloadObj.ocrResults && typeof payloadObj.ocrResults === "object") {
+              const ocrResults = payloadObj.ocrResults as Record<string, unknown>;
+              // Extract idNumber (document_number) from OCR results
+              if (ocrResults.idNumber && typeof ocrResults.idNumber === "string") {
+                documentNumber = this.normalizeValue(ocrResults.idNumber);
                 logger.info(
                   {
                     organizationId,
                     requestId,
-                    kycId,
-                    webhookType: payloadObj.webhookType || "unknown",
+                    documentNumber,
+                    source: "ocrResults.idNumber",
                   },
-                  "Extracted kycId from KYC webhook requestId in extractAndUpdateOrganizationData"
+                  "Extracted document_number from OCR results in Individual Onboarding webhook"
                 );
-                break;
               }
-              // Also check if kycId field exists directly in payload
-              if (payloadObj.kycId && typeof payloadObj.kycId === "string") {
-                kycId = payloadObj.kycId;
+              // Extract idType (document_type) from OCR results
+              if (ocrResults.idType && typeof ocrResults.idType === "string") {
+                documentType = this.normalizeValue(ocrResults.idType);
                 logger.info(
                   {
                     organizationId,
                     requestId,
-                    kycId,
-                    webhookType: payloadObj.webhookType || "unknown",
+                    documentType,
+                    source: "ocrResults.idType",
                   },
-                  "Extracted kycId from webhook payload in extractAndUpdateOrganizationData"
+                  "Extracted document_type from OCR results in Individual Onboarding webhook"
                 );
-                break;
               }
+              // Once we find OCR results, we can break (OCR results are typically in the latest Individual Onboarding webhook)
+              break;
             }
           }
         }

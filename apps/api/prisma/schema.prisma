@@ -277,6 +277,7 @@ model InvestorOrganization {
   compliance_declaration Json? // From formContent displayAreas
   document_info       Json? // From documentInfo
   liveness_check_info Json? // From livenessCheckInfo
+  kyc_response        Json? // Full KYC webhook payload when status is APPROVED
 
   // Sophisticated investor classification (auto-computed from RegTank data)
   is_sophisticated_investor Boolean @default(false)
@@ -330,6 +331,7 @@ model IssuerOrganization {
   compliance_declaration Json? // From formContent displayAreas
   document_info       Json? // From documentInfo
   liveness_check_info Json? // From livenessCheckInfo
+  kyc_response        Json? // Full KYC webhook payload when status is APPROVED
 
   // Approval workflow flags
   onboarding_approved Boolean @default(false)

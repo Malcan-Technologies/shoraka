@@ -202,12 +202,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.investor_organization_id
           );
           if (org) {
-            // Update aml_approved flag and status to PENDING_FINAL_APPROVAL
+            // Update aml_approved flag, status to PENDING_FINAL_APPROVAL, and store KYC response
             await prisma.investorOrganization.update({
               where: { id: onboarding.investor_organization_id },
               data: { 
                 aml_approved: true,
                 onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                kyc_response: payload as Prisma.InputJsonValue,
               },
             });
 
@@ -221,7 +222,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
                 amlApproved: true,
               },
-              "[KYC Webhook] ✓ Updated investor organization: aml_approved=true, status=PENDING_FINAL_APPROVAL"
+              "[KYC Webhook] ✓ Updated investor organization: aml_approved=true, status=PENDING_FINAL_APPROVAL, kyc_response stored"
             );
           }
         } else if (portalType === "issuer" && onboarding.issuer_organization_id) {
@@ -229,12 +230,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.issuer_organization_id
           );
           if (org) {
-            // Update aml_approved flag and status to PENDING_FINAL_APPROVAL
+            // Update aml_approved flag, status to PENDING_FINAL_APPROVAL, and store KYC response
             await prisma.issuerOrganization.update({
               where: { id: onboarding.issuer_organization_id },
               data: { 
                 aml_approved: true,
                 onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
+                kyc_response: payload as Prisma.InputJsonValue,
               },
             });
 
@@ -247,7 +249,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
                 amlApproved: true,
               },
-              "[KYC Webhook] ✓ Updated issuer organization: aml_approved=true, status=PENDING_FINAL_APPROVAL"
+              "[KYC Webhook] ✓ Updated issuer organization: aml_approved=true, status=PENDING_FINAL_APPROVAL, kyc_response stored"
             );
           }
         }
