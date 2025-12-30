@@ -485,7 +485,7 @@ export class RegTankDevWebhookHandler {
         data: {
           user_id: onboarding.user_id,
           role,
-          event_type: "ONBOARDING_COMPLETED",
+          event_type: "USER_COMPLETED",
           portal: portalType,
           metadata: {
             organizationId,

@@ -1639,30 +1639,15 @@ export class RegTankService {
         }
       }
 
-      // Log onboarding completed
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-      await prisma.onboardingLog.create({
-        data: {
-          user_id: onboarding.user_id,
-          role,
-          event_type: "ONBOARDING_COMPLETED",
-          portal: portalType,
-          metadata: {
-            organizationId,
-            requestId,
-            status: "APPROVED",
-          },
-        },
-      });
-
+      // Note: USER_COMPLETED log is only created when final approval is completed by admin
+      // See apps/api/src/modules/admin/service.ts completeFinalApproval()
       logger.info(
         {
           requestId,
           organizationId,
           portalType,
         },
-        "Organization onboarding completed via RegTank webhook"
+        "Organization status updated to PENDING_AML after RegTank approval"
       );
     }
 

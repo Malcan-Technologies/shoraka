@@ -236,7 +236,7 @@ export class OrganizationService {
    * In the future, this will be triggered by RegTank webhook.
    */
   async completeOnboarding(
-    req: Request,
+    _req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -302,32 +302,11 @@ export class OrganizationService {
         );
       }
 
-      // Log onboarding completion event
-      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-      const portal = getPortalFromRole(role);
-
-      await this.authRepository.createOnboardingLog({
-        userId: user.user_id,
-        role,
-        eventType: "ONBOARDING_COMPLETED",
-        portal,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        metadata: {
-          organizationId,
-          organizationType: organization.type,
-          organizationName: organization.name,
-          role,
-          roles: user.roles,
-        },
-      });
-
+      // Note: USER_COMPLETED log is only created when final approval is completed by admin
+      // See apps/api/src/modules/admin/service.ts completeFinalApproval()
       logger.info(
-        { userId, organizationId, portalType, role },
-        "Onboarding completion event logged"
+        { userId, organizationId, portalType },
+        "Organization onboarding status updated to COMPLETED"
       );
     }
 

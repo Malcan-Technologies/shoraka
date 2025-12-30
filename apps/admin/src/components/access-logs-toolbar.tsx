@@ -29,7 +29,7 @@ const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
   { value: "EMAIL_CHANGED", label: "Email Changed" },
   { value: "ROLE_ADDED", label: "Role Added" },
   { value: "ROLE_SWITCHED", label: "Role Switched" },
-  { value: "ONBOARDING_COMPLETED", label: "Onboarding Completed" },
+  { value: "USER_COMPLETED", label: "User Completed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
   { value: "KYC_STATUS_UPDATED", label: "KYC Status Updated" },
   { value: "PROFILE_UPDATED", label: "Profile Updated" },

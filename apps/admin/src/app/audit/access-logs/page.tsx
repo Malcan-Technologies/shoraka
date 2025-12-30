@@ -144,7 +144,7 @@ const ACCESS_EVENT_TYPES: EventType[] = [
       email: "rachel.lee@example.com",
       roles: ["INVESTOR"],
     },
-    event_type: "ONBOARDING_COMPLETED",
+    event_type: "USER_COMPLETED",
     ip_address: "220.255.1.88",
     user_agent:
       "Mozilla/5.0 (iPad; CPU OS 17_3 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1",
@@ -239,7 +239,7 @@ const ACCESS_EVENT_TYPES: EventType[] = [
       email: "david.wong@example.com",
       roles: ["INVESTOR", "ISSUER"],
     },
-    event_type: "ONBOARDING_COMPLETED",
+    event_type: "USER_COMPLETED",
     ip_address: "101.50.123.45",
     user_agent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edge/120.0.0.0",

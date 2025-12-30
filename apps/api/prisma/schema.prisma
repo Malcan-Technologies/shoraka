@@ -128,7 +128,7 @@ model Investment {
 model AccessLog {
   id            String   @id @default(cuid())
   user_id       String
-  event_type    String // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, ONBOARDING_COMPLETED, ONBOARDING
+  event_type    String // LOGIN, LOGOUT, SIGNUP, ROLE_ADDED, ROLE_SWITCHED, USER_COMPLETED, ONBOARDING
   portal        String? // "investor", "issuer", "admin"
   ip_address    String?
   user_agent    String?  @db.Text
@@ -227,7 +227,7 @@ model OnboardingLog {
   id          String   @id @default(cuid())
   user_id     String
   role        UserRole // INVESTOR, ISSUER
-  event_type  String // ONBOARDING_STARTED, ONBOARDING_COMPLETED, ONBOARDING_STATUS_UPDATED
+  event_type  String // ONBOARDING_STARTED, USER_COMPLETED, ONBOARDING_STATUS_UPDATED
   portal      String? // "investor", "issuer"
   ip_address  String?
   user_agent  String?  @db.Text

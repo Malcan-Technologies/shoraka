@@ -31,7 +31,7 @@ const eventTypeColors: Partial<Record<EventType, string>> = {
   SIGNUP: "bg-green-100 text-green-800 border-green-200",
   ROLE_ADDED: "bg-purple-100 text-purple-800 border-purple-200",
   ROLE_SWITCHED: "bg-orange-100 text-orange-800 border-orange-200",
-  ONBOARDING_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
+  USER_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
   KYC_STATUS_UPDATED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   ONBOARDING_STATUS_UPDATED: "bg-indigo-100 text-indigo-800 border-indigo-200",
 };

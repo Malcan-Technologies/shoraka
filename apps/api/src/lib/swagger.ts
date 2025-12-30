@@ -90,7 +90,7 @@ const options: swaggerJsdoc.Options = {
             user_id: { type: "string" },
             event_type: {
               type: "string",
-              enum: ["LOGIN", "LOGOUT", "SIGNUP", "ROLE_ADDED", "ROLE_SWITCHED", "ONBOARDING_COMPLETED"],
+              enum: ["LOGIN", "LOGOUT", "SIGNUP", "ROLE_ADDED", "ROLE_SWITCHED", "USER_COMPLETED"],
             },
             ip_address: { type: "string", nullable: true },
             user_agent: { type: "string", nullable: true },

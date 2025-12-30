@@ -267,13 +267,10 @@ export class AuthService {
    * Also adds the role to the user if they don't have it yet
    */
   async completeOnboarding(
-    req: Request,
+    _req: Request,
     userId: string,
     role: UserRole
   ): Promise<{ success: boolean }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const portal = getPortalFromRole(role);
-
     // Get current user by database ID (userId is the database user_id, not cognito_sub)
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -347,22 +344,9 @@ export class AuthService {
       "Onboarding status updated successfully"
     );
 
-    // Create onboarding log
-    await this.repository.createOnboardingLog({
-      userId: updatedUser.user_id,
-      role,
-      eventType: "ONBOARDING_COMPLETED",
-      portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      metadata: {
-        role,
-        roleAdded: roleNeedsToBeAdded,
-        roles: updatedUser.roles,
-      },
-    });
+    // Note: USER_COMPLETED log is only created when final approval is completed by admin
+    // See apps/api/src/modules/admin/service.ts completeFinalApproval()
+    // Removed USER_COMPLETED log creation from here
 
     return { success: true };
   }
@@ -435,7 +419,7 @@ export class AuthService {
       where: {
         user_id: userId,
         role: onboardingRole,
-        event_type: "ONBOARDING_COMPLETED",
+        event_type: "USER_COMPLETED",
         created_at: {
           gte: startedEvent.created_at, // Only count if completed after started
         },

@@ -2112,11 +2112,34 @@ export class AdminService {
       "[Final Approval] ✓ Successfully updated regtank_onboarding.status to COMPLETED"
     );
 
-    // Create onboarding log entry
+    // Create onboarding log entries
+    // Create FINAL_APPROVAL_COMPLETED log
     await prisma.onboardingLog.create({
       data: {
         user_id: onboarding.user_id,
         event_type: "FINAL_APPROVAL_COMPLETED",
+        role: isInvestor ? "INVESTOR" : "ISSUER",
+        portal: onboarding.portal_type,
+        ip_address:
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        user_agent: req.headers["user-agent"] || null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          portalType: onboarding.portal_type,
+          approvedBy: adminUserId,
+          regtankRequestId: onboarding.request_id,
+        },
+      },
+    });
+
+    // Create USER_COMPLETED log (only created when final approval is completed by admin)
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: onboarding.user_id,
+        event_type: "USER_COMPLETED",
         role: isInvestor ? "INVESTOR" : "ISSUER",
         portal: onboarding.portal_type,
         ip_address:

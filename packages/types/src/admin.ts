@@ -71,7 +71,7 @@ export type EventType =
   | "ROLE_ADDED"
   | "ROLE_SWITCHED"
   | "ONBOARDING"
-  | "ONBOARDING_COMPLETED"
+  | "USER_COMPLETED"
   | "KYC_STATUS_UPDATED"
   | "ONBOARDING_STATUS_UPDATED"
   | "PROFILE_UPDATED"
@@ -270,7 +270,7 @@ export interface SecurityLogsResponse {
 // Onboarding Logs Types
 export type OnboardingEventType =
   | "ONBOARDING_STARTED"
-  | "ONBOARDING_COMPLETED"
+  | "USER_COMPLETED"
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"
   | "SOPHISTICATED_STATUS_UPDATED"
