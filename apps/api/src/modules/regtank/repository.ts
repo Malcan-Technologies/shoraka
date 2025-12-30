@@ -357,6 +357,56 @@ export class RegTankRepository {
   }
 
   /**
+   * Get a single onboarding application by ID with full organization data
+   * Returns data suitable for admin approval queue
+   */
+  async getOnboardingApplicationById(id: string): Promise<OnboardingApplicationRecord | null> {
+    return prisma.regTankOnboarding.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+        investor_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            registration_number: true,
+            onboarding_status: true,
+            onboarded_at: true,
+            onboarding_approved: true,
+            aml_approved: true,
+            tnc_accepted: true,
+            ssm_approved: true,
+            kyc_id: true,
+          },
+        },
+        issuer_organization: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            registration_number: true,
+            onboarding_status: true,
+            onboarded_at: true,
+            onboarding_approved: true,
+            aml_approved: true,
+            tnc_accepted: true,
+            ssm_checked: true,
+            kyc_id: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * List onboarding applications with pagination, filtering, and search
    * Returns data from regtank_onboarding joined with organization tables
    */

@@ -36,19 +36,19 @@ function TableSkeleton({ portal }: { portal: PortalType }) {
             <Skeleton className="h-5 w-20" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-20" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-5 w-16" />
           </TableCell>
           {portal === "investor" && (
             <>
               <TableCell>
                 <Skeleton className="h-5 w-16" />
               </TableCell>
-            <TableCell>
-              <Skeleton className="h-5 w-16" />
-            </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-16" />
+              </TableCell>
             </>
           )}
           <TableCell>
@@ -82,7 +82,7 @@ export function OrganizationsTable({
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalOrganizations);
 
-  // Investor: 10 columns (includes sophisticated + deposit), Issuer: 8 columns
+  // Investor: 10 columns (includes risk + sophisticated + deposit), Issuer: 8 columns
   const columnCount = portal === "investor" ? 10 : 8;
 
   // State for detail dialog
@@ -104,11 +104,11 @@ export function OrganizationsTable({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Organization</TableHead>
                 <TableHead className="text-sm font-semibold">Type</TableHead>
-                <TableHead className="text-sm font-semibold">Owner</TableHead>
                 <TableHead className="text-sm font-semibold">Onboarding</TableHead>
+                <TableHead className="text-sm font-semibold">Risk</TableHead>
                 {portal === "investor" && (
                   <>
-                  <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
+                    <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
                     <TableHead className="text-sm font-semibold">Deposit</TableHead>
                   </>
                 )}

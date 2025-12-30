@@ -30,6 +30,44 @@ export function useInvalidateOnboardingApplications() {
   };
 }
 
+export function useOnboardingApplication(onboardingId: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["admin", "onboarding-application", onboardingId],
+    queryFn: async () => {
+      const response = await apiClient.getOnboardingApplication(onboardingId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.application;
+    },
+    enabled: !!onboardingId,
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+}
+
+export function useRefreshOnboardingApplication() {
+  const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (onboardingId: string) => {
+      const response = await apiClient.getOnboardingApplication(onboardingId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.application;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    },
+  });
+}
+
 export function useRestartOnboarding() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

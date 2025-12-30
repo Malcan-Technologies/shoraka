@@ -1445,6 +1445,54 @@ router.get(
 
 /**
  * @swagger
+ * /v1/admin/onboarding-applications/{id}:
+ *   get:
+ *     summary: Get a single onboarding application by ID (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Onboarding application ID
+ *     responses:
+ *       200:
+ *         description: Onboarding application details
+ *       404:
+ *         description: Application not found
+ */
+router.get(
+  "/onboarding-applications/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const application = await adminService.getOnboardingApplicationById(id);
+
+      if (!application) {
+        throw new AppError(404, "NOT_FOUND", "Onboarding application not found");
+      }
+
+      res.json({
+        success: true,
+        data: { application },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : new AppError(500, "INTERNAL_ERROR", "Failed to fetch onboarding application")
+      );
+    }
+  }
+);
+
+/**
+ * @swagger
  * /v1/admin/onboarding-applications/:id/restart:
  *   post:
  *     summary: Restart a user's onboarding via RegTank restart API (admin only)

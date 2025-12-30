@@ -377,6 +377,8 @@ export interface OrganizationResponse {
   memberCount: number;
   isSophisticatedInvestor: boolean; // Only applicable for investor portal
   depositReceived: boolean; // Only applicable for investor portal
+  riskLevel: string | null; // From KYC response: "Low Risk", "Medium Risk", "High Risk"
+  riskScore: string | null; // From KYC response: numeric score as string
   createdAt: string;
   updatedAt: string;
 }
@@ -402,6 +404,23 @@ export interface OrganizationMemberDetail {
   email: string;
   role: "OWNER" | "DIRECTOR" | "MEMBER";
   createdAt: string;
+}
+
+// KYC Response from RegTank AML screening
+export interface KycResponse {
+  tags: string[];
+  status: string;
+  assignee: string;
+  systemId: string;
+  requestId: string;
+  riskLevel: string;
+  riskScore: string;
+  timestamp: string;
+  referenceId: string;
+  onboardingId: string;
+  messageStatus: string;
+  possibleMatchCount: number;
+  blacklistedMatchCount: number;
 }
 
 export interface OrganizationDetailResponse {
@@ -441,6 +460,7 @@ export interface OrganizationDetailResponse {
   complianceDeclaration: Record<string, unknown> | null;
   documentInfo: Record<string, unknown> | null;
   livenessCheckInfo: Record<string, unknown> | null;
+  kycResponse: KycResponse | null;
 
   // Members
   members: OrganizationMemberDetail[];

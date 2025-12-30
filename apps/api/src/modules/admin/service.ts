@@ -1416,6 +1416,7 @@ export class AdminService {
     complianceDeclaration: Record<string, unknown> | null;
     documentInfo: Record<string, unknown> | null;
     livenessCheckInfo: Record<string, unknown> | null;
+    kycResponse: Record<string, unknown> | null;
     members: {
       id: string;
       userId: string;
@@ -1469,6 +1470,7 @@ export class AdminService {
       complianceDeclaration: org.compliance_declaration as Record<string, unknown> | null,
       documentInfo: org.document_info as Record<string, unknown> | null,
       livenessCheckInfo: org.liveness_check_info as Record<string, unknown> | null,
+      kycResponse: org.kyc_response as Record<string, unknown> | null,
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,
@@ -1595,8 +1597,21 @@ export class AdminService {
   }
 
   /**
+   * Get a single onboarding application by ID
+   */
+  async getOnboardingApplicationById(
+    id: string
+  ): Promise<OnboardingApplicationResponse | null> {
+    const application = await this.regTankRepository.getOnboardingApplicationById(id);
+    if (!application) {
+      return null;
+    }
+    return this.mapToOnboardingApplicationResponse(application);
+  }
+
+  /**
    * Get count of onboarding applications requiring admin action
-   * Includes: PENDING_SSM_REVIEW, PENDING_APPROVAL, PENDING_AML
+   * Includes: PENDING_SSM_REVIEW, PENDING_APPROVAL, PENDING_AML, PENDING_FINAL_APPROVAL
    * Excludes: PENDING_ONBOARDING (user action, not admin)
    */
   async getPendingApprovalCount(): Promise<{ count: number }> {
@@ -1611,6 +1626,7 @@ export class AdminService {
       "PENDING_SSM_REVIEW",
       "PENDING_APPROVAL",
       "PENDING_AML",
+      "PENDING_FINAL_APPROVAL",
     ];
 
     const count = applications

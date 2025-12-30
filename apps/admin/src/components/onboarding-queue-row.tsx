@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
+import { useRefreshOnboardingApplication } from "@/hooks/use-onboarding-applications";
+import { toast } from "sonner";
 import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
 
 interface OnboardingQueueRowProps {
@@ -98,47 +100,71 @@ function formatDate(dateString: string | null | undefined) {
 
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [currentApplication, setCurrentApplication] =
+    React.useState<OnboardingApplicationResponse>(application);
+  const refreshMutation = useRefreshOnboardingApplication();
+
+  // Update current application when prop changes (e.g., after list refresh)
+  React.useEffect(() => {
+    setCurrentApplication(application);
+  }, [application]);
+
+  const handleRefresh = () => {
+    refreshMutation.mutate(application.id, {
+      onSuccess: (updatedApplication) => {
+        setCurrentApplication(updatedApplication);
+        toast.success("Application refreshed", {
+          description: `Status: ${updatedApplication.status.replace(/_/g, " ").toLowerCase()}`,
+        });
+      },
+      onError: (error) => {
+        toast.error("Failed to refresh application", {
+          description: error.message,
+        });
+      },
+    });
+  };
 
   // Admin action required for approval, AML, SSM review, or final approval (not pending onboarding - that's user action)
   const needsAction =
-    application.status === "PENDING_APPROVAL" ||
-    application.status === "PENDING_AML" ||
-    application.status === "PENDING_SSM_REVIEW" ||
-    application.status === "PENDING_FINAL_APPROVAL";
+    currentApplication.status === "PENDING_APPROVAL" ||
+    currentApplication.status === "PENDING_AML" ||
+    currentApplication.status === "PENDING_SSM_REVIEW" ||
+    currentApplication.status === "PENDING_FINAL_APPROVAL";
 
   return (
     <>
       <TableRow className={needsAction ? "bg-muted/30" : undefined}>
         <TableCell>
           <div className="space-y-0.5">
-            <div className="font-medium text-[15px]">{application.userName}</div>
-            <div className="text-sm text-muted-foreground">{application.userEmail}</div>
-            {application.type === "COMPANY" && application.registrationNumber && (
+            <div className="font-medium text-[15px]">{currentApplication.userName}</div>
+            <div className="text-sm text-muted-foreground">{currentApplication.userEmail}</div>
+            {currentApplication.type === "COMPANY" && currentApplication.registrationNumber && (
               <div className="text-xs text-muted-foreground">
-                SSM: {application.registrationNumber}
+                SSM: {currentApplication.registrationNumber}
               </div>
             )}
           </div>
         </TableCell>
-        <TableCell>{getTypeBadge(application.type)}</TableCell>
-        <TableCell>{getPortalBadge(application.portal)}</TableCell>
+        <TableCell>{getTypeBadge(currentApplication.type)}</TableCell>
+        <TableCell>{getPortalBadge(currentApplication.portal)}</TableCell>
         <TableCell>
           <span className="text-sm text-muted-foreground">
-            {formatDate(application.submittedAt)}
+            {formatDate(currentApplication.submittedAt)}
           </span>
         </TableCell>
         <TableCell>
-          {application.completedAt ? (
+          {currentApplication.completedAt ? (
             <span className="text-sm text-muted-foreground">
-              {formatDate(application.completedAt)}
+              {formatDate(currentApplication.completedAt)}
             </span>
           ) : (
             <span className="text-sm text-muted-foreground/50">—</span>
           )}
         </TableCell>
-        <TableCell>{getStatusBadge(application.status)}</TableCell>
+        <TableCell>{getStatusBadge(currentApplication.status)}</TableCell>
         <TableCell>
-          {application.status !== "CANCELLED" && (
+          {currentApplication.status !== "CANCELLED" && (
             <Button
               variant={needsAction ? "default" : "outline"}
               size="sm"
@@ -153,9 +179,11 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
       </TableRow>
 
       <OnboardingReviewDialog
-        application={application}
+        application={currentApplication}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onRefresh={handleRefresh}
+        isRefreshing={refreshMutation.isPending}
       />
     </>
   );

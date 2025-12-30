@@ -36,6 +36,8 @@ import {
   LinkIcon,
   ClipboardIcon,
   ClipboardDocumentCheckIcon,
+  ShieldExclamationIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -328,6 +330,155 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
             </div>
           );
         })}
+      </CardContent>
+    </Card>
+  );
+}
+
+// KYC Response display component
+function KycResponseDisplay({
+  data,
+}: {
+  data: {
+    tags?: string[];
+    status?: string;
+    assignee?: string;
+    systemId?: string;
+    requestId?: string;
+    riskLevel?: string;
+    riskScore?: string;
+    timestamp?: string;
+    referenceId?: string;
+    onboardingId?: string;
+    messageStatus?: string;
+    possibleMatchCount?: number;
+    blacklistedMatchCount?: number;
+  } | null;
+}) {
+  if (!data) {
+    return null;
+  }
+
+  const getRiskLevelColor = (riskLevel: string | undefined) => {
+    if (!riskLevel) return "bg-muted text-muted-foreground";
+    const level = riskLevel.toLowerCase();
+    if (level.includes("low")) return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+    if (level.includes("medium")) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    if (level.includes("high")) return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+    return "bg-muted text-muted-foreground";
+  };
+
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return "bg-muted text-muted-foreground";
+    const s = status.toLowerCase();
+    if (s === "approved") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+    if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+    if (s.includes("pending")) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    return "bg-muted text-muted-foreground";
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <ShieldExclamationIcon className="h-4 w-4" />
+          KYC/AML Screening Result
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status and Risk Level Row */}
+        <div className="flex flex-wrap gap-3">
+          {data.status && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Status:</span>
+              <Badge className={getStatusColor(data.status)}>{data.status}</Badge>
+            </div>
+          )}
+          {data.riskLevel && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Risk Level:</span>
+              <Badge className={getRiskLevelColor(data.riskLevel)}>{data.riskLevel}</Badge>
+            </div>
+          )}
+          {data.riskScore && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Risk Score:</span>
+              <Badge variant="outline">{data.riskScore}</Badge>
+            </div>
+          )}
+        </div>
+
+        {/* Match Counts */}
+        {(data.possibleMatchCount !== undefined || data.blacklistedMatchCount !== undefined) && (
+          <div className="flex flex-wrap gap-4 p-3 rounded-lg bg-muted/50">
+            {data.possibleMatchCount !== undefined && (
+              <div className="flex items-center gap-2">
+                <ExclamationTriangleIcon className={`h-4 w-4 ${data.possibleMatchCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+                <span className="text-sm">
+                  <span className="font-medium">{data.possibleMatchCount}</span>{" "}
+                  <span className="text-muted-foreground">possible {data.possibleMatchCount === 1 ? "match" : "matches"}</span>
+                </span>
+              </div>
+            )}
+            {data.blacklistedMatchCount !== undefined && (
+              <div className="flex items-center gap-2">
+                <ShieldExclamationIcon className={`h-4 w-4 ${data.blacklistedMatchCount > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                <span className="text-sm">
+                  <span className="font-medium">{data.blacklistedMatchCount}</span>{" "}
+                  <span className="text-muted-foreground">blacklisted {data.blacklistedMatchCount === 1 ? "match" : "matches"}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Details Grid */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {data.systemId && (
+            <div>
+              <div className="text-xs text-muted-foreground">System ID</div>
+              <div className="font-mono">{data.systemId}</div>
+            </div>
+          )}
+          {data.requestId && (
+            <div>
+              <div className="text-xs text-muted-foreground">Request ID</div>
+              <div className="font-mono">{data.requestId}</div>
+            </div>
+          )}
+          {data.onboardingId && (
+            <div>
+              <div className="text-xs text-muted-foreground">Onboarding ID</div>
+              <div className="font-mono">{data.onboardingId}</div>
+            </div>
+          )}
+          {data.messageStatus && (
+            <div>
+              <div className="text-xs text-muted-foreground">Message Status</div>
+              <div>{data.messageStatus}</div>
+            </div>
+          )}
+          {data.timestamp && (
+            <div className="col-span-2">
+              <div className="text-xs text-muted-foreground">Screening Date</div>
+              <div>{format(new Date(data.timestamp), "PPpp")}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Tags */}
+        {data.tags && data.tags.length > 0 && (
+          <div>
+            <div className="text-xs text-muted-foreground mb-2">Tags</div>
+            <div className="flex flex-wrap gap-1.5">
+              {data.tags.map((tag, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -666,9 +817,9 @@ export function OrganizationDetailDialog({
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
                     <DetailRow label="Document Type" value={org.documentType} />
-                    <DetailRow label="Document Number" value={org.documentNumber} />
+                    <CopyableField label="Document Number" value={org.documentNumber} icon={IdentificationIcon} />
                     <DetailRow label="ID Issuing Country" value={org.idIssuingCountry} />
-                    <DetailRow label="KYC ID" value={org.kycId} />
+                    <CopyableField label="KYC ID" value={org.kycId} />
                   </div>
                 </CardContent>
               </Card>
@@ -729,6 +880,8 @@ export function OrganizationDetailDialog({
                   </span>
                 }
               />
+
+              <KycResponseDisplay data={org.kycResponse} />
             </div>
           </div>
         )}

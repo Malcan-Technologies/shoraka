@@ -32,6 +32,7 @@ import type {
   OrganizationsResponse,
   GetOnboardingApplicationsParams,
   OnboardingApplicationsResponse,
+  OnboardingApplicationResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -277,6 +278,15 @@ export class ApiClient {
   // Get count of pending onboarding applications requiring admin action
   async getPendingApprovalCount(): Promise<ApiResponse<{ count: number }> | ApiError> {
     return this.get<{ count: number }>("/v1/admin/onboarding-applications/pending-count");
+  }
+
+  // Get a single onboarding application by ID
+  async getOnboardingApplication(
+    onboardingId: string
+  ): Promise<ApiResponse<{ application: OnboardingApplicationResponse }> | ApiError> {
+    return this.get<{ application: OnboardingApplicationResponse }>(
+      `/v1/admin/onboarding-applications/${onboardingId}`
+    );
   }
 
   // Request redo onboarding for an application

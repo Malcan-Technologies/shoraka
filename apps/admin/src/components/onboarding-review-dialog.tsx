@@ -83,12 +83,16 @@ interface OnboardingReviewDialogProps {
   application: OnboardingApplicationResponse;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function OnboardingReviewDialog({
   application,
   open,
   onOpenChange,
+  onRefresh,
+  isRefreshing,
 }: OnboardingReviewDialogProps) {
   const [showRedoConfirm, setShowRedoConfirm] = React.useState(false);
   const [showFinalApprovalConfirm, setShowFinalApprovalConfirm] = React.useState(false);
@@ -550,17 +554,31 @@ export function OnboardingReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
-          <DialogTitle className="text-xl flex items-center gap-3">
-            Review Onboarding Application
-            <Badge variant="outline" className="font-normal">
-              {application.type === "PERSONAL" ? "Personal" : "Company"}
-            </Badge>
-            <Badge variant="secondary" className="font-normal capitalize">
-              {application.portal}
-            </Badge>
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-xl flex items-center gap-3">
+              Review Onboarding Application
+              <Badge variant="outline" className="font-normal">
+                {application.type === "PERSONAL" ? "Personal" : "Company"}
+              </Badge>
+              <Badge variant="secondary" className="font-normal capitalize">
+                {application.portal}
+              </Badge>
+            </DialogTitle>
+            {onRefresh && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="gap-1.5"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             Review the application details and complete the required approval steps.
           </DialogDescription>

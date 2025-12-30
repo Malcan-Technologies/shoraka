@@ -76,16 +76,6 @@ export function OrganizationsTableRow({
         )}
       </TableCell>
 
-      {/* Owner */}
-      <TableCell className="text-[15px] leading-7">
-        <div>
-          <div className="font-medium">
-            {organization.owner.firstName} {organization.owner.lastName}
-          </div>
-          <div className="text-xs text-muted-foreground">{organization.owner.email}</div>
-        </div>
-      </TableCell>
-
       {/* Onboarding Status */}
       <TableCell>
         {organization.onboardingStatus === "COMPLETED" ? (
@@ -108,6 +98,26 @@ export function OrganizationsTableRow({
             {organization.onboardingStatus === "PENDING_SSM_REVIEW" && "Pending SSM"}
             {organization.onboardingStatus === "PENDING_FINAL_APPROVAL" && "Pending Final"}
           </Badge>
+        )}
+      </TableCell>
+
+      {/* Risk Score */}
+      <TableCell>
+        {organization.riskScore ? (
+          <Badge
+            variant="outline"
+            className={cn(
+              organization.riskLevel?.toLowerCase().includes("low")
+                ? "border-green-500/30 text-green-600 bg-green-500/10"
+                : organization.riskLevel?.toLowerCase().includes("high")
+                  ? "border-red-500/30 text-red-600 bg-red-500/10"
+                  : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+            )}
+          >
+            {organization.riskScore}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">—</span>
         )}
       </TableCell>
 

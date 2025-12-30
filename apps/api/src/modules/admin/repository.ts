@@ -1311,6 +1311,8 @@ export class AdminRepository {
       memberCount: number;
       isSophisticatedInvestor: boolean;
       depositReceived: boolean;
+      riskLevel: string | null;
+      riskScore: string | null;
       createdAt: Date;
       updatedAt: Date;
     }[];
@@ -1387,6 +1389,7 @@ export class AdminRepository {
       onboarded_at: Date | null;
       is_sophisticated_investor: boolean;
       deposit_received: boolean;
+      kyc_response: unknown;
       created_at: Date;
       updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
@@ -1399,6 +1402,7 @@ export class AdminRepository {
       registration_number: string | null;
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
+      kyc_response: unknown;
       created_at: Date;
       updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
@@ -1431,64 +1435,86 @@ export class AdminRepository {
       ]);
     }
 
+    // Helper to extract risk level and score from kyc_response
+    const extractRiskInfo = (kycResponse: unknown): { riskLevel: string | null; riskScore: string | null } => {
+      if (!kycResponse || typeof kycResponse !== "object") {
+        return { riskLevel: null, riskScore: null };
+      }
+      const response = kycResponse as Record<string, unknown>;
+      return {
+        riskLevel: typeof response.riskLevel === "string" ? response.riskLevel : null,
+        riskScore: typeof response.riskScore === "string" ? response.riskScore : null,
+      };
+    };
+
     // Combine and transform results
     const allOrgs = [
-      ...investorOrgs.map((org) => ({
-        id: org.id,
-        portal: "investor" as const,
-        type: org.type as "PERSONAL" | "COMPANY",
-        name: org.name,
-        registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as
-          | "PENDING"
-          | "IN_PROGRESS"
-          | "PENDING_APPROVAL"
-          | "PENDING_AML"
-          | "PENDING_SSM_REVIEW"
-          | "PENDING_FINAL_APPROVAL"
-          | "COMPLETED"
-          | "REJECTED",
-        onboardedAt: org.onboarded_at,
-        owner: {
-          userId: org.owner.user_id || "",
-          email: org.owner.email,
-          firstName: org.owner.first_name,
-          lastName: org.owner.last_name,
-        },
-        memberCount: org._count.members,
-        isSophisticatedInvestor: org.is_sophisticated_investor,
-        depositReceived: org.deposit_received,
-        createdAt: org.created_at,
-        updatedAt: org.updated_at,
-      })),
-      ...issuerOrgs.map((org) => ({
-        id: org.id,
-        portal: "issuer" as const,
-        type: org.type as "PERSONAL" | "COMPANY",
-        name: org.name,
-        registrationNumber: org.registration_number,
-        onboardingStatus: org.onboarding_status as
-          | "PENDING"
-          | "IN_PROGRESS"
-          | "PENDING_APPROVAL"
-          | "PENDING_AML"
-          | "PENDING_SSM_REVIEW"
-          | "PENDING_FINAL_APPROVAL"
-          | "COMPLETED"
-          | "REJECTED",
-        onboardedAt: org.onboarded_at,
-        owner: {
-          userId: org.owner.user_id || "",
-          email: org.owner.email,
-          firstName: org.owner.first_name,
-          lastName: org.owner.last_name,
-        },
-        memberCount: org._count.members,
-        isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
-        depositReceived: false, // Issuers don't have deposit received status
-        createdAt: org.created_at,
-        updatedAt: org.updated_at,
-      })),
+      ...investorOrgs.map((org) => {
+        const { riskLevel, riskScore } = extractRiskInfo(org.kyc_response);
+        return {
+          id: org.id,
+          portal: "investor" as const,
+          type: org.type as "PERSONAL" | "COMPANY",
+          name: org.name,
+          registrationNumber: org.registration_number,
+          onboardingStatus: org.onboarding_status as
+            | "PENDING"
+            | "IN_PROGRESS"
+            | "PENDING_APPROVAL"
+            | "PENDING_AML"
+            | "PENDING_SSM_REVIEW"
+            | "PENDING_FINAL_APPROVAL"
+            | "COMPLETED"
+            | "REJECTED",
+          onboardedAt: org.onboarded_at,
+          owner: {
+            userId: org.owner.user_id || "",
+            email: org.owner.email,
+            firstName: org.owner.first_name,
+            lastName: org.owner.last_name,
+          },
+          memberCount: org._count.members,
+          isSophisticatedInvestor: org.is_sophisticated_investor,
+          depositReceived: org.deposit_received,
+          riskLevel,
+          riskScore,
+          createdAt: org.created_at,
+          updatedAt: org.updated_at,
+        };
+      }),
+      ...issuerOrgs.map((org) => {
+        const { riskLevel, riskScore } = extractRiskInfo(org.kyc_response);
+        return {
+          id: org.id,
+          portal: "issuer" as const,
+          type: org.type as "PERSONAL" | "COMPANY",
+          name: org.name,
+          registrationNumber: org.registration_number,
+          onboardingStatus: org.onboarding_status as
+            | "PENDING"
+            | "IN_PROGRESS"
+            | "PENDING_APPROVAL"
+            | "PENDING_AML"
+            | "PENDING_SSM_REVIEW"
+            | "PENDING_FINAL_APPROVAL"
+            | "COMPLETED"
+            | "REJECTED",
+          onboardedAt: org.onboarded_at,
+          owner: {
+            userId: org.owner.user_id || "",
+            email: org.owner.email,
+            firstName: org.owner.first_name,
+            lastName: org.owner.last_name,
+          },
+          memberCount: org._count.members,
+          isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
+          depositReceived: false, // Issuers don't have deposit received status
+          riskLevel,
+          riskScore,
+          createdAt: org.created_at,
+          updatedAt: org.updated_at,
+        };
+      }),
     ];
 
     // Sort by created_at desc
@@ -1538,6 +1564,7 @@ export class AdminRepository {
     compliance_declaration: unknown;
     document_info: unknown;
     liveness_check_info: unknown;
+    kyc_response: unknown;
     // Sophisticated investor status (only for investor portal)
     is_sophisticated_investor?: boolean;
     owner: {
