@@ -45,6 +45,10 @@ export function NavUser() {
   // Check if organization has a status that allows Profile access
   const allowsProfileAccess = useMemo(() => {
     const status = activeOrganization?.onboardingStatus;
+    // Disable profile access for REJECTED and PENDING_APPROVAL statuses
+    if (status === "REJECTED" || status === "PENDING_APPROVAL") {
+      return false;
+    }
     return (
       status === "PENDING_AML" ||
       status === "PENDING_FINAL_APPROVAL" ||
@@ -52,8 +56,8 @@ export function NavUser() {
     );
   }, [activeOrganization]);
 
-  // Profile should be disabled only if on onboarding page AND status doesn't allow access
-  const isProfileDisabled = pathname === "/onboarding-start" && !allowsProfileAccess;
+  // Profile should be disabled if status doesn't allow access OR if on onboarding page AND status doesn't allow access
+  const isProfileDisabled = !allowsProfileAccess || (pathname === "/onboarding-start" && !allowsProfileAccess);
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],

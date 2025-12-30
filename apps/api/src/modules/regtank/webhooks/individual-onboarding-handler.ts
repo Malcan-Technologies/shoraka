@@ -299,19 +299,109 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       } as any);
     }
 
-    // If rejected, log it (organization status remains PENDING_APPROVAL but regtank_onboarding.status is REJECTED)
-    // The frontend badge will prioritize regtankStatus over organization onboarding_status
+    // If rejected, update organization status to REJECTED and log it
     if (statusUpper === "REJECTED" && organizationId) {
-      logger.info(
-        {
-          organizationId,
-          portalType,
-          requestId,
-          status: statusUpper,
-          message: "Onboarding rejected on RegTank portal - regtank_onboarding.status updated to REJECTED",
-        },
-        "RegTank onboarding rejected - organization status remains PENDING_APPROVAL, regtank status is REJECTED"
-      );
+      const portalType = onboarding.portal_type as PortalType;
+      
+      try {
+        let previousStatus: OnboardingStatus | null = null;
+        
+        if (portalType === "investor") {
+          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (orgExists) {
+            previousStatus = orgExists.onboarding_status;
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.REJECTED
+            );
+            
+            // Create ONBOARDING_REJECTED log
+            try {
+              await prisma.onboardingLog.create({
+                data: {
+                  user_id: onboarding.user_id,
+                  role: UserRole.INVESTOR,
+                  event_type: "ONBOARDING_REJECTED",
+                  portal: portalType,
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: OnboardingStatus.REJECTED,
+                    trigger: "REGTANK_REJECTION",
+                  },
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create ONBOARDING_REJECTED log (non-blocking)"
+              );
+            }
+            
+            logger.info(
+              { organizationId, portalType, requestId, previousStatus },
+              "Updated investor organization status to REJECTED and logged rejection event"
+            );
+          }
+        } else {
+          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (orgExists) {
+            previousStatus = orgExists.onboarding_status;
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.REJECTED
+            );
+            
+            // Create ONBOARDING_REJECTED log
+            try {
+              await prisma.onboardingLog.create({
+                data: {
+                  user_id: onboarding.user_id,
+                  role: UserRole.ISSUER,
+                  event_type: "ONBOARDING_REJECTED",
+                  portal: portalType,
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: OnboardingStatus.REJECTED,
+                    trigger: "REGTANK_REJECTION",
+                  },
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create ONBOARDING_REJECTED log (non-blocking)"
+              );
+            }
+            
+            logger.info(
+              { organizationId, portalType, requestId, previousStatus },
+              "Updated issuer organization status to REJECTED and logged rejection event"
+            );
+          }
+        }
+      } catch (orgError) {
+        logger.error(
+          {
+            error: orgError instanceof Error ? orgError.message : String(orgError),
+            organizationId,
+            portalType,
+            requestId,
+          },
+          "Failed to update organization status to REJECTED"
+        );
+      }
     }
   }
 }

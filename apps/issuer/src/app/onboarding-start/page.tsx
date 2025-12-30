@@ -46,6 +46,7 @@ function OnboardingStartPageContent() {
   }, []);
 
   // Check organization status and redirect accordingly (except PENDING - no auto-redirect to RegTank)
+  // Note: REJECTED users can still add new organizations, so we don't redirect them away
   useEffect(() => {
     if (orgLoading || !activeOrganization) return;
 
@@ -59,11 +60,8 @@ function OnboardingStartPageContent() {
       return;
     }
 
-    // If status is REJECTED, redirect to dashboard (will show rejection message)
-    if (activeOrganization.onboardingStatus === "REJECTED" || activeOrganization.regtankOnboardingStatus === "REJECTED") {
-      router.replace("/");
-      return;
-    }
+    // Note: REJECTED status users are not redirected - they can still access "Add Organization" feature
+    // They will see the rejection message on the dashboard if they go there, but can add new organizations here
   }, [activeOrganization, orgLoading, router]);
 
   // Cancel onboarding when user navigates away or closes tab

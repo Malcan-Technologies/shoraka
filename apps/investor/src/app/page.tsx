@@ -164,7 +164,38 @@ function InvestorDashboardContent() {
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Dashboard</h1>
       </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
+        {/* Grey transparent overlay when account is rejected */}
+        {isRejected && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center rounded-lg">
+            <div className="bg-card rounded-xl border border-destructive/50 p-8 max-w-md mx-4">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-destructive" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-destructive mb-2">
+                    Account has been rejected
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Your onboarding application has been rejected. If you believe this was a mistake, please contact our support team to request a review of your application.
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-3">
+                    Email:{" "}
+                    <a
+                      href="mailto:support@cashsouk.my"
+                      className="text-primary hover:underline"
+                    >
+                      support@cashsouk.my
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="space-y-8 p-2 md:p-4">
           {/* Onboarding Status Section - shown when not all steps are complete */}
           {activeOrganization && !allStepsComplete && (
