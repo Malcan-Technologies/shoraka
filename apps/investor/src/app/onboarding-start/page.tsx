@@ -31,7 +31,7 @@ type OnboardingStep = "welcome" | "name-input" | "account-type";
 function OnboardingStartPageContent() {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { isLoading: orgLoading } = useOrganization();
+  const { isLoading: orgLoading, activeOrganization } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -302,23 +302,27 @@ function OnboardingStartPageContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-2">
-                <Button
-                  variant="action"
-                  className="w-full h-11 text-[15px]"
-                  onClick={handleStartOnboarding}
-                >
-                  <span>Start Onboarding</span>
-                  <ArrowRightIcon className="h-4 w-4 ml-2" />
-                </Button>
+                {activeOrganization?.onboardingStatus !== "COMPLETED" && (
+                  <Button
+                    variant="action"
+                    className="w-full h-11 text-[15px]"
+                    onClick={handleStartOnboarding}
+                  >
+                    <span>Start Onboarding</span>
+                    <ArrowRightIcon className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
 
-                <div className="relative py-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border" />
+                {activeOrganization?.onboardingStatus !== "COMPLETED" && (
+                  <div className="relative py-2">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-card px-2 text-muted-foreground">or</span>
+                    </div>
                   </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-card px-2 text-muted-foreground">or</span>
-                  </div>
-                </div>
+                )}
 
                 <Button
                   variant="ghost"
@@ -330,7 +334,9 @@ function OnboardingStartPageContent() {
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground pt-2">
-                  Complete your onboarding to access your investor dashboard
+                  {activeOrganization?.onboardingStatus === "COMPLETED"
+                    ? "Your account is already verified"
+                    : "Complete your onboarding to access your investor dashboard"}
                 </p>
               </CardContent>
             </Card>

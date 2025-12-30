@@ -184,6 +184,21 @@ export function OrganizationSwitcher() {
       return;
     }
     
+    // Check if organization has a pending status (not COMPLETED) and has a verifyLink
+    // Redirect to RegTank portal instead of going to /onboarding-start
+    const pendingStatuses = ["PENDING", "PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+    const hasPendingStatus = org.onboardingStatus !== "COMPLETED" && 
+      (pendingStatuses.includes(org.onboardingStatus) || 
+       (org.regtankOnboardingStatus && pendingStatuses.includes(org.regtankOnboardingStatus)));
+    
+    if (hasPendingStatus && org.regtankVerifyLink) {
+      // Validate that organization belongs to current portal
+      // For COMPANY accounts, we can validate using companyName (org.name)
+      // The organization should already be filtered by portalType in the context
+      window.location.href = org.regtankVerifyLink;
+      return;
+    }
+    
     // Check if status is EXPIRED and auto-restart
     if (org.regtankOnboardingStatus === "EXPIRED") {
       try {

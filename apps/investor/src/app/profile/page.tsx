@@ -152,6 +152,7 @@ export default function ProfilePage() {
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
+  const [middleName, setMiddleName] = React.useState("");
   const [phone, setPhone] = React.useState("");
 
   // Block access if organization is in PENDING_APPROVAL or REJECTED status
@@ -178,14 +179,51 @@ export default function ProfilePage() {
     refetchOnMount: "always",
   });
 
-  // Update form values when user data loads
+  // Fetch organization data if activeOrganization exists
+  const { data: orgData } = useQuery({
+    queryKey: ["organization", activeOrganization?.id],
+    queryFn: async () => {
+      if (!activeOrganization?.id) return null;
+      const result = await apiClient.get<{
+        id: string;
+        firstName: string | null;
+        lastName: string | null;
+        middleName: string | null;
+        onboardingStatus: string;
+      }>(`/v1/organizations/investor/${activeOrganization.id}`);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    enabled: !!activeOrganization?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Determine if names are verified (organization has completed onboarding)
+  const isNameVerified = Boolean(
+    activeOrganization?.onboardingStatus === "COMPLETED" && 
+    (orgData?.firstName || orgData?.lastName || orgData?.middleName)
+  );
+
+  // Update form values when user data or organization data loads
+  // Prioritize organization data over user data when available
   React.useEffect(() => {
-    if (userData) {
+    if (orgData && (orgData.firstName || orgData.lastName || orgData.middleName)) {
+      // Use organization data when available
+      setFirstName(orgData.firstName || "");
+      setLastName(orgData.lastName || "");
+      setMiddleName(orgData.middleName || "");
+    } else if (userData) {
+      // Fall back to user data
       setFirstName(userData.first_name || "");
       setLastName(userData.last_name || "");
+      setMiddleName("");
+    }
+    if (userData) {
       setPhone(userData.phone || "");
     }
-  }, [userData]);
+  }, [userData, orgData]);
 
   const updateProfile = useMutation({
     mutationFn: async () => {
@@ -221,9 +259,16 @@ export default function ProfilePage() {
   };
 
   const handleCancelEdit = () => {
-    if (userData) {
+    if (orgData && (orgData.firstName || orgData.lastName || orgData.middleName)) {
+      setFirstName(orgData.firstName || "");
+      setLastName(orgData.lastName || "");
+      setMiddleName(orgData.middleName || "");
+    } else if (userData) {
       setFirstName(userData.first_name || "");
       setLastName(userData.last_name || "");
+      setMiddleName("");
+    }
+    if (userData) {
       setPhone(userData.phone || "");
     }
     setIsEditing(false);
@@ -346,10 +391,10 @@ export default function ProfilePage() {
                         placeholder="Enter your first name"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
-                        className={`flex-1 ${!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}`}
+                        disabled={!isEditing || isNameVerified}
+                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
                       />
-                      {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                      {isNameVerified && (
                         <Badge
                           variant="outline"
                           className="bg-green-50 text-green-700 border-green-200"
@@ -359,11 +404,33 @@ export default function ProfilePage() {
                         </Badge>
                       )}
                     </div>
-                    {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                    {isNameVerified && (
                       <p className="text-[0.8rem] text-muted-foreground">
                         Names cannot be changed after completing onboarding. Please contact support if you need to update your name.
                       </p>
                     )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="middleName">Middle Name</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="middleName"
+                        placeholder="Enter your middle name"
+                        value={middleName}
+                        onChange={(e) => setMiddleName(e.target.value)}
+                        disabled={!isEditing || isNameVerified}
+                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
+                      />
+                      {isNameVerified && middleName && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-200"
+                        >
+                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name</Label>
@@ -373,10 +440,10 @@ export default function ProfilePage() {
                         placeholder="Enter your last name"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        disabled={!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0)}
-                        className={`flex-1 ${!isEditing || ((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) ? "bg-muted" : ""}`}
+                        disabled={!isEditing || isNameVerified}
+                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
                       />
-                      {((userData?.investor_account?.length ?? 0) > 0 || (userData?.issuer_account?.length ?? 0) > 0) && (
+                      {isNameVerified && (
                         <Badge
                           variant="outline"
                           className="bg-green-50 text-green-700 border-green-200"

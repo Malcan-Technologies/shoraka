@@ -149,6 +149,7 @@ async function getOrganization(
         name: organization.name,
         firstName: (organization as { first_name?: string | null }).first_name || null,
         lastName: (organization as { last_name?: string | null }).last_name || null,
+        middleName: (organization as { middle_name?: string | null }).middle_name || null,
         registrationNumber: organization.registration_number,
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
