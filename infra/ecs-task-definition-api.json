@@ -38,10 +38,10 @@
           "name": "ALLOWED_ORIGINS",
           "value": "https://cashsouk.com,https://investor.cashsouk.com,https://issuer.cashsouk.com,https://admin.cashsouk.com"
         },
-		{
-			"name": "EMAIL_FROM",
-			"value": "no-reply@cashsouk.com"
-		}
+        {
+          "name": "EMAIL_FROM",
+          "value": "no-reply@cashsouk.com"
+        }
       ],
       "secrets": [
         {
@@ -96,74 +96,78 @@
           "name": "COOKIE_DOMAIN",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:COOKIE_DOMAIN::"
         },
-		{
-			"name": "SES_REGION",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SES_REGION::"
-		},
-		{
-			"name": "API_URL",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:API_URL::"
-		},
-		{
-			"name": "DATABASE_URL_DEV",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:DATABASE_URL_DEV::"
-		},
-		{
-			"name": "REGTANK_OAUTH_URL",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_OAUTH_URL::"
-		},
-		{
-			"name": "REGTANK_API_BASE_URL",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_API_BASE_URL::"
-		},
-		{
-			"name": "REGTANK_ONBOARDING_PROXY_URL",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ONBOARDING_PROXY_URL::"
-		},
-		{
-			"name": "REGTANK_CLIENT_ID",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_CLIENT_ID::"
-		},
-		{
-			"name": "REGTANK_CLIENT_SECRET",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_CLIENT_SECRET::"
-		},
-		{
-			"name": "REGTANK_WEBHOOK_SECRET",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_WEBHOOK_SECRET::"
-		},
-		{
-			"name": "REGTANK_REDIRECT_URL_INVESTOR",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_REDIRECT_URL_INVESTOR::"
-		},
-		{
-			"name": "REGTANK_REDIRECT_URL_ISSUER",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_REDIRECT_URL_ISSUER::"
-		},
-		{
-			"name": "REGTANK_INVESTOR_PERSONAL_FORM_ID",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_PERSONAL_FORM_ID::"
-		},
-		{
-			"name": "REGTANK_INVESTOR_CORPORATE_FORM_ID",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_CORPORATE_FORM_ID::"
-		},
-		{
-			"name": "REGTANK_ISSUER_CORPORATE_FORM_ID",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ISSUER_CORPORATE_FORM_ID::"
-		},
-		{
-			"name": "REGTANK_INVESTOR_CORPORATE_FORM_NAME",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_CORPORATE_FORM_NAME::"
-		},
-		{
-			"name": "REGTANK_ISSUER_CORPORATE_FORM_NAME",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ISSUER_CORPORATE_FORM_NAME::"
-		},
-		{
-			"name": "REGTANK_WEBHOOK_MODE",
-			"valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_WEBHOOK_MODE::"
-		}
+        {
+          "name": "SES_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SES_REGION::"
+        },
+        {
+          "name": "API_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:API_URL::"
+        },
+        {
+          "name": "DATABASE_URL_DEV",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:DATABASE_URL_DEV::"
+        },
+        {
+          "name": "REGTANK_OAUTH_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_OAUTH_URL::"
+        },
+        {
+          "name": "REGTANK_API_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_API_BASE_URL::"
+        },
+        {
+          "name": "REGTANK_ONBOARDING_PROXY_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ONBOARDING_PROXY_URL::"
+        },
+        {
+          "name": "REGTANK_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_CLIENT_ID::"
+        },
+        {
+          "name": "REGTANK_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_CLIENT_SECRET::"
+        },
+        {
+          "name": "REGTANK_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_WEBHOOK_SECRET::"
+        },
+        {
+          "name": "REGTANK_REDIRECT_URL_INVESTOR",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_REDIRECT_URL_INVESTOR::"
+        },
+        {
+          "name": "REGTANK_REDIRECT_URL_ISSUER",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_REDIRECT_URL_ISSUER::"
+        },
+        {
+          "name": "REGTANK_INVESTOR_PERSONAL_FORM_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_PERSONAL_FORM_ID::"
+        },
+        {
+          "name": "REGTANK_INVESTOR_CORPORATE_FORM_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_CORPORATE_FORM_ID::"
+        },
+        {
+          "name": "REGTANK_ISSUER_CORPORATE_FORM_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ISSUER_CORPORATE_FORM_ID::"
+        },
+        {
+          "name": "REGTANK_INVESTOR_CORPORATE_FORM_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_INVESTOR_CORPORATE_FORM_NAME::"
+        },
+        {
+          "name": "REGTANK_ISSUER_CORPORATE_FORM_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_ISSUER_CORPORATE_FORM_NAME::"
+        },
+        {
+          "name": "REGTANK_WEBHOOK_MODE",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:REGTANK_WEBHOOK_MODE::"
+        },
+        {
+          "name": "S3_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:S3_REGION::"
+        }
       ],
       "healthCheck": {
         "command": [

@@ -54,6 +54,16 @@ enum OrganizationMemberRole {
   MEMBER
 }
 
+enum SiteDocumentType {
+  TERMS_AND_CONDITIONS
+  PRIVACY_POLICY
+  RISK_DISCLOSURE
+  PLATFORM_AGREEMENT
+  INVESTOR_GUIDE
+  ISSUER_GUIDE
+  OTHER
+}
+
 model User {
   user_id            String     @id @unique @db.VarChar(5)
   first_name         String
@@ -78,6 +88,7 @@ model User {
   sent_admin_invitations AdminInvitation[]
   security_logs          SecurityLog[]
   onboarding_logs        OnboardingLog[]
+  document_logs          DocumentLog[]
 
   // Organization relations
   investor_organizations   InvestorOrganization[]
@@ -416,4 +427,47 @@ model RegTankOnboarding {
   @@index([status])
   @@index([portal_type])
   @@map("regtank_onboarding")
+}
+
+model SiteDocument {
+  id              String           @id @default(cuid())
+  type            SiteDocumentType
+  title           String
+  description     String?
+  file_name       String
+  s3_key          String           @unique
+  content_type    String
+  file_size       Int
+  version         Int              @default(1)
+  is_active       Boolean          @default(true)
+  show_in_account Boolean          @default(false)
+  uploaded_by     String
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+
+  @@index([type, is_active])
+  @@index([is_active, show_in_account])
+  @@index([s3_key])
+  @@map("site_documents")
+}
+
+model DocumentLog {
+  id          String   @id @default(cuid())
+  user_id     String
+  document_id String?
+  event_type  String // DOCUMENT_CREATED, DOCUMENT_UPDATED, DOCUMENT_REPLACED, DOCUMENT_DELETED, DOCUMENT_RESTORED
+  ip_address  String?
+  user_agent  String?  @db.Text
+  device_info String?
+  metadata    Json?
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([document_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("document_logs")
 }

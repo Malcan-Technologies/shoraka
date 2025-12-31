@@ -7,6 +7,9 @@ import { adminRouter } from "./modules/admin/controller";
 import { createOrganizationRouter } from "./modules/organization/controller";
 import { regTankRouter } from "./modules/regtank/controller";
 import { regTankAdminRouter } from "./modules/regtank/admin-controller";
+import { siteDocumentAdminRouter } from "./modules/site-documents/admin-controller";
+import { siteDocumentUserRouter } from "./modules/site-documents/user-controller";
+import { documentLogRouter } from "./modules/site-documents/log-controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -78,9 +81,16 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
+    v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
+    v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
   }
+  
+  // Site documents routes (authenticated users)
+  v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
 
   app.use("/v1", v1Router);
 }

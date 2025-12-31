@@ -527,3 +527,148 @@ export interface OnboardingApplicationsResponse {
   applications: OnboardingApplicationResponse[];
   pagination: PaginationResponse;
 }
+
+// Site Document Types
+export type SiteDocumentType =
+  | "TERMS_AND_CONDITIONS"
+  | "PRIVACY_POLICY"
+  | "RISK_DISCLOSURE"
+  | "PLATFORM_AGREEMENT"
+  | "INVESTOR_GUIDE"
+  | "ISSUER_GUIDE"
+  | "OTHER";
+
+export type DocumentEventType =
+  | "DOCUMENT_CREATED"
+  | "DOCUMENT_UPDATED"
+  | "DOCUMENT_REPLACED"
+  | "DOCUMENT_DELETED"
+  | "DOCUMENT_RESTORED";
+
+export interface SiteDocumentResponse {
+  id: string;
+  type: SiteDocumentType;
+  title: string;
+  description: string | null;
+  file_name: string;
+  s3_key: string;
+  content_type: string;
+  file_size: number;
+  version: number;
+  is_active: boolean;
+  show_in_account: boolean;
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetSiteDocumentsParams extends PaginationParams {
+  type?: SiteDocumentType;
+  includeInactive?: boolean;
+  search?: string;
+}
+
+export interface SiteDocumentsResponse {
+  documents: SiteDocumentResponse[];
+  pagination: PaginationResponse;
+}
+
+export interface RequestUploadUrlInput {
+  type: SiteDocumentType;
+  title: string;
+  description?: string;
+  fileName: string;
+  contentType: "application/pdf";
+  fileSize: number;
+  showInAccount?: boolean;
+}
+
+export interface RequestUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+  version: number;
+}
+
+export interface CreateSiteDocumentInput {
+  type: SiteDocumentType;
+  title: string;
+  description?: string;
+  fileName: string;
+  s3Key: string;
+  contentType: "application/pdf";
+  fileSize: number;
+  showInAccount?: boolean;
+}
+
+export interface UpdateSiteDocumentInput {
+  title?: string;
+  description?: string | null;
+  showInAccount?: boolean;
+}
+
+export interface RequestReplaceUrlInput {
+  fileName: string;
+  contentType: "application/pdf";
+  fileSize: number;
+}
+
+export interface RequestReplaceUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+  previousVersion: number;
+  newVersion: number;
+}
+
+export interface ConfirmReplaceInput {
+  s3Key: string;
+  fileName: string;
+  fileSize: number;
+}
+
+export interface DownloadUrlResponse {
+  downloadUrl: string;
+  expiresIn: number;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+}
+
+// Document Log Types
+export interface DocumentLogUser {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  roles: UserRole[];
+}
+
+export interface DocumentLogResponse {
+  id: string;
+  user_id: string;
+  user: DocumentLogUser;
+  document_id: string | null;
+  event_type: DocumentEventType;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GetDocumentLogsParams extends PaginationParams {
+  search?: string;
+  eventType?: DocumentEventType;
+  dateRange?: "24h" | "7d" | "30d" | "all";
+}
+
+export interface DocumentLogsResponse {
+  logs: DocumentLogResponse[];
+  pagination: PaginationResponse;
+}
+
+export interface ExportDocumentLogsParams extends Omit<GetDocumentLogsParams, "page" | "pageSize"> {
+  eventTypes?: DocumentEventType[];
+  format?: "csv" | "json";
+}

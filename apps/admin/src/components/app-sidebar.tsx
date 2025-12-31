@@ -17,6 +17,8 @@ import {
   UserCircleIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
+  FolderOpenIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -78,6 +80,11 @@ const navPlatform = [
     icon: ArrowTrendingUpIcon,
   },
   {
+    title: "Documents",
+    url: "/documents",
+    icon: FolderOpenIcon,
+  },
+  {
     title: "Settings",
     url: "#",
     icon: Cog6ToothIcon,
@@ -94,6 +101,7 @@ const navAudit = [
   { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
   { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
   { title: "Onboarding Logs", url: "/audit/onboarding-logs", icon: UserCircleIcon },
+  { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -30,6 +30,7 @@ import {
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -48,31 +49,36 @@ import {
   PhoneIcon,
   GlobeAltIcon,
   CalendarIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 // Malaysian banks list (values match RegTank format)
 const MALAYSIAN_BANKS = [
-  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
-  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
-  { value: "Public Bank Berhad", label: "Public Bank" },
-  { value: "RHB Bank Berhad", label: "RHB Bank" },
-  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
-  { value: "AmBank (M) Berhad", label: "AmBank" },
-  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
-  { value: "Bank Kerjasama Rakyat Malaysia Berhad", label: "Bank Rakyat" },
-  { value: "Bank Simpanan Nasional", label: "BSN" },
   { value: "Affin Bank Berhad", label: "Affin Bank" },
   { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
-  { value: "OCBC Bank (Malaysia) Berhad", label: "OCBC Bank" },
-  { value: "United Overseas Bank (Malaysia) Bhd", label: "UOB Malaysia" },
-  { value: "HSBC Bank Malaysia Berhad", label: "HSBC Malaysia" },
-  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
+  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
+  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
+  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
+  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
   { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
-  { value: "Citibank Berhad", label: "Citibank" },
-  { value: "MBSB Bank Berhad", label: "MBSB Bank" },
-  { value: "Agrobank / Bank Pertanian Malaysia Berhad", label: "Agrobank" },
+  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
+  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
+  { value: "Bank of America", label: "Bank of America" },
+  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
+  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
+  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
+  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
+  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
+  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
+  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
+  { value: "Public Bank Berhad", label: "Public Bank" },
+  { value: "RHB Bank Berhad", label: "RHB Bank" },
+  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
+  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
+  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
+  { value: "UOB Bank Berhad", label: "UOB Bank" },
 ];
 
 const roleConfig: Record<
@@ -233,6 +239,119 @@ function buildBankAccountDetails(
     ],
     displayArea: "Bank Account Details",
   };
+}
+
+// Helper to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Documents Tab Content Component
+function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof createApiClient> }) {
+  const { data: documents, isLoading, error } = useAccountDocuments();
+  const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
+
+  const handleDownload = async (documentId: string) => {
+    setDownloadingId(documentId);
+    try {
+      const response = await apiClient.getDocumentDownloadUrl(documentId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      // Open the presigned URL in a new tab to trigger download
+      window.open(response.data.downloadUrl, "_blank");
+    } catch {
+      toast.error("Failed to download document");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card">
+      <div className="flex items-center justify-between p-6 border-b">
+        <div>
+          <h2 className="text-lg font-semibold">Documents</h2>
+          <p className="text-sm text-muted-foreground">View and download your account documents</p>
+        </div>
+      </div>
+      <div className="p-6 space-y-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
+              >
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-10 w-32" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Failed to load documents</p>
+            <p className="text-sm mt-1">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+          </div>
+        ) : !documents || documents.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <DocumentTextIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No documents available yet</p>
+            <p className="text-sm mt-1">Documents will appear here once available.</p>
+          </div>
+        ) : (
+          <>
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <DocumentTextIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{doc.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(doc.file_size)} • {doc.file_name}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="default"
+                  className="gap-2 rounded-xl"
+                  onClick={() => handleDownload(doc.id)}
+                  disabled={downloadingId === doc.id}
+                >
+                  {downloadingId === doc.id ? (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      Download
+                      <ArrowDownTrayIcon className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function AccountPage() {
@@ -805,37 +924,7 @@ export default function AccountPage() {
 
             {/* Documents Tab */}
             <TabsContent value="documents" className="space-y-6 mt-6">
-              <div className="rounded-xl border bg-card">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <div>
-                    <h2 className="text-lg font-semibold">Documents</h2>
-                    <p className="text-sm text-muted-foreground">
-                      View and download your account documents
-                    </p>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/30">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                        <DocumentTextIcon className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">User agreement.pdf</p>
-                        <p className="text-sm text-muted-foreground">200 KB – 100% uploaded</p>
-                      </div>
-                    </div>
-                    <Button variant="default" className="gap-2 rounded-xl">
-                      Download file
-                      <ArrowPathIcon className="h-4 w-4 rotate-180" />
-                    </Button>
-                  </div>
-
-                  <p className="text-sm text-muted-foreground mt-6 text-center">
-                    Additional documents will appear here once available.
-                  </p>
-                </div>
-              </div>
+              <DocumentsTabContent apiClient={apiClient} />
             </TabsContent>
           </Tabs>
         </div>
