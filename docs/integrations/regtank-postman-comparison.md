@@ -197,20 +197,27 @@ After comparing the Postman collection with the existing documentation, here are
 {
   "email": "test@regtank.com",
   "companyName": "Company A",
-  "formName": "Business End User Onboarding Example Form1",
-  "formId": 1015520
+  "formName": "Business End User Onboarding Example Form1"
 }
 ```
 
-**Documentation:**
-- ✅ Request body structure documented in `regtank-kyc-integration.md`
-- ✅ Confirmed: `email`, `companyName`, `formName`, and `formId` (optional) are sent to RegTank API
-- ✅ **Important:** `referenceId` is NOT sent to RegTank (used internally only)
-- ✅ **Form IDs:** RegTank uses three different form IDs:
-  - Personal Account (Investor portal): Individual onboarding form
-  - Company Account (Investor portal): Corporate onboarding form for investors
-  - Company Account (Issuer portal): Corporate onboarding form for issuers
-- **Status**: ✅ **ALIGNED** - Documentation matches Postman collection and implementation
+**Official RegTank API Documentation (2.8):**
+- Request body includes ONLY: `email`, `companyName`, `formName`
+- All three fields are required (marked with `*`)
+- **NO `formId` field** is documented or accepted by the API
+
+**Current Implementation:**
+- ✅ Correctly sends ONLY: `email`, `companyName`, `formName`
+- ✅ Does NOT send `formId` to RegTank API
+- ✅ `formId` is used internally by CashSouk to select the appropriate `formName`, but is NOT sent to RegTank
+
+**Documentation Status:**
+- ❌ Previous documentation incorrectly showed `formId` in request body example
+- ❌ Previous documentation incorrectly listed `formId` as optional field
+- ✅ **UPDATED:** Documentation now correctly shows request body without `formId`
+- ✅ **Confirmed:** `referenceId` is NOT sent to RegTank (used internally only)
+- ✅ **Confirmed:** `formId` is NOT sent to RegTank (used internally for form name selection)
+- **Status**: ✅ **NOW ALIGNED** - Documentation corrected to match official API docs, Postman collection, and implementation
 
 ## Recommendations
 
@@ -227,9 +234,12 @@ After comparing the Postman collection with the existing documentation, here are
    - Get/Set Setting endpoints
 
 3. **Document Corporate Onboarding properly:**
-   - Include actual endpoint URLs
-   - Include request/response examples
-   - Document COD vs EOD distinction
+   - ✅ Include actual endpoint URLs (COMPLETED)
+   - ✅ Include request/response examples (COMPLETED)
+   - ✅ Document COD vs EOD distinction (COMPLETED)
+   - ✅ Fix request body documentation (formId removed) (COMPLETED)
+   - ✅ Add error response documentation (COMPLETED)
+   - ✅ Add detailed field descriptions for COD/EOD responses (COMPLETED)
 
 4. **Document KYC/KYB/KYT endpoints:**
    - Include all endpoints from Postman

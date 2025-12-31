@@ -71,22 +71,34 @@ router.get(
           "Device",
           "Metadata",
         ];
-        const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.event_type,
-          log.document_id || "",
-          log.ip_address || "",
-          log.device_info || "",
-          JSON.stringify(log.metadata || {}),
-        ]);
+        const rows = logs.map((log: unknown) => {
+          const logItem = log as {
+            created_at: Date;
+            user: { first_name: string; last_name: string; email: string };
+            event_type: string;
+            document_id: string | null;
+            ip_address: string | null;
+            device_info: string | null;
+            metadata: unknown;
+          };
+          return [
+            logItem.created_at.toISOString(),
+            `${logItem.user.first_name} ${logItem.user.last_name}`,
+            logItem.user.email,
+            logItem.event_type,
+            logItem.document_id || "",
+            logItem.ip_address || "",
+            logItem.device_info || "",
+            JSON.stringify(logItem.metadata || {}),
+          ];
+        });
 
         const csvContent = [
           headers.join(","),
-          ...rows.map((row) =>
-            row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-          ),
+          ...rows.map((row: unknown) => {
+            const rowArray = row as unknown[];
+            return rowArray.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+          }),
         ].join("\n");
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -97,23 +109,42 @@ router.get(
         res.send(Buffer.from(csvContent, "utf-8"));
       } else {
         // JSON format
-        const jsonData = logs.map((log) => ({
-          id: log.id,
-          user_id: log.user_id,
-          user: {
-            first_name: log.user.first_name,
-            last_name: log.user.last_name,
-            email: log.user.email,
-            roles: log.user.roles,
-          },
-          document_id: log.document_id,
-          event_type: log.event_type,
-          ip_address: log.ip_address,
-          user_agent: log.user_agent,
-          device_info: log.device_info,
-          metadata: log.metadata,
-          created_at: log.created_at.toISOString(),
-        }));
+        const jsonData = logs.map((log: unknown) => {
+          const logItem = log as {
+            id: string;
+            user_id: string;
+            user: {
+              first_name: string;
+              last_name: string;
+              email: string;
+              roles: unknown;
+            };
+            document_id: string | null;
+            event_type: string;
+            ip_address: string | null;
+            user_agent: string | null;
+            device_info: string | null;
+            metadata: unknown;
+            created_at: Date;
+          };
+          return {
+            id: logItem.id,
+            user_id: logItem.user_id,
+            user: {
+              first_name: logItem.user.first_name,
+              last_name: logItem.user.last_name,
+              email: logItem.user.email,
+              roles: logItem.user.roles,
+            },
+            document_id: logItem.document_id,
+            event_type: logItem.event_type,
+            ip_address: logItem.ip_address,
+            user_agent: logItem.user_agent,
+            device_info: logItem.device_info,
+            metadata: logItem.metadata,
+            created_at: logItem.created_at.toISOString(),
+          };
+        });
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(

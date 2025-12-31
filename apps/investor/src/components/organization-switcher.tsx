@@ -197,14 +197,24 @@ export function OrganizationSwitcher() {
   };
 
   const handleSelectOrganization = async (org: Organization) => {
-    // Check if this org has an in-progress regtank onboarding and redirect to verify_link
+    // For company accounts with incomplete onboarding, redirect to onboarding-start page which will show modal
+    if (org.type === "COMPANY" && org.regtankVerifyLink && org.onboardingStatus !== "COMPLETED") {
+      switchOrganization(org.id);
+      // Open RegTank in popup
+      window.open(org.regtankVerifyLink, "_blank");
+      // Redirect to onboarding-start which will check status and show modal
+      router.push("/onboarding-start");
+      return;
+    }
+
+    // Check if this org has an in-progress regtank onboarding and redirect to verify_link (for personal accounts)
     const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
     if (org.regtankOnboardingStatus && inProgressStatuses.includes(org.regtankOnboardingStatus) && org.regtankVerifyLink) {
       window.location.href = org.regtankVerifyLink;
       return;
     }
     
-    // If status is PENDING, redirect to RegTank portal (verifyLink)
+    // If status is PENDING, redirect to RegTank portal (verifyLink) (for personal accounts)
     if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
       window.location.href = org.regtankVerifyLink;
       return;
@@ -411,7 +421,13 @@ export function OrganizationSwitcher() {
                     <DropdownMenuItem
                       key={org.id}
                       onClick={() => {
-                        if (org.regtankVerifyLink) {
+                        if (org.type === "COMPANY" && org.regtankVerifyLink && org.onboardingStatus !== "COMPLETED") {
+                          // For company accounts, use popup and redirect to onboarding-start
+                          switchOrganization(org.id);
+                          window.open(org.regtankVerifyLink, "_blank");
+                          router.push("/onboarding-start");
+                        } else if (org.regtankVerifyLink) {
+                          // For personal accounts, redirect normally
                           window.location.href = org.regtankVerifyLink;
                         }
                       }}

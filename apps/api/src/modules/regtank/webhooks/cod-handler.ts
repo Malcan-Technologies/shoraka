@@ -3,7 +3,12 @@ import { RegTankCODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
+import { OrganizationRepository } from "../../organization/repository";
+import { AuthRepository } from "../../auth/repository";
+import { getRegTankAPIClient } from "../api-client";
+import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import type { PortalType } from "../types";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -12,10 +17,16 @@ import { Prisma } from "@prisma/client";
  */
 export class CODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
+  private organizationRepository: OrganizationRepository;
+  private authRepository: AuthRepository;
+  private apiClient: ReturnType<typeof getRegTankAPIClient>;
 
   constructor() {
     super();
     this.repository = new RegTankRepository();
+    this.organizationRepository = new OrganizationRepository();
+    this.authRepository = new AuthRepository();
+    this.apiClient = getRegTankAPIClient();
   }
 
   protected getWebhookType(): string {
@@ -75,8 +86,208 @@ export class CODWebhookHandler extends BaseWebhookHandler {
       "COD webhook processed"
     );
 
-    // TODO: Handle organization updates when COD is approved
-    // This may require additional logic to handle corporate onboarding completion
+    // Handle organization updates when COD is approved
+    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const portalType = onboarding.portal_type as PortalType;
+
+    if (statusUpper === "APPROVED" && organizationId) {
+      try {
+        // Fetch COD details from RegTank API
+        logger.info(
+          { requestId, organizationId, portalType },
+          "Fetching RegTank COD details after approval"
+        );
+
+        const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+
+        // Update organization status to PENDING_APPROVAL
+        if (portalType === "investor") {
+          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL
+            );
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "COD_APPROVED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  codDetails: codDetails,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_APPROVED log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId },
+              "Updated investor organization status to PENDING_APPROVAL after COD approval"
+            );
+          }
+        } else {
+          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL
+            );
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "COD_APPROVED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  codDetails: codDetails,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_APPROVED log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId },
+              "Updated issuer organization status to PENDING_APPROVAL after COD approval"
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            organizationId,
+            portalType,
+            requestId,
+          },
+          "Failed to fetch COD details or update organization (non-blocking)"
+        );
+        // Don't throw - allow webhook to complete even if organization update fails
+      }
+    } else if (statusUpper === "REJECTED" && organizationId) {
+      // Update organization status to REJECTED
+      try {
+        if (portalType === "investor") {
+          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.REJECTED
+            );
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "COD_REJECTED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.REJECTED,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_REJECTED log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId },
+              "Updated investor organization status to REJECTED after COD rejection"
+            );
+          }
+        } else {
+          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.REJECTED
+            );
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "COD_REJECTED",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.REJECTED,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_REJECTED log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId },
+              "Updated issuer organization status to REJECTED after COD rejection"
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            organizationId,
+            portalType,
+            requestId,
+          },
+          "Failed to update organization status to REJECTED (non-blocking)"
+        );
+      }
+    }
   }
 }
 

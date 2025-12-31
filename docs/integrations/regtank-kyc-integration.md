@@ -436,30 +436,49 @@ Content-Type: application/json; charset=utf-8
 {
   "email": "test@regtank.com",
   "companyName": "Company A",
-  "formName": "Business End User Onboarding Example Form1",
-  "formId": 1015520
+  "formName": "Business End User Onboarding Example Form1"
 }
 ```
 
 **Required Fields:**
-- `email` (String) - User's email address
-- `companyName` (String) - Company name
-- `formName` (String) - Form name for RegTank corporate onboarding
-
-**Optional Fields:**
-- `formId` (Integer) - Form ID for RegTank corporate onboarding. If not provided, defaults to portal-specific environment variable:
-  - Investor portal: `REGTANK_INVESTOR_CORPORATE_FORM_ID` (default: 1015520)
-  - Issuer portal: `REGTANK_ISSUER_CORPORATE_FORM_ID` (default: 1015520)
+- `email` (String) - Intended recipient email address
+- `companyName` (String) - Registered Company Name
+- `formName` (String) - Business form name
 
 **Important Notes:**
 - **Do NOT include `referenceId`** in the request body - RegTank API does not accept this field
 - `referenceId` is used internally by CashSouk for tracking and webhook matching, but is not sent to RegTank
-- `formId` is required by RegTank to identify the correct form configuration. CashSouk uses different form IDs for:
-  - Personal Account (Investor portal): Individual onboarding form
-  - Company Account (Investor portal): Corporate onboarding form for investors
-  - Company Account (Issuer portal): Corporate onboarding form for issuers
+- **Do NOT include `formId`** in the request body - RegTank API does not accept this field
+- `formId` is used internally by CashSouk for form name selection, but is NOT sent to RegTank API
+- The `formName` field is what RegTank uses to identify the form configuration
 
-**Response:** Returns `requestId` and `verifyLink` similar to individual onboarding
+**Response:**
+```json
+{
+  "requestId": "COD00001",
+  "verifyLink": "https://shoraka-onboarding.regtank.com/Onboarding2Company/step1?requestId=COD00001&token=...",
+  "expiredIn": 86400,
+  "timestamp": "2023-07-31 11:41:08+0000"
+}
+```
+
+**Response Fields:**
+- `requestId` (String) - Unique ID generated from the request, to be used for COD/EOD queries
+- `verifyLink` (String) - Link to access the business onboarding portal
+- `expiredIn` (Integer) - Duration before URL expires in seconds (default: 86400 = 24 hours)
+- `timestamp` (Datetime) - Time when URL is generated (GMT +8)
+
+**Error Responses:**
+- `400 Bad Request` - "The email already exists"
+  ```json
+  {
+    "timestamp": "2023-06-23T09:33:17.175+00:00",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "The email already exists",
+    "path": "/v3/onboarding/corp/request"
+  }
+  ```
 
 #### 2. Query Company Onboarding Data (COD)
 
@@ -470,7 +489,36 @@ Content-Type: application/json; charset=utf-8
 **Query Parameters:**
 - `requestId` (required) - COD request ID
 
-**Response:** Returns company-level onboarding details including company information, documents, and status
+**Response Fields:**
+- `requestId` (String) - Corresponding COD id
+- `formId` (String) - Id of business onboarding form
+- `deviceType` (String) - Type of device used to make submission
+- `status` (Enum) - Progress of business onboarding (e.g., "APPROVED", "WAIT_FOR_APPROVAL")
+- `approveStatus` (String) - Progress of approval
+- `kybType` (String) - Database used for screening (onboarding settings configuration)
+- `formContent` (Object) - Submitted form details with displayAreas
+- `sendEmailStatus` (Enum) - Status of email sent
+- `lastModifiedBy` (Object) - User who last modified the record
+- `isPrimary` (Boolean) - Company to be onboarded
+- `requestIpAddress` (String) - Request's IP address
+- `directorCount` (Integer) - Number of directors
+- `individualShareholderCount` (Integer) - Number of individual shareholders
+- `corporateShareholderCount` (Integer) - Number of corporate shareholders
+- `corporateIndividuals` (Object) - List of corporate individuals (EOD records)
+- `corporateRequests` (Object) - List of corporate requests
+- `kybRequest` (Object) - KYB request information
+
+**Error Responses:**
+- `404 Not Found` - "COD record not found"
+  ```json
+  {
+    "timestamp": "2023-06-23T09:33:17.175+00:00",
+    "status": 404,
+    "error": "Not Found",
+    "message": "COD00001 not Found",
+    "path": "/v3/onboarding/corp/query"
+  }
+  ```
 
 #### 3. Query Entity Onboarding Data (EOD)
 
@@ -481,12 +529,52 @@ Content-Type: application/json; charset=utf-8
 **Query Parameters:**
 - `requestId` (required) - EOD request ID (for individual directors/shareholders)
 
-**Response:** Returns individual entity (director/shareholder) onboarding details including:
-- Corporate individual request info
-- Corporate user request info (with form content)
-- Corporate document info
-- Corporate liveness check info
-- KYC request info
+**Response Structure:**
+The response contains the following main objects:
+
+- `corporateIndividualRequest` (Object) - Corporate individual request information
+  - `requestId` (String) - EOD request ID
+  - `email` (String) - Individual's email address
+  - `status` (String) - Current status (e.g., "WAIT_FOR_APPROVAL", "APPROVED")
+  - `deviceType` (String) - Device type used for submission
+  - `requestIpAddress` (String) - Request IP address
+  - `approveStatus` (String) - Approval status
+  - `kycType` (String) - KYC database type (e.g., "ACURIS")
+
+- `corporateUserRequestInfo` (Object) - Corporate user request information
+  - Personal information fields (firstName, lastName, email, etc.)
+  - `formContent` (Object) - Form content with displayAreas and field values
+  - `documentType` (String) - Type of document (e.g., "Passport", "Identity")
+  - `corporateIndividualRequestId` (Integer) - Link to corporate individual request
+
+- `corporateDocumentInfo` (Object) - Corporate document information
+  - `frontDocumentUrl` (String) - Front document URL
+  - `backDocumentUrl` (String) - Back document URL (if applicable)
+  - `documentType` (String) - Document type
+  - `documentNum` (String) - Document number
+  - `ocrStatus` (String) - OCR processing status
+
+- `corporateLivenessCheckInfo` (Object) - Corporate liveness check information
+  - Liveness check status and verification results
+  - Video/document URLs if available
+
+- `kycRequest` (Object) - KYC request information
+  - `kycId` (String) - KYC request ID
+  - `status` (String) - KYC status
+  - `kycType` (String) - KYC database type
+  - `kycPositiveMatch` (Boolean) - Whether positive match was found
+
+**Error Responses:**
+- `404 Not Found` - "EOD record not found"
+  ```json
+  {
+    "timestamp": "2023-06-23T09:33:17.175+00:00",
+    "status": 404,
+    "error": "Not Found",
+    "message": "EOD00001 not Found",
+    "path": "/v3/onboarding/corp/indv/query"
+  }
+  ```
 
 ### KYC Screening
 

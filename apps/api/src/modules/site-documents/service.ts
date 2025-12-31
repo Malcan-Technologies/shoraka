@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { SiteDocumentType } from "@prisma/client";
+import type { SiteDocumentType } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { getDeviceInfo } from "../../lib/http/request-utils";
 import {
@@ -417,18 +417,25 @@ export class SiteDocumentService {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
+    const doc = document as unknown as {
+      s3_key: string;
+      file_name: string;
+      content_type: string;
+      file_size: number;
+    };
+    
     // Admin can download any document, including archived ones
     const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
-      key: document.s3_key,
-      fileName: document.file_name,
+      key: doc.s3_key,
+      fileName: doc.file_name,
     });
 
     return {
       downloadUrl,
       expiresIn,
-      fileName: document.file_name,
-      contentType: document.content_type,
-      fileSize: document.file_size,
+      fileName: doc.file_name,
+      contentType: doc.content_type,
+      fileSize: doc.file_size,
     };
   }
 

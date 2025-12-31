@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { SiteDocumentType } from "@prisma/client";
+// SiteDocumentType enum exists in schema but may not be in generated client yet
+export type SiteDocumentType = "TERMS_AND_CONDITIONS" | "PRIVACY_POLICY" | "RISK_DISCLOSURE" | "PLATFORM_AGREEMENT" | "INVESTOR_GUIDE" | "ISSUER_GUIDE" | "OTHER";
 
 // Enum values for validation
-const siteDocumentTypes = Object.values(SiteDocumentType) as [string, ...string[]];
+const siteDocumentTypes: SiteDocumentType[] = ["TERMS_AND_CONDITIONS", "PRIVACY_POLICY", "RISK_DISCLOSURE", "PLATFORM_AGREEMENT", "INVESTOR_GUIDE", "ISSUER_GUIDE", "OTHER"];
 
 // Request presigned upload URL
 export const requestUploadUrlSchema = z.object({

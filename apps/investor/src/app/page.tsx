@@ -62,6 +62,7 @@ function InvestorDashboardContent() {
       }
 
       // If active organization exists but not onboarded (and not pending approval or rejected), redirect to onboarding
+      // For company accounts with incomplete onboarding, redirect to onboarding-start which will show modal
       if (activeOrganization && !isOnboarded && !isPendingApproval) {
         if (!hasRedirected.current) {
           hasRedirected.current = true;
