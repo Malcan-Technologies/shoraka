@@ -5,6 +5,7 @@ import {
   addMemberSchema,
   organizationIdParamSchema,
   memberIdParamSchema,
+  updateOrganizationProfileSchema,
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -141,15 +142,36 @@ async function getOrganization(
 
     const organization = await organizationService.getOrganization(userId, id, portalType);
 
+    // Cast to access all fields from the organization
+    const org = organization as {
+      first_name?: string | null;
+      last_name?: string | null;
+      middle_name?: string | null;
+      nationality?: string | null;
+      country?: string | null;
+      id_issuing_country?: string | null;
+      gender?: string | null;
+      address?: string | null;
+      date_of_birth?: Date | null;
+      document_type?: string | null;
+      document_number?: string | null;
+      phone_number?: string | null;
+      bank_account_details?: unknown;
+      deposit_received?: boolean;
+      ssm_approved?: boolean;
+      ssm_checked?: boolean;
+      is_sophisticated_investor?: boolean;
+    };
+
     res.json({
       success: true,
       data: {
         id: organization.id,
         type: organization.type,
         name: organization.name,
-        firstName: (organization as { first_name?: string | null }).first_name || null,
-        lastName: (organization as { last_name?: string | null }).last_name || null,
-        middleName: (organization as { middle_name?: string | null }).middle_name || null,
+        firstName: org.first_name || null,
+        lastName: org.last_name || null,
+        middleName: org.middle_name || null,
         registrationNumber: organization.registration_number,
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
@@ -170,19 +192,31 @@ async function getOrganization(
         regtankOnboardingStatus: organization.regtank_onboarding?.status || null,
         regtankVerifyLink: organization.regtank_onboarding?.verify_link || null,
         createdAt: organization.created_at,
+        // KYC-verified fields (read-only)
+        nationality: org.nationality || null,
+        country: org.country || null,
+        idIssuingCountry: org.id_issuing_country || null,
+        gender: org.gender || null,
+        dateOfBirth: org.date_of_birth || null,
+        documentType: org.document_type || null,
+        documentNumber: org.document_number || null,
+        // Editable profile fields
+        phoneNumber: org.phone_number || null,
+        address: org.address || null,
+        bankAccountDetails: org.bank_account_details || null,
         // Approval workflow flags
         onboardingApproved: organization.onboarding_approved,
         amlApproved: organization.aml_approved,
         tncAccepted: organization.tnc_accepted,
         // Investor-specific flags
         ...(portalType === "investor" && {
-          depositReceived:
-            (organization as { deposit_received?: boolean }).deposit_received ?? false,
-          ssmApproved: (organization as { ssm_approved?: boolean }).ssm_approved ?? false,
+          depositReceived: org.deposit_received ?? false,
+          ssmApproved: org.ssm_approved ?? false,
+          isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
         }),
         // Issuer-specific flags
         ...(portalType === "issuer" && {
-          ssmChecked: (organization as { ssm_checked?: boolean }).ssm_checked ?? false,
+          ssmChecked: org.ssm_checked ?? false,
         }),
       },
     });
@@ -270,6 +304,38 @@ async function removeMember(
 }
 
 /**
+ * Update organization profile (editable fields only)
+ * PATCH /v1/organizations/investor/:id
+ * PATCH /v1/organizations/issuer/:id
+ */
+async function updateOrganizationProfile(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = updateOrganizationProfileSchema.parse(req.body);
+
+    const result = await organizationService.updateOrganizationProfile(
+      userId,
+      id,
+      portalType,
+      input
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Accept Terms and Conditions for an organization
  * POST /v1/organizations/investor/:id/accept-tnc
  * POST /v1/organizations/issuer/:id/accept-tnc
@@ -306,6 +372,9 @@ export function createOrganizationRouter(): Router {
   router.get("/investor/:id", requireAuth, (req, res, next) =>
     getOrganization(req, res, next, "investor")
   );
+  router.patch("/investor/:id", requireAuth, (req, res, next) =>
+    updateOrganizationProfile(req, res, next, "investor")
+  );
   router.post("/investor/:id/complete-onboarding", requireAuth, (req, res, next) =>
     completeOnboarding(req, res, next, "investor")
   );
@@ -328,6 +397,9 @@ export function createOrganizationRouter(): Router {
   );
   router.get("/issuer/:id", requireAuth, (req, res, next) =>
     getOrganization(req, res, next, "issuer")
+  );
+  router.patch("/issuer/:id", requireAuth, (req, res, next) =>
+    updateOrganizationProfile(req, res, next, "issuer")
   );
   router.post("/issuer/:id/complete-onboarding", requireAuth, (req, res, next) =>
     completeOnboarding(req, res, next, "issuer")

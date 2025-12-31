@@ -1,5 +1,10 @@
 import { OrganizationRepository, OrganizationWithMembers } from "./repository";
-import { CreateOrganizationInput, AddMemberInput, PortalType } from "./schemas";
+import {
+  CreateOrganizationInput,
+  AddMemberInput,
+  PortalType,
+  UpdateOrganizationProfileInput,
+} from "./schemas";
 import {
   OrganizationType,
   OnboardingStatus,
@@ -452,6 +457,63 @@ export class OrganizationService {
       return this.repository.hasPersonalInvestorOrganization(userId);
     }
     return this.repository.hasPersonalIssuerOrganization(userId);
+  }
+
+  /**
+   * Update editable profile fields for an organization
+   * Only allows updating: phoneNumber, address, bankAccountDetails
+   */
+  async updateOrganizationProfile(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: UpdateOrganizationProfileInput
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only owner can update profile
+    if (organization.owner_user_id !== userId) {
+      throw new AppError(403, "FORBIDDEN", "Only the organization owner can update profile");
+    }
+
+    logger.info(
+      { organizationId, portalType, userId, fields: Object.keys(input) },
+      "Updating organization profile"
+    );
+
+    // Build update data - only include fields that are provided
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {};
+
+    if (input.phoneNumber !== undefined) {
+      updateData.phone_number = input.phoneNumber;
+    }
+
+    if (input.address !== undefined) {
+      updateData.address = input.address;
+    }
+
+    if (input.bankAccountDetails !== undefined) {
+      updateData.bank_account_details = input.bankAccountDetails ?? null;
+    }
+
+    // Update the organization
+    if (portalType === "investor") {
+      await prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: updateData as Parameters<typeof prisma.investorOrganization.update>[0]["data"],
+      });
+    } else {
+      await prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: updateData as Parameters<typeof prisma.issuerOrganization.update>[0]["data"],
+      });
+    }
+
+    logger.info({ organizationId, portalType, userId }, "Organization profile updated");
+
+    return { success: true };
   }
 
   /**

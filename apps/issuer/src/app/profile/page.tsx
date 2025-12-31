@@ -15,19 +15,15 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
-import { toast } from "sonner";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {
   EnvelopeIcon,
   UserCircleIcon,
-  PhoneIcon,
   ShieldCheckIcon,
   KeyIcon,
-  PencilIcon,
-  XMarkIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
@@ -144,16 +140,10 @@ function ProfileSkeleton() {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const { activeOrganization } = useOrganization();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
-  const [firstName, setFirstName] = React.useState("");
-  const [lastName, setLastName] = React.useState("");
-  const [middleName, setMiddleName] = React.useState("");
-  const [phone, setPhone] = React.useState("");
 
   // Block access if organization is in PENDING_APPROVAL or REJECTED status
   useEffect(() => {
@@ -178,101 +168,6 @@ export default function ProfilePage() {
     staleTime: 0,
     refetchOnMount: "always",
   });
-
-  // Fetch organization data if activeOrganization exists
-  const { data: orgData } = useQuery({
-    queryKey: ["organization", activeOrganization?.id],
-    queryFn: async () => {
-      if (!activeOrganization?.id) return null;
-      const result = await apiClient.get<{
-        id: string;
-        firstName: string | null;
-        lastName: string | null;
-        middleName: string | null;
-        onboardingStatus: string;
-      }>(`/v1/organizations/issuer/${activeOrganization.id}`);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      return result.data;
-    },
-    enabled: !!activeOrganization?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
-  // Determine if names are verified (organization has completed onboarding)
-  const isNameVerified = Boolean(
-    activeOrganization?.onboardingStatus === "COMPLETED" && 
-    (orgData?.firstName || orgData?.lastName || orgData?.middleName)
-  );
-
-  // Update form values when user data or organization data loads
-  // Prioritize organization data over user data when available
-  React.useEffect(() => {
-    if (orgData && (orgData.firstName || orgData.lastName || orgData.middleName)) {
-      // Use organization data when available
-      setFirstName(orgData.firstName || "");
-      setLastName(orgData.lastName || "");
-      setMiddleName(orgData.middleName || "");
-    } else if (userData) {
-      // Fall back to user data
-      setFirstName(userData.first_name || "");
-      setLastName(userData.last_name || "");
-      setMiddleName("");
-    }
-    if (userData) {
-      setPhone(userData.phone || "");
-    }
-  }, [userData, orgData]);
-
-  const updateProfile = useMutation({
-    mutationFn: async () => {
-      const result = await apiClient.updateMyProfile({
-        firstName,
-        lastName,
-        phone: phone || null,
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      return result.data.user;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-      toast.success("Profile updated successfully");
-      setIsEditing(false);
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to update profile", {
-        description: error.message,
-      });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!firstName.trim() || !lastName.trim()) {
-      toast.error("First name and last name are required");
-      return;
-    }
-    updateProfile.mutate();
-  };
-
-  const handleCancelEdit = () => {
-    if (orgData && (orgData.firstName || orgData.lastName || orgData.middleName)) {
-      setFirstName(orgData.firstName || "");
-      setLastName(orgData.lastName || "");
-      setMiddleName(orgData.middleName || "");
-    } else if (userData) {
-      setFirstName(userData.first_name || "");
-      setLastName(userData.last_name || "");
-      setMiddleName("");
-    }
-    if (userData) {
-      setPhone(userData.phone || "");
-    }
-    setIsEditing(false);
-  };
 
   const handleChangePassword = () => {
     setChangePasswordOpen(true);
@@ -351,146 +246,6 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Profile Information Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <UserCircleIcon className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">Personal Information</CardTitle>
-                    <CardDescription>Update your personal details</CardDescription>
-                  </div>
-                </div>
-                {!isEditing && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                    className="gap-2"
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="firstName"
-                        placeholder="Enter your first name"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        disabled={!isEditing || isNameVerified}
-                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
-                      />
-                      {isNameVerified && (
-                        <Badge
-                          variant="outline"
-                          className="bg-green-50 text-green-700 border-green-200"
-                        >
-                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                    {isNameVerified && (
-                      <p className="text-[0.8rem] text-muted-foreground">
-                        Names cannot be changed after completing onboarding. Please contact support if you need to update your name.
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="middleName">Middle Name</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="middleName"
-                        placeholder="Enter your middle name"
-                        value={middleName}
-                        onChange={(e) => setMiddleName(e.target.value)}
-                        disabled={!isEditing || isNameVerified}
-                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
-                      />
-                      {isNameVerified && middleName && (
-                        <Badge
-                          variant="outline"
-                          className="bg-green-50 text-green-700 border-green-200"
-                        >
-                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="lastName"
-                        placeholder="Enter your last name"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        disabled={!isEditing || isNameVerified}
-                        className={`flex-1 ${!isEditing || isNameVerified ? "bg-muted" : ""}`}
-                      />
-                      {isNameVerified && (
-                        <Badge
-                          variant="outline"
-                          className="bg-green-50 text-green-700 border-green-200"
-                        >
-                          <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="flex items-center gap-2">
-                    <PhoneIcon className="h-4 w-4" />
-                    Phone Number
-                  </Label>
-                  <Input
-                    id="phone"
-                    placeholder="+60 12 345 6789"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-muted" : ""}
-                  />
-                  <p className="text-[0.8rem] text-muted-foreground">
-                    Enter your phone number with country code
-                  </p>
-                </div>
-
-                {isEditing && (
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCancelEdit}
-                      disabled={updateProfile.isPending}
-                    >
-                      <XMarkIcon className="h-4 w-4 mr-1" />
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={updateProfile.isPending}>
-                      {updateProfile.isPending ? "Saving..." : "Save Changes"}
-                    </Button>
-                  </div>
-                )}
-              </form>
             </CardContent>
           </Card>
 

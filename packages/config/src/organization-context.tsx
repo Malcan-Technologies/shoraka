@@ -33,12 +33,27 @@ export interface OrganizationMember {
   role: OrganizationMemberRole;
 }
 
+// Bank account details - matches RegTank format
+export interface BankAccountField {
+  cn: boolean;
+  fieldName: string;
+  fieldType: string;
+  fieldValue: string;
+}
+
+export interface BankAccountDetails {
+  content: BankAccountField[];
+  displayArea: string;
+}
+
+
 export interface Organization {
   id: string;
   type: OrganizationType;
   name: string | null;
   firstName: string | null;
   lastName: string | null;
+  middleName?: string | null;
   registrationNumber: string | null;
   onboardingStatus: OnboardingStatus;
   onboardedAt: string | null;
@@ -47,6 +62,18 @@ export interface Organization {
   regtankOnboardingStatus?: string | null;
   regtankVerifyLink?: string | null;
   createdAt: string;
+  // KYC-verified fields (read-only)
+  nationality?: string | null;
+  country?: string | null;
+  idIssuingCountry?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  documentType?: string | null;
+  documentNumber?: string | null;
+  // Editable profile fields
+  phoneNumber?: string | null;
+  address?: string | null;
+  bankAccountDetails?: BankAccountDetails | null;
   // Approval workflow flags
   onboardingApproved?: boolean;
   amlApproved?: boolean;
@@ -54,6 +81,7 @@ export interface Organization {
   // Investor-specific flags
   depositReceived?: boolean;
   ssmApproved?: boolean;
+  isSophisticatedInvestor?: boolean;
   // Issuer-specific flags
   ssmChecked?: boolean;
 }
@@ -100,9 +128,19 @@ interface OrganizationContextType {
     redirectUrl?: string;
   }) => Promise<void>;
   acceptTnc: (organizationId: string) => Promise<{ success: boolean; tncAccepted: boolean }>;
+  updateOrganizationProfile: (
+    organizationId: string,
+    input: UpdateOrganizationProfileInput
+  ) => Promise<{ success: boolean }>;
   isOnboarded: boolean;
   isPendingApproval: boolean;
   portalType: PortalType;
+}
+
+export interface UpdateOrganizationProfileInput {
+  phoneNumber?: string | null;
+  address?: string | null;
+  bankAccountDetails?: BankAccountDetails | null;
 }
 
 export interface CreateOrganizationInput {
@@ -523,6 +561,46 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
     [apiUrl, getAccessToken, portalType]
   );
 
+  /**
+   * Update organization profile (editable fields only)
+   */
+  const updateOrganizationProfile = useCallback(
+    async (
+      organizationId: string,
+      input: UpdateOrganizationProfileInput
+    ): Promise<{ success: boolean }> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.patch<{ success: boolean }>(
+        `/v1/organizations/${portalType}/${organizationId}`,
+        input
+      );
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to update organization profile");
+      }
+
+      // Update local state with the new values
+      setOrganizations((prev) =>
+        prev.map((org) =>
+          org.id === organizationId
+            ? {
+                ...org,
+                phoneNumber: input.phoneNumber !== undefined ? input.phoneNumber : org.phoneNumber,
+                address: input.address !== undefined ? input.address : org.address,
+                bankAccountDetails:
+                  input.bankAccountDetails !== undefined
+                    ? input.bankAccountDetails
+                    : org.bankAccountDetails,
+              }
+            : org
+        )
+      );
+
+      return result.data;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -540,6 +618,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         syncRegTankStatus,
         setOnboardingSettings,
         acceptTnc,
+        updateOrganizationProfile,
         isOnboarded,
         isPendingApproval,
         portalType,

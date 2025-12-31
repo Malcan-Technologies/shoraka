@@ -42,42 +42,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   InformationCircleIcon,
-  ClipboardIcon,
-  ClipboardDocumentCheckIcon,
   ClockIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-
-function CopyableEmail({ email }: { email: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(email);
-      setCopied(true);
-      toast.success("Email copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy email");
-    }
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 font-mono text-xs bg-background hover:bg-muted px-2 py-1 rounded border transition-colors cursor-pointer group"
-      title="Click to copy"
-    >
-      <span>{email}</span>
-      {copied ? (
-        <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-emerald-600" />
-      ) : (
-        <ClipboardIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-      )}
-    </button>
-  );
-}
 
 interface OnboardingReviewDialogProps {
   application: OnboardingApplicationResponse;
@@ -259,14 +227,9 @@ export function OnboardingReviewDialog({
               <div className="rounded-lg bg-muted/50 p-4 space-y-2">
                 <p className="text-sm font-medium">Instructions:</p>
                 <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Click the button below to open RegTank portal</li>
-                  <li className="flex flex-wrap items-center gap-1.5">
-                    <span>Search for the user by email:</span>
-                    <CopyableEmail email={application.userEmail} />
-                  </li>
+                  <li>Click the button below to open the user&apos;s onboarding page</li>
                   <li>Review the submitted ID documents and liveness check</li>
                   <li>Approve or reject the onboarding request</li>
-                  <li>Return here - status will update automatically via webhook</li>
                 </ol>
               </div>
               <Button
@@ -275,7 +238,7 @@ export function OnboardingReviewDialog({
                 disabled={!application.regtankPortalUrl}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                Open RegTank Portal
+                Open Onboarding Review
               </Button>
               <Separator />
               <div className="text-sm text-muted-foreground">
