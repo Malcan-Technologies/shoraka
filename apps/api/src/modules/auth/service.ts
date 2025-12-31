@@ -352,7 +352,8 @@ export class AuthService {
   }
 
   /**
-   * Cancel onboarding - logs ONBOARDING_CANCELLED if user has started but not completed onboarding
+   * Cancel onboarding - silently cancels user-initiated onboarding (no logs created)
+   * Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
    */
   async cancelOnboarding(
     req: Request,
@@ -360,7 +361,6 @@ export class AuthService {
     role?: UserRole,
     reason?: string
   ): Promise<{ success: boolean; cancelled: boolean }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
     // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
@@ -441,29 +441,12 @@ export class AuthService {
       return { success: true, cancelled: false };
     }
 
-    // User has started but not completed - log cancellation
-    const portal = getPortalFromRole(onboardingRole);
-
-    await this.repository.createOnboardingLog({
-      userId: user.user_id,
-      role: onboardingRole,
-      eventType: "ONBOARDING_CANCELLED",
-      portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      metadata: {
-        role: onboardingRole,
-        roles: user.roles,
-        reason: reason || "User cancelled onboarding",
-        startedAt: startedEvent.created_at.toISOString(),
-      },
-    });
-
+    // User has started but not completed - skip logging cancellation
+    // Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
+    // User-initiated cancellations (navigating away, switching orgs) are not logged
     logger.info(
       { userId, role: onboardingRole, reason },
-      "Onboarding cancelled successfully"
+      "Onboarding cancelled (user-initiated, no log created)"
     );
 
     return { success: true, cancelled: true };
