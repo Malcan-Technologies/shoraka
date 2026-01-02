@@ -397,14 +397,29 @@ export function OrganizationSwitcher() {
                   <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Current Action
                   </DropdownMenuLabel>
-                  {pendingOrganizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => {
-                        if (org.regtankVerifyLink) {
-                          window.location.href = org.regtankVerifyLink;
-                        }
-                      }}
+                  {pendingOrganizations.map((org) => {
+                    // Check for admin-handled statuses (including PENDING_APPROVAL) first
+                    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+                    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
+                      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
+                    
+                    return (
+                      <DropdownMenuItem
+                        key={org.id}
+                        onClick={() => {
+                          if (hasAdminHandledStatus) {
+                            // For admin-handled statuses, just switch and redirect to dashboard
+                            switchOrganization(org.id);
+                            setTimeout(() => {
+                              router.replace("/");
+                            }, 50);
+                            return;
+                          }
+                          
+                          if (org.regtankVerifyLink) {
+                            window.location.href = org.regtankVerifyLink;
+                          }
+                        }}
                       className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 cursor-pointer hover:bg-accent/10"
                     >
                       <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -421,7 +436,8 @@ export function OrganizationSwitcher() {
                         />
                       </div>
                     </DropdownMenuItem>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </DropdownMenuContent>

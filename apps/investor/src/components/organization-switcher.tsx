@@ -197,6 +197,20 @@ export function OrganizationSwitcher() {
   };
 
   const handleSelectOrganization = async (org: Organization) => {
+    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
+    // Check this FIRST before any popup/redirect logic
+    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
+      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
+    
+    if (hasAdminHandledStatus) {
+      switchOrganization(org.id);
+      setTimeout(() => {
+        router.replace("/");
+      }, 50);
+      return;
+    }
+
     // For company accounts with incomplete onboarding, redirect to onboarding-start page which will show modal
     if (org.type === "COMPANY" && org.regtankVerifyLink && org.onboardingStatus !== "COMPLETED") {
       switchOrganization(org.id);
@@ -217,19 +231,6 @@ export function OrganizationSwitcher() {
     // If status is PENDING, redirect to RegTank portal (verifyLink) (for personal accounts)
     if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
       window.location.href = org.regtankVerifyLink;
-      return;
-    }
-    
-    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
-    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
-    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
-      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-    
-    if (hasAdminHandledStatus) {
-      switchOrganization(org.id);
-      setTimeout(() => {
-        router.replace("/");
-      }, 50);
       return;
     }
     
@@ -417,20 +418,35 @@ export function OrganizationSwitcher() {
                   <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Current Action
                   </DropdownMenuLabel>
-                  {pendingOrganizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => {
-                        if (org.type === "COMPANY" && org.regtankVerifyLink && org.onboardingStatus !== "COMPLETED") {
-                          // For company accounts, use popup and redirect to onboarding-start
-                          switchOrganization(org.id);
-                          window.open(org.regtankVerifyLink, "_blank");
-                          router.push("/onboarding-start");
-                        } else if (org.regtankVerifyLink) {
-                          // For personal accounts, redirect normally
-                          window.location.href = org.regtankVerifyLink;
-                        }
-                      }}
+                  {pendingOrganizations.map((org) => {
+                    // Check for admin-handled statuses (including PENDING_APPROVAL) first
+                    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+                    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
+                      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
+                    
+                    return (
+                      <DropdownMenuItem
+                        key={org.id}
+                        onClick={() => {
+                          if (hasAdminHandledStatus) {
+                            // For admin-handled statuses, just switch and redirect to dashboard
+                            switchOrganization(org.id);
+                            setTimeout(() => {
+                              router.replace("/");
+                            }, 50);
+                            return;
+                          }
+                          
+                          if (org.type === "COMPANY" && org.regtankVerifyLink && org.onboardingStatus !== "COMPLETED") {
+                            // For company accounts, use popup and redirect to onboarding-start
+                            switchOrganization(org.id);
+                            window.open(org.regtankVerifyLink, "_blank");
+                            router.push("/onboarding-start");
+                          } else if (org.regtankVerifyLink) {
+                            // For personal accounts, redirect normally
+                            window.location.href = org.regtankVerifyLink;
+                          }
+                        }}
                       className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 cursor-pointer hover:bg-accent/10"
                     >
                       <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -447,7 +463,8 @@ export function OrganizationSwitcher() {
                         />
                       </div>
                     </DropdownMenuItem>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </DropdownMenuContent>
