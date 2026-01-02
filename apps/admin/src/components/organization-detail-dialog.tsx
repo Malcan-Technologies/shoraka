@@ -8,12 +8,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
@@ -257,6 +269,23 @@ function FormFieldValue({ field }: { field: FormField }): React.ReactNode {
     );
   }
 
+  // Handle picklist Yes/No values with visual feedback
+  if (fieldType === "picklist" && typeof fieldValue === "string") {
+    const lowerValue = fieldValue.toLowerCase();
+    if (lowerValue === "yes") {
+      return <span className="text-green-600 font-medium">✓ Yes</span>;
+    }
+    if (lowerValue === "no") {
+      return <span className="text-muted-foreground">No</span>;
+    }
+    // For other picklist values, show as badge
+    return (
+      <Badge variant="secondary" className="text-xs font-medium">
+        {fieldValue}
+      </Badge>
+    );
+  }
+
   if (typeof fieldValue === "string" && isUrl(fieldValue)) {
     return (
       <a
@@ -280,9 +309,31 @@ function FormFieldValue({ field }: { field: FormField }): React.ReactNode {
   return <span className="font-medium">{String(fieldValue)}</span>;
 }
 
+// Check if a field is a sophisticated investor criteria field
+function isSophisticatedInvestorCriteriaField(fieldName: string, alias?: string): boolean {
+  const name = (fieldName || "").toLowerCase();
+  const aliasLower = (alias || "").toLowerCase();
+
+  return (
+    name.includes("net assets") ||
+    aliasLower.includes("net assets") ||
+    name.includes("annual income") ||
+    aliasLower.includes("annual income") ||
+    name.includes("net personal investment portfolio") ||
+    name.includes("net joint investment portfolio") ||
+    name.includes("rm1,000,000") ||
+    name.includes("professional qualification") ||
+    aliasLower.includes("professional qualification") ||
+    name.includes("experience categories") ||
+    aliasLower.includes("experience categories")
+  );
+}
+
 // Display form data with proper formatting
 function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNode }) {
   const fields = data.content || [];
+  const displayArea = data.displayArea || "";
+  const isComplianceDeclaration = displayArea.toLowerCase().includes("compliance");
 
   // Filter out empty header-only fields and group by sections
   const visibleFields = fields.filter((field) => {
@@ -297,13 +348,21 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium">{label}</CardTitle>
+        {isComplianceDeclaration && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Fields marked with a star (★) are used to determine sophisticated investor status.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-1">
         {visibleFields.map((field, idx) => {
           // Render headers as section dividers
           if (field.fieldType === "header") {
             const isSection =
-              field.fieldName.endsWith(":") || field.fieldName.includes("Declaration");
+              field.fieldName.endsWith(":") ||
+              field.fieldName.includes("Declaration") ||
+              field.fieldName.includes("Categories") ||
+              field.fieldName.includes("Status");
             return (
               <div
                 key={idx}
@@ -320,10 +379,19 @@ function FormDataDisplay({ data, label }: { data: FormData; label: React.ReactNo
 
           // Use alias if available for cleaner display
           const displayName = field.alias || field.fieldName;
+          const isCriteriaField =
+            isComplianceDeclaration &&
+            isSophisticatedInvestorCriteriaField(field.fieldName, field.alias);
 
           return (
-            <div key={idx} className="flex flex-col py-1.5 border-b last:border-0">
-              <div className="text-xs text-muted-foreground">{displayName}</div>
+            <div
+              key={idx}
+              className={`flex flex-col py-1.5 border-b last:border-0 ${isCriteriaField ? "bg-violet-50 dark:bg-violet-950/20 -mx-4 px-4 rounded" : ""}`}
+            >
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                {isCriteriaField && <span className="text-violet-500">★</span>}
+                {displayName}
+              </div>
               <div className="text-sm">
                 <FormFieldValue field={field} />
               </div>
@@ -362,18 +430,23 @@ function KycResponseDisplay({
   const getRiskLevelColor = (riskLevel: string | undefined) => {
     if (!riskLevel) return "bg-muted text-muted-foreground";
     const level = riskLevel.toLowerCase();
-    if (level.includes("low")) return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-    if (level.includes("medium")) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-    if (level.includes("high")) return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+    if (level.includes("low"))
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+    if (level.includes("medium"))
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    if (level.includes("high"))
+      return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
     return "bg-muted text-muted-foreground";
   };
 
   const getStatusColor = (status: string | undefined) => {
     if (!status) return "bg-muted text-muted-foreground";
     const s = status.toLowerCase();
-    if (s === "approved") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+    if (s === "approved")
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
     if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-    if (s.includes("pending")) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    if (s.includes("pending"))
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
     return "bg-muted text-muted-foreground";
   };
 
@@ -413,19 +486,27 @@ function KycResponseDisplay({
           <div className="flex flex-wrap gap-4 p-3 rounded-lg bg-muted/50">
             {data.possibleMatchCount !== undefined && (
               <div className="flex items-center gap-2">
-                <ExclamationTriangleIcon className={`h-4 w-4 ${data.possibleMatchCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+                <ExclamationTriangleIcon
+                  className={`h-4 w-4 ${data.possibleMatchCount > 0 ? "text-amber-500" : "text-muted-foreground"}`}
+                />
                 <span className="text-sm">
                   <span className="font-medium">{data.possibleMatchCount}</span>{" "}
-                  <span className="text-muted-foreground">possible {data.possibleMatchCount === 1 ? "match" : "matches"}</span>
+                  <span className="text-muted-foreground">
+                    possible {data.possibleMatchCount === 1 ? "match" : "matches"}
+                  </span>
                 </span>
               </div>
             )}
             {data.blacklistedMatchCount !== undefined && (
               <div className="flex items-center gap-2">
-                <ShieldExclamationIcon className={`h-4 w-4 ${data.blacklistedMatchCount > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                <ShieldExclamationIcon
+                  className={`h-4 w-4 ${data.blacklistedMatchCount > 0 ? "text-red-500" : "text-muted-foreground"}`}
+                />
                 <span className="text-sm">
                   <span className="font-medium">{data.blacklistedMatchCount}</span>{" "}
-                  <span className="text-muted-foreground">blacklisted {data.blacklistedMatchCount === 1 ? "match" : "matches"}</span>
+                  <span className="text-muted-foreground">
+                    blacklisted {data.blacklistedMatchCount === 1 ? "match" : "matches"}
+                  </span>
                 </span>
               </div>
             )}
@@ -555,22 +636,53 @@ export function OrganizationDetailDialog({
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
 
+  // State for sophisticated status change dialog
+  const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
+  const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<
+    boolean | null
+  >(null);
+  const [sophisticatedReason, setSophisticatedReason] = React.useState("");
+
   const handleSophisticatedToggle = (checked: boolean) => {
     if (!organizationId) return;
+    // Open dialog to collect reason
+    setPendingSophisticatedStatus(checked);
+    setSophisticatedReason("");
+    setShowSophisticatedDialog(true);
+  };
+
+  const handleConfirmSophisticatedChange = () => {
+    if (!organizationId || pendingSophisticatedStatus === null || !sophisticatedReason.trim())
+      return;
 
     updateSophisticatedMutation.mutate(
-      { organizationId, isSophisticatedInvestor: checked },
+      {
+        organizationId,
+        isSophisticatedInvestor: pendingSophisticatedStatus,
+        reason: sophisticatedReason.trim(),
+      },
       {
         onSuccess: () => {
           toast.success(
-            checked ? "Marked as sophisticated investor" : "Removed sophisticated investor status"
+            pendingSophisticatedStatus
+              ? "Marked as sophisticated investor"
+              : "Removed sophisticated investor status"
           );
+          setShowSophisticatedDialog(false);
+          setPendingSophisticatedStatus(null);
+          setSophisticatedReason("");
         },
         onError: (error) => {
           toast.error(`Failed to update status: ${error.message}`);
         },
       }
     );
+  };
+
+  const handleCancelSophisticatedChange = () => {
+    setShowSophisticatedDialog(false);
+    setPendingSophisticatedStatus(null);
+    setSophisticatedReason("");
   };
 
   const displayName = React.useMemo(() => {
@@ -584,308 +696,369 @@ export function OrganizationDetailDialog({
   }, [org]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              {org?.type === "COMPANY" ? (
-                <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-              ) : (
-                <UserIcon className="h-5 w-5 text-primary" />
-              )}
-            </div>
-            <div>
-              <div>{isLoading ? "Loading..." : displayName}</div>
-              {org && (
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge
-                    variant="outline"
-                    className={
-                      org.portal === "investor"
-                        ? "border-primary/30 text-primary text-xs"
-                        : "border-accent/30 text-accent text-xs"
-                    }
-                  >
-                    {org.portal}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs capitalize">
-                    {org.type.toLowerCase()}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </DialogTitle>
-          <DialogDescription className="flex items-center justify-between">
-            <span>{org ? `Organization ID: ${org.id}` : "Loading organization details..."}</span>
-            {org?.regtankPortalUrl && (
-              <Button variant="outline" size="sm" asChild className="gap-1.5">
-                <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
-                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                  Open in RegTank
-                </a>
-              </Button>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading && (
-          <div className="space-y-4 py-4">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        )}
-
-        {error && (
-          <div className="py-8 text-center text-destructive">
-            Error loading organization: {error instanceof Error ? error.message : "Unknown error"}
-          </div>
-        )}
-
-        {org && (
-          <div className="space-y-6 py-4">
-            {/* Status & Dates */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <ClockIcon className="h-4 w-4" />
-                  Status & Dates
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Onboarding Status</div>
-                    <div className="mt-1">
-                      {org.onboardingStatus === "COMPLETED" ? (
-                        <Badge className="bg-emerald-500 text-white">
-                          <CheckCircleIcon className="h-3 w-3 mr-1" />
-                          Completed
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">
-                          <ClockIcon className="h-3 w-3 mr-1" />
-                          {org.onboardingStatus}
-                        </Badge>
-                      )}
-                    </div>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                {org?.type === "COMPANY" ? (
+                  <BuildingOffice2Icon className="h-5 w-5 text-primary" />
+                ) : (
+                  <UserIcon className="h-5 w-5 text-primary" />
+                )}
+              </div>
+              <div>
+                <div>{isLoading ? "Loading..." : displayName}</div>
+                {org && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge
+                      variant="outline"
+                      className={
+                        org.portal === "investor"
+                          ? "border-primary/30 text-primary text-xs"
+                          : "border-accent/30 text-accent text-xs"
+                      }
+                    >
+                      {org.portal}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {org.type.toLowerCase()}
+                    </Badge>
                   </div>
-                  {/* Sophisticated Investor Status - only for investor portal */}
-                  {portal === "investor" && (
+                )}
+              </div>
+            </DialogTitle>
+            <DialogDescription className="flex items-center justify-between">
+              <span>{org ? `Organization ID: ${org.id}` : "Loading organization details..."}</span>
+              {org?.regtankPortalUrl && (
+                <Button variant="outline" size="sm" asChild className="gap-1.5">
+                  <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                    Open in RegTank
+                  </a>
+                </Button>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoading && (
+            <div className="space-y-4 py-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          )}
+
+          {error && (
+            <div className="py-8 text-center text-destructive">
+              Error loading organization: {error instanceof Error ? error.message : "Unknown error"}
+            </div>
+          )}
+
+          {org && (
+            <div className="space-y-6 py-4">
+              {/* Status & Dates */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <ClockIcon className="h-4 w-4" />
+                    Status & Dates
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-xs text-muted-foreground mb-2">
-                        Sophisticated Investor
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Switch
-                          checked={org.isSophisticatedInvestor}
-                          onCheckedChange={handleSophisticatedToggle}
-                          disabled={updateSophisticatedMutation.isPending}
-                        />
-                        {org.isSophisticatedInvestor ? (
-                          <Badge className="bg-violet-500 text-white">
+                      <div className="text-xs text-muted-foreground">Onboarding Status</div>
+                      <div className="mt-1">
+                        {org.onboardingStatus === "COMPLETED" ? (
+                          <Badge className="bg-emerald-500 text-white">
                             <CheckCircleIcon className="h-3 w-3 mr-1" />
-                            Yes
+                            Completed
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            No
+                          <Badge variant="secondary">
+                            <ClockIcon className="h-3 w-3 mr-1" />
+                            {org.onboardingStatus}
                           </Badge>
                         )}
                       </div>
                     </div>
-                  )}
-                  <DetailRow
-                    label="Onboarded At"
-                    value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}
-                  />
-                  <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} />
-                  <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Members - moved to top for visibility */}
-            {org.members.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <UsersIcon className="h-4 w-4" />
-                    Members ({org.members.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {org.members.map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                            <UserIcon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">
-                              {member.firstName} {member.lastName}
-                            </div>
-                            <div className="text-xs text-muted-foreground">{member.email}</div>
-                          </div>
+                    {/* Sophisticated Investor Status - only for investor portal */}
+                    {portal === "investor" && (
+                      <div className="col-span-2">
+                        <div className="text-xs text-muted-foreground mb-2">
+                          Sophisticated Investor
                         </div>
-                        <Badge variant="outline" className="capitalize">
-                          {member.role.toLowerCase()}
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={org.isSophisticatedInvestor}
+                            onCheckedChange={handleSophisticatedToggle}
+                            disabled={updateSophisticatedMutation.isPending}
+                          />
+                          {org.isSophisticatedInvestor ? (
+                            <Badge className="bg-violet-500 text-white">
+                              <CheckCircleIcon className="h-3 w-3 mr-1" />
+                              Yes
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              No
+                            </Badge>
+                          )}
+                        </div>
+                        {org.sophisticatedInvestorReason && (
+                          <div className="mt-2 p-2 rounded-md bg-muted/50">
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium">Reason:</span>{" "}
+                              {org.sophisticatedInvestorReason}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Company Info (for COMPANY type) */}
-            {org.type === "COMPANY" && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <BuildingOffice2Icon className="h-4 w-4" />
-                    Company Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="Company Name" value={org.name} />
-                    <DetailRow label="Registration Number (SSM)" value={org.registrationNumber} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Personal Details (from RegTank) */}
-            {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <IdentificationIcon className="h-4 w-4" />
-                    Personal Details (KYC)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="First Name" value={org.firstName} />
-                    <DetailRow label="Last Name" value={org.lastName} />
-                    <DetailRow label="Middle Name" value={org.middleName} />
-                    <DetailRow label="Gender" value={org.gender} />
+                    )}
                     <DetailRow
-                      label="Date of Birth"
-                      value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                      label="Onboarded At"
+                      value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}
                     />
-                    <DetailRow label="Nationality" value={org.nationality} />
-                    <DetailRow label="Country" value={org.country} />
+                    <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} />
+                    <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} />
                   </div>
                 </CardContent>
               </Card>
-            )}
 
-            {/* Contact Info */}
-            {(org.phoneNumber || org.address) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <PhoneIcon className="h-4 w-4" />
-                    Contact Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-4">
-                    <CopyableField label="Phone Number" value={org.phoneNumber} />
-                    <CopyableField label="Address" value={org.address} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              {/* Members - moved to top for visibility */}
+              {org.members.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <UsersIcon className="h-4 w-4" />
+                      Members ({org.members.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {org.members.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                              <UserIcon className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium">
+                                {member.firstName} {member.lastName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">{member.email}</div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="capitalize">
+                            {member.role.toLowerCase()}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* Document Info */}
-            {(org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Document Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DetailRow label="Document Type" value={org.documentType} />
-                    <CopyableField label="Document Number" value={org.documentNumber} icon={IdentificationIcon} />
-                    <DetailRow label="ID Issuing Country" value={org.idIssuingCountry} />
-                    <CopyableField label="KYC ID" value={org.kycId} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              {/* Company Info (for COMPANY type) */}
+              {org.type === "COMPANY" && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <BuildingOffice2Icon className="h-4 w-4" />
+                      Company Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <DetailRow label="Company Name" value={org.name} />
+                      <DetailRow label="Registration Number (SSM)" value={org.registrationNumber} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-            <Separator />
+              {/* Personal Details (from RegTank) */}
+              {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <IdentificationIcon className="h-4 w-4" />
+                      Personal Details (KYC)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <DetailRow label="First Name" value={org.firstName} />
+                      <DetailRow label="Last Name" value={org.lastName} />
+                      <DetailRow label="Middle Name" value={org.middleName} />
+                      <DetailRow label="Gender" value={org.gender} />
+                      <DetailRow
+                        label="Date of Birth"
+                        value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                      />
+                      <DetailRow label="Nationality" value={org.nationality} />
+                      <DetailRow label="Country" value={org.country} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* JSON Data Sections */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground">Extended Data</h3>
+              {/* Contact Info */}
+              {(org.phoneNumber || org.address) && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <PhoneIcon className="h-4 w-4" />
+                      Contact Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 gap-4">
+                      <CopyableField label="Phone Number" value={org.phoneNumber} />
+                      <CopyableField label="Address" value={org.address} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-              <JsonDisplay
-                data={org.bankAccountDetails}
-                label={
-                  <span className="flex items-center gap-2">
-                    <BanknotesIcon className="h-4 w-4" />
-                    Bank Account Details
-                  </span>
-                }
-              />
+              {/* Document Info */}
+              {(org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId) && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <DocumentTextIcon className="h-4 w-4" />
+                      Document Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <DetailRow label="Document Type" value={org.documentType} />
+                      <CopyableField
+                        label="Document Number"
+                        value={org.documentNumber}
+                        icon={IdentificationIcon}
+                      />
+                      <DetailRow label="ID Issuing Country" value={org.idIssuingCountry} />
+                      <CopyableField label="KYC ID" value={org.kycId} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-              <JsonDisplay
-                data={org.wealthDeclaration}
-                label={
-                  <span className="flex items-center gap-2">
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Wealth Declaration
-                  </span>
-                }
-              />
+              <Separator />
 
-              <JsonDisplay
-                data={org.complianceDeclaration}
-                label={
-                  <span className="flex items-center gap-2">
-                    <ShieldCheckIcon className="h-4 w-4" />
-                    Compliance Declaration
-                  </span>
-                }
-              />
+              {/* JSON Data Sections */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground">Extended Data</h3>
 
-              <JsonDisplay
-                data={org.documentInfo}
-                label={
-                  <span className="flex items-center gap-2">
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Document Info
-                  </span>
-                }
-              />
+                <JsonDisplay
+                  data={org.bankAccountDetails}
+                  label={
+                    <span className="flex items-center gap-2">
+                      <BanknotesIcon className="h-4 w-4" />
+                      Bank Account Details
+                    </span>
+                  }
+                />
 
-              <JsonDisplay
-                data={org.livenessCheckInfo}
-                label={
-                  <span className="flex items-center gap-2">
-                    <FaceSmileIcon className="h-4 w-4" />
-                    Liveness Check Info
-                  </span>
-                }
-              />
+                <JsonDisplay
+                  data={org.wealthDeclaration}
+                  label={
+                    <span className="flex items-center gap-2">
+                      <DocumentTextIcon className="h-4 w-4" />
+                      Wealth Declaration
+                    </span>
+                  }
+                />
 
-              <KycResponseDisplay data={org.kycResponse} />
+                <JsonDisplay
+                  data={org.complianceDeclaration}
+                  label={
+                    <span className="flex items-center gap-2">
+                      <ShieldCheckIcon className="h-4 w-4" />
+                      Compliance Declaration
+                    </span>
+                  }
+                />
+
+                <JsonDisplay
+                  data={org.documentInfo}
+                  label={
+                    <span className="flex items-center gap-2">
+                      <DocumentTextIcon className="h-4 w-4" />
+                      Document Info
+                    </span>
+                  }
+                />
+
+                <JsonDisplay
+                  data={org.livenessCheckInfo}
+                  label={
+                    <span className="flex items-center gap-2">
+                      <FaceSmileIcon className="h-4 w-4" />
+                      Liveness Check Info
+                    </span>
+                  }
+                />
+
+                <KycResponseDisplay data={org.kycResponse} />
+              </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog for sophisticated investor status change */}
+      <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingSophisticatedStatus
+                ? "Mark as Sophisticated Investor"
+                : "Remove Sophisticated Investor Status"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingSophisticatedStatus
+                ? "Please provide a reason for granting sophisticated investor status to this organization."
+                : "Please provide a reason for removing sophisticated investor status from this organization."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="sophisticated-reason" className="text-sm font-medium">
+              Reason <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="sophisticated-reason"
+              placeholder={
+                pendingSophisticatedStatus
+                  ? "e.g., Manual verification of net assets exceeding RM3,000,000"
+                  : "e.g., Re-evaluation of investor classification"
+              }
+              value={sophisticatedReason}
+              onChange={(e) => setSophisticatedReason(e.target.value)}
+              className="mt-2"
+              rows={3}
+            />
+            {sophisticatedReason.trim() === "" && (
+              <p className="text-xs text-muted-foreground mt-1">Reason is required to proceed.</p>
+            )}
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelSophisticatedChange}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmSophisticatedChange}
+              disabled={!sophisticatedReason.trim() || updateSophisticatedMutation.isPending}
+            >
+              {updateSophisticatedMutation.isPending ? "Updating..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

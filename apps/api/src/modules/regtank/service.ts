@@ -776,90 +776,117 @@ export class RegTankService {
    * Determine if an investor qualifies as a sophisticated investor based on RegTank form data.
    *
    * Criteria (any one = true):
-   * 1. Net Asset Value >= RM 3,000,000 (from wealth_declaration)
-   * 2. Professional Qualification = "Yes" (from compliance_declaration)
-   * 3. Experience Categories = "Yes" (from compliance_declaration)
+   * - COMPANY type: Always qualifies as sophisticated investor
+   * - PERSONAL type (any one qualifies):
+   *   1. Net Assets >= RM 3,000,000 (from compliance_declaration)
+   *   2. Annual Income >= RM 300,000 (from compliance_declaration)
+   *   3. Investment Portfolio >= RM 1,000,000 (from compliance_declaration)
+   *   4. Professional Qualification = "Yes" (from compliance_declaration)
+   *   5. Experience Categories = "Yes" (from compliance_declaration)
    *
-   * @returns true if any criteria is met, false otherwise
+   * @returns { isSophisticated: boolean; reason: string | null }
    */
   private determineSophisticatedInvestorStatus(
-    wealthDeclaration: unknown,
     complianceDeclaration: unknown,
     organizationType: OrganizationType
-  ): boolean {
-    // For COMPANY type, return false for now (to be implemented later)
+  ): { isSophisticated: boolean; reason: string | null } {
+    // For COMPANY type, always return true
     if (organizationType === "COMPANY") {
-      logger.debug("COMPANY type organization, sophisticated investor check skipped");
-      return false;
+      logger.info("COMPANY type organization, automatically qualifies as sophisticated investor");
+      return { isSophisticated: true, reason: "Company organization" };
     }
 
-    let isSophisticated = false;
+    const reasons: string[] = [];
 
-    // Check wealth declaration for net asset value >= RM 3,000,000
-    if (wealthDeclaration && typeof wealthDeclaration === "object") {
-      const wealthData = wealthDeclaration as {
-        content?: Array<{ fieldName: string; fieldValue: string | number | null }>;
-      };
-      if (Array.isArray(wealthData.content)) {
-        for (const field of wealthData.content) {
-          if (field.fieldName && field.fieldName.toLowerCase().includes("net asset value")) {
-            const value = field.fieldValue;
-            if (value !== null && value !== undefined) {
-              // Parse the value - could be a string like "3,000,000" or a number
-              const numericValue =
-                typeof value === "number"
-                  ? value
-                  : parseFloat(String(value).replace(/[^0-9.-]/g, ""));
-
-              if (!isNaN(numericValue) && numericValue >= 3000000) {
-                logger.info(
-                  { netAssetValue: numericValue },
-                  "Sophisticated investor: Net asset value >= RM 3,000,000"
-                );
-                isSophisticated = true;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Check compliance declaration for Professional Qualification and Experience Categories
+    // Check compliance declaration for all qualifying criteria
     if (complianceDeclaration && typeof complianceDeclaration === "object") {
       const complianceData = complianceDeclaration as {
-        content?: Array<{ fieldName: string; fieldValue: boolean | string | null }>;
+        content?: Array<{ fieldName: string; alias?: string; fieldValue: boolean | string | null }>;
       };
       if (Array.isArray(complianceData.content)) {
         for (const field of complianceData.content) {
           const fieldName = field.fieldName?.toLowerCase() || "";
+          const alias = field.alias?.toLowerCase() || "";
           const fieldValue = field.fieldValue;
+          const isYes = fieldValue === true || String(fieldValue).toLowerCase() === "yes";
+
+          // Check Net Assets (net personal assets exceeding RM3,000,000)
+          if (fieldName.includes("net assets") || alias.includes("net assets")) {
+            if (isYes) {
+              logger.info(
+                { fieldName: field.fieldName },
+                "Sophisticated investor: Net Assets = Yes"
+              );
+              reasons.push("Net personal assets exceeding RM3,000,000");
+            }
+          }
+
+          // Check Annual Income (annual income exceeding RM300,000)
+          if (fieldName.includes("annual income") || alias.includes("annual income")) {
+            if (isYes) {
+              logger.info(
+                { fieldName: field.fieldName },
+                "Sophisticated investor: Annual Income = Yes"
+              );
+              reasons.push("Annual income exceeding RM300,000");
+            }
+          }
+
+          // Check Investment Portfolio (investment portfolio exceeding RM1,000,000)
+          if (
+            fieldName.includes("net personal investment portfolio") ||
+            fieldName.includes("net joint investment portfolio") ||
+            fieldName.includes("rm1,000,000")
+          ) {
+            if (isYes) {
+              logger.info(
+                { fieldName: field.fieldName },
+                "Sophisticated investor: Investment Portfolio > RM1,000,000 = Yes"
+              );
+              reasons.push("Investment portfolio exceeding RM1,000,000");
+            }
+          }
 
           // Check Professional Qualification
-          if (fieldName.includes("professional qualification")) {
-            if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
+          if (
+            fieldName.includes("professional qualification") ||
+            alias.includes("professional qualification")
+          ) {
+            if (isYes) {
               logger.info(
                 { fieldName: field.fieldName },
                 "Sophisticated investor: Professional Qualification = Yes"
               );
-              isSophisticated = true;
+              reasons.push("Professional qualification");
             }
           }
 
           // Check Experience Categories
-          if (fieldName.includes("experience categories")) {
-            if (fieldValue === true || String(fieldValue).toLowerCase() === "yes") {
+          if (
+            fieldName.includes("experience categories") ||
+            alias.includes("experience categories")
+          ) {
+            if (isYes) {
               logger.info(
                 { fieldName: field.fieldName },
                 "Sophisticated investor: Experience Categories = Yes"
               );
-              isSophisticated = true;
+              reasons.push("Capital market experience");
             }
           }
         }
       }
     }
 
-    return isSophisticated;
+    const isSophisticated = reasons.length > 0;
+    const reason = reasons.length > 0 ? reasons.join("; ") : null;
+
+    logger.info(
+      { isSophisticated, reason, reasonCount: reasons.length },
+      "Sophisticated investor status determined"
+    );
+
+    return { isSophisticated, reason };
   }
 
   private async extractAndUpdateOrganizationData(
@@ -903,7 +930,11 @@ export class RegTankService {
       }
 
       // If kycId is not found in regtankDetails, try to get it from webhook payloads (KYC webhook requestId)
-      if (!kycId && onboardingWithWebhooks?.webhook_payloads && Array.isArray(onboardingWithWebhooks.webhook_payloads)) {
+      if (
+        !kycId &&
+        onboardingWithWebhooks?.webhook_payloads &&
+        Array.isArray(onboardingWithWebhooks.webhook_payloads)
+      ) {
         for (const payload of onboardingWithWebhooks.webhook_payloads) {
           if (payload && typeof payload === "object" && !Array.isArray(payload)) {
             const payloadObj = payload as Record<string, unknown>;
@@ -945,7 +976,10 @@ export class RegTankService {
 
       // Extract OCR data (idNumber and idType) from Individual Onboarding webhook payloads
       // OCR results are more accurate than userProfile values, so we prioritize them
-      if (onboardingWithWebhooks?.webhook_payloads && Array.isArray(onboardingWithWebhooks.webhook_payloads)) {
+      if (
+        onboardingWithWebhooks?.webhook_payloads &&
+        Array.isArray(onboardingWithWebhooks.webhook_payloads)
+      ) {
         for (const payload of onboardingWithWebhooks.webhook_payloads) {
           if (payload && typeof payload === "object" && !Array.isArray(payload)) {
             const payloadObj = payload as Record<string, unknown>;
@@ -1118,8 +1152,7 @@ export class RegTankService {
         }
 
         // Determine sophisticated investor status for investor organizations
-        const isSophisticatedInvestor = this.determineSophisticatedInvestorStatus(
-          wealthDeclaration,
+        const sophisticatedResult = this.determineSophisticatedInvestorStatus(
           complianceDeclaration,
           org.type
         );
@@ -1128,7 +1161,8 @@ export class RegTankService {
           {
             organizationId,
             organizationType: org.type,
-            isSophisticatedInvestor,
+            isSophisticatedInvestor: sophisticatedResult.isSophisticated,
+            sophisticatedInvestorReason: sophisticatedResult.reason,
           },
           "Determined sophisticated investor status"
         );
@@ -1137,7 +1171,8 @@ export class RegTankService {
           where: { id: organizationId },
           data: {
             ...updateData,
-            is_sophisticated_investor: isSophisticatedInvestor,
+            is_sophisticated_investor: sophisticatedResult.isSophisticated,
+            sophisticated_investor_reason: sophisticatedResult.reason,
           },
         });
 
@@ -1316,9 +1351,10 @@ export class RegTankService {
         internalStatus,
         organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id,
         portalType: onboarding.portal_type,
-        note: internalStatus === "PENDING_AML" 
-          ? "Status set to PENDING_AML (will remain until final approval)" 
-          : `Status set to ${internalStatus}`,
+        note:
+          internalStatus === "PENDING_AML"
+            ? "Status set to PENDING_AML (will remain until final approval)"
+            : `Status set to ${internalStatus}`,
       },
       "[RegTank Webhook] Updated regtank_onboarding.status"
     );
@@ -1518,7 +1554,7 @@ export class RegTankService {
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            
+
             // Create onboarding status updated log
             try {
               await this.authRepository.createOnboardingLog({
@@ -1544,7 +1580,7 @@ export class RegTankService {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, orgType: org.type },
               "Updated investor organization status to PENDING_AML after RegTank onboarding approval"
@@ -1563,7 +1599,7 @@ export class RegTankService {
               organizationId,
               OnboardingStatus.PENDING_AML
             );
-            
+
             // Create onboarding status updated log
             try {
               await this.authRepository.createOnboardingLog({
@@ -1589,7 +1625,7 @@ export class RegTankService {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType },
               "Updated issuer organization status to PENDING_AML after RegTank onboarding approval"

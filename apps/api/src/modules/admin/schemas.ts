@@ -198,6 +198,7 @@ export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
 // Update sophisticated investor status schema
 export const updateSophisticatedStatusSchema = z.object({
   isSophisticatedInvestor: z.boolean(),
+  reason: z.string().min(1, "Reason is required"),
 });
 
 export type UpdateSophisticatedStatusBody = z.infer<typeof updateSophisticatedStatusSchema>;

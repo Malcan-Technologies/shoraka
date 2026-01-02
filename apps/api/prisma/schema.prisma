@@ -292,6 +292,7 @@ model InvestorOrganization {
 
   // Sophisticated investor classification (auto-computed from RegTank data)
   is_sophisticated_investor Boolean @default(false)
+  sophisticated_investor_reason String? // Reason for sophisticated investor status
 
   // Approval workflow flags
   onboarding_approved Boolean @default(false)

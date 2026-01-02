@@ -27,7 +27,7 @@ import {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const { isOnboarded, isPendingApproval, organizations, activeOrganization } = useOrganization();
+  const { isOnboarded, isPendingApproval, activeOrganization } = useOrganization();
   const isOnboardingPage = pathname === "/onboarding-start";
   
   // Check if organization has a status that allows Account/Profile access
@@ -40,8 +40,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     );
   }, [activeOrganization]);
   
-  // Disable navigation if on onboarding page OR if active org is not onboarded (except for pending approval)
-  const isDisabled = isOnboardingPage || (organizations.length > 0 && !isOnboarded && !isPendingApproval);
+  // Disable all navigation when on onboarding page (adding new organization)
+  // Also disable if active org is not onboarded (except for pending approval states)
+  const isDisabled = isOnboardingPage || (!isOnboarded && !isPendingApproval);
   // For pending approval: only dashboard is enabled, other features disabled
   // BUT allow Account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
   const isFeaturesDisabled = (isDisabled || isPendingApproval) && !allowsAccountAccess;

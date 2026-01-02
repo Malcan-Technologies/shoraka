@@ -37,13 +37,16 @@ export function useUpdateSophisticatedStatus() {
     mutationFn: async ({
       organizationId,
       isSophisticatedInvestor,
+      reason,
     }: {
       organizationId: string;
       isSophisticatedInvestor: boolean;
+      reason: string;
     }) => {
       const response = await apiClient.updateSophisticatedStatus(
         organizationId,
-        isSophisticatedInvestor
+        isSophisticatedInvestor,
+        reason
       );
       if (!response.success) {
         throw new Error(response.error.message);

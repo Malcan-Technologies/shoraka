@@ -291,32 +291,7 @@ export function OrganizationSwitcher() {
     );
   }
 
-  // No organizations - show create prompt
-  if (organizations.length === 0) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            onClick={handleAddOrganization}
-            className="border border-dashed border-sidebar-border hover:border-primary/50 hover:bg-primary/5"
-          >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Plus className="size-4" />
-            </div>
-            <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-semibold text-foreground">Create Account</span>
-              <span className="truncate text-xs text-muted-foreground">
-                Set up your first account
-              </span>
-            </div>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    );
-  }
-
-  // On onboarding page - show simplified view with active organization badge
+  // On onboarding page - always show "Adding New Organization" with dropdown to switch back
   if (isOnboardingPage) {
     return (
       <SidebarMenu>
@@ -329,29 +304,15 @@ export function OrganizationSwitcher() {
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
               >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  {activeOrganization ? (
-                    getOrgIcon(activeOrganization)
-                  ) : (
-                    <Plus className="size-4" />
-                  )}
+                  <Plus className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate text-sm font-semibold text-foreground">
-                    {activeOrganization
-                      ? getOrgDisplayName(activeOrganization)
-                      : "Adding New Account"}
+                    Adding New Organization
                   </span>
-                  {activeOrganization ? (
-                    <OnboardingStatusBadge 
-                      status={activeOrganization.onboardingStatus} 
-                      regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-                      size="sm" 
-                    />
-                  ) : (
-                    <span className="truncate text-xs text-muted-foreground">
-                      Complete onboarding
-                    </span>
-                  )}
+                  <span className="truncate text-xs text-muted-foreground">
+                    Complete onboarding
+                  </span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
               </SidebarMenuButton>
@@ -442,6 +403,31 @@ export function OrganizationSwitcher() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  // No organizations - show create prompt
+  if (organizations.length === 0) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="lg"
+            onClick={handleAddOrganization}
+            className="border border-dashed border-sidebar-border hover:border-primary/50 hover:bg-primary/5"
+          >
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Plus className="size-4" />
+            </div>
+            <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-sm font-semibold text-foreground">Create Account</span>
+              <span className="truncate text-xs text-muted-foreground">
+                Set up your first account
+              </span>
+            </div>
+          </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
     );

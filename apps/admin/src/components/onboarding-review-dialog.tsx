@@ -44,6 +44,7 @@ import {
   InformationCircleIcon,
   ClockIcon,
   ArrowPathIcon,
+  StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -386,6 +387,30 @@ export function OnboardingReviewDialog({
                   )}
                 </div>
               </div>
+
+              {/* Sophisticated Investor Status (only for investor portal) */}
+              {application.portal === "investor" && (
+                <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+                  <p className="text-sm font-medium">Investor Classification:</p>
+                  <div className="flex items-center gap-2">
+                    {application.isSophisticatedInvestor ? (
+                      <>
+                        <Badge className="bg-violet-500 text-white gap-1">
+                          <StarIcon className="h-3 w-3" />
+                          Sophisticated Investor
+                        </Badge>
+                      </>
+                    ) : (
+                      <Badge variant="secondary">Standard Investor</Badge>
+                    )}
+                  </div>
+                  {application.isSophisticatedInvestor && application.sophisticatedInvestorReason && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Reason: {application.sophisticatedInvestorReason}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Complete Onboarding Button */}
               <Button

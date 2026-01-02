@@ -44,32 +44,12 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
 
-  // Find personal organization and check if onboarding can be resumed or restarted
-  const personalOrganization = React.useMemo(() => {
-    return organizations.find(org => org.type === "PERSONAL");
-  }, [organizations]);
-
-  // Allow resuming if status is IN_PROGRESS
-  const canResumeOnboarding = React.useMemo(() => {
-    return personalOrganization?.onboardingStatus === "IN_PROGRESS";
-  }, [personalOrganization]);
-
-  // Allow restarting if status is PENDING (admin requested redo) or IN_PROGRESS
-  const canStartOrResumeOnboarding = React.useMemo(() => {
-    const status = personalOrganization?.onboardingStatus;
-    return status === "IN_PROGRESS" || status === "PENDING";
-  }, [personalOrganization]);
-
-  // Personal account button should be disabled only if:
-  // - Personal org exists AND onboarding status is COMPLETED or PENDING_APPROVAL (terminal states)
-  // - OR if currently submitting
-  // Allow if: no org exists, or status is PENDING/IN_PROGRESS (can start or resume)
+  // Only one personal account is allowed per user, regardless of its onboarding status
+  // Disable personal account option if a personal organization already exists
   const isPersonalAccountDisabled = React.useMemo(() => {
     if (isSubmitting) return true;
-    if (!hasPersonalOrganization) return false;
-    // Allow if status is PENDING (admin restart) or IN_PROGRESS (resume)
-    return !canStartOrResumeOnboarding;
-  }, [hasPersonalOrganization, canStartOrResumeOnboarding, isSubmitting]);
+    return hasPersonalOrganization;
+  }, [hasPersonalOrganization, isSubmitting]);
 
   const handleConfirmPersonal = async () => {
     setConfirmationType(null);
@@ -226,33 +206,19 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
       <AlertDialog open={confirmationType === "personal"} onOpenChange={(open) => !open && setConfirmationType(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {canResumeOnboarding ? "Resume Onboarding?" : "Create Personal Account?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Create Personal Account?</AlertDialogTitle>
             <AlertDialogDescription>
-              {canResumeOnboarding ? (
-                <>
-                  You have an ongoing onboarding process for your <strong>Personal Account</strong>.
-                  <br /><br />
-                  Clicking continue will redirect you back to RegTank to complete your identity verification where you left off.
-                  <br /><br />
-                  Do you want to continue?
-                </>
-              ) : (
-                <>
               You are about to create a <strong>Personal Account</strong> for investing on CashSouk.
               <br /><br />
               This account type is for individuals who want to invest as themselves. You can only have one personal account.
               <br /><br />
               Are you sure you want to continue?
-                </>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmPersonal}>
-              {canResumeOnboarding ? "Yes, Resume Onboarding" : "Yes, Create Personal Account"}
+              Yes, Create Personal Account
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -343,35 +309,19 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                   <div className="flex-1">
                     <CardTitle className="text-lg">Personal Account</CardTitle>
                     <CardDescription className="text-sm">
-                      {canResumeOnboarding 
-                        ? "Resume your onboarding" 
-                        : canStartOrResumeOnboarding 
-                          ? "Complete your onboarding" 
-                          : "Invest as an individual"}
+                      Invest as an individual
                     </CardDescription>
                   </div>
                   {hasPersonalOrganization && (
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      canStartOrResumeOnboarding
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {canResumeOnboarding 
-                        ? "Resume onboarding" 
-                        : canStartOrResumeOnboarding 
-                          ? "Start onboarding" 
-                          : "Already created"}
+                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                      Already created
                     </span>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {canResumeOnboarding
-                    ? "Continue where you left off with your identity verification."
-                    : canStartOrResumeOnboarding
-                      ? "Your previous onboarding was reset. Click to start fresh with identity verification."
-                      : "Perfect for individual investors. You can only have one personal account."}
+                  Perfect for individual investors. You can only have one personal account.
                 </p>
               </CardContent>
             </Card>

@@ -385,6 +385,8 @@ export class RegTankRepository {
             tnc_accepted: true,
             ssm_approved: true,
             kyc_id: true,
+            is_sophisticated_investor: true,
+            sophisticated_investor_reason: true,
           },
         },
         issuer_organization: {
@@ -476,6 +478,8 @@ export class RegTankRepository {
               tnc_accepted: true,
               ssm_approved: true,
               kyc_id: true,
+              is_sophisticated_investor: true,
+              sophisticated_investor_reason: true,
             },
           },
           issuer_organization: {
@@ -522,6 +526,8 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     tnc_accepted: boolean;
     ssm_approved: boolean;
     kyc_id: string | null;
+    is_sophisticated_investor: boolean;
+    sophisticated_investor_reason: string | null;
   } | null;
   issuer_organization: {
     id: string;

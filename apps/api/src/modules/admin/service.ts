@@ -1427,6 +1427,7 @@ export class AdminService {
       createdAt: string;
     }[];
     isSophisticatedInvestor: boolean;
+    sophisticatedInvestorReason: string | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
   } | null> {
@@ -1483,6 +1484,8 @@ export class AdminService {
       // Sophisticated investor status (only for investor portal, false for issuer)
       isSophisticatedInvestor:
         portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
+      sophisticatedInvestorReason:
+        portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       regtankPortalUrl: org.regtank_onboarding?.[0]?.request_id
@@ -1498,11 +1501,17 @@ export class AdminService {
   async updateSophisticatedStatus(
     organizationId: string,
     isSophisticatedInvestor: boolean,
+    reason: string,
     adminUserId?: string
   ): Promise<{ success: boolean }> {
     const org = await prisma.investorOrganization.findUnique({
       where: { id: organizationId },
-      select: { id: true, owner_user_id: true, is_sophisticated_investor: true },
+      select: {
+        id: true,
+        owner_user_id: true,
+        is_sophisticated_investor: true,
+        sophisticated_investor_reason: true,
+      },
     });
 
     if (!org) {
@@ -1511,7 +1520,10 @@ export class AdminService {
 
     await prisma.investorOrganization.update({
       where: { id: organizationId },
-      data: { is_sophisticated_investor: isSophisticatedInvestor },
+      data: {
+        is_sophisticated_investor: isSophisticatedInvestor,
+        sophisticated_investor_reason: reason,
+      },
     });
 
     // Log the sophisticated status update event
@@ -1524,7 +1536,9 @@ export class AdminService {
         metadata: {
           organizationId,
           previousStatus: org.is_sophisticated_investor,
+          previousReason: org.sophisticated_investor_reason,
           newStatus: isSophisticatedInvestor,
+          newReason: reason,
           updatedBy: adminUserId || "admin",
           action: isSophisticatedInvestor ? "granted" : "revoked",
         },
@@ -1536,6 +1550,7 @@ export class AdminService {
         organizationId,
         previousStatus: org.is_sophisticated_investor,
         newStatus: isSophisticatedInvestor,
+        reason,
         updatedBy: adminUserId,
       },
       "Updated sophisticated investor status"
@@ -1584,7 +1599,8 @@ export class AdminService {
     }
 
     // Calculate total count: use filtered count if status filter or excludeStatuses is applied
-    const shouldUseFilteredCount = params.status || (params.excludeStatuses && params.excludeStatuses.length > 0);
+    const shouldUseFilteredCount =
+      params.status || (params.excludeStatuses && params.excludeStatuses.length > 0);
     const finalTotalCount = shouldUseFilteredCount ? filteredApplications.length : totalCount;
 
     return {
@@ -1601,9 +1617,7 @@ export class AdminService {
   /**
    * Get a single onboarding application by ID
    */
-  async getOnboardingApplicationById(
-    id: string
-  ): Promise<OnboardingApplicationResponse | null> {
+  async getOnboardingApplicationById(id: string): Promise<OnboardingApplicationResponse | null> {
     const application = await this.regTankRepository.getOnboardingApplicationById(id);
     if (!application) {
       return null;
@@ -1699,6 +1713,14 @@ export class AdminService {
     // Use onboarded_at from organization table for completedAt (more accurate than regtank completed_at)
     const onboardedAt = org?.onboarded_at;
 
+    // Sophisticated investor status (only for investor portal)
+    const isSophisticatedInvestor = isInvestorOrg
+      ? (investorOrg?.is_sophisticated_investor ?? false)
+      : undefined;
+    const sophisticatedInvestorReason = isInvestorOrg
+      ? (investorOrg?.sophisticated_investor_reason ?? null)
+      : undefined;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1725,6 +1747,8 @@ export class AdminService {
       tncAccepted,
       ssmApproved,
       isCompleted,
+      isSophisticatedInvestor,
+      sophisticatedInvestorReason,
     };
   }
 

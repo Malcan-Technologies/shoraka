@@ -457,6 +457,7 @@ router.patch(
       const result = await adminService.updateSophisticatedStatus(
         id,
         validated.isSophisticatedInvestor,
+        validated.reason,
         adminUserId
       );
 

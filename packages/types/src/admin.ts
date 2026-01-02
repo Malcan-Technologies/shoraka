@@ -468,6 +468,7 @@ export interface OrganizationDetailResponse {
 
   // Sophisticated investor status (only for investor portal)
   isSophisticatedInvestor: boolean;
+  sophisticatedInvestorReason: string | null;
 
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
@@ -513,6 +514,9 @@ export interface OnboardingApplicationResponse {
   tncAccepted: boolean;
   ssmApproved: boolean;
   isCompleted: boolean;
+  // Sophisticated investor status (only for investor portal)
+  isSophisticatedInvestor?: boolean;
+  sophisticatedInvestorReason?: string | null;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

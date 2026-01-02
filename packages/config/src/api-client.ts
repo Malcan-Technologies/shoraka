@@ -261,11 +261,12 @@ export class ApiClient {
 
   async updateSophisticatedStatus(
     organizationId: string,
-    isSophisticatedInvestor: boolean
+    isSophisticatedInvestor: boolean,
+    reason: string
   ): Promise<ApiResponse<{ success: boolean }> | ApiError> {
     return this.patch<{ success: boolean }>(
       `/v1/admin/organizations/investor/${organizationId}/sophisticated-status`,
-      { isSophisticatedInvestor }
+      { isSophisticatedInvestor, reason }
     );
   }
 
