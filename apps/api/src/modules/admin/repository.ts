@@ -1767,7 +1767,7 @@ export class AdminRepository {
             where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
-            select: { completed_at: true },
+            select: { completed_at: true, webhook_payloads: true },
           },
         },
       }),
@@ -1790,7 +1790,7 @@ export class AdminRepository {
             where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
-            select: { completed_at: true },
+            select: { completed_at: true, webhook_payloads: true },
           },
         },
       }),
@@ -1821,7 +1821,7 @@ export class AdminRepository {
             where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
-            select: { completed_at: true },
+            select: { completed_at: true, webhook_payloads: true },
           },
         },
       }),
@@ -1844,7 +1844,7 @@ export class AdminRepository {
             where: { status: { in: ["APPROVED", "COMPLETED"] } },
             orderBy: { completed_at: "desc" },
             take: 1,
-            select: { completed_at: true },
+            select: { completed_at: true, webhook_payloads: true },
           },
         },
       }),
@@ -1852,16 +1852,43 @@ export class AdminRepository {
 
     const previousPeriodCompleted = [...previousInvestorCompleted, ...previousIssuerCompleted];
 
-    // Calculate average time to approval (regtank completed_at to admin_approved_at)
-    // This measures how long admin takes to approve after RegTank completes
+    // Helper function to extract WAIT_FOR_APPROVAL timestamp from webhook payloads
+    const getSubmittedAtFromWebhooks = (webhookPayloads: unknown[] | null): Date | null => {
+      if (!webhookPayloads || !Array.isArray(webhookPayloads)) return null;
+      for (const payload of webhookPayloads) {
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const payloadObj = payload as Record<string, unknown>;
+          const payloadStatus = (payloadObj.status as string)?.toUpperCase();
+          if (payloadStatus === "WAIT_FOR_APPROVAL" && payloadObj.timestamp) {
+            return new Date(payloadObj.timestamp as string);
+          }
+        }
+      }
+      return null;
+    };
+
+    // Calculate average time to approval (WAIT_FOR_APPROVAL webhook timestamp to admin_approved_at)
+    // This measures how long admin takes to approve after user submits for approval
+    // Falls back to completed_at if no WAIT_FOR_APPROVAL webhook found
     let avgTimeToApprovalMinutes: number | null = null;
-    const currentWithApproval = currentPeriodCompleted.filter(
-      (org) => org.admin_approved_at && org.regtank_onboarding[0]?.completed_at
-    );
+    const currentWithApproval = currentPeriodCompleted.filter((org) => {
+      if (!org.admin_approved_at) return false;
+      const regtankOnboarding = org.regtank_onboarding[0];
+      if (!regtankOnboarding) return false;
+      // Check for WAIT_FOR_APPROVAL webhook timestamp or fall back to completed_at
+      const submittedAt = getSubmittedAtFromWebhooks(
+        regtankOnboarding.webhook_payloads as unknown[]
+      );
+      return submittedAt || regtankOnboarding.completed_at;
+    });
     if (currentWithApproval.length > 0) {
       const totalMinutes = currentWithApproval.reduce((sum, org) => {
-        const regtankCompletedAt = org.regtank_onboarding[0]!.completed_at!;
-        const diffMs = org.admin_approved_at!.getTime() - regtankCompletedAt.getTime();
+        const regtankOnboarding = org.regtank_onboarding[0]!;
+        // Use WAIT_FOR_APPROVAL timestamp if available, otherwise fall back to completed_at
+        const submittedAt =
+          getSubmittedAtFromWebhooks(regtankOnboarding.webhook_payloads as unknown[]) ||
+          regtankOnboarding.completed_at!;
+        const diffMs = org.admin_approved_at!.getTime() - submittedAt.getTime();
         return sum + diffMs / 1000 / 60;
       }, 0);
       avgTimeToApprovalMinutes = Math.round(totalMinutes / currentWithApproval.length);
@@ -1869,13 +1896,22 @@ export class AdminRepository {
 
     // Calculate average time to approval change percent
     let avgTimeToApprovalChangePercent: number | null = null;
-    const previousWithApproval = previousPeriodCompleted.filter(
-      (org) => org.admin_approved_at && org.regtank_onboarding[0]?.completed_at
-    );
+    const previousWithApproval = previousPeriodCompleted.filter((org) => {
+      if (!org.admin_approved_at) return false;
+      const regtankOnboarding = org.regtank_onboarding[0];
+      if (!regtankOnboarding) return false;
+      const submittedAt = getSubmittedAtFromWebhooks(
+        regtankOnboarding.webhook_payloads as unknown[]
+      );
+      return submittedAt || regtankOnboarding.completed_at;
+    });
     if (previousWithApproval.length > 0 && avgTimeToApprovalMinutes !== null) {
       const previousTotalMinutes = previousWithApproval.reduce((sum, org) => {
-        const regtankCompletedAt = org.regtank_onboarding[0]!.completed_at!;
-        const diffMs = org.admin_approved_at!.getTime() - regtankCompletedAt.getTime();
+        const regtankOnboarding = org.regtank_onboarding[0]!;
+        const submittedAt =
+          getSubmittedAtFromWebhooks(regtankOnboarding.webhook_payloads as unknown[]) ||
+          regtankOnboarding.completed_at!;
+        const diffMs = org.admin_approved_at!.getTime() - submittedAt.getTime();
         return sum + diffMs / 1000 / 60;
       }, 0);
       const previousAvg = previousTotalMinutes / previousWithApproval.length;
