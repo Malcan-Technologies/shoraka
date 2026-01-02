@@ -45,24 +45,10 @@ function OnboardingStartPageContent() {
     setMounted(true);
   }, []);
 
-  // Check organization status and redirect accordingly (except PENDING - no auto-redirect to RegTank)
-  // Note: REJECTED users can still add new organizations, so we don't redirect them away
-  useEffect(() => {
-    if (orgLoading || !activeOrganization) return;
-
-    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
-    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
-    const hasAdminHandledStatus = adminHandledStatuses.includes(activeOrganization.onboardingStatus) ||
-      (activeOrganization.regtankOnboardingStatus && adminHandledStatuses.includes(activeOrganization.regtankOnboardingStatus));
-
-    if (hasAdminHandledStatus) {
-      router.replace("/");
-      return;
-    }
-
-    // Note: REJECTED status users are not redirected - they can still access "Add Organization" feature
-    // They will see the rejection message on the dashboard if they go there, but can add new organizations here
-  }, [activeOrganization, orgLoading, router]);
+  // Note: We do NOT redirect users away from this page based on active organization status.
+  // This page is for adding NEW organizations, so users should be able to access it
+  // regardless of their existing organization's status (PENDING_APPROVAL, PENDING_AML, etc.).
+  // Users can switch back to their existing organization via the OrganizationSwitcher dropdown.
 
   // Cancel onboarding when user navigates away or closes tab
   useEffect(() => {
