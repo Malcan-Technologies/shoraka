@@ -22,6 +22,7 @@ import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/soli
 import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
@@ -31,7 +32,8 @@ type Step = "select-type" | "completing";
 type ConfirmationType = "company" | null;
 
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
-  const { createOrganization, startCorporateOnboarding } = useOrganization();
+  const router = useRouter();
+  const { createOrganization, startCorporateOnboarding, switchOrganization } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -74,8 +76,14 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       try {
         const { verifyLink } = await startCorporateOnboarding(org.id, companyNameValue);
         
-        // Redirect to RegTank portal
-        window.location.href = verifyLink;
+        // Switch to the new organization
+        switchOrganization(org.id);
+        
+        // Open RegTank portal in popup window
+        window.open(verifyLink, "_blank");
+        
+        // Redirect to dashboard to show onboarding progress
+        router.push("/");
       } catch (regTankError) {
         // Log full error for debugging
         console.error("[AccountTypeSelector] RegTank corporate onboarding failed:", regTankError);

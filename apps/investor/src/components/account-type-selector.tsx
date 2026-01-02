@@ -22,7 +22,7 @@ import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/soli
 import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CorporateOnboardingModal } from "@/components/corporate-onboarding-modal";
+import { useRouter } from "next/navigation";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
@@ -33,13 +33,12 @@ type Step = "select-type" | "completing";
 type ConfirmationType = "personal" | "company" | null;
 
 export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: AccountTypeSelectorProps) {
-  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding } = useOrganization();
+  const router = useRouter();
+  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding, switchOrganization } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
-  const [showCorporateModal, setShowCorporateModal] = React.useState(false);
-  const [corporateOnboardingOrgId, setCorporateOnboardingOrgId] = React.useState<string | null>(null);
 
   // Corporate onboarding form state
   const [companyName, setCompanyName] = React.useState("");
@@ -161,12 +160,14 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
           ? await startCorporateOnboarding(org.id, companyNameValue)
           : await startRegTankOnboarding(org.id);
         
+        // Switch to the new organization
+        switchOrganization(org.id);
+        
         // Open RegTank portal in popup window
         window.open(verifyLink, "_blank");
         
-        // Show onboarding progress modal
-        setCorporateOnboardingOrgId(org.id);
-        setShowCorporateModal(true);
+        // Redirect to dashboard to show onboarding progress
+        router.push("/");
         
         // Notify parent component
         if (onCorporateOnboardingStart) {
@@ -221,15 +222,6 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
 
   return (
     <>
-      {/* Corporate Onboarding Modal */}
-      {corporateOnboardingOrgId && (
-        <CorporateOnboardingModal
-          open={showCorporateModal}
-          onOpenChange={setShowCorporateModal}
-          organizationId={corporateOnboardingOrgId}
-        />
-      )}
-
       {/* Personal Account Confirmation Dialog */}
       <AlertDialog open={confirmationType === "personal"} onOpenChange={(open) => !open && setConfirmationType(null)}>
         <AlertDialogContent>

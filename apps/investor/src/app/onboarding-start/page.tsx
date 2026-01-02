@@ -22,7 +22,6 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { AccountTypeSelector } from "../../components/account-type-selector";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { CorporateOnboardingModal } from "../../components/corporate-onboarding-modal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_URL = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001";
@@ -40,8 +39,6 @@ function OnboardingStartPageContent() {
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
   const [savingName, setSavingName] = useState(false);
   const [onboardingStarted, setOnboardingStarted] = useState(false);
-  const [showCorporateModal, setShowCorporateModal] = useState(false);
-  const [corporateOnboardingOrgId, setCorporateOnboardingOrgId] = useState<string | null>(null);
 
   // Handle hydration
   useEffect(() => {
@@ -413,23 +410,10 @@ function OnboardingStartPageContent() {
           {step === "account-type" && (
             <AccountTypeSelector
               onBack={handleBackToWelcome}
-              onCorporateOnboardingStart={(orgId) => {
-                setCorporateOnboardingOrgId(orgId);
-                setShowCorporateModal(true);
-              }}
             />
           )}
         </div>
       </div>
-
-      {/* Corporate Onboarding Modal */}
-      {corporateOnboardingOrgId && (
-        <CorporateOnboardingModal
-          open={showCorporateModal}
-          onOpenChange={setShowCorporateModal}
-          organizationId={corporateOnboardingOrgId}
-        />
-      )}
     </>
   );
 }
