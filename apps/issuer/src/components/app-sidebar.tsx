@@ -45,7 +45,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isDisabled = isOnboardingPage || (!isOnboarded && !isPendingApproval);
   // For pending approval: only dashboard is enabled, other features disabled
   // BUT allow Account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
-  const isFeaturesDisabled = (isDisabled || isPendingApproval) && !allowsAccountAccess;
+  // EXCEPT when on onboarding page - always disable Account there
+  const isFeaturesDisabled = isOnboardingPage || ((isDisabled || isPendingApproval) && !allowsAccountAccess);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

@@ -10,10 +10,41 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CheckIcon, XMarkIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import {
+  CheckIcon,
+  XMarkIcon,
+  ClipboardDocumentIcon,
+  StarIcon,
+  CpuChipIcon,
+  UserIcon,
+} from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import * as React from "react";
-import type { EventType, AccessLogResponse } from "@cashsouk/types";
+import type { AccessLogResponse } from "@cashsouk/types";
+
+// Type for sophisticated status metadata
+interface SophisticatedStatusMetadata {
+  organizationId: string;
+  previousStatus: boolean;
+  previousReason?: string | null;
+  newStatus: boolean;
+  newReason: string;
+  updatedBy: string;
+  action: "granted" | "revoked" | "auto_granted";
+  source?: string;
+}
+
+// Type guard for sophisticated status metadata
+function isSophisticatedStatusMetadata(metadata: unknown): metadata is SophisticatedStatusMetadata {
+  if (!metadata || typeof metadata !== "object") return false;
+  const m = metadata as Record<string, unknown>;
+  return (
+    typeof m.organizationId === "string" &&
+    typeof m.newStatus === "boolean" &&
+    typeof m.action === "string" &&
+    ["granted", "revoked", "auto_granted"].includes(m.action as string)
+  );
+}
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
@@ -25,7 +56,8 @@ interface AccessLogDetailsDialogProps {
   log: AccessLog | null;
 }
 
-const eventTypeColors: Partial<Record<EventType, string>> = {
+// Extended event type colors including onboarding-specific events
+const eventTypeColors: Record<string, string> = {
   LOGIN: "bg-blue-100 text-blue-800 border-blue-200",
   LOGOUT: "bg-gray-100 text-gray-800 border-gray-200",
   SIGNUP: "bg-green-100 text-green-800 border-green-200",
@@ -34,13 +66,10 @@ const eventTypeColors: Partial<Record<EventType, string>> = {
   USER_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
   KYC_STATUS_UPDATED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   ONBOARDING_STATUS_UPDATED: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  SOPHISTICATED_STATUS_UPDATED: "bg-violet-100 text-violet-800 border-violet-200",
 };
 
-export function AccessLogDetailsDialog({
-  open,
-  onOpenChange,
-  log,
-}: AccessLogDetailsDialogProps) {
+export function AccessLogDetailsDialog({ open, onOpenChange, log }: AccessLogDetailsDialogProps) {
   const [copied, setCopied] = React.useState(false);
 
   if (!log) return null;
@@ -162,6 +191,95 @@ export function AccessLogDetailsDialog({
                     {copied ? "Copied!" : "Copy"}
                   </Button>
                 </div>
+
+                {/* Special display for sophisticated status updates */}
+                {isSophisticatedStatusMetadata(log.metadata) &&
+                  (() => {
+                    const meta = log.metadata as SophisticatedStatusMetadata;
+                    return (
+                      <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 p-4 rounded-lg space-y-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <StarIcon className="h-5 w-5 text-violet-600" />
+                          <span className="font-medium text-violet-900 dark:text-violet-100">
+                            Sophisticated Investor Status Change
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">New Status:</span>
+                            <div className="mt-1">
+                              {meta.newStatus ? (
+                                <Badge className="bg-violet-500 text-white">
+                                  <CheckIcon className="h-3 w-3 mr-1" />
+                                  Sophisticated
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  Standard
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-muted-foreground">Previous Status:</span>
+                            <div className="mt-1">
+                              {meta.previousStatus ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-violet-600 border-violet-300"
+                                >
+                                  Sophisticated
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  Standard
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">Updated By:</span>
+                            <div className="mt-1 flex items-center gap-2">
+                              {meta.action === "auto_granted" ? (
+                                <>
+                                  <CpuChipIcon className="h-4 w-4 text-blue-600" />
+                                  <span className="text-sm font-medium">System (Automatic)</span>
+                                  {meta.source && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {meta.source === "regtank_onboarding"
+                                        ? "RegTank Onboarding"
+                                        : meta.source}
+                                    </Badge>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <UserIcon className="h-4 w-4 text-orange-600" />
+                                  <span className="text-sm font-medium">
+                                    Admin ({meta.updatedBy})
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {meta.newReason && (
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">Reason:</span>
+                              <p className="mt-1 text-sm bg-white dark:bg-muted/50 p-2 rounded border">
+                                {meta.newReason}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                {/* Default JSON display for other metadata */}
                 <div className="bg-muted/50 p-3 rounded-lg overflow-x-auto">
                   <pre className="text-xs">{JSON.stringify(log.metadata, null, 2)}</pre>
                 </div>
@@ -196,4 +314,3 @@ export function AccessLogDetailsDialog({
     </Dialog>
   );
 }
-

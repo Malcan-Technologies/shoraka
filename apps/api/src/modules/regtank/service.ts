@@ -1144,7 +1144,13 @@ export class RegTankService {
         // Verify organization exists and get type before updating
         const org = await prisma.investorOrganization.findUnique({
           where: { id: organizationId },
-          select: { id: true, type: true },
+          select: {
+            id: true,
+            type: true,
+            owner_user_id: true,
+            is_sophisticated_investor: true,
+            sophisticated_investor_reason: true,
+          },
         });
 
         if (!org) {
@@ -1175,6 +1181,38 @@ export class RegTankService {
             sophisticated_investor_reason: sophisticatedResult.reason,
           },
         });
+
+        // Log sophisticated status determination if status was set
+        if (sophisticatedResult.isSophisticated) {
+          await prisma.onboardingLog.create({
+            data: {
+              user_id: org.owner_user_id,
+              role: UserRole.INVESTOR,
+              event_type: "SOPHISTICATED_STATUS_UPDATED",
+              portal: "investor",
+              metadata: {
+                organizationId,
+                previousStatus: org.is_sophisticated_investor,
+                previousReason: org.sophisticated_investor_reason,
+                newStatus: sophisticatedResult.isSophisticated,
+                newReason: sophisticatedResult.reason,
+                updatedBy: "system",
+                action: "auto_granted",
+                source: "regtank_onboarding",
+              },
+            },
+          });
+
+          logger.info(
+            {
+              organizationId,
+              userId: org.owner_user_id,
+              status: sophisticatedResult.isSophisticated,
+              reason: sophisticatedResult.reason,
+            },
+            "Logged automatic sophisticated investor status grant"
+          );
+        }
 
         logger.info(
           {

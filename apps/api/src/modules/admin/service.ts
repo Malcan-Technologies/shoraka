@@ -1713,6 +1713,26 @@ export class AdminService {
     // Use onboarded_at from organization table for completedAt (more accurate than regtank completed_at)
     const onboardedAt = org?.onboarded_at;
 
+    // Extract submittedAt from webhook payloads - look for WAIT_FOR_APPROVAL status timestamp
+    // This represents when the user actually submitted their onboarding for approval
+    let submittedAt: string | null = null;
+    if (record.webhook_payloads && Array.isArray(record.webhook_payloads)) {
+      for (const payload of record.webhook_payloads) {
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const payloadObj = payload as Record<string, unknown>;
+          const payloadStatus = (payloadObj.status as string)?.toUpperCase();
+          if (payloadStatus === "WAIT_FOR_APPROVAL" && payloadObj.timestamp) {
+            submittedAt = payloadObj.timestamp as string;
+            break; // Use the first WAIT_FOR_APPROVAL timestamp found
+          }
+        }
+      }
+    }
+    // Fallback to completed_at if no WAIT_FOR_APPROVAL webhook found
+    if (!submittedAt && record.completed_at) {
+      submittedAt = record.completed_at.toISOString();
+    }
+
     // Sophisticated investor status (only for investor portal)
     const isSophisticatedInvestor = isInvestorOrg
       ? (investorOrg?.is_sophisticated_investor ?? false)
@@ -1740,7 +1760,7 @@ export class AdminService {
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
       ssmVerifiedBy: null,
-      submittedAt: record.completed_at?.toISOString() || null,
+      submittedAt,
       completedAt: onboardedAt?.toISOString() || null,
       onboardingApproved,
       amlApproved,
