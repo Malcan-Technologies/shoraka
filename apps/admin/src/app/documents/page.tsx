@@ -363,9 +363,7 @@ export default function DocumentsPage() {
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                Document Management
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Document Management</h1>
               <p className="text-[15px] leading-7 text-muted-foreground mt-1">
                 Upload and manage site-wide documents like Terms & Conditions, Privacy Policy, etc.
               </p>
@@ -509,23 +507,15 @@ export default function DocumentsPage() {
                   ))
                 ) : documents.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-12 text-muted-foreground"
-                    >
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                       <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No documents found</p>
-                      <p className="text-sm mt-1">
-                        Upload your first document to get started
-                      </p>
+                      <p className="text-sm mt-1">Upload your first document to get started</p>
                     </TableCell>
                   </TableRow>
                 ) : (
                   documents.map((doc) => (
-                    <TableRow
-                      key={doc.id}
-                      className={!doc.is_active ? "opacity-60" : ""}
-                    >
+                    <TableRow key={doc.id} className={!doc.is_active ? "opacity-60" : ""}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -533,9 +523,7 @@ export default function DocumentsPage() {
                           </div>
                           <div>
                             <p className="font-medium">{doc.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {doc.file_name}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{doc.file_name}</p>
                           </div>
                           {!doc.is_active && (
                             <Badge variant="secondary" className="ml-2">
@@ -545,9 +533,7 @@ export default function DocumentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          {getDocumentTypeLabel(doc.type)}
-                        </Badge>
+                        <Badge variant="outline">{getDocumentTypeLabel(doc.type)}</Badge>
                       </TableCell>
                       <TableCell>v{doc.version}</TableCell>
                       <TableCell>{formatFileSize(doc.file_size)}</TableCell>
@@ -682,9 +668,7 @@ export default function DocumentsPage() {
               <Input
                 id="title"
                 value={uploadForm.title}
-                onChange={(e) =>
-                  setUploadForm((f) => ({ ...f, title: e.target.value }))
-                }
+                onChange={(e) => setUploadForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="e.g., Terms and Conditions"
               />
             </div>
@@ -693,9 +677,7 @@ export default function DocumentsPage() {
               <Textarea
                 id="description"
                 value={uploadForm.description}
-                onChange={(e) =>
-                  setUploadForm((f) => ({ ...f, description: e.target.value }))
-                }
+                onChange={(e) => setUploadForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Brief description of the document..."
                 rows={3}
               />
@@ -740,12 +722,7 @@ export default function DocumentsPage() {
             </Button>
             <Button
               onClick={handleUploadDocument}
-              disabled={
-                uploading ||
-                !uploadForm.file ||
-                !uploadForm.title ||
-                !uploadForm.type
-              }
+              disabled={uploading || !uploadForm.file || !uploadForm.title || !uploadForm.type}
             >
               {uploading ? (
                 <>
@@ -769,8 +746,7 @@ export default function DocumentsPage() {
           <DialogHeader>
             <DialogTitle>Edit Document</DialogTitle>
             <DialogDescription>
-              Update the document metadata. To replace the file, use the Replace
-              button.
+              Update the document metadata. To replace the file, use the Replace button.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -779,9 +755,7 @@ export default function DocumentsPage() {
               <Input
                 id="edit-title"
                 value={editForm.title}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, title: e.target.value }))
-                }
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -789,16 +763,12 @@ export default function DocumentsPage() {
               <Textarea
                 id="edit-description"
                 value={editForm.description}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, description: e.target.value }))
-                }
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
               />
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="edit-show-in-account">
-                Show in Account Documents tab
-              </Label>
+              <Label htmlFor="edit-show-in-account">Show in Account Documents tab</Label>
               <Switch
                 id="edit-show-in-account"
                 checked={editForm.showInAccount}
@@ -828,9 +798,8 @@ export default function DocumentsPage() {
           <DialogHeader>
             <DialogTitle>Replace Document File</DialogTitle>
             <DialogDescription>
-              Upload a new version of{" "}
-              <strong>{selectedDocument?.title}</strong>. This will increment
-              the version number.
+              Upload a new version of <strong>{selectedDocument?.title}</strong>. This will
+              increment the version number.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -846,7 +815,9 @@ export default function DocumentsPage() {
                 id="replace-file"
                 type="file"
                 accept=".pdf,application/pdf"
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceFile(e.target.files?.[0] || null)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setReplaceFile(e.target.files?.[0] || null)
+                }
               />
               {replaceFile && (
                 <p className="text-sm text-muted-foreground">
@@ -882,4 +853,3 @@ export default function DocumentsPage() {
     </>
   );
 }
-

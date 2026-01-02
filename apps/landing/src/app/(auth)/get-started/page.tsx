@@ -4,7 +4,12 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button } from "@cashsouk/ui";
-import { UserIcon, BuildingLibraryIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import {
+  UserIcon,
+  BuildingLibraryIcon,
+  ExclamationCircleIcon,
+  MapPinIcon,
+} from "@heroicons/react/24/outline";
 import { RoleSelectionModal } from "../../../components/role-selection-modal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -62,10 +67,16 @@ function GetStartedPageContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Earn competitive returns by funding loans from our curated borrower pool.
               </p>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary/80">
+                  <MapPinIcon className="h-3 w-3" />
+                  Malaysian citizens & Malaysia-registered entities
+                </span>
+              </div>
             </CardContent>
           </Card>
         </button>
@@ -83,10 +94,16 @@ function GetStartedPageContent() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Apply for a loan with flexible terms and transparent rates.
               </p>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/20 px-2.5 py-0.5 text-xs text-secondary-foreground/70">
+                  <MapPinIcon className="h-3 w-3" />
+                  Malaysia-registered entities only
+                </span>
+              </div>
             </CardContent>
           </Card>
         </button>
