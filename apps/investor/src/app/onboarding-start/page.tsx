@@ -31,7 +31,7 @@ type OnboardingStep = "welcome" | "name-input" | "account-type";
 function OnboardingStartPageContent() {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { isLoading: orgLoading, activeOrganization } = useOrganization();
+  const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -97,7 +97,7 @@ function OnboardingStartPageContent() {
 
     const fetchUser = async () => {
       const token = await getAccessToken();
-      
+
       if (!token) {
         if (isMounted) {
           setLoading(false);
@@ -108,7 +108,7 @@ function OnboardingStartPageContent() {
 
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        
+
         const userResult = await apiClient.get<{
           user: {
             first_name: string;
@@ -119,17 +119,17 @@ function OnboardingStartPageContent() {
             active: number;
           };
         }>("/v1/auth/me");
-        
+
         if (userResult.success && userResult.data) {
           const firstName = userResult.data.user.first_name || "";
           const lastName = userResult.data.user.last_name || "";
-          
+
           if (isMounted) {
             setUser({
               firstName,
               lastName,
             });
-            
+
             // Check if names are missing - if so, show name input step
             if (!firstName.trim() || !lastName.trim()) {
               setNameForm({ firstName, lastName });
@@ -163,7 +163,7 @@ function OnboardingStartPageContent() {
     };
 
     fetchUser();
-    
+
     return () => {
       isMounted = false;
     };
@@ -175,7 +175,7 @@ function OnboardingStartPageContent() {
       setStep("name-input");
       return;
     }
-    
+
     // Try to start onboarding - backend will validate names
     try {
       const apiClient = createApiClient(API_URL, getAccessToken);
@@ -304,8 +304,8 @@ function OnboardingStartPageContent() {
               <CardHeader className="text-center space-y-2 pb-4">
                 <CardTitle className="text-2xl font-bold">Welcome {displayName}</CardTitle>
                 <CardDescription className="text-[15px] leading-7">
-                  Let&apos;s set up your <strong>Investor</strong> account to start exploring verified loan
-                  opportunities
+                  Let&apos;s set up your <strong>Investor</strong> account to start exploring
+                  verified loan opportunities
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-2">
@@ -393,11 +393,7 @@ function OnboardingStartPageContent() {
             </Card>
           )}
 
-          {step === "account-type" && (
-            <AccountTypeSelector
-              onBack={handleBackToWelcome}
-            />
-          )}
+          {step === "account-type" && <AccountTypeSelector onBack={handleBackToWelcome} />}
         </div>
       </div>
     </>

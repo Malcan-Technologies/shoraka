@@ -31,7 +31,7 @@ type OnboardingStep = "welcome" | "name-input" | "account-type";
 function OnboardingStartPageContent() {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { isLoading: orgLoading, activeOrganization } = useOrganization();
+  const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
