@@ -182,6 +182,18 @@ export function OrganizationSwitcher() {
   // Check if there are any pending organizations
   const hasPendingOrganizations = pendingOrganizations.length > 0;
 
+  // Get organizations in admin-handled pending states (for showing in dropdown when on onboarding page)
+  const adminPendingOrganizations = sortOrganizations(
+    organizations.filter((org) => {
+      const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+      return adminHandledStatuses.includes(org.onboardingStatus) ||
+        (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
+    })
+  );
+  
+  // Check if there are any admin-pending organizations
+  const hasAdminPendingOrganizations = adminPendingOrganizations.length > 0;
+
   const handleAddOrganization = () => {
     router.push("/onboarding-start");
   };
@@ -323,12 +335,33 @@ export function OrganizationSwitcher() {
               align="start"
               sideOffset={4}
             >
-              {hasOnboardedOrganizations && (
+              {(hasOnboardedOrganizations || hasAdminPendingOrganizations) && (
                 <>
                   <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Switch to Existing Account
                   </DropdownMenuLabel>
                   {onboardedOrganizations.map((org) => (
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => handleSelectOrganization(org)}
+                      className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
+                    >
+                      <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
+                        {getOrgIcon(org)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {getOrgDisplayName(org)}
+                        </div>
+                        <OnboardingStatusBadge 
+                          status={org.onboardingStatus} 
+                          regtankStatus={org.regtankOnboardingStatus || undefined}
+                          size="sm" 
+                        />
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                  {adminPendingOrganizations.map((org) => (
                     <DropdownMenuItem
                       key={org.id}
                       onClick={() => handleSelectOrganization(org)}
