@@ -349,7 +349,7 @@ function OnboardingStartPageContent() {
               </CardHeader>
               <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName">First Name (As appeared on your IC)</Label>
                   <Input
                     id="firstName"
                     value={nameForm.firstName}
@@ -359,7 +359,7 @@ function OnboardingStartPageContent() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
+                  <Label htmlFor="lastName">Last Name (As appeared on your IC)</Label>
                   <Input
                     id="lastName"
                     value={nameForm.lastName}
