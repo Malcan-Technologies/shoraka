@@ -168,17 +168,7 @@
           "name": "S3_REGION",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:S3_REGION::"
         }
-      ],
-      "healthCheck": {
-        "command": [
-          "CMD-SHELL",
-          "node -e \"require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""
-        ],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
-      }
+      ]
     }
   ]
 }
