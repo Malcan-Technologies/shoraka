@@ -2179,27 +2179,7 @@ export class AdminService {
       },
     });
 
-    // Create USER_COMPLETED log (only created when final approval is completed by admin)
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "USER_COMPLETED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-        },
-      },
-    });
+    // Note: USER_COMPLETED log removed - FINAL_APPROVAL_COMPLETED is the single source of truth for completion
 
     logger.info(
       {

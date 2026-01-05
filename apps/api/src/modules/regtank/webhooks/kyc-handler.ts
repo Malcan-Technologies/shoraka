@@ -222,13 +222,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create onboarding status updated log
+            // Create AML approved log (AML/KYC check passed)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.INVESTOR,
-                  event_type: "KYC_APPROVED",
+                  event_type: "AML_APPROVED",
                   portal: portalType,
                   metadata: {
                     organizationId: onboarding.investor_organization_id,
@@ -248,7 +248,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   organizationId: onboarding.investor_organization_id,
                   kycRequestId: requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create AML approved log (non-blocking)"
               );
             }
 
@@ -289,13 +289,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create onboarding status updated log
+            // Create AML approved log (AML/KYC check passed)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.ISSUER,
-                  event_type: "KYC_APPROVED",
+                  event_type: "AML_APPROVED",
                   portal: portalType,
                   metadata: {
                     organizationId: onboarding.issuer_organization_id,
@@ -315,7 +315,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   organizationId: onboarding.issuer_organization_id,
                   kycRequestId: requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create AML approved log (non-blocking)"
               );
             }
 

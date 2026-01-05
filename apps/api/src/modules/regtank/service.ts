@@ -11,7 +11,6 @@ import { OnboardingStatus, OrganizationType, UserRole, Prisma } from "@prisma/cl
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
@@ -32,7 +31,7 @@ export class RegTankService {
    * Start personal (individual) onboarding for an organization
    */
   async startPersonalOnboarding(
-    req: Request,
+    _req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -371,27 +370,8 @@ export class RegTankService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Log onboarding started event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role,
-        event_type: "ONBOARDING_STARTED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        metadata: {
-          organizationId,
-          requestId: regTankResponse.requestId,
-          onboardingType: "INDIVIDUAL",
-        },
-      },
-    });
+    // Note: ONBOARDING_STARTED is logged in AuthService.startOnboarding() when user clicks the button
+    // We don't log it here to avoid duplicates
 
     logger.info(
       {
@@ -414,7 +394,7 @@ export class RegTankService {
    * Start corporate onboarding for an organization
    */
   async startCorporateOnboarding(
-    req: Request,
+    _req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType,
@@ -688,27 +668,8 @@ export class RegTankService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Log onboarding started event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role,
-        event_type: "ONBOARDING_STARTED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        metadata: {
-          organizationId,
-          requestId: regTankResponse.requestId,
-          onboardingType: "CORPORATE",
-        },
-      },
-    });
+    // Note: ONBOARDING_STARTED is logged in AuthService.startOnboarding() when user clicks the button
+    // We don't log it here to avoid duplicates
 
     logger.info(
       {
@@ -1593,12 +1554,12 @@ export class RegTankService {
               OnboardingStatus.PENDING_AML
             );
 
-            // Create onboarding status updated log
+            // Create onboarding approved log (RegTank approved the onboarding)
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_STATUS_UPDATED",
+                eventType: "ONBOARDING_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,
@@ -1615,7 +1576,7 @@ export class RegTankService {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create onboarding approved log (non-blocking)"
               );
             }
 
@@ -1638,12 +1599,12 @@ export class RegTankService {
               OnboardingStatus.PENDING_AML
             );
 
-            // Create onboarding status updated log
+            // Create onboarding approved log (RegTank approved the onboarding)
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
+                eventType: "ONBOARDING_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,
@@ -1660,7 +1621,7 @@ export class RegTankService {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create onboarding approved log (non-blocking)"
               );
             }
 

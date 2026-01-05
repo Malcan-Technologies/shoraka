@@ -133,7 +133,7 @@ router.post(
  *                 example: Company A
  *               formId:
  *                 type: integer
- *                 description: Form ID for RegTank corporate onboarding (optional, defaults to portal-specific env var: REGTANK_INVESTOR_CORPORATE_FORM_ID for investor portal, REGTANK_ISSUER_CORPORATE_FORM_ID for issuer portal)
+ *                 description: "Form ID for RegTank corporate onboarding (optional, defaults to portal-specific env var: REGTANK_INVESTOR_CORPORATE_FORM_ID for investor portal, REGTANK_ISSUER_CORPORATE_FORM_ID for issuer portal)"
  *                 example: 1015520
  *     responses:
  *       200:

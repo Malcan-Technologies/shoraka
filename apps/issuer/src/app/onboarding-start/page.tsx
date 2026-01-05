@@ -132,22 +132,9 @@ function OnboardingStartPageContent() {
             // Check if names are missing
             if (!firstName.trim() || !lastName.trim()) {
               setStep("name-input");
-            } else {
-              // Names exist, proceed to start onboarding
-              try {
-                await apiClient.post("/v1/auth/start-onboarding", {
-                  role: "ISSUER",
-                });
-                if (isMounted) {
-                  setOnboardingStarted(true);
-                }
-              } catch (error: any) {
-                // If backend also rejects due to missing names, show name input
-                if (error?.response?.data?.error === "NAMES_REQUIRED") {
-                  setStep("name-input");
-                }
-              }
             }
+            // Note: We don't auto-call start-onboarding on page load anymore
+            // It will only be called when user explicitly clicks "Start Onboarding" button
           }
         }
       } catch (error) {

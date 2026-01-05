@@ -34,8 +34,12 @@ import {
 
 const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
+  "ONBOARDING_RESUME",
   "USER_COMPLETED",
   "ONBOARDING_STATUS_UPDATED",
+  "FORM_FILLED",
+  "ONBOARDING_APPROVED",
+  "AML_APPROVED",
   "ONBOARDING_CANCELLED",
   "ONBOARDING_REJECTED",
   "SOPHISTICATED_STATUS_UPDATED",
@@ -46,8 +50,12 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "ONBOARDING_STARTED", label: "Onboarding Started" },
+  { value: "ONBOARDING_RESUME", label: "Onboarding Resumed" },
   { value: "USER_COMPLETED", label: "User Completed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
+  { value: "FORM_FILLED", label: "Form Filled" },
+  { value: "ONBOARDING_APPROVED", label: "Onboarding Approved" },
+  { value: "AML_APPROVED", label: "AML Approved" },
   { value: "ONBOARDING_CANCELLED", label: "Onboarding Cancelled" },
   { value: "ONBOARDING_REJECTED", label: "Onboarding Rejected" },
   { value: "SOPHISTICATED_STATUS_UPDATED", label: "Sophisticated Status Updated" },

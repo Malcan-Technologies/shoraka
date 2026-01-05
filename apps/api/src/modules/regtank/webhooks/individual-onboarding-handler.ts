@@ -100,13 +100,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.PENDING_APPROVAL
             );
             
-            // Create onboarding status updated log
+            // Create form filled log (user completed form and liveness test)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.INVESTOR,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  event_type: "FORM_FILLED",
                   portal: portalType,
                   metadata: {
                     organizationId,
@@ -124,7 +124,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create form filled log (non-blocking)"
               );
             }
             
@@ -142,13 +142,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.PENDING_APPROVAL
             );
             
-            // Create onboarding status updated log
+            // Create form filled log (user completed form and liveness test)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  event_type: "FORM_FILLED",
                   portal: portalType,
                   metadata: {
                     organizationId,
@@ -166,7 +166,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create form filled log (non-blocking)"
               );
             }
             
@@ -201,13 +201,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.PENDING_APPROVAL
             );
             
-            // Create onboarding status updated log
+            // Create form filled log (user completed form and liveness test)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.INVESTOR,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  event_type: "FORM_FILLED",
                   portal: portalType,
                   metadata: {
                     organizationId,
@@ -225,7 +225,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create form filled log (non-blocking)"
               );
             }
             
@@ -243,13 +243,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.PENDING_APPROVAL
             );
             
-            // Create onboarding status updated log
+            // Create form filled log (user completed form and liveness test)
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
+                  event_type: "FORM_FILLED",
                   portal: portalType,
                   metadata: {
                     organizationId,
@@ -267,7 +267,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                 },
-                "Failed to create onboarding status updated log (non-blocking)"
+                "Failed to create form filled log (non-blocking)"
               );
             }
             
