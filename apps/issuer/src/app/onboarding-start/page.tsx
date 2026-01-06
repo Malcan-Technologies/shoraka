@@ -133,8 +133,6 @@ function OnboardingStartPageContent() {
             if (!firstName.trim() || !lastName.trim()) {
               setStep("name-input");
             }
-            // Note: We don't auto-call start-onboarding on page load anymore
-            // It will only be called when user explicitly clicks "Start Onboarding" button
           }
         }
       } catch (error) {
@@ -160,21 +158,9 @@ function OnboardingStartPageContent() {
       return;
     }
     
-    // Try to start onboarding - backend will validate names
-    try {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      await apiClient.post("/v1/auth/start-onboarding", {
-        role: "ISSUER",
-      });
-      setOnboardingStarted(true);
-      setStep("account-type");
-    } catch (error: any) {
-      if (error?.response?.data?.error === "NAMES_REQUIRED") {
-        setStep("name-input");
-      } else {
-        console.error("Failed to start onboarding:", error);
-      }
-    }
+    // Proceed to account type selection (logging will happen when user confirms account type)
+    setOnboardingStarted(true);
+    setStep("account-type");
   };
 
   const handleSaveName = async () => {
@@ -196,11 +182,7 @@ function OnboardingStartPageContent() {
         lastName: nameForm.lastName.trim(),
       });
 
-      // Now proceed to start onboarding
-      await apiClient.post("/v1/auth/start-onboarding", {
-        role: "ISSUER",
-      });
-
+      // Proceed to account type selection (logging will happen when user confirms account type)
       setOnboardingStarted(true);
       setStep("account-type");
     } catch (error) {

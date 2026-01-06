@@ -574,7 +574,7 @@ export class OrganizationService {
       await this.authRepository.createOnboardingLog({
         userId: user.user_id,
         role,
-        eventType: "TNC_ACCEPTED",
+        eventType: "TNC_APPROVED",
         portal,
         ipAddress,
         userAgent,

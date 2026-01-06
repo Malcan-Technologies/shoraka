@@ -1929,12 +1929,12 @@ export class AdminService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Reset the organization's onboarding status and clear all approval-related fields
+    // Reset the organization's onboarding status to IN_PROGRESS and clear all approval-related fields
     if (isInvestorPortal && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
         data: {
-          onboarding_status: "PENDING",
+          onboarding_status: "IN_PROGRESS",
           is_sophisticated_investor: false,
           onboarding_approved: false,
           aml_approved: false,
@@ -1949,7 +1949,7 @@ export class AdminService {
       await prisma.issuerOrganization.update({
         where: { id: onboarding.issuer_organization_id },
         data: {
-          onboarding_status: "PENDING",
+          onboarding_status: "IN_PROGRESS",
           onboarding_approved: false,
           aml_approved: false,
           tnc_accepted: false,
@@ -2157,7 +2157,7 @@ export class AdminService {
     );
 
     // Create onboarding log entries
-    // Create FINAL_APPROVAL_COMPLETED log
+    // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
     await prisma.onboardingLog.create({
       data: {
         user_id: onboarding.user_id,
@@ -2178,8 +2178,6 @@ export class AdminService {
         },
       },
     });
-
-    // Note: USER_COMPLETED log removed - FINAL_APPROVAL_COMPLETED is the single source of truth for completion
 
     logger.info(
       {
@@ -2248,7 +2246,6 @@ export class AdminService {
     // Update the organization's ssm_approved flag and transition to PENDING_FINAL_APPROVAL
     // For company accounts, SSM approval is required before final approval step
     const now = new Date();
-    const previousStatus = org.onboarding_status;
     if (isInvestor && onboarding.investor_organization) {
       await prisma.investorOrganization.update({
         where: { id: org.id },
@@ -2290,43 +2287,7 @@ export class AdminService {
       },
     });
 
-    // Create onboarding status updated log if status changed
-    if (previousStatus !== OnboardingStatus.PENDING_FINAL_APPROVAL) {
-      try {
-        await prisma.onboardingLog.create({
-          data: {
-            user_id: onboarding.user_id,
-            event_type: "ONBOARDING_STATUS_UPDATED",
-            role: isInvestor ? "INVESTOR" : "ISSUER",
-            portal: onboarding.portal_type,
-            ip_address:
-              (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-            user_agent: req.headers["user-agent"] || null,
-            device_info: null,
-            device_type: null,
-            metadata: {
-              organizationId: org.id,
-              organizationType: onboarding.organization_type,
-              portalType: onboarding.portal_type,
-              previousStatus,
-              newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
-              trigger: "SSM_APPROVED",
-              approvedBy: adminUserId,
-              regtankRequestId: onboarding.request_id,
-            },
-          },
-        });
-      } catch (logError) {
-        logger.error(
-          {
-            error: logError instanceof Error ? logError.message : String(logError),
-            organizationId: org.id,
-            onboardingId,
-          },
-          "Failed to create onboarding status updated log (non-blocking)"
-        );
-      }
-    }
+    // SSM_APPROVED log already created above, no need for additional ONBOARDING_STATUS_UPDATED log
 
     logger.info(
       {

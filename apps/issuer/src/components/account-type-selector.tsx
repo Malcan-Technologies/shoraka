@@ -19,10 +19,12 @@ import {
 } from "@cashsouk/ui";
 import { BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
-import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
+import { useOrganization, type CreateOrganizationInput, createApiClient, useAuthToken } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
@@ -33,6 +35,7 @@ type ConfirmationType = "company" | null;
 
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const router = useRouter();
+  const { getAccessToken } = useAuthToken();
   const { createOrganization, startCorporateOnboarding, switchOrganization } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
@@ -66,6 +69,17 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     setStep("completing");
 
     try {
+      // Log ONBOARDING_STARTED when user confirms company account creation
+      try {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        await apiClient.post("/v1/auth/start-onboarding", {
+          role: "ISSUER",
+        });
+      } catch (logError) {
+        // Log error but don't block the flow
+        console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
+      }
+
       const input: CreateOrganizationInput = {
         type: "COMPANY",
         name: companyNameValue,

@@ -19,10 +19,12 @@ import {
 } from "@cashsouk/ui";
 import { UserIcon, BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
-import { useOrganization, type CreateOrganizationInput } from "@cashsouk/config";
+import { useOrganization, type CreateOrganizationInput, createApiClient, useAuthToken } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
@@ -34,6 +36,7 @@ type ConfirmationType = "personal" | "company" | null;
 
 export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: AccountTypeSelectorProps) {
   const router = useRouter();
+  const { getAccessToken } = useAuthToken();
   const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding, switchOrganization } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
@@ -49,22 +52,30 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
     return organizations.find(org => org.type === "PERSONAL");
   }, [organizations]);
 
-  // Allow restarting if status is PENDING (admin requested redo via restart)
-  // This happens when admin clicks "Restart Onboarding" in the admin portal
+  // Allow restarting/resuming if status is PENDING or IN_PROGRESS
+  // PENDING: admin requested redo via restart
+  // IN_PROGRESS: onboarding is in progress and can be resumed
   const canRestartPersonalOnboarding = React.useMemo(() => {
-    return personalOrganization?.onboardingStatus === "PENDING";
+    return personalOrganization?.onboardingStatus === "PENDING" || personalOrganization?.onboardingStatus === "IN_PROGRESS";
+  }, [personalOrganization]);
+
+  // Check if we should show "Resume onboarding" vs "Restart required"
+  const shouldResumeOnboarding = React.useMemo(() => {
+    return personalOrganization?.onboardingStatus === "IN_PROGRESS";
   }, [personalOrganization]);
 
   // Personal account button should be disabled if:
-  // - Personal org exists AND status is NOT PENDING (cannot restart)
+  // - Personal org exists AND status is PENDING_APPROVAL or later (cannot restart/resume)
   // - OR if currently submitting
-  // Allow if: no org exists, or status is PENDING (admin restart - user can click to resume)
+  // Allow if: no org exists, or status is PENDING/IN_PROGRESS (user can click to resume)
   const isPersonalAccountDisabled = React.useMemo(() => {
     if (isSubmitting) return true;
     if (!hasPersonalOrganization) return false;
-    // Allow if status is PENDING (admin restart)
-    return !canRestartPersonalOnboarding;
-  }, [hasPersonalOrganization, canRestartPersonalOnboarding, isSubmitting]);
+    const status = personalOrganization?.onboardingStatus;
+    // Disable if status is PENDING_APPROVAL, PENDING_AML, PENDING_SSM_REVIEW, PENDING_FINAL_APPROVAL, COMPLETED, or REJECTED
+    const disabledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL", "COMPLETED", "REJECTED"];
+    return disabledStatuses.includes(status || "");
+  }, [hasPersonalOrganization, personalOrganization?.onboardingStatus, isSubmitting]);
 
   const handleConfirmPersonal = async () => {
     setConfirmationType(null);
@@ -73,6 +84,17 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
     setStep("completing");
 
     try {
+      // Log ONBOARDING_STARTED when user confirms personal account creation
+      try {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        await apiClient.post("/v1/auth/start-onboarding", {
+          role: "INVESTOR",
+        });
+      } catch (logError) {
+        // Log error but don't block the flow
+        console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
+      }
+
       // Check if personal organization already exists
       const existingPersonalOrg = organizations.find(org => org.type === "PERSONAL");
       
@@ -143,6 +165,17 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
     setStep("completing");
 
     try {
+      // Log ONBOARDING_STARTED when user confirms company account creation
+      try {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        await apiClient.post("/v1/auth/start-onboarding", {
+          role: "INVESTOR",
+        });
+      } catch (logError) {
+        // Log error but don't block the flow
+        console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
+      }
+
       const input: CreateOrganizationInput = {
         type: "COMPANY",
         name: companyNameValue,
@@ -222,10 +255,18 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {canRestartPersonalOnboarding ? "Restart Onboarding?" : "Create Personal Account?"}
+              {shouldResumeOnboarding ? "Resume Onboarding?" : canRestartPersonalOnboarding ? "Restart Onboarding?" : "Create Personal Account?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {canRestartPersonalOnboarding ? (
+              {shouldResumeOnboarding ? (
+                <>
+                  Your onboarding is in progress.
+                  <br /><br />
+                  Clicking continue will resume your identity verification process for your <strong>Personal Account</strong>.
+                  <br /><br />
+                  Do you want to continue?
+                </>
+              ) : canRestartPersonalOnboarding ? (
                 <>
                   Your previous onboarding was reset by an administrator.
                   <br /><br />
@@ -247,7 +288,7 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmPersonal}>
-              {canRestartPersonalOnboarding ? "Yes, Restart Onboarding" : "Yes, Create Personal Account"}
+              {shouldResumeOnboarding ? "Yes, Resume Onboarding" : canRestartPersonalOnboarding ? "Yes, Restart Onboarding" : "Yes, Create Personal Account"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -338,7 +379,9 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                   <div className="flex-1">
                     <CardTitle className="text-lg">Personal Account</CardTitle>
                     <CardDescription className="text-sm">
-                      {canRestartPersonalOnboarding 
+                      {shouldResumeOnboarding 
+                        ? "Resume your onboarding" 
+                        : canRestartPersonalOnboarding 
                         ? "Restart your onboarding" 
                         : "Invest as an individual"}
                     </CardDescription>
@@ -349,7 +392,9 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                         ? "bg-primary/10 text-primary"
                         : "bg-muted text-muted-foreground"
                     }`}>
-                      {canRestartPersonalOnboarding 
+                      {shouldResumeOnboarding 
+                        ? "Resume onboarding" 
+                        : canRestartPersonalOnboarding 
                         ? "Restart required" 
                         : "Already created"}
                     </span>
@@ -358,7 +403,9 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {canRestartPersonalOnboarding
+                  {shouldResumeOnboarding
+                    ? "Your onboarding is in progress. Click to continue with identity verification."
+                    : canRestartPersonalOnboarding
                     ? "Your previous onboarding was reset. Click to start fresh with identity verification."
                     : "Perfect for individual investors. You can only have one personal account."}
                 </p>

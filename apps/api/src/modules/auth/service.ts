@@ -243,28 +243,11 @@ export class AuthService {
 
     const portal = getPortalFromRole(onboardingRole as UserRole);
 
-    // Check if user has an existing in-progress onboarding
-    const existingOnboarding = await prisma.regTankOnboarding.findFirst({
-      where: {
-        user_id: userId,
-        portal_type: portal,
-        status: {
-          in: ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_PASSED", "PENDING_APPROVAL", "PENDING_AML"],
-        },
-      },
-      orderBy: {
-        created_at: "desc",
-      },
-    });
-
-    // Determine event type: ONBOARDING_RESUME if existing onboarding found, otherwise ONBOARDING_STARTED
-    const eventType = existingOnboarding ? "ONBOARDING_RESUME" : "ONBOARDING_STARTED";
-
     // Create onboarding log
     await this.repository.createOnboardingLog({
       userId: user.user_id,
       role: onboardingRole as UserRole,
-      eventType,
+      eventType: "ONBOARDING_STARTED",
       portal,
       ipAddress,
       userAgent,
@@ -273,9 +256,6 @@ export class AuthService {
       metadata: {
         role: onboardingRole,
         roles: user.roles,
-        existingOnboardingId: existingOnboarding?.id || null,
-        existingRequestId: existingOnboarding?.request_id || null,
-        existingStatus: existingOnboarding?.status || null,
       },
     });
 
@@ -434,12 +414,12 @@ export class AuthService {
       return { success: true, cancelled: false };
     }
 
-    // Check if onboarding has been completed (check for FINAL_APPROVAL_COMPLETED event or account array)
+    // Check if onboarding has been completed (check for COMPLETED event or account array)
     const completedEvent = await prisma.onboardingLog.findFirst({
       where: {
         user_id: userId,
         role: onboardingRole,
-        event_type: "FINAL_APPROVAL_COMPLETED",
+        event_type: "USER_COMPLETED",
         created_at: {
           gte: startedEvent.created_at, // Only count if completed after started
         },

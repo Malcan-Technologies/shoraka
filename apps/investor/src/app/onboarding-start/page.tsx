@@ -134,22 +134,6 @@ function OnboardingStartPageContent() {
             if (!firstName.trim() || !lastName.trim()) {
               setNameForm({ firstName, lastName });
               setStep("name-input");
-            } else {
-              // Names exist, proceed to start onboarding
-              try {
-                await apiClient.post("/v1/auth/start-onboarding", {
-                  role: "INVESTOR",
-                });
-                if (isMounted) {
-                  setOnboardingStarted(true);
-                }
-              } catch (error: unknown) {
-                // If backend also rejects due to missing names, show name input
-                const err = error as { response?: { data?: { error?: string } } };
-                if (err?.response?.data?.error === "NAMES_REQUIRED") {
-                  setStep("name-input");
-                }
-              }
             }
           }
         }
@@ -176,22 +160,9 @@ function OnboardingStartPageContent() {
       return;
     }
 
-    // Try to start onboarding - backend will validate names
-    try {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      await apiClient.post("/v1/auth/start-onboarding", {
-        role: "INVESTOR",
-      });
-      setOnboardingStarted(true);
-      setStep("account-type");
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } } };
-      if (err?.response?.data?.error === "NAMES_REQUIRED") {
-        setStep("name-input");
-      } else {
-        console.error("Failed to start onboarding:", error);
-      }
-    }
+    // Proceed to account type selection (logging will happen when user confirms account type)
+    setOnboardingStarted(true);
+    setStep("account-type");
   };
 
   const handleSaveName = async () => {
@@ -213,11 +184,7 @@ function OnboardingStartPageContent() {
         lastName: nameForm.lastName.trim(),
       });
 
-      // Now proceed to start onboarding
-      await apiClient.post("/v1/auth/start-onboarding", {
-        role: "INVESTOR",
-      });
-
+      // Proceed to account type selection (logging will happen when user confirms account type)
       setOnboardingStarted(true);
       setStep("account-type");
     } catch (error) {

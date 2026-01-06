@@ -222,7 +222,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create AML approved log (AML/KYC check passed)
+            // Create onboarding log - AML_APPROVED when KYC webhook approves AML
             try {
               await prisma.onboardingLog.create({
                 data: {
@@ -248,7 +248,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   organizationId: onboarding.investor_organization_id,
                   kycRequestId: requestId,
                 },
-                "Failed to create AML approved log (non-blocking)"
+                "Failed to create onboarding log (non-blocking)"
               );
             }
 
@@ -289,7 +289,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create AML approved log (AML/KYC check passed)
+            // Create onboarding log - AML_APPROVED when KYC webhook approves AML
             try {
               await prisma.onboardingLog.create({
                 data: {
@@ -315,7 +315,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   organizationId: onboarding.issuer_organization_id,
                   kycRequestId: requestId,
                 },
-                "Failed to create AML approved log (non-blocking)"
+                "Failed to create onboarding log (non-blocking)"
               );
             }
 
