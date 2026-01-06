@@ -100,6 +100,9 @@ export class RegTankService {
 
     // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
     // This allows users to resume onboarding if it was restarted by admin
+    const previousOrgStatus = organization.onboarding_status;
+    const isResumingFromPending = previousOrgStatus === OnboardingStatus.PENDING;
+    
     if (organization.type === OrganizationType.PERSONAL) {
       if (
         organization.onboarding_status === OnboardingStatus.PENDING ||
@@ -144,6 +147,9 @@ export class RegTankService {
       );
 
       // For personal accounts, ensure organization status is IN_PROGRESS when resuming
+      const previousStatus = organization.onboarding_status;
+      const isResumingFromPending = previousStatus === OnboardingStatus.PENDING;
+      
       if (organization.type === OrganizationType.PERSONAL) {
         if (
           organization.onboarding_status === OnboardingStatus.PENDING ||
@@ -159,6 +165,31 @@ export class RegTankService {
           );
         }
       }
+
+      // Log ONBOARDING_RESUMED when resuming (not creating new)
+      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      
+      await prisma.onboardingLog.create({
+        data: {
+          user_id: userId,
+          role,
+          event_type: "ONBOARDING_RESUMED",
+          portal: portalType,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          device_info: deviceInfo,
+          device_type: deviceType,
+          metadata: {
+            organizationId,
+            requestId: existingOnboarding.request_id,
+            previousStatus,
+            newStatus: OnboardingStatus.IN_PROGRESS,
+            isResumingFromPending,
+            onboardingType: "INDIVIDUAL",
+          },
+        },
+      });
 
       // Ensure onboarding settings are configured before resuming
       const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
@@ -406,15 +437,18 @@ export class RegTankService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Log onboarding started event
+    // Log onboarding event - use ONBOARDING_RESUMED if resuming from PENDING, otherwise ONBOARDING_STARTED
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    
+    // If organization was PENDING (admin restart) and is now IN_PROGRESS, log as RESUMED
+    const eventType = isResumingFromPending ? "ONBOARDING_RESUMED" : "ONBOARDING_STARTED";
 
     await prisma.onboardingLog.create({
       data: {
         user_id: userId,
         role,
-        event_type: "ONBOARDING_STARTED",
+        event_type: eventType,
         portal: portalType,
         ip_address: ipAddress,
         user_agent: userAgent,
@@ -424,6 +458,9 @@ export class RegTankService {
           organizationId,
           requestId: regTankResponse.requestId,
           onboardingType: "INDIVIDUAL",
+          previousStatus: previousOrgStatus,
+          newStatus: OnboardingStatus.IN_PROGRESS,
+          isResumingFromPending,
         },
       },
     });

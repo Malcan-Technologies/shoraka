@@ -34,6 +34,7 @@ import {
 
 const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
+  "ONBOARDING_RESUMED",
   "ONBOARDING_STATUS_UPDATED",
   "ONBOARDING_CANCELLED",
   "ONBOARDING_REJECTED",
@@ -49,6 +50,7 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "ONBOARDING_STARTED", label: "Onboarding Started" },
+  { value: "ONBOARDING_RESUMED", label: "Onboarding Resumed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
   { value: "ONBOARDING_CANCELLED", label: "Onboarding Cancelled" },
   { value: "ONBOARDING_REJECTED", label: "Onboarding Rejected" },
