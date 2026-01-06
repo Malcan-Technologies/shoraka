@@ -98,6 +98,24 @@ export class RegTankService {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
     }
 
+    // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
+    // This allows users to resume onboarding if it was restarted by admin
+    if (organization.type === OrganizationType.PERSONAL) {
+      if (
+        organization.onboarding_status === OnboardingStatus.PENDING ||
+        organization.onboarding_status === OnboardingStatus.IN_PROGRESS
+      ) {
+        await this.organizationRepository.updateInvestorOrganizationOnboarding(
+          organizationId,
+          OnboardingStatus.IN_PROGRESS
+        );
+        logger.info(
+          { organizationId, previousStatus: organization.onboarding_status },
+          "Updated personal organization status to IN_PROGRESS for onboarding"
+        );
+      }
+    }
+
     // Check if we should resume existing onboarding for this organization
     // Resume if:
     // - Organization status is NOT PENDING_APPROVAL or COMPLETED
@@ -124,6 +142,23 @@ export class RegTankService {
         },
         "Resuming existing onboarding for organization (not advanced enough)"
       );
+
+      // For personal accounts, ensure organization status is IN_PROGRESS when resuming
+      if (organization.type === OrganizationType.PERSONAL) {
+        if (
+          organization.onboarding_status === OnboardingStatus.PENDING ||
+          organization.onboarding_status === OnboardingStatus.IN_PROGRESS
+        ) {
+          await this.organizationRepository.updateInvestorOrganizationOnboarding(
+            organizationId,
+            OnboardingStatus.IN_PROGRESS
+          );
+          logger.info(
+            { organizationId, previousStatus: organization.onboarding_status },
+            "Updated personal organization status to IN_PROGRESS when resuming onboarding"
+          );
+        }
+      }
 
       // Ensure onboarding settings are configured before resuming
       const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
@@ -1732,9 +1767,12 @@ export class RegTankService {
 
       // Determine event type based on status
       // Use new specific event types for better tracking
+      // Note: ONBOARDING_APPROVED is logged separately when admin approves in RegTank (see extractAndUpdateOrganizationData)
       let eventType = "WEBHOOK_RECEIVED";
       if (statusUpper === "APPROVED") {
-        eventType = "ONBOARDING_APPROVED";
+        // Don't log ONBOARDING_APPROVED here - it's logged in extractAndUpdateOrganizationData
+        // when admin actually approves in RegTank portal
+        eventType = "WEBHOOK_APPROVED";
       } else if (statusUpper === "REJECTED") {
         eventType = "WEBHOOK_REJECTED";
       } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {

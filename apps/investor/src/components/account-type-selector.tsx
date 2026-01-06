@@ -37,7 +37,7 @@ type ConfirmationType = "personal" | "company" | null;
 export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: AccountTypeSelectorProps) {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding, switchOrganization } = useOrganization();
+  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding, switchOrganization, refreshOrganizations } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -110,10 +110,17 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
       
       // Start RegTank individual onboarding for the organization
       // Backend will check for existing active onboarding and resume if found
+      // Backend will also set organization status to IN_PROGRESS
       try {
         const { verifyLink } = startIndividualOnboarding 
           ? await startIndividualOnboarding(org.id)
           : await startRegTankOnboarding(org.id);
+        
+        // Refresh organizations to get updated status (this will update the UI)
+        await refreshOrganizations();
+        
+        // Small delay to ensure state updates are reflected before redirect
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Redirect to RegTank portal
         window.location.href = verifyLink;
