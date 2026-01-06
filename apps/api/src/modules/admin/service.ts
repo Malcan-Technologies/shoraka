@@ -1915,6 +1915,8 @@ export class AdminService {
     const expiresIn = regTankResponse.expiredIn || 86400;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
+    // Create new onboarding record with PENDING status
+    // Status will be set to IN_PROGRESS when user clicks "Yes, Restart Onboarding"
     await this.regTankRepository.createOnboarding({
       userId: onboarding.user_id,
       organizationId: organizationId || undefined,
@@ -1925,16 +1927,17 @@ export class AdminService {
       onboardingType: onboarding.onboarding_type,
       verifyLink: regTankResponse.verifyLink,
       verifyLinkExpiresAt: expiresAt,
-      status: "IN_PROGRESS",
+      status: "PENDING",
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Reset the organization's onboarding status to IN_PROGRESS and clear all approval-related fields
+    // Reset the organization's onboarding status to PENDING and clear all approval-related fields
+    // User will need to click "Yes, Restart Onboarding" to set it to IN_PROGRESS
     if (isInvestorPortal && onboarding.investor_organization_id) {
       await prisma.investorOrganization.update({
         where: { id: onboarding.investor_organization_id },
         data: {
-          onboarding_status: "IN_PROGRESS",
+          onboarding_status: "PENDING",
           is_sophisticated_investor: false,
           onboarding_approved: false,
           aml_approved: false,
@@ -1949,7 +1952,7 @@ export class AdminService {
       await prisma.issuerOrganization.update({
         where: { id: onboarding.issuer_organization_id },
         data: {
-          onboarding_status: "IN_PROGRESS",
+          onboarding_status: "PENDING",
           onboarding_approved: false,
           aml_approved: false,
           tnc_accepted: false,
