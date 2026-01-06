@@ -243,11 +243,36 @@ export class AuthService {
 
     const portal = getPortalFromRole(onboardingRole as UserRole);
 
-    // Create onboarding log
+    // Check if user is resuming onboarding (has organization with PENDING or IN_PROGRESS status)
+    let isResuming = false;
+    if (onboardingRole === UserRole.INVESTOR) {
+      const personalOrg = await prisma.investorOrganization.findFirst({
+        where: {
+          owner_user_id: userId,
+          type: "PERSONAL",
+          onboarding_status: {
+            in: ["PENDING", "IN_PROGRESS"],
+          },
+        },
+      });
+      isResuming = !!personalOrg;
+    } else if (onboardingRole === UserRole.ISSUER) {
+      const issuerOrg = await prisma.issuerOrganization.findFirst({
+        where: {
+          owner_user_id: userId,
+          onboarding_status: {
+            in: ["PENDING", "IN_PROGRESS"],
+          },
+        },
+      });
+      isResuming = !!issuerOrg;
+    }
+
+    // Create onboarding log - use ONBOARDING_RESUMED if resuming, otherwise ONBOARDING_STARTED
     await this.repository.createOnboardingLog({
       userId: user.user_id,
       role: onboardingRole as UserRole,
-      eventType: "ONBOARDING_STARTED",
+      eventType: isResuming ? "ONBOARDING_RESUMED" : "ONBOARDING_STARTED",
       portal,
       ipAddress,
       userAgent,
@@ -256,6 +281,7 @@ export class AuthService {
       metadata: {
         role: onboardingRole,
         roles: user.roles,
+        isResuming,
       },
     });
 

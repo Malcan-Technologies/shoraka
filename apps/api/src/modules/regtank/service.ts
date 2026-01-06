@@ -100,20 +100,21 @@ export class RegTankService {
 
     // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
     // This allows users to resume onboarding if it was restarted by admin
+    // Store the previous status to determine if this is a resume (PENDING = admin restart, user is resuming)
     const previousOrgStatus = organization.onboarding_status;
     const isResumingFromPending = previousOrgStatus === OnboardingStatus.PENDING;
     
     if (organization.type === OrganizationType.PERSONAL) {
       if (
-        organization.onboarding_status === OnboardingStatus.PENDING ||
-        organization.onboarding_status === OnboardingStatus.IN_PROGRESS
+        previousOrgStatus === OnboardingStatus.PENDING ||
+        previousOrgStatus === OnboardingStatus.IN_PROGRESS
       ) {
         await this.organizationRepository.updateInvestorOrganizationOnboarding(
           organizationId,
           OnboardingStatus.IN_PROGRESS
         );
         logger.info(
-          { organizationId, previousStatus: organization.onboarding_status },
+          { organizationId, previousStatus: previousOrgStatus },
           "Updated personal organization status to IN_PROGRESS for onboarding"
         );
       }
@@ -147,9 +148,6 @@ export class RegTankService {
       );
 
       // For personal accounts, ensure organization status is IN_PROGRESS when resuming
-      const previousStatus = organization.onboarding_status;
-      const isResumingFromPending = previousStatus === OnboardingStatus.PENDING;
-      
       if (organization.type === OrganizationType.PERSONAL) {
         if (
           organization.onboarding_status === OnboardingStatus.PENDING ||
@@ -166,10 +164,10 @@ export class RegTankService {
         }
       }
 
-      // Log ONBOARDING_RESUMED when resuming (not creating new)
+      // Log ONBOARDING_RESUMED when resuming existing onboarding
       const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-      
+
       await prisma.onboardingLog.create({
         data: {
           user_id: userId,
@@ -183,10 +181,9 @@ export class RegTankService {
           metadata: {
             organizationId,
             requestId: existingOnboarding.request_id,
-            previousStatus,
-            newStatus: OnboardingStatus.IN_PROGRESS,
-            isResumingFromPending,
             onboardingType: "INDIVIDUAL",
+            previousOrgStatus: organization.onboarding_status,
+            previousRegTankStatus: existingOnboarding.status,
           },
         },
       });
@@ -437,11 +434,13 @@ export class RegTankService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Log onboarding event - use ONBOARDING_RESUMED if resuming from PENDING, otherwise ONBOARDING_STARTED
+    // Log onboarding event - ONBOARDING_RESUMED if status was PENDING (admin restart), otherwise ONBOARDING_STARTED
+    // Note: If we're here, we're creating NEW onboarding (not resuming existing), so check if org was PENDING
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
     
-    // If organization was PENDING (admin restart) and is now IN_PROGRESS, log as RESUMED
+    // If organization status was PENDING (admin restart), this is a resume, not a new start
+    // Otherwise, it's a new onboarding start
     const eventType = isResumingFromPending ? "ONBOARDING_RESUMED" : "ONBOARDING_STARTED";
 
     await prisma.onboardingLog.create({
@@ -458,9 +457,7 @@ export class RegTankService {
           organizationId,
           requestId: regTankResponse.requestId,
           onboardingType: "INDIVIDUAL",
-          previousStatus: previousOrgStatus,
-          newStatus: OnboardingStatus.IN_PROGRESS,
-          isResumingFromPending,
+          previousOrgStatus: previousOrgStatus,
         },
       },
     });
