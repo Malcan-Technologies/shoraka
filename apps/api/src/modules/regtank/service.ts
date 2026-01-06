@@ -100,9 +100,7 @@ export class RegTankService {
 
     // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
     // This allows users to resume onboarding if it was restarted by admin
-    // Store the previous status to determine if this is a resume (PENDING = admin restart, user is resuming)
     const previousOrgStatus = organization.onboarding_status;
-    const isResumingFromPending = previousOrgStatus === OnboardingStatus.PENDING;
     
     if (organization.type === OrganizationType.PERSONAL) {
       if (
@@ -124,6 +122,7 @@ export class RegTankService {
     // Resume if:
     // - Organization status is NOT PENDING_APPROVAL or COMPLETED
     // - RegTank onboarding status is NOT LIVENESS_PASSED, PENDING_APPROVAL, or APPROVED
+    // - verify_link exists and is valid
     const existingOnboarding = await this.repository.findByOrganizationId(
       organizationId,
       portalType
@@ -164,7 +163,7 @@ export class RegTankService {
         }
       }
 
-      // Log ONBOARDING_RESUMED when resuming existing onboarding
+      // Log ONBOARDING_RESUMED when resuming existing onboarding (only once, here)
       const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
@@ -434,20 +433,16 @@ export class RegTankService {
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
     });
 
-    // Log onboarding event - ONBOARDING_RESUMED if status was PENDING (admin restart), otherwise ONBOARDING_STARTED
-    // Note: If we're here, we're creating NEW onboarding (not resuming existing), so check if org was PENDING
+    // Log onboarding event - always ONBOARDING_STARTED when creating a new onboarding
+    // Note: ONBOARDING_RESUMED is only logged in the shouldResume block above when actually resuming
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-    
-    // If organization status was PENDING (admin restart), this is a resume, not a new start
-    // Otherwise, it's a new onboarding start
-    const eventType = isResumingFromPending ? "ONBOARDING_RESUMED" : "ONBOARDING_STARTED";
 
     await prisma.onboardingLog.create({
       data: {
         user_id: userId,
         role,
-        event_type: eventType,
+        event_type: "ONBOARDING_STARTED",
         portal: portalType,
         ip_address: ipAddress,
         user_agent: userAgent,
@@ -499,9 +494,9 @@ export class RegTankService {
     const formName =
       portalType === "investor"
         ? process.env.REGTANK_INVESTOR_CORPORATE_FORM_NAME ||
-          "Business End User Onboarding Example Form1"
+          "Cashsauk Business Onboarding Form"
         : process.env.REGTANK_ISSUER_CORPORATE_FORM_NAME ||
-          "Business End User Onboarding Example Form1";
+          "Cashsauk Business Onboarding Form";
 
     logger.info(
       {
