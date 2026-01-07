@@ -42,8 +42,9 @@ export default function OnboardingApprovalPage() {
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
   const [hideCancelled, setHideCancelled] = React.useState(true);
-  const [hideInProgress, setHideInProgress] = React.useState(false);
+  const [hideInProgress, setHideInProgress] = React.useState(true);
   const [hideExpired, setHideExpired] = React.useState(true);
+  const [hideCompleted, setHideCompleted] = React.useState(true);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
 
@@ -68,10 +69,11 @@ export default function OnboardingApprovalPage() {
       type: typeFilter !== "all" ? typeFilter : undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
       excludeStatuses: (() => {
-        const excluded: ("CANCELLED" | "PENDING_ONBOARDING" | "EXPIRED")[] = [];
+        const excluded: ("CANCELLED" | "PENDING_ONBOARDING" | "EXPIRED" | "COMPLETED")[] = [];
         if (hideCancelled) excluded.push("CANCELLED");
         if (hideInProgress) excluded.push("PENDING_ONBOARDING");
         if (hideExpired) excluded.push("EXPIRED");
+        if (hideCompleted) excluded.push("COMPLETED");
         return excluded.length > 0 ? excluded : undefined;
       })(),
     }),
@@ -85,6 +87,7 @@ export default function OnboardingApprovalPage() {
       hideCancelled,
       hideInProgress,
       hideExpired,
+      hideCompleted,
     ]
   );
 
@@ -103,8 +106,9 @@ export default function OnboardingApprovalPage() {
     setTypeFilter("all");
     setStatusFilter("all");
     setHideCancelled(true);
-    setHideInProgress(false);
+    setHideInProgress(true);
     setHideExpired(true);
+    setHideCompleted(true);
     setCurrentPage(1);
   };
 
@@ -114,8 +118,9 @@ export default function OnboardingApprovalPage() {
     typeFilter !== "all" ||
     statusFilter !== "all" ||
     !hideCancelled ||
-    hideInProgress ||
-    !hideExpired;
+    !hideInProgress ||
+    !hideExpired ||
+    !hideCompleted;
 
   // Get applications data
   const applications = data?.applications || [];
@@ -193,7 +198,10 @@ export default function OnboardingApprovalPage() {
                   <FunnelIcon className="h-4 w-4" />
                   Portal
                   {portalFilter !== "all" && (
-                    <Badge variant="secondary" className="ml-1">
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
+                    >
                       1
                     </Badge>
                   )}
@@ -221,7 +229,10 @@ export default function OnboardingApprovalPage() {
                   <FunnelIcon className="h-4 w-4" />
                   Type
                   {typeFilter !== "all" && (
-                    <Badge variant="secondary" className="ml-1">
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
+                    >
                       1
                     </Badge>
                   )}
@@ -248,14 +259,22 @@ export default function OnboardingApprovalPage() {
                 <Button variant="outline" className="gap-2 h-11 rounded-xl">
                   <FunnelIcon className="h-4 w-4" />
                   Status
-                  {(statusFilter !== "all" || !hideCancelled || hideInProgress || !hideExpired) && (
-                    <Badge variant="secondary" className="ml-1">
-                      {(statusFilter !== "all" ? 1 : 0) +
-                        (!hideCancelled ? 1 : 0) +
-                        (hideInProgress ? 1 : 0) +
-                        (!hideExpired ? 1 : 0)}
-                    </Badge>
-                  )}
+                  {(() => {
+                    const count =
+                      (statusFilter !== "all" ? 1 : 0) +
+                      (hideCancelled ? 1 : 0) +
+                      (hideInProgress ? 1 : 0) +
+                      (hideExpired ? 1 : 0) +
+                      (hideCompleted ? 1 : 0);
+                    return count > 0 ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
+                      >
+                        {count}
+                      </Badge>
+                    ) : null;
+                  })()}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -263,8 +282,23 @@ export default function OnboardingApprovalPage() {
                 <DropdownMenuRadioGroup
                   value={statusFilter}
                   onValueChange={(v) => {
-                    setStatusFilter(v as StatusFilter);
+                    const newStatus = v as StatusFilter;
+                    const prevStatus = statusFilter;
+                    
+                    setStatusFilter(newStatus);
                     setCurrentPage(1);
+                    
+                    // Re-hide the previous status if it was one of the hideable statuses
+                    if (prevStatus === "PENDING_ONBOARDING") setHideInProgress(true);
+                    if (prevStatus === "COMPLETED") setHideCompleted(true);
+                    if (prevStatus === "EXPIRED") setHideExpired(true);
+                    if (prevStatus === "CANCELLED") setHideCancelled(true);
+                    
+                    // Auto-uncheck the corresponding hide filter when user selects a status
+                    if (newStatus === "PENDING_ONBOARDING") setHideInProgress(false);
+                    if (newStatus === "COMPLETED") setHideCompleted(false);
+                    if (newStatus === "EXPIRED") setHideExpired(false);
+                    if (newStatus === "CANCELLED") setHideCancelled(false);
                   }}
                 >
                   <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
@@ -292,6 +326,12 @@ export default function OnboardingApprovalPage() {
                   onCheckedChange={setHideInProgress}
                 >
                   Hide In Progress
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={hideCompleted}
+                  onCheckedChange={setHideCompleted}
+                >
+                  Hide Completed
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem checked={hideExpired} onCheckedChange={setHideExpired}>
                   Hide Expired

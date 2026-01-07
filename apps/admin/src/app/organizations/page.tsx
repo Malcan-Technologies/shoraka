@@ -25,7 +25,7 @@ export default function OrganizationsPage() {
   // Shared filters for both tables
   const [searchQuery, setSearchQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
-  const [onboardingStatusFilter, setOnboardingStatusFilter] = React.useState("all");
+  const [onboardingStatusFilter, setOnboardingStatusFilter] = React.useState("COMPLETED");
   
   // Separate pagination for each table
   const [investorPage, setInvestorPage] = React.useState(1);

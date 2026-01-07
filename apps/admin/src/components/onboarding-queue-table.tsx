@@ -78,7 +78,7 @@ export function OnboardingQueueTable({
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-sm font-semibold min-w-[200px]">User</TableHead>
+              <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
               <TableHead className="text-sm font-semibold">Type</TableHead>
               <TableHead className="text-sm font-semibold">Portal</TableHead>
               <TableHead className="text-sm font-semibold">Submitted</TableHead>

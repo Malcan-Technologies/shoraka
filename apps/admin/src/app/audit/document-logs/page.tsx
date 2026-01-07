@@ -302,7 +302,7 @@ export default function DocumentLogsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
-                  <TableHead>Admin</TableHead>
+                  <TableHead className="min-w-[180px] max-w-[280px]">Admin</TableHead>
                   <TableHead>Event</TableHead>
                   <TableHead>Document</TableHead>
                   <TableHead>IP Address</TableHead>
@@ -357,12 +357,12 @@ export default function DocumentLogsPage() {
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                           {formatDate(log.created_at)}
                         </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
+                        <TableCell className="text-sm min-w-[180px] max-w-[280px]">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate" title={`${log.user.first_name} ${log.user.last_name}`}>
                               {log.user.first_name} {log.user.last_name}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground truncate" title={log.user.email}>
                               {log.user.email}
                             </p>
                           </div>
@@ -370,9 +370,9 @@ export default function DocumentLogsPage() {
                         <TableCell>
                           {getEventTypeBadge(log.event_type as DocumentEventType)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-sm">
                           <div className="max-w-[250px]">
-                            <p className="font-medium truncate">{documentTitle}</p>
+                            <p className="font-medium text-sm truncate">{documentTitle}</p>
                             {documentType && (
                               <p className="text-xs text-muted-foreground">
                                 {formatDocumentType(documentType)}

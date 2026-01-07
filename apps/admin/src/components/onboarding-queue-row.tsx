@@ -135,12 +135,12 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   return (
     <>
       <TableRow className={needsAction ? "bg-muted/30" : undefined}>
-        <TableCell>
-          <div className="space-y-0.5">
-            <div className="font-medium text-[15px]">{currentApplication.userName}</div>
-            <div className="text-sm text-muted-foreground">{currentApplication.userEmail}</div>
+        <TableCell className="min-w-[180px] max-w-[280px]">
+          <div className="space-y-0.5 min-w-0">
+            <div className="font-medium text-sm truncate" title={currentApplication.userName}>{currentApplication.userName}</div>
+            <div className="text-sm text-muted-foreground truncate" title={currentApplication.userEmail}>{currentApplication.userEmail}</div>
             {currentApplication.type === "COMPANY" && currentApplication.registrationNumber && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground truncate" title={`SSM: ${currentApplication.registrationNumber}`}>
                 SSM: {currentApplication.registrationNumber}
               </div>
             )}

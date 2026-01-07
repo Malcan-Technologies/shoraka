@@ -102,7 +102,7 @@ export function OrganizationsTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="text-sm font-semibold">Organization</TableHead>
+                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">Organization</TableHead>
                 <TableHead className="text-sm font-semibold">Type</TableHead>
                 <TableHead className="text-sm font-semibold">Onboarding</TableHead>
                 <TableHead className="text-sm font-semibold">Risk</TableHead>

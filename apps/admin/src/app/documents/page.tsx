@@ -516,28 +516,28 @@ export default function DocumentsPage() {
                 ) : (
                   documents.map((doc) => (
                     <TableRow key={doc.id} className={!doc.is_active ? "opacity-60" : ""}>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                             <DocumentIcon className="h-5 w-5 text-primary" />
                           </div>
-                          <div>
-                            <p className="font-medium">{doc.title}</p>
-                            <p className="text-xs text-muted-foreground">{doc.file_name}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate" title={doc.title}>{doc.title}</p>
+                            <p className="text-xs text-muted-foreground truncate" title={doc.file_name}>{doc.file_name}</p>
                           </div>
                           {!doc.is_active && (
-                            <Badge variant="secondary" className="ml-2">
+                            <Badge variant="secondary" className="ml-2 shrink-0">
                               Archived
                             </Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         <Badge variant="outline">{getDocumentTypeLabel(doc.type)}</Badge>
                       </TableCell>
-                      <TableCell>v{doc.version}</TableCell>
-                      <TableCell>{formatFileSize(doc.file_size)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">v{doc.version}</TableCell>
+                      <TableCell className="text-sm">{formatFileSize(doc.file_size)}</TableCell>
+                      <TableCell className="text-sm">
                         {doc.show_in_account ? (
                           <Badge variant="secondary">Yes</Badge>
                         ) : (

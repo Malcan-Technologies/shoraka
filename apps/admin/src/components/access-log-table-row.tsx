@@ -51,15 +51,15 @@ const roleColors: Partial<Record<UserRole, string>> = {
 export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps) {
   return (
     <TableRow className="hover:bg-muted/50">
-      <TableCell className="text-[15px] text-muted-foreground">
+      <TableCell className="text-sm text-muted-foreground">
         {format(log.created_at, "MMM dd, yyyy HH:mm")}
       </TableCell>
-      <TableCell>
-        <div className="flex flex-col">
-          <span className="text-[15px] font-medium">
+      <TableCell className="min-w-[180px] max-w-[280px]">
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium truncate" title={`${log.user.first_name} ${log.user.last_name}`}>
             {log.user.first_name} {log.user.last_name}
           </span>
-          <span className="text-xs text-muted-foreground">{log.user.email}</span>
+          <span className="text-xs text-muted-foreground truncate" title={log.user.email}>{log.user.email}</span>
         </div>
       </TableCell>
       <TableCell>
@@ -85,7 +85,7 @@ export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}
       </TableCell>
-      <TableCell className="text-[15px] text-muted-foreground">{log.device_info || "—"}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">{log.device_info || "—"}</TableCell>
       <TableCell>
         {log.success ? (
           <div className="flex items-center gap-1.5 text-green-600">

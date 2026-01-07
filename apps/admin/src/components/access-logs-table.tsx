@@ -92,7 +92,7 @@ export function AccessLogsTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                <TableHead className="text-sm font-semibold">User</TableHead>
+                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
                 <TableHead className="text-sm font-semibold">Event Type</TableHead>
                 <TableHead className="text-sm font-semibold">Role</TableHead>
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>

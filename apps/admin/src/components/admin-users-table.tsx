@@ -63,9 +63,9 @@ export function AdminUsersTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="text-sm font-semibold">Name</TableHead>
+                <TableHead className="text-sm font-semibold min-w-[140px] max-w-[200px]">Name</TableHead>
                 <TableHead className="text-sm font-semibold">User ID</TableHead>
-                <TableHead className="text-sm font-semibold">Email</TableHead>
+                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">Email</TableHead>
                 <TableHead className="text-sm font-semibold">Role</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>

@@ -147,13 +147,17 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
 
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
-      <TableCell className="font-medium">
-        {user.first_name} {user.last_name}
+      <TableCell className="font-medium min-w-[140px] max-w-[200px]">
+        <span className="truncate block" title={`${user.first_name} ${user.last_name}`}>
+          {user.first_name} {user.last_name}
+        </span>
       </TableCell>
-      <TableCell className="text-[15px] font-mono text-xs text-muted-foreground">
+      <TableCell className="font-mono text-xs text-muted-foreground">
         {user.user_id || "-"}
       </TableCell>
-      <TableCell className="text-[15px]">{user.email}</TableCell>
+      <TableCell className="text-sm min-w-[180px] max-w-[280px]">
+        <span className="truncate block" title={user.email}>{user.email}</span>
+      </TableCell>
       <TableCell>
         {isEditingRole ? (
           <div className="flex items-center gap-2">

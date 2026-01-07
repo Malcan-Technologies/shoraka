@@ -339,13 +339,13 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           {user.user_id || <span className="text-muted-foreground italic">Not assigned</span>}
         </TableCell>
         {/* First Name */}
-        <TableCell className="font-medium text-[15px]">{user.first_name}</TableCell>
+        <TableCell className="font-medium text-sm">{user.first_name}</TableCell>
         {/* Last Name */}
-        <TableCell className="font-medium text-[15px]">{user.last_name}</TableCell>
+        <TableCell className="font-medium text-sm">{user.last_name}</TableCell>
         {/* Phone */}
-        <TableCell className="text-[15px]">{user.phone || "—"}</TableCell>
+        <TableCell className="text-sm">{user.phone || "—"}</TableCell>
         {/* Email */}
-        <TableCell className="text-[15px]">{user.email}</TableCell>
+        <TableCell className="text-sm">{user.email}</TableCell>
         {/* Roles */}
         <TableCell>
           <div className="flex flex-col gap-1">

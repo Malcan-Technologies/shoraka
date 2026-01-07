@@ -36,11 +36,11 @@ export function OrganizationsTableRow({
   return (
     <TableRow className="odd:bg-muted/40 hover:bg-muted">
       {/* Organization */}
-      <TableCell className="text-[15px] leading-7">
+      <TableCell className="text-sm min-w-[180px] max-w-[280px]">
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg mt-0.5",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5",
               organization.type === "COMPANY" ? "bg-accent/10" : "bg-muted"
             )}
           >
@@ -50,10 +50,10 @@ export function OrganizationsTableRow({
               <UserIcon className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
-          <div>
-            <div className="font-medium">{displayName}</div>
+          <div className="min-w-0">
+            <div className="font-medium truncate" title={displayName}>{displayName}</div>
             {organization.registrationNumber && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground truncate" title={`SSM: ${organization.registrationNumber}`}>
                 SSM: {organization.registrationNumber}
               </div>
             )}
@@ -163,7 +163,7 @@ export function OrganizationsTableRow({
       </TableCell>
 
       {/* Created */}
-      <TableCell className="text-[15px] leading-7 text-muted-foreground">
+      <TableCell className="text-sm text-muted-foreground">
         {format(new Date(organization.createdAt), "dd MMM yyyy")}
       </TableCell>
 
