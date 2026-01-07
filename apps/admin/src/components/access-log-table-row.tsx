@@ -3,10 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
-import type { EventType, AccessLogResponse, UserRole } from "@cashsouk/types";
+import type { AccessLogResponse, UserRole } from "@cashsouk/types";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
+  role?: UserRole | null;
 }
 
 interface AccessLogTableRowProps {
@@ -71,7 +72,12 @@ const COLOR_MAP: Record<string, string> = {
 function getEventTypeBadge(eventType: string) {
   const config = EVENT_TYPE_CONFIG[eventType];
   const color = config?.color || "bg-gray-500";
-  const label = config?.label || eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const label =
+    config?.label ||
+    eventType
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   const cssColor = COLOR_MAP[color] || "rgb(107 114 128)";
 
   return (
@@ -108,7 +114,11 @@ function getRoleBadge(role: UserRole) {
   );
 }
 
-export function AccessLogTableRow({ log, onViewDetails, showRole = false }: AccessLogTableRowProps) {
+export function AccessLogTableRow({
+  log,
+  onViewDetails,
+  showRole = false,
+}: AccessLogTableRowProps) {
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell className="text-sm text-muted-foreground">
@@ -116,15 +126,18 @@ export function AccessLogTableRow({ log, onViewDetails, showRole = false }: Acce
       </TableCell>
       <TableCell className="min-w-[180px] max-w-[280px]">
         <div className="flex flex-col min-w-0">
-          <span className="text-sm font-medium truncate" title={`${log.user.first_name} ${log.user.last_name}`}>
+          <span
+            className="text-sm font-medium truncate"
+            title={`${log.user.first_name} ${log.user.last_name}`}
+          >
             {log.user.first_name} {log.user.last_name}
           </span>
-          <span className="text-xs text-muted-foreground truncate" title={log.user.email}>{log.user.email}</span>
+          <span className="text-xs text-muted-foreground truncate" title={log.user.email}>
+            {log.user.email}
+          </span>
         </div>
       </TableCell>
-      <TableCell>
-        {getEventTypeBadge(log.event_type)}
-      </TableCell>
+      <TableCell>{getEventTypeBadge(log.event_type)}</TableCell>
       {showRole && (
         <TableCell>
           {log.role ? (

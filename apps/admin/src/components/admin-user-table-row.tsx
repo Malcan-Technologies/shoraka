@@ -10,7 +10,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { PencilIcon, XMarkIcon, CheckIcon, ShieldExclamationIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
+import {
+  PencilIcon,
+  XMarkIcon,
+  CheckIcon,
+  ShieldExclamationIcon,
+  ShieldCheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  UserCircleIcon,
+} from "@heroicons/react/24/outline";
 import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
 import type { AdminUser, AdminRole } from "@cashsouk/types";
 
@@ -19,26 +28,30 @@ interface AdminUserTableRowProps {
   onUpdate: (userId: string, updates: Partial<AdminUser>) => void;
 }
 
-const roleConfig: Record<AdminRole, { label: string; color: string; bgColor: string }> = {
+const roleConfig: Record<AdminRole, { label: string; iconColor: string; bgClass: string; borderClass: string }> = {
   SUPER_ADMIN: {
     label: "Super Admin",
-    color: "text-red-600",
-    bgColor: "bg-red-50 border-red-200",
+    iconColor: "text-red-600",
+    bgClass: "bg-red-500/10",
+    borderClass: "border-red-500/30",
   },
   COMPLIANCE_OFFICER: {
     label: "Compliance Officer",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50 border-blue-200",
+    iconColor: "text-blue-600",
+    bgClass: "bg-blue-500/10",
+    borderClass: "border-blue-500/30",
   },
   OPERATIONS_OFFICER: {
     label: "Operations Officer",
-    color: "text-purple-600",
-    bgColor: "bg-purple-50 border-purple-200",
+    iconColor: "text-purple-600",
+    bgClass: "bg-purple-500/10",
+    borderClass: "border-purple-500/30",
   },
   FINANCE_OFFICER: {
     label: "Finance Officer",
-    color: "text-green-600",
-    bgColor: "bg-green-50 border-green-200",
+    iconColor: "text-green-600",
+    bgClass: "bg-green-500/10",
+    borderClass: "border-green-500/30",
   },
 };
 
@@ -200,15 +213,16 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
           <button
             onClick={handleStartEditRole}
             disabled={status === "INACTIVE"}
-            className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${
-              roleConfig[role].bgColor
-            } ${roleConfig[role].color} ${
+            className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium text-foreground ${
+              roleConfig[role].bgClass
+            } ${roleConfig[role].borderClass} ${
               status === "INACTIVE" 
                 ? "opacity-50 cursor-not-allowed" 
                 : "hover:shadow-sm transition-shadow"
             }`}
             title={status === "INACTIVE" ? "Activate admin to edit role" : "Click to edit role"}
           >
+            <UserCircleIcon className={`h-3 w-3 ${roleConfig[role].iconColor}`} />
             {roleConfig[role].label}
             <PencilIcon className={`h-3 w-3 ${
               status === "INACTIVE" 
@@ -221,16 +235,23 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         )}
       </TableCell>
       <TableCell>
-        <Badge
-          variant={status === "ACTIVE" ? "default" : "secondary"}
-          className={
-            status === "ACTIVE"
-              ? "bg-green-50 text-green-700 border-green-200"
-              : "bg-gray-100 text-gray-600 border-gray-200"
-          }
-        >
-          {status}
-        </Badge>
+        {status === "ACTIVE" ? (
+          <Badge
+            variant="outline"
+            className="border-green-500/30 text-foreground bg-green-500/10"
+          >
+            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
+            Active
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className="border-gray-400/30 text-foreground bg-gray-400/10"
+          >
+            <XCircleIcon className="h-3 w-3 mr-1 text-gray-500" />
+            Inactive
+          </Badge>
+        )}
       </TableCell>
       <TableCell>
         {status === "ACTIVE" ? (
