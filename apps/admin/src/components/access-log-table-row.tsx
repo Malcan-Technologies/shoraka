@@ -3,52 +3,112 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 import type { EventType, AccessLogResponse, UserRole } from "@cashsouk/types";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
-  role?: UserRole;
 }
 
 interface AccessLogTableRowProps {
   log: AccessLog;
   onViewDetails: () => void;
+  showRole?: boolean;
 }
 
-const eventTypeColors: Partial<Record<EventType | string, string>> = {
-  LOGIN: "!bg-blue-100 !text-blue-800 !border-blue-200",
-  LOGOUT: "!bg-gray-100 !text-gray-800 !border-gray-200",
-  SIGNUP: "!bg-green-100 !text-green-800 !border-green-200",
-  ROLE_ADDED: "!bg-purple-100 !text-purple-800 !border-purple-200",
-  ROLE_SWITCHED: "!bg-orange-100 !text-orange-800 !border-orange-200",
-  USER_COMPLETED: "!bg-teal-100 !text-teal-800 !border-teal-200",
-  ONBOARDING_STARTED: "!bg-emerald-100 !text-emerald-800 !border-emerald-200",
-  ONBOARDING_RESUMED: "!bg-cyan-100 !text-cyan-800 !border-cyan-200",
-  ONBOARDING_CANCELLED: "!bg-gray-100 !text-gray-800 !border-gray-200",
-  ONBOARDING_REJECTED: "!bg-red-100 !text-red-800 !border-red-200",
-  ONBOARDING_STATUS_UPDATED: "!bg-indigo-100 !text-indigo-800 !border-indigo-200",
-  FORM_FILLED: "!bg-sky-100 !text-sky-800 !border-sky-200",
-  ONBOARDING_APPROVED: "!bg-green-100 !text-green-800 !border-green-200",
-  AML_APPROVED: "!bg-lime-100 !text-lime-800 !border-lime-200",
-  TNC_APPROVED: "!bg-emerald-100 !text-emerald-800 !border-emerald-200",
-  TNC_ACCEPTED: "!bg-emerald-100 !text-emerald-800 !border-emerald-200",
-  SSM_APPROVED: "!bg-teal-100 !text-teal-800 !border-teal-200",
-  FINAL_APPROVAL_COMPLETED: "!bg-green-100 !text-green-800 !border-green-200",
-  KYC_STATUS_UPDATED: "!bg-yellow-100 !text-yellow-800 !border-yellow-200",
-  PASSWORD_CHANGED: "!bg-rose-100 !text-rose-800 !border-rose-200",
-  EMAIL_CHANGED: "!bg-cyan-100 !text-cyan-800 !border-cyan-200",
-  SOPHISTICATED_STATUS_UPDATED: "!bg-violet-100 !text-violet-800 !border-violet-200",
+// Event type configuration with dot color and readable label
+const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  LOGIN: { label: "Login", color: "bg-blue-500" },
+  LOGOUT: { label: "Logout", color: "bg-gray-500" },
+  SIGNUP: { label: "Sign Up", color: "bg-green-500" },
+  ROLE_ADDED: { label: "Role Added", color: "bg-purple-500" },
+  ROLE_SWITCHED: { label: "Role Switched", color: "bg-orange-500" },
+  USER_COMPLETED: { label: "User Completed", color: "bg-teal-500" },
+  ONBOARDING_STARTED: { label: "Onboarding Started", color: "bg-emerald-500" },
+  ONBOARDING_RESUMED: { label: "Onboarding Resumed", color: "bg-cyan-500" },
+  ONBOARDING_CANCELLED: { label: "Onboarding Cancelled", color: "bg-gray-500" },
+  ONBOARDING_REJECTED: { label: "Onboarding Rejected", color: "bg-red-500" },
+  ONBOARDING_STATUS_UPDATED: { label: "Status Updated", color: "bg-indigo-500" },
+  FORM_FILLED: { label: "Form Filled", color: "bg-sky-500" },
+  ONBOARDING_APPROVED: { label: "Onboarding Approved", color: "bg-green-500" },
+  AML_APPROVED: { label: "AML Approved", color: "bg-lime-500" },
+  TNC_APPROVED: { label: "T&C Approved", color: "bg-emerald-500" },
+  TNC_ACCEPTED: { label: "T&C Accepted", color: "bg-emerald-500" },
+  SSM_APPROVED: { label: "SSM Approved", color: "bg-teal-500" },
+  FINAL_APPROVAL_COMPLETED: { label: "Final Approval", color: "bg-green-500" },
+  KYC_STATUS_UPDATED: { label: "KYC Updated", color: "bg-yellow-500" },
+  PASSWORD_CHANGED: { label: "Password Changed", color: "bg-rose-500" },
+  EMAIL_CHANGED: { label: "Email Changed", color: "bg-cyan-500" },
+  PROFILE_UPDATED: { label: "Profile Updated", color: "bg-blue-500" },
+  SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-violet-500" },
 };
 
-// Add this new color mapping for roles
-const roleColors: Partial<Record<UserRole, string>> = {
-  INVESTOR: "bg-blue-100 text-blue-800 border-blue-200",
-  ISSUER: "bg-purple-100 text-purple-800 border-purple-200",
-  ADMIN: "bg-red-100 text-red-800 border-red-200",
+// Role configuration with dot color
+const ROLE_CONFIG: Record<UserRole, { label: string; color: string }> = {
+  INVESTOR: { label: "Investor", color: "bg-blue-500" },
+  ISSUER: { label: "Issuer", color: "bg-purple-500" },
+  ADMIN: { label: "Admin", color: "bg-red-500" },
 };
 
-export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps) {
+// Map Tailwind color class to CSS color for background
+const COLOR_MAP: Record<string, string> = {
+  "bg-blue-500": "rgb(59 130 246)",
+  "bg-gray-500": "rgb(107 114 128)",
+  "bg-green-500": "rgb(34 197 94)",
+  "bg-purple-500": "rgb(168 85 247)",
+  "bg-orange-500": "rgb(249 115 22)",
+  "bg-teal-500": "rgb(20 184 166)",
+  "bg-emerald-500": "rgb(16 185 129)",
+  "bg-cyan-500": "rgb(6 182 212)",
+  "bg-red-500": "rgb(239 68 68)",
+  "bg-indigo-500": "rgb(99 102 241)",
+  "bg-sky-500": "rgb(14 165 233)",
+  "bg-lime-500": "rgb(132 204 22)",
+  "bg-yellow-500": "rgb(234 179 8)",
+  "bg-rose-500": "rgb(244 63 94)",
+  "bg-violet-500": "rgb(139 92 246)",
+};
+
+function getEventTypeBadge(eventType: string) {
+  const config = EVENT_TYPE_CONFIG[eventType];
+  const color = config?.color || "bg-gray-500";
+  const label = config?.label || eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const cssColor = COLOR_MAP[color] || "rgb(107 114 128)";
+
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
+        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
+      }}
+    >
+      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${color}`} />
+      {label}
+    </Badge>
+  );
+}
+
+function getRoleBadge(role: UserRole) {
+  const config = ROLE_CONFIG[role];
+  const cssColor = COLOR_MAP[config.color] || "rgb(107 114 128)";
+
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
+        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
+      }}
+    >
+      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${config.color}`} />
+      {config.label}
+    </Badge>
+  );
+}
+
+export function AccessLogTableRow({ log, onViewDetails, showRole = false }: AccessLogTableRowProps) {
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell className="text-sm text-muted-foreground">
@@ -63,25 +123,17 @@ export function AccessLogTableRow({ log, onViewDetails }: AccessLogTableRowProps
         </div>
       </TableCell>
       <TableCell>
-        <Badge 
-          variant="outline"
-          className={cn(
-            "text-xs",
-            eventTypeColors[log.event_type] || "!bg-gray-100 !text-gray-800 !border-gray-200"
+        {getEventTypeBadge(log.event_type)}
+      </TableCell>
+      {showRole && (
+        <TableCell>
+          {log.role ? (
+            getRoleBadge(log.role)
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
           )}
-        >
-          {log.event_type.replace(/_/g, " ")}
-        </Badge>
-      </TableCell>
-      <TableCell>
-        {log.role ? (
-          <Badge variant="outline" className={`text-xs ${roleColors[log.role] || ""}`}>
-            {log.role}
-          </Badge>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        )}
-      </TableCell>
+        </TableCell>
+      )}
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}
       </TableCell>

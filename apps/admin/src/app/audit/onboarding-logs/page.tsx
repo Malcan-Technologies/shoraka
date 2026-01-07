@@ -300,6 +300,7 @@ export default function OnboardingLogsPage() {
             pageSize={pageSize}
             totalLogs={totalLogs}
             onPageChange={setCurrentPage}
+            showRole
           />
         </div>
       </div>

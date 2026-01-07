@@ -27,9 +27,10 @@ interface AccessLogsTableProps {
   pageSize: number;
   totalLogs: number;
   onPageChange: (page: number) => void;
+  showRole?: boolean;
 }
 
-function TableSkeleton() {
+function TableSkeleton({ showRole = false }: { showRole?: boolean }) {
   return (
     <>
       {Array.from({ length: 7 }).map((_, i) => (
@@ -43,9 +44,11 @@ function TableSkeleton() {
           <TableCell>
             <Skeleton className="h-5 w-24" />
           </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-20" />
-          </TableCell>
+          {showRole && (
+            <TableCell>
+              <Skeleton className="h-5 w-20" />
+            </TableCell>
+          )}
           <TableCell>
             <Skeleton className="h-5 w-28" />
           </TableCell>
@@ -71,6 +74,7 @@ export function AccessLogsTable({
   pageSize,
   totalLogs,
   onPageChange,
+  showRole = false,
 }: AccessLogsTableProps) {
   const [selectedLog, setSelectedLog] = React.useState<AccessLog | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -84,6 +88,8 @@ export function AccessLogsTable({
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalLogs);
 
+  const columnCount = showRole ? 8 : 7;
+
   return (
     <>
       <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
@@ -93,8 +99,8 @@ export function AccessLogsTable({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Timestamp</TableHead>
                 <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
-                <TableHead className="text-sm font-semibold">Event Type</TableHead>
-                <TableHead className="text-sm font-semibold">Role</TableHead>
+                <TableHead className="text-sm font-semibold">Event</TableHead>
+                {showRole && <TableHead className="text-sm font-semibold">Role</TableHead>}
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>
                 <TableHead className="text-sm font-semibold">Device</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
@@ -103,10 +109,10 @@ export function AccessLogsTable({
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeleton />
+                <TableSkeleton showRole={showRole} />
               ) : logs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
                     No access logs found
                   </TableCell>
                 </TableRow>
@@ -116,6 +122,7 @@ export function AccessLogsTable({
                     key={log.id}
                     log={log}
                     onViewDetails={() => handleViewDetails(log)}
+                    showRole={showRole}
                   />
                 ))
               )}

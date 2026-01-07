@@ -14,7 +14,6 @@ import {
 } from "../hooks/use-users";
 import type { UserRole } from "@cashsouk/types";
 import { EditUserDialog } from "./edit-user-dialog";
-import { cn } from "@/lib/utils";
 
 interface User {
   user_id: string;
@@ -42,18 +41,38 @@ interface UserTableRowProps {
   onCancel: () => void;
 }
 
-const getRoleBadgeClasses = (role: UserRole): string => {
-  switch (role) {
-    case "INVESTOR":
-      return "border-primary/30 text-primary";
-    case "ISSUER":
-      return "border-accent/30 text-accent";
-    case "ADMIN":
-      return "border-purple-500/30 text-purple-600 bg-purple-500/10";
-    default:
-      return "";
-  }
+// Role configuration with dot color and readable label - maintaining core colors
+const ROLE_CONFIG: Record<UserRole, { label: string; dotColor: string; cssColor: string }> = {
+  INVESTOR: { label: "Investor", dotColor: "bg-blue-500", cssColor: "rgb(59 130 246)" },
+  ISSUER: { label: "Issuer", dotColor: "bg-amber-600", cssColor: "rgb(217 119 6)" },
+  ADMIN: { label: "Admin", dotColor: "bg-purple-500", cssColor: "rgb(168 85 247)" },
 };
+
+function getRoleBadge(role: UserRole) {
+  const config = ROLE_CONFIG[role];
+  if (!config) {
+    return (
+      <Badge variant="outline" className="text-xs w-fit">
+        <span className="inline-block w-2 h-2 rounded-full mr-1.5 bg-gray-500" />
+        {role.toLowerCase()}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs w-fit"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${config.cssColor} 10%, transparent)`,
+        borderColor: `color-mix(in srgb, ${config.cssColor} 30%, transparent)`,
+      }}
+    >
+      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${config.dotColor}`} />
+      {config.label}
+    </Badge>
+  );
+}
 
 export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: UserTableRowProps) {
   const [editedUser, setEditedUser] = React.useState<Partial<User>>(user);
@@ -253,9 +272,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
           <TableCell>
             <div className="flex flex-col gap-1">
               {(editedUser.roles || user.roles).map((role) => (
-                <Badge key={role} variant="outline" className={cn("text-xs w-fit capitalize", getRoleBadgeClasses(role))}>
-                  {role.toLowerCase()}
-                </Badge>
+                <React.Fragment key={role}>{getRoleBadge(role)}</React.Fragment>
               ))}
             </div>
           </TableCell>
@@ -350,9 +367,7 @@ export function UserTableRow({ user, isEditing, onEdit, onSave, onCancel }: User
         <TableCell>
           <div className="flex flex-col gap-1">
             {user.roles.map((role) => (
-              <Badge key={role} variant="outline" className={cn("text-xs w-fit capitalize", getRoleBadgeClasses(role))}>
-                {role.toLowerCase()}
-              </Badge>
+              <React.Fragment key={role}>{getRoleBadge(role)}</React.Fragment>
             ))}
           </div>
         </TableCell>

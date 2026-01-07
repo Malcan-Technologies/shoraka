@@ -64,13 +64,13 @@ export function OrganizationsTableRow({
       {/* Type */}
       <TableCell>
         {organization.type === "COMPANY" ? (
-          <Badge variant="outline" className="border-blue-500/30 text-blue-600 bg-blue-500/10">
-            <BuildingOffice2Icon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
+            <BuildingOffice2Icon className="h-3 w-3 mr-1 text-blue-600" />
             Company
           </Badge>
         ) : (
-          <Badge variant="outline" className="border-slate-500/30 text-slate-600 bg-slate-500/10">
-            <UserIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10">
+            <UserIcon className="h-3 w-3 mr-1 text-slate-600" />
             Personal
           </Badge>
         )}
@@ -79,18 +79,18 @@ export function OrganizationsTableRow({
       {/* Onboarding Status */}
       <TableCell>
         {organization.onboardingStatus === "COMPLETED" ? (
-          <Badge variant="outline" className="border-green-500/30 text-green-600 bg-green-500/10">
-            <CheckCircleIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
+            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
             Completed
           </Badge>
         ) : organization.onboardingStatus === "REJECTED" ? (
-          <Badge variant="outline" className="border-red-500/30 text-red-600 bg-red-500/10">
-            <XCircleIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-red-500/30 text-foreground bg-red-500/10">
+            <XCircleIcon className="h-3 w-3 mr-1 text-red-600" />
             Rejected
           </Badge>
         ) : (
-          <Badge variant="outline" className="border-amber-500/30 text-amber-600 bg-amber-500/10">
-            <ClockIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />
             {organization.onboardingStatus === "PENDING" && "Not Started"}
             {organization.onboardingStatus === "IN_PROGRESS" && "In Progress"}
             {organization.onboardingStatus === "PENDING_APPROVAL" && "Pending Approval"}
@@ -107,11 +107,12 @@ export function OrganizationsTableRow({
           <Badge
             variant="outline"
             className={cn(
+              "text-foreground",
               organization.riskLevel?.toLowerCase().includes("low")
-                ? "border-green-500/30 text-green-600 bg-green-500/10"
+                ? "border-green-500/30 bg-green-500/10"
                 : organization.riskLevel?.toLowerCase().includes("high")
-                  ? "border-red-500/30 text-red-600 bg-red-500/10"
-                  : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+                  ? "border-red-500/30 bg-red-500/10"
+                  : "border-amber-500/30 bg-amber-500/10"
             )}
           >
             {organization.riskScore}
@@ -128,9 +129,9 @@ export function OrganizationsTableRow({
           {organization.isSophisticatedInvestor ? (
             <Badge
               variant="outline"
-              className="border-violet-500/30 text-violet-600 bg-violet-500/10"
+              className="border-violet-500/30 text-foreground bg-violet-500/10"
             >
-              <StarIcon className="h-3 w-3 mr-1" />
+              <StarIcon className="h-3 w-3 mr-1 text-violet-600" />
               Yes
             </Badge>
           ) : (
@@ -142,9 +143,9 @@ export function OrganizationsTableRow({
             {organization.depositReceived ? (
               <Badge
                 variant="outline"
-                className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                className="border-emerald-500/30 text-foreground bg-emerald-500/10"
               >
-                <BanknotesIcon className="h-3 w-3 mr-1" />
+                <BanknotesIcon className="h-3 w-3 mr-1 text-emerald-600" />
                 Received
               </Badge>
             ) : (
