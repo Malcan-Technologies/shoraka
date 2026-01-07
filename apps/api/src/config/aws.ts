@@ -17,7 +17,7 @@ export function getCognitoAuthorizeUrl(state?: string): string {
   const params = new URLSearchParams({
     client_id: config.clientId,
     response_type: "code",
-    scope: "openid email",
+    scope: "openid email aws.cognito.signin.user.admin",
     redirect_uri: config.redirectUri,
   });
 

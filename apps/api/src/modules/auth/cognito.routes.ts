@@ -107,7 +107,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
 
     try {
       let authUrl = client.authorizationUrl({
-        scope: "openid email",
+        scope: "openid email aws.cognito.signin.user.admin",
         state: stateData, // Use encrypted state instead of raw state
         nonce: nonce,
       });
