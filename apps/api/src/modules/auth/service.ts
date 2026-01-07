@@ -2,9 +2,6 @@ import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
   AdminUpdateUserAttributesCommand,
-  AdminUserGlobalSignOutCommand,
-  AdminSetUserPasswordCommand,
-  AdminInitiateAuthCommand,
   ResendConfirmationCodeCommand,
   ConfirmSignUpCommand,
   NotAuthorizedException,
@@ -12,6 +9,8 @@ import {
   CodeMismatchException,
   ExpiredCodeException,
   VerifyUserAttributeCommand,
+  ChangePasswordCommand,
+  GlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
@@ -213,7 +212,12 @@ export class AuthService {
     }
 
     // Validate that user has first name and last name before starting onboarding
-    if (!user.first_name || !user.last_name || user.first_name.trim() === "" || user.last_name.trim() === "") {
+    if (
+      !user.first_name ||
+      !user.last_name ||
+      user.first_name.trim() === "" ||
+      user.last_name.trim() === ""
+    ) {
       throw new AppError(
         400,
         "NAMES_REQUIRED",
@@ -362,7 +366,6 @@ export class AuthService {
     role?: UserRole,
     reason?: string
   ): Promise<{ success: boolean; cancelled: boolean }> {
-
     // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -428,9 +431,8 @@ export class AuthService {
     });
 
     // Also check if account array indicates completion
-    const accountArray = onboardingRole === UserRole.INVESTOR 
-      ? user.investor_account 
-      : user.issuer_account;
+    const accountArray =
+      onboardingRole === UserRole.INVESTOR ? user.investor_account : user.issuer_account;
     const hasCompletedAccount = accountArray.length > 0 && !accountArray.includes("temp");
 
     if (completedEvent || hasCompletedAccount) {
@@ -476,11 +478,20 @@ export class AuthService {
     // Check if user has started but not completed onboarding, and cancel it
     if (roleForPortal) {
       try {
-        await this.cancelOnboarding(req, userId, roleForPortal, "User logged out during onboarding");
+        await this.cancelOnboarding(
+          req,
+          userId,
+          roleForPortal,
+          "User logged out during onboarding"
+        );
       } catch (error) {
         // Log error but don't fail logout
         logger.warn(
-          { error: error instanceof Error ? error.message : String(error), userId, role: roleForPortal },
+          {
+            error: error instanceof Error ? error.message : String(error),
+            userId,
+            role: roleForPortal,
+          },
           "Failed to cancel onboarding during logout"
         );
       }
@@ -824,8 +835,13 @@ export class AuthService {
     // Check if user has completed onboarding - if so, lock name changes
     // Admins can always edit names (for corrections)
     const isAdmin = currentUser.roles.includes(UserRole.ADMIN);
-    const hasCompletedOnboarding = currentUser.investor_account.length > 0 || currentUser.issuer_account.length > 0;
-    if (!isAdmin && hasCompletedOnboarding && (data.firstName !== undefined || data.lastName !== undefined)) {
+    const hasCompletedOnboarding =
+      currentUser.investor_account.length > 0 || currentUser.issuer_account.length > 0;
+    if (
+      !isAdmin &&
+      hasCompletedOnboarding &&
+      (data.firstName !== undefined || data.lastName !== undefined)
+    ) {
       throw new AppError(
         403,
         "NAME_LOCKED",
@@ -857,7 +873,8 @@ export class AuthService {
 
   /**
    * Change password for the current user
-   * Verifies current password via Cognito, then sets new password
+   * Uses Cognito's non-admin ChangePasswordCommand with user's access token
+   * This avoids needing IAM permissions on the ECS task role
    */
   async changePassword(
     req: Request,
@@ -869,66 +886,65 @@ export class AuthService {
   ): Promise<{ success: boolean; sessionRevoked?: boolean }> {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
-    // Get user to find their email (used as Cognito username)
+    // Get user for logging purposes
     const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
+    // Extract access token from Authorization header
+    const authHeader = req.headers.authorization;
+    const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+    if (!accessToken) {
+      throw new AppError(401, "UNAUTHORIZED", "Access token required for password change");
+    }
+
     try {
-      // Step 1: Verify the current password by attempting to authenticate with it
-      // Use AdminInitiateAuth with ADMIN_NO_SRP_AUTH to avoid triggering MFA
+      // Log token info for debugging (only first/last few chars for security)
+      const tokenPreview = accessToken
+        ? `${accessToken.substring(0, 20)}...${accessToken.substring(accessToken.length - 10)}`
+        : "null";
       logger.info(
-        { email: user.email, cognitoSub: user.cognito_sub },
-        "Verifying current password"
+        {
+          email: user.email,
+          cognitoSub: user.cognito_sub,
+          tokenLength: accessToken?.length,
+          tokenPreview,
+        },
+        "Changing password using user access token"
       );
 
-      // SECRET_HASH must be computed with the USERNAME parameter (cognito_sub in this case)
-      const secretHash = computeSecretHash(user.cognito_sub);
-
-      const authCommand = new AdminInitiateAuthCommand({
-        AuthFlow: "ADMIN_NO_SRP_AUTH",
-        UserPoolId: COGNITO_USER_POOL_ID,
-        ClientId: COGNITO_CLIENT_ID,
-        AuthParameters: {
-          USERNAME: user.cognito_sub,
-          PASSWORD: data.currentPassword,
-          SECRET_HASH: secretHash,
-        },
+      // Use non-admin ChangePasswordCommand
+      // This verifies current password AND sets new password in one call
+      // No IAM permissions needed - uses the user's token context
+      const changePasswordCommand = new ChangePasswordCommand({
+        AccessToken: accessToken,
+        PreviousPassword: data.currentPassword,
+        ProposedPassword: data.newPassword,
       });
 
-      // This will throw NotAuthorizedException if password is incorrect
-      await cognitoClient.send(authCommand);
+      await cognitoClient.send(changePasswordCommand);
 
-      logger.info({ email: user.email }, "Current password verified, setting new password");
+      logger.info({ email: user.email }, "Password changed successfully, revoking sessions");
 
-      // Step 2: Set the new password using admin command
-      const setPasswordCommand = new AdminSetUserPasswordCommand({
-        UserPoolId: COGNITO_USER_POOL_ID,
-        Username: user.cognito_sub,
-        Password: data.newPassword,
-        Permanent: true,
-      });
-
-      await cognitoClient.send(setPasswordCommand);
-
-      // Update password changed timestamp
+      // Update password changed timestamp in database
       await this.repository.updatePasswordChangedAt(userId);
 
-      // CRITICAL: Revoke all existing sessions globally
+      // Revoke all sessions using non-admin GlobalSignOut
+      // This invalidates all refresh tokens for the user
       let sessionRevoked = false;
       try {
-        const command = new AdminUserGlobalSignOutCommand({
-          UserPoolId: COGNITO_USER_POOL_ID,
-          Username: user.cognito_sub,
+        const signOutCommand = new GlobalSignOutCommand({
+          AccessToken: accessToken,
         });
 
-        await cognitoClient.send(command);
+        await cognitoClient.send(signOutCommand);
         sessionRevoked = true;
 
         logger.info(
           { userId, cognitoSub: user.cognito_sub },
-          "All user sessions revoked after password change via AdminUserGlobalSignOut"
+          "All user sessions revoked after password change via GlobalSignOut"
         );
       } catch (error) {
         logger.error(
@@ -938,7 +954,7 @@ export class AuthService {
         // Don't fail the password change, but log the error
       }
 
-      // Log successful password change with session revocation status (SecurityLog)
+      // Log successful password change (SecurityLog)
       await this.repository.createSecurityLog({
         userId,
         eventType: "PASSWORD_CHANGED",
@@ -977,12 +993,17 @@ export class AuthService {
       // Log detailed error information
       const errorName = error instanceof Error ? error.name : "Unknown";
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Get the actual Cognito error message which contains more specific info
+      const cognitoMessage =
+        error && typeof error === "object" && "message" in error ? (error as Error).message : "";
+
       logger.error(
         {
           userId,
           email: user.email,
           errorName,
           errorMessage,
+          cognitoMessage,
           errorType: error?.constructor?.name,
           isNotAuthorized: error instanceof NotAuthorizedException,
           isUserNotFound: error instanceof UserNotFoundException,
@@ -991,6 +1012,33 @@ export class AuthService {
       );
 
       if (error instanceof NotAuthorizedException) {
+        // Check the actual Cognito message to provide better error feedback
+        // NotAuthorizedException can mean:
+        // - "Incorrect username or password" = wrong current password
+        // - "Access Token has expired" = token issue
+        // - "Access Token does not have required scopes" = missing aws.cognito.signin.user.admin scope
+        if (cognitoMessage.toLowerCase().includes("scope")) {
+          // This means the OAuth app client is not configured with aws.cognito.signin.user.admin scope
+          logger.error(
+            { cognitoMessage },
+            "Token missing required scope. App client needs aws.cognito.signin.user.admin scope for password changes."
+          );
+          throw new AppError(
+            403,
+            "INSUFFICIENT_SCOPE",
+            "Unable to change password. Please contact support."
+          );
+        }
+        if (
+          cognitoMessage.toLowerCase().includes("expired") ||
+          cognitoMessage.toLowerCase().includes("token")
+        ) {
+          throw new AppError(
+            401,
+            "TOKEN_EXPIRED",
+            "Your session has expired. Please log in again and try changing your password."
+          );
+        }
         throw new AppError(400, "INVALID_PASSWORD", "Current password is incorrect");
       }
 
@@ -1189,7 +1237,10 @@ export class AuthService {
           where: { user_id: user.user_id },
           data: { email_verified: true },
         });
-        logger.info({ email, userId: user.user_id }, "Email verified updated in database after signup confirmation");
+        logger.info(
+          { email, userId: user.user_id },
+          "Email verified updated in database after signup confirmation"
+        );
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
