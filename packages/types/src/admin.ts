@@ -527,6 +527,7 @@ export interface OnboardingApplicationResponse {
   regtankSubstatus: string | null;
   regtankPortalUrl: string | null;
   kycPortalUrl: string | null;
+  kybPortalUrl: string | null;
   status: OnboardingApprovalStatus;
   ssmVerified: boolean;
   ssmVerifiedAt: string | null;

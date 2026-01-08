@@ -97,9 +97,16 @@ export function OnboardingReviewDialog({
   };
 
   // Open KYC/AML review page in RegTank portal
+  // For corporate onboarding, use KYB URL; for individual, use KYC URL
   const handleOpenKycReview = () => {
-    if (application.kycPortalUrl) {
-      window.open(application.kycPortalUrl, "_blank", "noopener,noreferrer");
+    const url = isCompany && application.kybPortalUrl
+      ? application.kybPortalUrl
+      : application.kycPortalUrl;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      // If URL is not available, open a generic RegTank page
+      toast.info("KYB/KYC URL not available. Please check RegTank portal manually.");
     }
   };
 
@@ -341,10 +348,9 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenKycReview}
                 className="w-full gap-2"
-                disabled={!application.kycPortalUrl}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                Open KYC/AML Review
+                {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
               
               {/* Director KYC Status Section (for corporate onboarding) */}
@@ -664,18 +670,18 @@ export function OnboardingReviewDialog({
                   Refresh KYC Status
                 </Button>
               )}
-              {onRefresh && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  className="gap-1.5"
-                >
-                  <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-              )}
+            {onRefresh && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="gap-1.5"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            )}
             </div>
           </div>
           <DialogDescription>

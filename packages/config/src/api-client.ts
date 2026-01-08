@@ -334,6 +334,20 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/complete-final-approval`, {});
   }
 
+  // Approve AML screening for an onboarding application
+  async approveAmlScreening(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-aml`, {});
+  }
+
   // Approve SSM verification for a company organization
   async approveSsmVerification(onboardingId: string): Promise<
     | ApiResponse<{

@@ -1723,12 +1723,31 @@ export class AdminService {
         : `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
       : null;
 
-    // Build KYC portal URL for AML review (uses kyc_id from organization)
+    // Build KYC portal URL for individual AML review (uses kyc_id from organization)
     const kycId = isInvestor
       ? record.investor_organization?.kyc_id
       : record.issuer_organization?.kyc_id;
     const kycPortalUrl = kycId
       ? `${regtankConfig.adminPortalUrl}/app/screen-kyc/result/${kycId}`
+      : null;
+
+    // Build KYB portal URL for corporate AML review (extract kybId from COD webhook payloads)
+    let kybId: string | null = null;
+    if (record.onboarding_type === "CORPORATE" && record.webhook_payloads) {
+      // Find kybId from COD webhook payloads
+      for (const payload of record.webhook_payloads) {
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const payloadObj = payload as Record<string, unknown>;
+          // Check if this is a COD webhook (has kybId field)
+          if (payloadObj.kybId && typeof payloadObj.kybId === "string") {
+            kybId = payloadObj.kybId;
+            break;
+          }
+        }
+      }
+    }
+    const kybPortalUrl = kybId
+      ? `${regtankConfig.adminPortalUrl}/app/screen-kyb/result/${kybId}`
       : null;
 
     // Get approval flags based on portal type
@@ -1871,6 +1890,7 @@ export class AdminService {
       regtankSubstatus: record.substatus,
       regtankPortalUrl,
       kycPortalUrl,
+      kybPortalUrl,
       status,
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
@@ -2371,6 +2391,140 @@ export class AdminService {
     return {
       success: true,
       message: "Onboarding has been completed successfully. The user is now fully onboarded.",
+    };
+  }
+
+  /**
+   * Approve AML screening for an onboarding application
+   * Sets aml_approved = true and updates regtank_onboarding.status to APPROVED for corporate
+   */
+  async approveAmlScreening(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Check if AML is already approved
+    const isAmlApproved = isInvestor
+      ? onboarding.investor_organization?.aml_approved
+      : onboarding.issuer_organization?.aml_approved;
+
+    if (isAmlApproved) {
+      throw new AppError(400, "ALREADY_APPROVED", "AML screening is already approved");
+    }
+
+    // Update the organization's aml_approved flag
+    const now = new Date();
+    if (isInvestor && onboarding.investor_organization) {
+      await prisma.investorOrganization.update({
+        where: { id: org.id },
+        data: {
+          aml_approved: true,
+          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+        },
+      });
+    } else if (!isInvestor && onboarding.issuer_organization) {
+      await prisma.issuerOrganization.update({
+        where: { id: org.id },
+        data: {
+          aml_approved: true,
+          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+        },
+      });
+    }
+
+    // For corporate onboarding, update regtank_onboarding.status to APPROVED
+    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+    if (isCorporateOnboarding) {
+      await this.regTankRepository.updateStatus(onboarding.request_id, {
+        status: "APPROVED",
+      });
+
+      logger.info(
+        {
+          onboardingId,
+          regtankRequestId: onboarding.request_id,
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          previousRegTankStatus: onboarding.status,
+          newRegTankStatus: "APPROVED",
+          adminUserId,
+        },
+        "[AML Approval] Updated regtank_onboarding.status to APPROVED for corporate onboarding"
+      );
+    }
+
+    // Create onboarding log entry
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: onboarding.user_id,
+        event_type: "AML_APPROVED",
+        role: isInvestor ? "INVESTOR" : "ISSUER",
+        portal: onboarding.portal_type,
+        ip_address:
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        user_agent: req.headers["user-agent"] || null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          portalType: onboarding.portal_type,
+          onboardingRequestId: onboarding.request_id,
+          isCorporateOnboarding,
+          previousStatus: org.onboarding_status,
+          newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+          approvedBy: adminUserId,
+          approvedAt: now.toISOString(),
+        },
+      },
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        organizationId: org.id,
+        userId: onboarding.user_id,
+        adminUserId,
+        portalType: onboarding.portal_type,
+        organizationType: onboarding.organization_type,
+        isCorporateOnboarding,
+      },
+      "AML screening approved by admin"
+    );
+
+    return {
+      success: true,
+      message: isCorporateOnboarding
+        ? "AML screening approved. RegTank onboarding status updated to APPROVED. Organization moved to SSM review."
+        : "AML screening approved. Organization moved to SSM review.",
     };
   }
 
