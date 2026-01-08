@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useDeleteProduct } from "@/hooks/use-products";
+import { EditProductDialog } from "./edit-product-dialog";
 
 interface ProductTableRowProps {
   product: any;
@@ -40,14 +41,14 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
       <TableRow>
         <TableCell className="font-medium">
           <div className="flex flex-col">
-            <span>{product.category}</span>
+            <span>{product.name}</span>
             {product.description && (
               <span className="text-xs text-muted-foreground line-clamp-1">{product.description}</span>
             )}
           </div>
         </TableCell>
         <TableCell>
-          <span className="text-sm">{product.name}</span>
+          <span className="text-sm">{product.category}</span>
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-2">
@@ -71,18 +72,18 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
         </TableCell>
       </TableRow>
 
-      <EditProductDialog
+      {/* <EditProductDialog
         product={product}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
-      />
+      /> */}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{product.name}" from {product.category}? This action cannot be undone.
+              Are you sure you want to delete "{product.name}" ({product.category})? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
