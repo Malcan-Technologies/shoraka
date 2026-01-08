@@ -53,3 +53,28 @@ export function useDeleteProduct() {
     },
   });
 }
+
+export function useUpdateProduct() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ productId, data }: { productId: string; data: any }) => {
+      const response = await apiClient.put(`/v1/admin/products/${productId}`, data);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      toast.success("Product updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update product", {
+        description: error.message,
+      });
+    },
+  });
+}
