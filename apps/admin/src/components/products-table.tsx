@@ -8,9 +8,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
-import { UserTableRow } from "./user-table-row";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { ProductTableRow } from "./product-table-row";
 
 interface ProductsTableProps {
   products: any[];
