@@ -491,6 +491,24 @@ export type OnboardingApprovalStatus =
   | "EXPIRED"
   | "CANCELLED";
 
+export interface DirectorKycStatus {
+  eodRequestId: string;
+  name: string;
+  email: string;
+  role: string; // "Director", "Shareholder", etc.
+  kycStatus: "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
+  kycId?: string;
+  lastUpdated: string; // ISO timestamp
+}
+
+export interface CorporateDirectorData {
+  corpIndvDirectorCount: number;
+  corpIndvShareholderCount: number;
+  corpBizShareholderCount: number;
+  directors: DirectorKycStatus[];
+  lastSyncedAt: string; // ISO timestamp
+}
+
 export interface OnboardingApplicationResponse {
   id: string;
   userId: string;
@@ -521,6 +539,8 @@ export interface OnboardingApplicationResponse {
   // Sophisticated investor status (only for investor portal)
   isSophisticatedInvestor?: boolean;
   sophisticatedInvestorReason?: string | null;
+  // Director KYC status (only for corporate onboarding)
+  directorKycStatus?: CorporateDirectorData;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

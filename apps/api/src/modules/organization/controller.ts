@@ -83,6 +83,26 @@ async function listOrganizations(
           ...(portalType === "issuer" && {
             ssmChecked: (org as { ssm_checked?: boolean }).ssm_checked ?? false,
           }),
+          // Corporate director KYC status (for COMPANY type)
+          ...(org.type === "COMPANY" && {
+            directorKycStatus: (org as { director_kyc_status?: unknown }).director_kyc_status
+              ? ((org as { director_kyc_status: unknown }).director_kyc_status as {
+                  corpIndvDirectorCount: number;
+                  corpIndvShareholderCount: number;
+                  corpBizShareholderCount: number;
+                  directors: Array<{
+                    eodRequestId: string;
+                    name: string;
+                    email: string;
+                    role: string;
+                    kycStatus: string;
+                    kycId?: string;
+                    lastUpdated: string;
+                  }>;
+                  lastSyncedAt: string;
+                })
+              : undefined,
+          }),
         })),
         hasPersonalOrganization: hasPersonal,
       },
@@ -161,6 +181,7 @@ async function getOrganization(
       ssm_approved?: boolean;
       ssm_checked?: boolean;
       is_sophisticated_investor?: boolean;
+      director_kyc_status?: unknown;
     };
 
     res.json({
@@ -217,6 +238,26 @@ async function getOrganization(
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+        }),
+        // Corporate director KYC status (for COMPANY type)
+        ...(organization.type === "COMPANY" && {
+          directorKycStatus: org.director_kyc_status
+            ? (org.director_kyc_status as {
+                corpIndvDirectorCount: number;
+                corpIndvShareholderCount: number;
+                corpBizShareholderCount: number;
+                directors: Array<{
+                  eodRequestId: string;
+                  name: string;
+                  email: string;
+                  role: string;
+                  kycStatus: string;
+                  kycId?: string;
+                  lastUpdated: string;
+                }>;
+                lastSyncedAt: string;
+              })
+            : undefined,
         }),
       },
     });

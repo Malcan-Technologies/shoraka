@@ -8,6 +8,7 @@ import { AuthRepository } from "../../auth/repository";
 import { getRegTankAPIClient } from "../api-client";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 
 /**
@@ -50,12 +51,27 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
-    // Status transition logic
+    // Status transition logic for corporate onboarding
+    // New flow: ONBOARDING_STARTED -> WAIT_FOR_APPROVAL -> PENDING_AML -> AML_APPROVED
     const statusUpper = status.toUpperCase();
     let internalStatus = statusUpper;
 
-    if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
-      internalStatus = statusUpper;
+    // Map URL_GENERATED to ONBOARDING_STARTED
+    if (statusUpper === "URL_GENERATED") {
+      internalStatus = "ONBOARDING_STARTED";
+    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
+      internalStatus = "WAIT_FOR_APPROVAL";
+    } else if (statusUpper === "APPROVED") {
+      // When COD is approved, check if KYB exists
+      // If KYB exists, set to PENDING_AML, otherwise keep as APPROVED (will be updated when KYB webhook arrives)
+      if (kybId) {
+        internalStatus = "PENDING_AML";
+      } else {
+        // Keep as APPROVED for now, will transition to PENDING_AML when KYB webhook arrives
+        internalStatus = "APPROVED";
+      }
+    } else if (statusUpper === "REJECTED") {
+      internalStatus = "REJECTED";
     }
 
     // Update database
@@ -67,7 +83,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
       status: internalStatus,
     };
 
-    if (statusUpper === "APPROVED" || statusUpper === "REJECTED") {
+    // Set completed_at only for REJECTED or AML_APPROVED
+    // Note: APPROVED becomes PENDING_AML, so we don't set completed_at yet
+    if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
 
@@ -86,11 +104,192 @@ export class CODWebhookHandler extends BaseWebhookHandler {
       "COD webhook processed"
     );
 
-    // Handle organization updates when COD is approved
+    // Handle organization updates
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
     const portalType = onboarding.portal_type as PortalType;
 
-    if (statusUpper === "APPROVED" && organizationId) {
+    // When WAIT_FOR_APPROVAL: Extract directors and store in director_kyc_status JSON
+    if (statusUpper === "WAIT_FOR_APPROVAL" && organizationId) {
+      try {
+        // Fetch COD details to get full director information
+        logger.info(
+          { requestId, organizationId, portalType },
+          "Fetching RegTank COD details to extract director information"
+        );
+
+        const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+        
+        // Extract director information from COD details
+        const directors: Array<{
+          eodRequestId: string;
+          name: string;
+          email: string;
+          role: string;
+          kycStatus: string;
+          kycId?: string;
+          lastUpdated: string;
+        }> = [];
+
+        // Process individual directors
+        if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
+          for (const director of codDetails.corpIndvDirectors) {
+            const eodRequestId = director.corporateIndividualRequest?.requestId || "";
+            const userInfo = director.corporateUserRequestInfo;
+            const formContent = userInfo?.formContent?.content || [];
+            
+            // Extract name, email, role from formContent
+            const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+            const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+            const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
+            const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+            
+            directors.push({
+              eodRequestId,
+              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+              email,
+              role: designation || "Director",
+              kycStatus: director.corporateIndividualRequest?.status || "PENDING",
+              kycId: director.kycRequestInfo?.kycId,
+              lastUpdated: new Date().toISOString(),
+            });
+          }
+        }
+
+        // Process individual shareholders
+        if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
+          for (const shareholder of codDetails.corpIndvShareholders) {
+            const eodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
+            const userInfo = shareholder.corporateUserRequestInfo;
+            const formContent = userInfo?.formContent?.content || [];
+            
+            const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+            const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+            const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+            const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
+            
+            directors.push({
+              eodRequestId,
+              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+              email,
+              role: `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`,
+              kycStatus: shareholder.corporateIndividualRequest?.status || "PENDING",
+              kycId: shareholder.kycRequestInfo?.kycId,
+              lastUpdated: new Date().toISOString(),
+            });
+          }
+        }
+
+        // Store director KYC status in organization
+        const directorKycStatus = {
+          corpIndvDirectorCount: codDetails.corpIndvDirectorCount || 0,
+          corpIndvShareholderCount: codDetails.corpIndvShareholderCount || 0,
+          corpBizShareholderCount: codDetails.corpBizShareholderCount || 0,
+          directors,
+          lastSyncedAt: new Date().toISOString(),
+        };
+
+        if (portalType === "investor") {
+          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await prisma.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
+                director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+              },
+            });
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "COD_WAIT_FOR_APPROVAL",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  directorCount: directors.length,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_WAIT_FOR_APPROVAL log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId, directorCount: directors.length },
+              "Updated investor organization: stored director KYC status, set onboarding_approved=true, status=PENDING_APPROVAL"
+            );
+          }
+        } else {
+          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (org) {
+            const previousStatus = org.onboarding_status;
+            await prisma.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
+                director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+              },
+            });
+
+            // Create onboarding log
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "COD_WAIT_FOR_APPROVAL",
+                portal: portalType,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  directorCount: directors.length,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  requestId,
+                },
+                "Failed to create COD_WAIT_FOR_APPROVAL log (non-blocking)"
+              );
+            }
+
+            logger.info(
+              { organizationId, portalType, requestId, directorCount: directors.length },
+              "Updated issuer organization: stored director KYC status, set onboarding_approved=true, status=PENDING_APPROVAL"
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            organizationId,
+            portalType,
+            requestId,
+          },
+          "Failed to extract director info or update organization (non-blocking)"
+        );
+        // Don't throw - allow webhook to complete even if organization update fails
+      }
+    } else if (statusUpper === "APPROVED" && organizationId) {
       try {
         // Fetch COD details from RegTank API
         logger.info(
@@ -100,15 +299,19 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
         const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
 
-        // Update organization status to PENDING_APPROVAL
+        // When COD is APPROVED and KYB exists, update to PENDING_AML
+        // Set onboarding_approved = true if not already set
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL
-            );
+            await prisma.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
+              },
+            });
 
             // Create onboarding log
             try {
@@ -121,7 +324,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  newStatus: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                  kybId,
                   codDetails: codDetails,
                 },
               });
@@ -137,18 +341,21 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId },
-              "Updated investor organization status to PENDING_APPROVAL after COD approval"
+              { organizationId, portalType, requestId, kybId, newStatus: kybId ? "PENDING_AML" : "PENDING_APPROVAL" },
+              "Updated investor organization after COD approval"
             );
           }
         } else {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL
-            );
+            await prisma.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                onboarding_approved: true,
+              },
+            });
 
             // Create onboarding log
             try {
@@ -161,7 +368,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  newStatus: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                  kybId,
                   codDetails: codDetails,
                 },
               });
@@ -177,8 +385,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId },
-              "Updated issuer organization status to PENDING_APPROVAL after COD approval"
+              { organizationId, portalType, requestId, kybId, newStatus: kybId ? "PENDING_AML" : "PENDING_APPROVAL" },
+              "Updated issuer organization after COD approval"
             );
           }
         }

@@ -84,6 +84,22 @@ export interface Organization {
   isSophisticatedInvestor?: boolean;
   // Issuer-specific flags
   ssmChecked?: boolean;
+  // Corporate director KYC status (only for COMPANY type)
+  directorKycStatus?: {
+    corpIndvDirectorCount: number;
+    corpIndvShareholderCount: number;
+    corpBizShareholderCount: number;
+    directors: Array<{
+      eodRequestId: string;
+      name: string;
+      email: string;
+      role: string;
+      kycStatus: "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
+      kycId?: string;
+      lastUpdated: string;
+    }>;
+    lastSyncedAt: string;
+  };
 }
 
 interface OrganizationContextType {

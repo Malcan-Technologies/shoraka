@@ -302,6 +302,9 @@ model InvestorOrganization {
   ssm_approved        Boolean @default(false)
   admin_approved_at   DateTime?
 
+  // Corporate director/shareholder KYC tracking
+  director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
+
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
   regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
@@ -351,6 +354,9 @@ model IssuerOrganization {
   tnc_accepted        Boolean @default(false)
   ssm_checked         Boolean @default(false)
   admin_approved_at   DateTime?
+
+  // Corporate director/shareholder KYC tracking
+  director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]

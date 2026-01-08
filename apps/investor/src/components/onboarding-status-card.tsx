@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import type { Organization } from "@cashsouk/config";
+import { DirectorKycList } from "./director-kyc-list";
 
 interface OnboardingStep {
   id: string;
@@ -174,6 +175,15 @@ export function OnboardingStatusCard({
           ))}
         </div>
       </div>
+      
+      {/* Director KYC Status Section (for corporate onboarding) */}
+      {organization.type === "COMPANY" &&
+        organization.directorKycStatus &&
+        organization.directorKycStatus.directors.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <DirectorKycList directors={organization.directorKycStatus.directors} />
+          </div>
+        )}
     </div>
   );
 }

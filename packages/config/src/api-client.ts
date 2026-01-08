@@ -351,6 +351,22 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-ssm`, {});
   }
 
+  // Refresh corporate onboarding status by fetching latest director KYC statuses
+  async refreshCorporateStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        directorsUpdated: number;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-corporate-status`, {});
+  }
+
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
     return this.get<{ user: UserResponse }>(`/v1/admin/users/${id}`);
   }
