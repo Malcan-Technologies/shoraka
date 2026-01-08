@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -10,6 +11,8 @@ import {
 interface ProductsTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  totalCount: number;
+  filteredCount: number;
   onClearFilters: () => void;
   onReload?: () => void;
   isLoading?: boolean;
@@ -19,6 +22,8 @@ export function ProductsTableToolbar({
   searchQuery,
   onSearchChange,
   onClearFilters,
+  totalCount,
+  filteredCount,
   onReload,
   isLoading = false,
 }: ProductsTableToolbarProps) {
@@ -62,6 +67,11 @@ export function ProductsTableToolbar({
           Reload
         </Button>
       )}
+
+      <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
+        {filteredCount} {filteredCount === 1 ? "product" : "products"}
+        {hasActiveFilters && ` of ${totalCount}`}
+      </Badge>
     </div>
   );
 }
