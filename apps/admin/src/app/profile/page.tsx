@@ -28,8 +28,9 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@cashsouk/ui";
+import { useCurrentUser, CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
 import {
   EnvelopeIcon,
   UserCircleIcon,
@@ -180,18 +181,8 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
 
-  const { data: userData, isLoading } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const result = await apiClient.get<{ user: UserData }>("/v1/auth/me");
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      return result.data.user;
-    },
-    staleTime: 0,
-    refetchOnMount: "always",
-  });
+  const { data, isLoading } = useCurrentUser();
+  const userData = data?.user as UserData | undefined;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -226,7 +217,7 @@ export default function ProfilePage() {
       return result.data.user;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
       toast.success("Profile updated successfully");
       setIsEditing(false);
     },

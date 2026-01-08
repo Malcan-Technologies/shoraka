@@ -134,6 +134,28 @@ export async function createApp(): Promise<Application> {
         if (res.statusCode >= 400) return "warn";
         return "info";
       },
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "req.headers['set-cookie']",
+          "req.headers['x-api-key']",
+          "res.headers['set-cookie']",
+        ],
+        remove: true,
+      },
+      serializers: {
+        req(req) {
+          return {
+            id: req.id,
+            method: req.method,
+            url: req.url,
+            query: req.query,
+            remoteAddress: req.remoteAddress,
+            remotePort: req.remotePort,
+          };
+        },
+      },
     })
   );
 
