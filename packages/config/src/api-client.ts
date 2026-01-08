@@ -281,9 +281,6 @@ export class ApiClient {
     if (params.portal) queryParams.append("portal", params.portal);
     if (params.type) queryParams.append("type", params.type);
     if (params.status) queryParams.append("status", params.status);
-    if (params.excludeStatuses && params.excludeStatuses.length > 0) {
-      queryParams.append("excludeStatuses", params.excludeStatuses.join(","));
-    }
 
     return this.get<OnboardingApplicationsResponse>(
       `/v1/admin/onboarding-applications?${queryParams.toString()}`

@@ -491,6 +491,9 @@ export type OnboardingApprovalStatus =
   | "EXPIRED"
   | "CANCELLED";
 
+// Filter-only status that represents all pending admin action statuses
+export type OnboardingApprovalStatusFilter = OnboardingApprovalStatus | "PENDING_ALL";
+
 export interface DirectorKycStatus {
   eodRequestId: string;
   name: string;
@@ -547,8 +550,7 @@ export interface GetOnboardingApplicationsParams extends PaginationParams {
   search?: string;
   portal?: PortalType;
   type?: OrganizationTypeEnum;
-  status?: OnboardingApprovalStatus;
-  excludeStatuses?: OnboardingApprovalStatus[];
+  status?: OnboardingApprovalStatusFilter;
 }
 
 export interface OnboardingApplicationsResponse {

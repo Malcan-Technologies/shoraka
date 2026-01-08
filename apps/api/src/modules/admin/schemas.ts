@@ -216,18 +216,27 @@ export const onboardingApprovalStatusEnum = z.enum([
   "CANCELLED",
 ]);
 
+// Filter status includes PENDING_ALL which represents all admin-actionable pending statuses
+export const onboardingApprovalStatusFilterEnum = z.enum([
+  "PENDING_ALL",
+  "PENDING_ONBOARDING",
+  "PENDING_APPROVAL",
+  "PENDING_AML",
+  "PENDING_SSM_REVIEW",
+  "PENDING_FINAL_APPROVAL",
+  "COMPLETED",
+  "REJECTED",
+  "EXPIRED",
+  "CANCELLED",
+]);
+
 export const getOnboardingApplicationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
   portal: z.enum(["investor", "issuer"]).optional(),
   type: z.enum(["PERSONAL", "COMPANY"]).optional(),
-  status: onboardingApprovalStatusEnum.optional(),
-  excludeStatuses: z
-    .string()
-    .optional()
-    .transform((val) => (val ? val.split(",") : undefined))
-    .pipe(z.array(onboardingApprovalStatusEnum).optional()),
+  status: onboardingApprovalStatusFilterEnum.optional(),
 });
 
 export type GetOnboardingApplicationsQuery = z.infer<typeof getOnboardingApplicationsQuerySchema>;

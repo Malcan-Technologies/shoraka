@@ -1563,6 +1563,9 @@ export class AdminService {
    * List onboarding applications for admin approval queue
    * Combines data from regtank_onboarding with investor/issuer organizations
    * Maps RegTank statuses to admin-friendly approval statuses
+   *
+   * When status filter is applied, we fetch all records and filter/paginate in memory
+   * because the status is derived from multiple fields and cannot be filtered at DB level
    */
   async listOnboardingApplications(params: GetOnboardingApplicationsQuery): Promise<{
     applications: OnboardingApplicationResponse[];
@@ -1573,6 +1576,61 @@ export class AdminService {
       totalPages: number;
     };
   }> {
+    const pendingAllStatuses: OnboardingApprovalStatus[] = [
+      "PENDING_SSM_REVIEW",
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+      "PENDING_FINAL_APPROVAL",
+    ];
+
+    // When status filter is applied, fetch all records for in-memory filtering/pagination
+    const needsInMemoryFiltering = !!params.status;
+
+    if (needsInMemoryFiltering) {
+      // Fetch all records (up to 1000) for filtering
+      const { applications } = await this.regTankRepository.listOnboardingApplications({
+        page: 1,
+        pageSize: 1000,
+        search: params.search,
+        portal: params.portal as "investor" | "issuer" | undefined,
+        type: params.type as OrganizationType | undefined,
+      });
+
+      // Map applications to response format with derived approval status
+      const mappedApplications = applications.map((app) =>
+        this.mapToOnboardingApplicationResponse(app)
+      );
+
+      // Filter by status
+      let filteredApplications: OnboardingApplicationResponse[];
+      if (params.status === "PENDING_ALL") {
+        filteredApplications = mappedApplications.filter((app) =>
+          pendingAllStatuses.includes(app.status)
+        );
+      } else {
+        filteredApplications = mappedApplications.filter((app) => app.status === params.status);
+      }
+
+      // Apply pagination in memory
+      const totalCount = filteredApplications.length;
+      const startIndex = (params.page - 1) * params.pageSize;
+      const paginatedApplications = filteredApplications.slice(
+        startIndex,
+        startIndex + params.pageSize
+      );
+
+      return {
+        applications: paginatedApplications,
+        pagination: {
+          page: params.page,
+          pageSize: params.pageSize,
+          totalCount,
+          totalPages: Math.ceil(totalCount / params.pageSize),
+        },
+      };
+    }
+
+    // No status filter - use database pagination directly
     const { applications, totalCount } = await this.regTankRepository.listOnboardingApplications({
       page: params.page,
       pageSize: params.pageSize,
@@ -1581,35 +1639,17 @@ export class AdminService {
       type: params.type as OrganizationType | undefined,
     });
 
-    // Map applications to response format with derived approval status
     const mappedApplications = applications.map((app) =>
       this.mapToOnboardingApplicationResponse(app)
     );
 
-    // Filter by status if specified (post-processing since status is derived)
-    let filteredApplications = params.status
-      ? mappedApplications.filter((app) => app.status === params.status)
-      : mappedApplications;
-
-    // Exclude statuses if specified
-    if (params.excludeStatuses && params.excludeStatuses.length > 0) {
-      filteredApplications = filteredApplications.filter(
-        (app) => !params.excludeStatuses!.includes(app.status)
-      );
-    }
-
-    // Calculate total count: use filtered count if status filter or excludeStatuses is applied
-    const shouldUseFilteredCount =
-      params.status || (params.excludeStatuses && params.excludeStatuses.length > 0);
-    const finalTotalCount = shouldUseFilteredCount ? filteredApplications.length : totalCount;
-
     return {
-      applications: filteredApplications,
+      applications: mappedApplications,
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
-        totalCount: finalTotalCount,
-        totalPages: Math.ceil(finalTotalCount / params.pageSize),
+        totalCount,
+        totalPages: Math.ceil(totalCount / params.pageSize),
       },
     };
   }
@@ -1745,28 +1785,36 @@ export class AdminService {
       : undefined;
 
     // Director KYC status (only for corporate onboarding)
-    const directorKycStatusRaw = record.organization_type === "COMPANY"
-      ? (isInvestorOrg
+    const directorKycStatusRaw =
+      record.organization_type === "COMPANY"
+        ? isInvestorOrg
           ? (investorOrg as { director_kyc_status?: unknown })?.director_kyc_status
-          : (issuerOrg as { director_kyc_status?: unknown })?.director_kyc_status)
-      : undefined;
-    
-    const directorKycStatus: {
-      corpIndvDirectorCount: number;
-      corpIndvShareholderCount: number;
-      corpBizShareholderCount: number;
-      directors: Array<{
-        eodRequestId: string;
-        name: string;
-        email: string;
-        role: string;
-        kycStatus: "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
-        kycId?: string;
-        lastUpdated: string;
-      }>;
-      lastSyncedAt: string;
-    } | undefined = directorKycStatusRaw
-      ? ({
+          : (issuerOrg as { director_kyc_status?: unknown })?.director_kyc_status
+        : undefined;
+
+    const directorKycStatus:
+      | {
+          corpIndvDirectorCount: number;
+          corpIndvShareholderCount: number;
+          corpBizShareholderCount: number;
+          directors: Array<{
+            eodRequestId: string;
+            name: string;
+            email: string;
+            role: string;
+            kycStatus:
+              | "PENDING"
+              | "LIVENESS_STARTED"
+              | "WAIT_FOR_APPROVAL"
+              | "APPROVED"
+              | "REJECTED";
+            kycId?: string;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
+      | undefined = directorKycStatusRaw
+      ? {
           ...(directorKycStatusRaw as {
             corpIndvDirectorCount: number;
             corpIndvShareholderCount: number;
@@ -1782,21 +1830,30 @@ export class AdminService {
             }>;
             lastSyncedAt: string;
           }),
-          directors: ((directorKycStatusRaw as {
-            directors: Array<{
-              eodRequestId: string;
-              name: string;
-              email: string;
-              role: string;
-              kycStatus: string;
-              kycId?: string;
-              lastUpdated: string;
-            }>;
-          }).directors || []).map((d) => ({
+          directors: (
+            (
+              directorKycStatusRaw as {
+                directors: Array<{
+                  eodRequestId: string;
+                  name: string;
+                  email: string;
+                  role: string;
+                  kycStatus: string;
+                  kycId?: string;
+                  lastUpdated: string;
+                }>;
+              }
+            ).directors || []
+          ).map((d) => ({
             ...d,
-            kycStatus: d.kycStatus as "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED",
+            kycStatus: d.kycStatus as
+              | "PENDING"
+              | "LIVENESS_STARTED"
+              | "WAIT_FOR_APPROVAL"
+              | "APPROVED"
+              | "REJECTED",
           })),
-        })
+        }
       : undefined;
 
     return {
@@ -2474,14 +2531,14 @@ export class AdminService {
 
     const codRequestId = onboarding.request_id;
 
-      try {
-        // Fetch COD details from RegTank API
-        logger.info(
-          { codRequestId, organizationId: org.id, adminUserId },
-          "Fetching COD details to refresh director KYC statuses"
-        );
+    try {
+      // Fetch COD details from RegTank API
+      logger.info(
+        { codRequestId, organizationId: org.id, adminUserId },
+        "Fetching COD details to refresh director KYC statuses"
+      );
 
-        const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
+      const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
 
       // Extract and update director information
       const directors: Array<{
@@ -2502,10 +2559,18 @@ export class AdminService {
           const formContent = userInfo?.formContent?.content || [];
 
           // Extract name, email, role from formContent
-          const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
-          const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
-          const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
-          const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+          type FormField = { fieldName: string; fieldValue: string };
+          const typedFormContent = formContent as FormField[];
+          const firstName =
+            typedFormContent.find((f) => f.fieldName === "First Name")?.fieldValue || "";
+          const lastName =
+            typedFormContent.find((f) => f.fieldName === "Last Name")?.fieldValue || "";
+          const designation =
+            typedFormContent.find((f) => f.fieldName === "Designation")?.fieldValue || "";
+          const email =
+            typedFormContent.find((f) => f.fieldName === "Email Address")?.fieldValue ||
+            userInfo?.email ||
+            "";
 
           // Fetch EOD details to get latest KYC status
           let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
@@ -2513,9 +2578,10 @@ export class AdminService {
 
           if (eodRequestId) {
             try {
-              const eodDetails = await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
+              const eodDetails =
+                await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
-              
+
               // Map EOD status to KYC status
               if (eodStatus === "LIVENESS_STARTED") {
                 kycStatus = "LIVENESS_STARTED";
@@ -2562,10 +2628,18 @@ export class AdminService {
           const userInfo = shareholder.corporateUserRequestInfo;
           const formContent = userInfo?.formContent?.content || [];
 
-          const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
-          const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
-          const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
-          const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
+          type FormField = { fieldName: string; fieldValue: string };
+          const typedFormContent = formContent as FormField[];
+          const firstName =
+            typedFormContent.find((f) => f.fieldName === "First Name")?.fieldValue || "";
+          const lastName =
+            typedFormContent.find((f) => f.fieldName === "Last Name")?.fieldValue || "";
+          const email =
+            typedFormContent.find((f) => f.fieldName === "Email Address")?.fieldValue ||
+            userInfo?.email ||
+            "";
+          const sharePercent =
+            typedFormContent.find((f) => f.fieldName === "% of Shares")?.fieldValue || "";
 
           // Fetch EOD details to get latest KYC status
           let kycStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
@@ -2573,9 +2647,10 @@ export class AdminService {
 
           if (eodRequestId) {
             try {
-              const eodDetails = await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
+              const eodDetails =
+                await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
-              
+
               if (eodStatus === "LIVENESS_STARTED") {
                 kycStatus = "LIVENESS_STARTED";
               } else if (eodStatus === "WAIT_FOR_APPROVAL") {
