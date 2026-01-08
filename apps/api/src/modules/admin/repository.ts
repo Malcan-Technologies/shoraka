@@ -20,6 +20,7 @@ import type {
   GetOnboardingLogsQuery,
 } from "./schemas";
 
+
 export class AdminRepository {
   /**
    * Get users with pagination and filters
