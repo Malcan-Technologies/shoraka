@@ -1,6 +1,6 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { GetProductsParams } from "@cashsouk/types";
 import { useQuery } from "@tanstack/react-query";
+import type { GetProductsParams } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
