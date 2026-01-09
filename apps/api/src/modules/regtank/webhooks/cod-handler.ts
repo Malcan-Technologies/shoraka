@@ -242,7 +242,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "COD_WAIT_FOR_APPROVAL",
+                eventType: "CORPORATE_ONBOARDING_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,
@@ -286,7 +286,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "COD_WAIT_FOR_APPROVAL",
+                eventType: "CORPORATE_ONBOARDING_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,

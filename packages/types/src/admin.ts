@@ -512,6 +512,23 @@ export interface CorporateDirectorData {
   lastSyncedAt: string; // ISO timestamp
 }
 
+export interface DirectorAmlStatus {
+  kycId: string;
+  name: string;
+  email: string;
+  role: string; // "Director", "Shareholder", etc.
+  amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  lastUpdated: string; // ISO timestamp
+}
+
+export interface CorporateAmlData {
+  directors: DirectorAmlStatus[];
+  lastSyncedAt: string; // ISO timestamp
+}
+
 export interface OnboardingApplicationResponse {
   id: string;
   userId: string;
@@ -545,6 +562,8 @@ export interface OnboardingApplicationResponse {
   sophisticatedInvestorReason?: string | null;
   // Director KYC status (only for corporate onboarding)
   directorKycStatus?: CorporateDirectorData;
+  // Director AML status (only for corporate onboarding)
+  directorAmlStatus?: CorporateAmlData;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

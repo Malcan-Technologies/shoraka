@@ -4,6 +4,7 @@ import * as React from "react";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import type { Organization } from "@cashsouk/config";
 import { DirectorKycList } from "./director-kyc-list";
+import { DirectorAmlList } from "./director-aml-list";
 
 interface OnboardingStep {
   id: string;
@@ -176,12 +177,23 @@ export function OnboardingStatusCard({
         </div>
       </div>
       
-      {/* Director KYC Status Section (for corporate onboarding) */}
+      {/* Director KYC Status Section (for corporate onboarding) - Only show in PENDING_APPROVAL */}
       {organization.type === "COMPANY" &&
+        organization.onboardingStatus === "PENDING_APPROVAL" &&
         organization.directorKycStatus &&
         organization.directorKycStatus.directors.length > 0 && (
           <div className="mt-6 pt-6 border-t">
             <DirectorKycList directors={organization.directorKycStatus.directors} />
+          </div>
+        )}
+      
+      {/* Individual AML Screening Status Section (for corporate onboarding) - Only show in PENDING_AML */}
+      {organization.type === "COMPANY" &&
+        organization.onboardingStatus === "PENDING_AML" &&
+        organization.directorAmlStatus &&
+        organization.directorAmlStatus.directors.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <DirectorAmlList directors={organization.directorAmlStatus.directors} />
           </div>
         )}
     </div>

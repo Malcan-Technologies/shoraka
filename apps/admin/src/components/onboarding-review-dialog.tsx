@@ -39,8 +39,10 @@ import {
   useCompleteFinalApproval,
   useApproveSsmVerification,
   useRefreshCorporateStatus,
+  useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { DirectorKycList } from "./director-kyc-list";
+import { DirectorAmlList } from "./director-aml-list";
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -77,6 +79,7 @@ export function OnboardingReviewDialog({
   const finalApprovalMutation = useCompleteFinalApproval();
   const ssmApprovalMutation = useApproveSsmVerification();
   const refreshCorporateMutation = useRefreshCorporateStatus();
+  const refreshCorporateAmlMutation = useRefreshCorporateAmlStatus();
 
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
@@ -177,14 +180,28 @@ export function OnboardingReviewDialog({
 
   // Combined refresh handler that refreshes both KYC status and onboarding status
   const handleCombinedRefresh = async () => {
-    if (isCompany && application.directorKycStatus) {
-      try {
-        await refreshCorporateMutation.mutateAsync(application.id);
-        toast.success("Director KYC statuses refreshed");
-      } catch (error) {
-        toast.error("Failed to refresh director statuses", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+    if (isCompany) {
+      // Refresh KYC status if in PENDING_APPROVAL
+      if (application.status === "PENDING_APPROVAL" && application.directorKycStatus) {
+        try {
+          await refreshCorporateMutation.mutateAsync(application.id);
+          toast.success("Director KYC statuses refreshed");
+        } catch (error) {
+          toast.error("Failed to refresh director KYC statuses", {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      // Refresh AML status if in PENDING_AML
+      if (application.status === "PENDING_AML" && application.directorAmlStatus) {
+        try {
+          await refreshCorporateAmlMutation.mutateAsync(application.id);
+          toast.success("Director AML statuses refreshed");
+        } catch (error) {
+          toast.error("Failed to refresh director AML statuses", {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
     }
     if (onRefresh) {
@@ -192,7 +209,10 @@ export function OnboardingReviewDialog({
     }
   };
 
-  const isCombinedRefreshing = refreshCorporateMutation.isPending || (isRefreshing ?? false);
+  const isCombinedRefreshing = 
+    refreshCorporateMutation.isPending || 
+    refreshCorporateAmlMutation.isPending || 
+    (isRefreshing ?? false);
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-";
@@ -352,29 +372,29 @@ export function OnboardingReviewDialog({
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
               
-              {/* Director KYC Status Section (for corporate onboarding) */}
-              {isCompany && application.directorKycStatus && (
+              {/* Individual AML Screening Status Section (for corporate onboarding) */}
+              {isCompany && application.directorAmlStatus && (
                 <>
                   <Separator />
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">Director/Shareholder KYC Status</h4>
+                      <h4 className="text-sm font-medium">Individual AML Screening Status</h4>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            Individual director AML must be approved in RegTank before corporate AML
-                            approval. Once all directors are approved, corporate KYB/AML will be
+                            Individual director AML screening must be completed and approved in RegTank
+                            before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
                             processed automatically.
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <DirectorKycList
-                      directors={application.directorKycStatus.directors}
-                      isRefreshing={refreshCorporateMutation.isPending}
+                    <DirectorAmlList
+                      directors={application.directorAmlStatus.directors}
+                      isRefreshing={refreshCorporateAmlMutation.isPending}
                     />
                   </div>
                 </>

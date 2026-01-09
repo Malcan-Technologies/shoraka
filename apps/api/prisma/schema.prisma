@@ -304,6 +304,7 @@ model InvestorOrganization {
 
   // Corporate director/shareholder KYC tracking
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
+  director_aml_status Json? // Stores director AML statuses for corporate onboarding
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
@@ -357,6 +358,7 @@ model IssuerOrganization {
 
   // Corporate director/shareholder KYC tracking
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
+  director_aml_status Json? // Stores director AML statuses for corporate onboarding
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]

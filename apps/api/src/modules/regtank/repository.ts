@@ -388,6 +388,7 @@ export class RegTankRepository {
             is_sophisticated_investor: true,
             sophisticated_investor_reason: true,
             director_kyc_status: true,
+            director_aml_status: true,
           },
         },
         issuer_organization: {
@@ -404,6 +405,7 @@ export class RegTankRepository {
             ssm_checked: true,
             kyc_id: true,
             director_kyc_status: true,
+            director_aml_status: true,
           },
         },
       },
@@ -483,6 +485,7 @@ export class RegTankRepository {
               is_sophisticated_investor: true,
               sophisticated_investor_reason: true,
               director_kyc_status: true,
+              director_aml_status: true,
             },
           },
           issuer_organization: {
@@ -499,6 +502,7 @@ export class RegTankRepository {
               ssm_checked: true,
               kyc_id: true,
               director_kyc_status: true,
+              director_aml_status: true,
             },
           },
         },

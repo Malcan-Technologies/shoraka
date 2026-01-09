@@ -1898,6 +1898,69 @@ export class AdminService {
         }
       : undefined;
 
+    // Director AML status (only for corporate onboarding)
+    const directorAmlStatusRaw =
+      record.organization_type === "COMPANY"
+        ? isInvestorOrg
+          ? (investorOrg as { director_aml_status?: unknown })?.director_aml_status
+          : (issuerOrg as { director_aml_status?: unknown })?.director_aml_status
+        : undefined;
+
+    const directorAmlStatus:
+      | {
+          directors: Array<{
+            kycId: string;
+            name: string;
+            email: string;
+            role: string;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
+      | undefined = directorAmlStatusRaw
+      ? {
+          ...(directorAmlStatusRaw as {
+            directors: Array<{
+              kycId: string;
+              name: string;
+              email: string;
+              role: string;
+              amlStatus: string;
+              amlMessageStatus: string;
+              amlRiskScore: number | null;
+              amlRiskLevel: string | null;
+              lastUpdated: string;
+            }>;
+            lastSyncedAt: string;
+          }),
+          directors: (
+            (
+              directorAmlStatusRaw as {
+                directors: Array<{
+                  kycId: string;
+                  name: string;
+                  email: string;
+                  role: string;
+                  amlStatus: string;
+                  amlMessageStatus: string;
+                  amlRiskScore: number | null;
+                  amlRiskLevel: string | null;
+                  lastUpdated: string;
+                }>;
+              }
+            ).directors || []
+          ).map((d) => ({
+            ...d,
+            amlStatus: d.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
+            amlMessageStatus: d.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
+          })),
+        }
+      : undefined;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1928,6 +1991,7 @@ export class AdminService {
       isSophisticatedInvestor,
       sophisticatedInvestorReason,
       directorKycStatus,
+      directorAmlStatus,
     };
   }
 
@@ -2378,10 +2442,13 @@ export class AdminService {
 
     // Create onboarding log entries
     // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
+    // For corporate onboarding, use CORPORATE_ONBOARDING_COMPLETED
+    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+    const eventType = isCorporateOnboarding ? "CORPORATE_ONBOARDING_COMPLETED" : "FINAL_APPROVAL_COMPLETED";
     await prisma.onboardingLog.create({
       data: {
         user_id: onboarding.user_id,
-        event_type: "FINAL_APPROVAL_COMPLETED",
+        event_type: eventType,
         role: isInvestor ? "INVESTOR" : "ISSUER",
         portal: onboarding.portal_type,
         ip_address:
@@ -2395,6 +2462,7 @@ export class AdminService {
           portalType: onboarding.portal_type,
           approvedBy: adminUserId,
           regtankRequestId: onboarding.request_id,
+          isCorporateOnboarding,
         },
       },
     });
@@ -2954,6 +3022,208 @@ export class AdminService {
         500,
         "REFRESH_FAILED",
         `Failed to refresh corporate onboarding status: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Refresh corporate AML status for all directors
+   * Fetches latest AML status from RegTank KYC query API for each director with a kycId
+   */
+  async refreshCorporateAmlStatus(
+    _req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    // Only applicable for corporate onboarding
+    if (onboarding.onboarding_type !== "CORPORATE") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Refresh corporate AML status is only applicable for corporate onboarding"
+      );
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Get director_kyc_status to extract kycIds
+    const directorKycStatus = org.director_kyc_status as any;
+    if (!directorKycStatus || !directorKycStatus.directors || !Array.isArray(directorKycStatus.directors)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Director KYC status not found. Please refresh corporate onboarding status first."
+      );
+    }
+
+    try {
+      logger.info(
+        { onboardingId, organizationId: org.id, adminUserId },
+        "Fetching AML status for all directors"
+      );
+
+      const directorsAmlStatus: Array<{
+        kycId: string;
+        name: string;
+        email: string;
+        role: string;
+        amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+        amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+        amlRiskScore: number | null;
+        amlRiskLevel: string | null;
+        lastUpdated: string;
+      }> = [];
+
+      // Fetch AML status for each director with a kycId
+      for (const director of directorKycStatus.directors) {
+        if (!director.kycId) {
+          logger.debug(
+            { directorName: director.name, eodRequestId: director.eodRequestId },
+            "Skipping director without kycId"
+          );
+          continue;
+        }
+
+        try {
+          const kycStatusResponse = await this.regTankApiClient.queryKYCStatus(director.kycId);
+          
+          // RegTank returns an array with one object
+          const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
+          
+          // Map RegTank status to our AML status
+          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
+          if (regTankStatus === "APPROVED") {
+            amlStatus = "Approved";
+          } else if (regTankStatus === "REJECTED") {
+            amlStatus = "Rejected";
+          } else if (regTankStatus === "UNRESOLVED") {
+            amlStatus = "Unresolved";
+          }
+
+          // Extract risk score and level
+          const individualRiskScore = kycStatusData?.individualRiskScore;
+          const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
+            ? parseFloat(String(individualRiskScore.score))
+            : null;
+          const amlRiskLevel = individualRiskScore?.level || null;
+
+          // Extract message status
+          const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+
+          directorsAmlStatus.push({
+            kycId: director.kycId,
+            name: director.name,
+            email: director.email,
+            role: director.role,
+            amlStatus,
+            amlMessageStatus,
+            amlRiskScore,
+            amlRiskLevel,
+            lastUpdated: new Date().toISOString(),
+          });
+
+          logger.debug(
+            {
+              kycId: director.kycId,
+              directorName: director.name,
+              amlStatus,
+              amlMessageStatus,
+              amlRiskScore,
+              amlRiskLevel,
+            },
+            "Fetched AML status for director"
+          );
+        } catch (kycError) {
+          logger.warn(
+            {
+              error: kycError instanceof Error ? kycError.message : String(kycError),
+              kycId: director.kycId,
+              directorName: director.name,
+            },
+            "Failed to fetch AML status for director (non-blocking)"
+          );
+          // Continue with other directors even if one fails
+        }
+      }
+
+      // Update organization with refreshed director AML statuses
+      const directorAmlStatus = {
+        directors: directorsAmlStatus,
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      if (isInvestor) {
+        await prisma.investorOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+          },
+        });
+      } else {
+        await prisma.issuerOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      logger.info(
+        {
+          onboardingId,
+          organizationId: org.id,
+          adminUserId,
+          directorsUpdated: directorsAmlStatus.length,
+        },
+        "Refreshed corporate AML statuses"
+      );
+
+      return {
+        success: true,
+        message: `Successfully refreshed ${directorsAmlStatus.length} director AML status${directorsAmlStatus.length !== 1 ? "es" : ""}.`,
+        directorsUpdated: directorsAmlStatus.length,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          onboardingId,
+          organizationId: org.id,
+          adminUserId,
+        },
+        "Failed to refresh corporate AML status"
+      );
+      throw new AppError(
+        500,
+        "REFRESH_FAILED",
+        `Failed to refresh corporate AML status: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

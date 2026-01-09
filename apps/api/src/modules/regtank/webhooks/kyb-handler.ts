@@ -203,10 +203,11 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
             // Create onboarding log
             try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,
@@ -217,6 +218,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   trigger: "KYB_APPROVED",
                   riskLevel,
                   riskScore,
+                  isCorporateOnboarding,
                 },
               });
             } catch (logError) {
@@ -256,10 +258,11 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
             // Create onboarding log
             try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,

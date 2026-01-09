@@ -100,6 +100,21 @@ export interface Organization {
     }>;
     lastSyncedAt: string;
   };
+  // Corporate director AML status (only for COMPANY type)
+  directorAmlStatus?: {
+    directors: Array<{
+      kycId: string;
+      name: string;
+      email: string;
+      role: string;
+      amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+      amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+      amlRiskScore: number | null;
+      amlRiskLevel: string | null;
+      lastUpdated: string;
+    }>;
+    lastSyncedAt: string;
+  };
 }
 
 interface OrganizationContextType {

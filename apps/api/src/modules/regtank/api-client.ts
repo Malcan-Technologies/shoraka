@@ -386,6 +386,17 @@ export class RegTankAPIClient {
   }
 
   /**
+   * Query KYC status by kycId
+   * GET /v3/kyc/query?requestId={kycId}
+   * Returns AML screening status, risk score, and message status
+   */
+  async queryKYCStatus(kycId: string): Promise<any> {
+    logger.debug({ kycId }, "Querying RegTank KYC status");
+    
+    return this.makeRequest(`/v3/kyc/query?requestId=${kycId}`);
+  }
+
+  /**
    * Get onboarding settings
    * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.6-individual-onboarding-endpoint-json-get-setting
    */

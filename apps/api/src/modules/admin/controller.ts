@@ -1689,4 +1689,37 @@ router.post(
   }
 );
 
+/**
+ * @swagger
+ * POST /admin/onboarding-applications/:id/refresh-aml-status
+ * Refresh corporate AML status by fetching latest director AML statuses from RegTank
+ */
+router.post(
+  "/onboarding-applications/:id/refresh-aml-status",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding ID is required");
+      }
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.refreshCorporateAmlStatus(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export const adminRouter = router;
