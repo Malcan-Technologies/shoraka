@@ -333,7 +333,93 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           "Fetching RegTank COD details after approval"
         );
 
-        const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+        let codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+        
+        // Extract kybId from COD details (try kybRequestDto.kybId first, then payload kybId)
+        let extractedKybId = kybId || null;
+        
+        // Check if kybId exists in COD details (kybRequestDto structure)
+        if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
+          const codDetailsObj = codDetails as Record<string, unknown>;
+          if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
+            const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
+            if (kybDto.kybId && typeof kybDto.kybId === "string") {
+              extractedKybId = kybDto.kybId;
+              logger.info(
+                { requestId, organizationId, extractedKybId },
+                "Extracted kybId from COD details kybRequestDto"
+              );
+            }
+          }
+        }
+
+        // If kybId is still not found, wait 3 seconds and retry fetching COD details
+        if (!extractedKybId) {
+          logger.info(
+            { requestId, organizationId },
+            "kybId not found in initial COD details, waiting 3 seconds before retry"
+          );
+          
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          
+          try {
+            codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+            if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
+              const codDetailsObj = codDetails as Record<string, unknown>;
+              if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
+                const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
+                if (kybDto.kybId && typeof kybDto.kybId === "string") {
+                  extractedKybId = kybDto.kybId;
+                  logger.info(
+                    { requestId, organizationId, extractedKybId },
+                    "Extracted kybId from COD details after 3-second delay"
+                  );
+                }
+              }
+            }
+          } catch (retryError) {
+            logger.warn(
+              {
+                error: retryError instanceof Error ? retryError.message : String(retryError),
+                requestId,
+                organizationId,
+              },
+              "Failed to fetch COD details on retry (non-blocking, will fall back to webhook payloads)"
+            );
+          }
+        }
+
+        // If kybId was extracted from COD details, append it to webhook payloads for later retrieval
+        if (extractedKybId && !kybId) {
+          try {
+            // Create a payload object with the extracted kybId for storage in webhook_payloads
+            const kybIdPayload = {
+              kybId: extractedKybId,
+              extractedFrom: "COD_DETAILS",
+              extractedAt: new Date().toISOString(),
+              requestId: onboarding.request_id,
+            };
+            // Append to webhook payloads so it can be found when building response
+            await this.repository.appendWebhookPayload(requestId, kybIdPayload as Prisma.InputJsonValue);
+            logger.info(
+              { requestId, organizationId, kybId: extractedKybId },
+              "Appended extracted kybId to webhook payloads for later retrieval"
+            );
+          } catch (appendError) {
+            logger.warn(
+              {
+                error: appendError instanceof Error ? appendError.message : String(appendError),
+                requestId,
+                organizationId,
+                kybId: extractedKybId,
+              },
+              "Failed to append extracted kybId to webhook payloads (non-blocking)"
+            );
+          }
+        }
+
+        // If still not found, will fall back to webhook payloads extraction in admin service
+        const finalKybId = extractedKybId;
 
         // When COD is APPROVED and KYB exists, update to PENDING_AML
         // Set onboarding_approved = true if not already set
@@ -344,7 +430,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.investorOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                onboarding_status: finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
               },
             });
@@ -360,8 +446,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
-                  kybId,
+                  newStatus: finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                  kybId: finalKybId,
                   codDetails: codDetails,
                 },
               });
@@ -377,7 +463,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, kybId, newStatus: kybId ? "PENDING_AML" : "PENDING_APPROVAL" },
+              { organizationId, portalType, requestId, kybId: finalKybId, newStatus: finalKybId ? "PENDING_AML" : "PENDING_APPROVAL" },
               "Updated investor organization after COD approval"
             );
           }
@@ -388,7 +474,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.issuerOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                onboarding_status: finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
               },
             });
@@ -404,8 +490,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: kybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
-                  kybId,
+                  newStatus: finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL,
+                  kybId: finalKybId,
                   codDetails: codDetails,
                 },
               });
@@ -421,7 +507,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, kybId, newStatus: kybId ? "PENDING_AML" : "PENDING_APPROVAL" },
+              { organizationId, portalType, requestId, kybId: finalKybId, newStatus: finalKybId ? "PENDING_AML" : "PENDING_APPROVAL" },
               "Updated issuer organization after COD approval"
             );
           }

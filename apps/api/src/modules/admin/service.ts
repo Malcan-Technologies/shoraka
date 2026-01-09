@@ -1768,6 +1768,7 @@ export class AdminService {
         }
       }
     }
+
     const kybPortalUrl = kybId
       ? `${regtankConfig.adminPortalUrl}/app/screen-kyb/result/${kybId}`
       : null;
