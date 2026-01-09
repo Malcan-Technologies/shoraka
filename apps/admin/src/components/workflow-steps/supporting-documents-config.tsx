@@ -18,7 +18,6 @@ interface DocumentCategory {
 
 interface DocumentItem {
   title: string;
-  required: boolean;
 }
 
 interface SupportingDocumentsConfig {
@@ -78,8 +77,7 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
     if (!docTitle) return;
 
     const newCategories = [...existingCategories];
-    // All documents are required
-    newCategories[catIndex].documents.push({ title: docTitle, required: true });
+    newCategories[catIndex].documents.push({ title: docTitle });
     // Filter out empty categories before saving
     const filteredCategories = filterEmptyCategories(newCategories);
     onChange({ ...config, categories: filteredCategories.length > 0 ? filteredCategories : undefined });
