@@ -18,14 +18,24 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Checkbox } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Bars3Icon,
   ChevronDownIcon,
   ChevronRightIcon,
   LockClosedIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import {
@@ -59,9 +69,9 @@ interface WorkflowBuilderProps {
 interface SortableStepProps {
   step: WorkflowStep;
   isExpanded: boolean; // Is the step config panel open?
-  isLocked: boolean;   // Is this step locked (cannot be reordered)?
+  isLocked: boolean;   // Is this step locked (cannot be reordered or deleted)?
   hasConfig: boolean;  // Does this step have configuration options?
-  onToggle: (id: string) => void;    // Enable/disable the step
+  onDelete: (id: string) => void;    // Delete the step
   onExpand: (id: string) => void;    // Expand/collapse the config panel
   onConfigure: (id: string, config: any) => void; // Save config changes
 }
@@ -157,7 +167,7 @@ function StepConfigContent({ step, onConfigure }: { step: WorkflowStep; onConfig
 // INDIVIDUAL STEP CARD
 // Shows one workflow step with drag handle, checkbox, and config panel
 // ============================================
-function SortableStep({ step, isExpanded, isLocked, hasConfig, onToggle, onExpand, onConfigure }: SortableStepProps) {
+function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpand, onConfigure }: SortableStepProps) {
   // Setup drag and drop for this step
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
     id: step.id,
@@ -206,33 +216,33 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onToggle, onExpan
           </button>
         )}
 
-        {/* Checkbox to enable/disable step */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={step.enabled}
-            onCheckedChange={() => onToggle(step.id)}
-            disabled={isLocked} // Locked steps always enabled
-          />
-        </div>
-
         {/* Step name */}
         <div className="flex-1">
-          <h4 className={cn(
-            "font-medium text-sm",
-            !step.enabled && "text-muted-foreground line-through"
-          )}>
+          <h4 className="font-medium text-sm">
             {step.name}
           </h4>
-          {!step.enabled && (
-            <p className="text-xs text-muted-foreground mt-0.5">Disabled</p>
-          )}
         </div>
 
         {/* "Configured" badge if step has meaningful config */}
-        {step.enabled && hasConfiguredContent(step) && (
+        {hasConfiguredContent(step) && (
           <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 rounded-full">
             Configured
           </span>
+        )}
+
+        {/* Delete button (only for unlocked steps) */}
+        {!isLocked && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(step.id);
+            }}
+            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Delete step"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
         )}
 
         {/* Arrow icon to expand/collapse */}
@@ -263,6 +273,9 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onToggle, onExpan
 export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
   // Track which steps are expanded (showing config)
   const [expandedSteps, setExpandedSteps] = React.useState<Set<string>>(new Set());
+  
+  // Track step pending deletion for confirmation dialog
+  const [stepToDelete, setStepToDelete] = React.useState<WorkflowStep | null>(null);
 
   // Get current steps from the form
   const steps = form.watch("workflow") || [];
@@ -285,15 +298,28 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
     const oldIndex = steps.findIndex((s: WorkflowStep) => s.id === active.id);
     const newIndex = steps.findIndex((s: WorkflowStep) => s.id === over.id);
     
-    // Don't allow moving "Financing Type" from first position
+    const draggedStep = steps[oldIndex];
+    
+    // Don't allow moving "Financing Type" from first position or moving anything to first position
     const firstStep = steps[0];
-    if (firstStep.name.toLowerCase().includes("financing type") && (oldIndex === 0 || newIndex === 0)) {
+    if (firstStep.name.toLowerCase().includes("financing type")) {
+      if (oldIndex === 0 || newIndex === 0) {
+        return;
+      }
+    }
+    
+    // Don't allow moving "Review & Submit" away from last position
+    // Don't allow moving anything else to the last position
+    const isReviewSubmit = draggedStep.name.toLowerCase().includes("review");
+    const isTargetLastPosition = newIndex === steps.length - 1;
+    
+    if (isReviewSubmit && oldIndex === steps.length - 1) {
+      // Review & Submit cannot be moved away from last position
       return;
     }
     
-    // Don't allow moving "Review & Submit" from last position
-    const lastStep = steps[steps.length - 1];
-    if (lastStep.name.toLowerCase().includes("review") && (oldIndex === steps.length - 1 || newIndex === steps.length - 1)) {
+    if (!isReviewSubmit && isTargetLastPosition) {
+      // Other steps cannot be moved to last position (reserved for Review & Submit)
       return;
     }
     
@@ -304,12 +330,34 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
     });
   };
 
-  // Enable or disable a step
-  const toggleStep = (id: string) => {
-    const updatedSteps = (steps as WorkflowStep[]).map((s: WorkflowStep) => 
-      s.id === id ? { ...s, enabled: !s.enabled } : s
-    );
+  // Initiate step deletion (shows confirmation dialog)
+  const initiateDelete = (id: string) => {
+    const step = (steps as WorkflowStep[]).find((s: WorkflowStep) => s.id === id);
+    if (step) {
+      setStepToDelete(step);
+    }
+  };
+  
+  // Confirm and delete a step
+  const confirmDelete = () => {
+    if (!stepToDelete) return;
+    
+    const updatedSteps = (steps as WorkflowStep[]).filter((s: WorkflowStep) => s.id !== stepToDelete.id);
     form.setValue("workflow", updatedSteps, { shouldValidate: true, shouldDirty: true });
+    
+    // Close the step if it was expanded
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      next.delete(stepToDelete.id);
+      return next;
+    });
+    
+    setStepToDelete(null);
+  };
+  
+  // Cancel deletion
+  const cancelDelete = () => {
+    setStepToDelete(null);
   };
 
   // Expand or collapse a step's config panel
@@ -386,8 +434,6 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
     form.setValue("workflow", sorted, { shouldValidate: true, shouldDirty: true });
   };
 
-  const enabledCount = (steps as WorkflowStep[]).filter((s: WorkflowStep) => s.enabled).length;
-
   return (
     <div className="space-y-4">
       {/* Top Bar: Shows stats and action buttons */}
@@ -395,7 +441,7 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
         {/* Left: Step count and drag hint */}
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            {enabledCount} of {steps.length} enabled
+            {steps.length} {steps.length === 1 ? 'step' : 'steps'}
           </span>
           <Separator orientation="vertical" className="h-4" />
           <span className="text-sm text-muted-foreground flex items-center gap-1">
@@ -441,7 +487,7 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
             ) : (
               /* Render each step */
               (steps as WorkflowStep[]).map((step: WorkflowStep, index: number) => {
-                // Check if this step is locked (cannot be reordered)
+                // Check if this step is locked (cannot be reordered or deleted)
                 const isFirstFinancingType = step.name.toLowerCase().includes("financing type") && index === 0;
                 const isLastReviewSubmit = step.name.toLowerCase().includes("review") && index === steps.length - 1;
                 const isLocked = isFirstFinancingType || isLastReviewSubmit;
@@ -454,7 +500,7 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
                     isExpanded={expandedSteps.has(step.id)}
                     isLocked={isLocked}
                     hasConfig={hasConfig}
-                    onToggle={toggleStep}
+                    onDelete={initiateDelete}
                     onExpand={toggleExpand}
                     onConfigure={updateStepConfig}
                   />
@@ -464,6 +510,25 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!stepToDelete} onOpenChange={(open) => !open && cancelDelete()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workflow step?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-semibold text-foreground">{stepToDelete?.name}</span>? 
+              This will remove the step and all its configuration. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDelete}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Step
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

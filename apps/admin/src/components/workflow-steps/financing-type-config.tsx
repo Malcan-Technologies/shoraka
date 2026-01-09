@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 
 interface FinancingTypeConfig {
   types?: Array<{
@@ -33,6 +33,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const types = config.types || [];
   const availableCategories = config.availableCategories || ["Financing Invoice", "Trade Finance", "Working Capital"];
 
+  const [isEditing, setIsEditing] = React.useState(types.length === 0);
   const [newTitle, setNewTitle] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
@@ -40,7 +41,18 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const [isNewCategory, setIsNewCategory] = React.useState(false);
   const [customCategory, setCustomCategory] = React.useState("");
 
-  const addFinancingType = () => {
+  const currentType = types.length > 0 ? types[0] : null;
+
+  React.useEffect(() => {
+    if (currentType && isEditing) {
+      setNewTitle(currentType.title);
+      setNewDescription(currentType.description || "");
+      setNewCategory(currentType.category || "");
+      setNewImageUrl(currentType.image_url || "");
+    }
+  }, [currentType, isEditing]);
+
+  const saveFinancingType = () => {
     if (!newTitle.trim() || !newCategory.trim()) return;
 
     const categoryToUse = isNewCategory ? customCategory.trim() : newCategory;
@@ -52,17 +64,22 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       image_url: newImageUrl.trim() || "",
     };
 
-    // Add new category to available categories if it's custom
     const updatedCategories = isNewCategory && customCategory.trim()
       ? [...availableCategories, customCategory.trim()]
       : availableCategories;
 
+    // Always replace with single type - only ONE financing type per product workflow
     onChange({
       ...config,
-      types: [...types, newType],
+      types: [newType],
       availableCategories: updatedCategories,
     });
 
+    setIsEditing(false);
+    resetForm();
+  };
+
+  const resetForm = () => {
     setNewTitle("");
     setNewDescription("");
     setNewCategory("");
@@ -71,203 +88,217 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     setIsNewCategory(false);
   };
 
-  const removeFinancingType = (index: number) => {
+  const startEdit = () => {
+    if (currentType) {
+      setNewTitle(currentType.title);
+      setNewDescription(currentType.description || "");
+      setNewCategory(currentType.category || "");
+      setNewImageUrl(currentType.image_url || "");
+    }
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    resetForm();
+  };
+
+  const removeFinancingType = () => {
     onChange({
       ...config,
-      types: types.filter((_, i) => i !== index),
+      types: [],
     });
+    setIsEditing(true);
+    resetForm();
   };
 
   return (
     <div className="space-y-4 pt-4">
-      <div>
-        <p className="text-xs font-medium text-muted-foreground mb-1">
-          Configure financing type options
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Add financing types that borrowers can choose from
-        </p>
-      </div>
-
-      {/* Financing Types List */}
-      {types.length > 0 ? (
+      {!isEditing && currentType ? (
         <div className="space-y-3">
-          {types.map((type, index) => (
-            <div
-              key={index}
-              className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:border-muted-foreground/30 transition-colors group"
-            >
-              {/* Image thumbnail */}
-              {type.image_url && (
-                <img
-                  src={type.image_url}
-                  alt={type.title}
-                  className="h-12 w-12 rounded object-cover"
-                />
-              )}
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{type.title}</span>
-                  {type.category && (
-                    <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded">
-                      {type.category}
-                    </span>
-                  )}
-                </div>
-                {type.description && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {type.description}
-                  </div>
-                )}
-              </div>
-              
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Current Product Type</Label>
+            <div className="flex gap-2">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => removeFinancingType(index)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                onClick={startEdit}
+                className="h-8"
               >
-                <TrashIcon className="h-3 w-3 text-destructive" />
+                <PencilIcon className="h-3 w-3 mr-1.5" />
+                Edit
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={removeFinancingType}
+                className="h-8 text-destructive hover:text-destructive"
+              >
+                <TrashIcon className="h-3 w-3 mr-1.5" />
+                Remove
               </Button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-8 border-2 border-dashed rounded-lg">
-          <p className="text-xs text-muted-foreground">
-            No financing types yet. Add your first financing type below.
-          </p>
-        </div>
-      )}
-
-      {/* Add New Financing Type */}
-      <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
-        <Label className="text-sm font-medium">Add New Financing Type</Label>
-        
-        <div className="space-y-3">
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label htmlFor="newTitle" className="text-xs text-muted-foreground">
-              Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="newTitle"
-              placeholder="e.g., Invoice financing (Islamic)"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="h-9 text-sm bg-background"
-            />
           </div>
           
-          {/* Category Selection */}
-          <div className="space-y-1.5">
-            <Label htmlFor="newCategory" className="text-xs text-muted-foreground">
-              Category <span className="text-destructive">*</span>
-            </Label>
-            <div className="flex gap-2 items-start">
-              {!isNewCategory ? (
-                <>
-                  <Select value={newCategory} onValueChange={setNewCategory}>
-                    <SelectTrigger id="newCategory" className="h-9 bg-background">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableCategories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsNewCategory(true)}
-                    className="h-9 px-3 whitespace-nowrap"
-                  >
-                    New
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Input
-                    placeholder="Enter new category"
-                    value={customCategory}
-                    onChange={(e) => {
-                      setCustomCategory(e.target.value);
-                      setNewCategory(e.target.value);
-                    }}
-                    className="h-9 text-sm bg-background"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsNewCategory(false);
-                      setCustomCategory("");
-                      setNewCategory("");
-                    }}
-                    className="h-9 px-3"
-                  >
-                    Cancel
-                  </Button>
-                </>
+          <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-primary/20 bg-card">
+            {currentType.image_url && (
+              <img
+                src={currentType.image_url}
+                alt={currentType.title}
+                className="h-16 w-16 rounded object-cover"
+              />
+            )}
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-base">{currentType.title}</span>
+                {currentType.category && (
+                  <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
+                    {currentType.category}
+                  </span>
+                )}
+              </div>
+              {currentType.description && (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {currentType.description}
+                </p>
               )}
             </div>
           </div>
-
-          {/* Image URL */}
-          <div className="space-y-1.5">
-            <Label htmlFor="newImageUrl" className="text-xs text-muted-foreground">
-              Image URL (optional)
-            </Label>
-            <Input
-              id="newImageUrl"
-              placeholder="https://example.com/image.jpg"
-              value={newImageUrl}
-              onChange={(e) => setNewImageUrl(e.target.value)}
-              className="h-9 text-sm bg-background"
-            />
-          </div>
-          
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label htmlFor="newDescription" className="text-xs text-muted-foreground">
-              Description (optional)
-            </Label>
-            <Textarea
-              id="newDescription"
-              placeholder="Brief description of this financing type..."
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              className="min-h-[60px] text-xs bg-background"
-            />
-          </div>
-          
-          <Button
-            type="button"
-            onClick={addFinancingType}
-            size="sm"
-            disabled={!newTitle.trim() || !newCategory.trim()}
-            className="w-full"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add Financing Type
-          </Button>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-3 p-4 rounded-lg border-2 border-dashed bg-muted/30">
+          <Label className="text-base font-semibold">
+            {currentType ? "Edit Product Type" : "Create Product Type"}
+          </Label>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newTitle" className="text-sm">
+                Product Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="newTitle"
+                placeholder="e.g., Invoice Financing (Islamic)"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="h-10 bg-background"
+              />
+              <p className="text-xs text-muted-foreground">
+                This will be the main product name shown to borrowers
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="newCategory" className="text-sm">
+                Product Category <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex gap-2 items-start">
+                {!isNewCategory ? (
+                  <>
+                    <Select value={newCategory} onValueChange={setNewCategory}>
+                      <SelectTrigger id="newCategory" className="h-10 bg-background">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsNewCategory(true)}
+                      className="h-10 px-3 whitespace-nowrap"
+                    >
+                      + Custom
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      placeholder="Enter custom category"
+                      value={customCategory}
+                      onChange={(e) => {
+                        setCustomCategory(e.target.value);
+                        setNewCategory(e.target.value);
+                      }}
+                      className="h-10 bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsNewCategory(false);
+                        setCustomCategory("");
+                        setNewCategory("");
+                      }}
+                      className="h-10 px-3"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
 
-      {/* Summary */}
-      {types.length > 0 && (
-        <div className="pt-2 text-xs text-muted-foreground bg-muted/20 p-2 rounded">
-          {types.length} financing type{types.length !== 1 ? 's' : ''} available for borrowers
+            <div className="space-y-2">
+              <Label htmlFor="newImageUrl" className="text-sm">
+                Product Image URL <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Input
+                id="newImageUrl"
+                placeholder="https://example.com/product-image.jpg"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                className="h-10 bg-background"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="newDescription" className="text-sm">
+                Product Description <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Textarea
+                id="newDescription"
+                placeholder="Describe what this financing product is for and who it's suitable for..."
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                className="min-h-[80px] bg-background"
+              />
+            </div>
+            
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                onClick={saveFinancingType}
+                disabled={!newTitle.trim() || !newCategory.trim()}
+                className="flex-1"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                {currentType ? "Update Product" : "Create Product"}
+              </Button>
+              {currentType && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={cancelEdit}
+                  className="px-6"
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
