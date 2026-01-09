@@ -1563,6 +1563,9 @@ export class AdminService {
    * List onboarding applications for admin approval queue
    * Combines data from regtank_onboarding with investor/issuer organizations
    * Maps RegTank statuses to admin-friendly approval statuses
+   *
+   * When status filter is applied, we fetch all records and filter/paginate in memory
+   * because the status is derived from multiple fields and cannot be filtered at DB level
    */
   async listOnboardingApplications(params: GetOnboardingApplicationsQuery): Promise<{
     applications: OnboardingApplicationResponse[];
@@ -1573,9 +1576,21 @@ export class AdminService {
       totalPages: number;
     };
   }> {
-    const { applications, totalCount } = await this.regTankRepository.listOnboardingApplications({
-      page: params.page,
-      pageSize: params.pageSize,
+    const pendingAllStatuses: OnboardingApprovalStatus[] = [
+      "PENDING_SSM_REVIEW",
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+      "PENDING_FINAL_APPROVAL",
+    ];
+
+    // When status filter is applied, fetch all records for in-memory filtering/pagination
+    const needsInMemoryFiltering = !!params.status;
+
+    if (needsInMemoryFiltering) {
+      // Fetch all records (up to 1000) for filtering
+      const { applications } = await this.regTankRepository.listOnboardingApplications({
+        page: 1,
+        pageSize: 1000,
       search: params.search,
       portal: params.portal as "investor" | "issuer" | undefined,
       type: params.type as OrganizationType | undefined,
@@ -1586,30 +1601,55 @@ export class AdminService {
       this.mapToOnboardingApplicationResponse(app)
     );
 
-    // Filter by status if specified (post-processing since status is derived)
-    let filteredApplications = params.status
-      ? mappedApplications.filter((app) => app.status === params.status)
-      : mappedApplications;
+      // Filter by status
+      let filteredApplications: OnboardingApplicationResponse[];
+      if (params.status === "PENDING_ALL") {
+        filteredApplications = mappedApplications.filter((app) =>
+          pendingAllStatuses.includes(app.status)
+        );
+      } else {
+        filteredApplications = mappedApplications.filter((app) => app.status === params.status);
+      }
 
-    // Exclude statuses if specified
-    if (params.excludeStatuses && params.excludeStatuses.length > 0) {
-      filteredApplications = filteredApplications.filter(
-        (app) => !params.excludeStatuses!.includes(app.status)
+      // Apply pagination in memory
+      const totalCount = filteredApplications.length;
+      const startIndex = (params.page - 1) * params.pageSize;
+      const paginatedApplications = filteredApplications.slice(
+        startIndex,
+        startIndex + params.pageSize
       );
+
+      return {
+        applications: paginatedApplications,
+        pagination: {
+          page: params.page,
+          pageSize: params.pageSize,
+          totalCount,
+          totalPages: Math.ceil(totalCount / params.pageSize),
+        },
+      };
     }
 
-    // Calculate total count: use filtered count if status filter or excludeStatuses is applied
-    const shouldUseFilteredCount =
-      params.status || (params.excludeStatuses && params.excludeStatuses.length > 0);
-    const finalTotalCount = shouldUseFilteredCount ? filteredApplications.length : totalCount;
+    // No status filter - use database pagination directly
+    const { applications, totalCount } = await this.regTankRepository.listOnboardingApplications({
+      page: params.page,
+      pageSize: params.pageSize,
+      search: params.search,
+      portal: params.portal as "investor" | "issuer" | undefined,
+      type: params.type as OrganizationType | undefined,
+    });
+
+    const mappedApplications = applications.map((app) =>
+      this.mapToOnboardingApplicationResponse(app)
+    );
 
     return {
-      applications: filteredApplications,
+      applications: mappedApplications,
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
-        totalCount: finalTotalCount,
-        totalPages: Math.ceil(finalTotalCount / params.pageSize),
+        totalCount,
+        totalPages: Math.ceil(totalCount / params.pageSize),
       },
     };
   }
@@ -1676,16 +1716,61 @@ export class AdminService {
 
     // Build RegTank portal URL for direct linking to the onboarding record
     const regtankConfig = getRegTankConfig();
+    // For corporate onboarding, use onboardingCorporate endpoint; for individual, use liveness endpoint
     const regtankPortalUrl = record.request_id
-      ? `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
+      ? record.onboarding_type === "CORPORATE"
+        ? `${regtankConfig.adminPortalUrl}/app/onboardingCorporate/${record.request_id}?archived=false`
+        : `${regtankConfig.adminPortalUrl}/app/liveness/${record.request_id}?archived=false`
       : null;
 
-    // Build KYC portal URL for AML review (uses kyc_id from organization)
+    // Build KYC portal URL for individual AML review (uses kyc_id from organization)
     const kycId = isInvestor
       ? record.investor_organization?.kyc_id
       : record.issuer_organization?.kyc_id;
     const kycPortalUrl = kycId
       ? `${regtankConfig.adminPortalUrl}/app/screen-kyc/result/${kycId}`
+      : null;
+
+    // Build KYB portal URL for corporate AML review (extract kybId from COD/KYB webhook payloads)
+    let kybId: string | null = null;
+    if (record.onboarding_type === "CORPORATE" && record.webhook_payloads) {
+      // Find kybId from webhook payloads (check both COD webhooks with kybRequestDto and KYB webhooks)
+      for (const payload of record.webhook_payloads) {
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const payloadObj = payload as Record<string, unknown>;
+          // Check if this is a COD webhook with kybId directly
+          if (payloadObj.kybId && typeof payloadObj.kybId === "string") {
+            kybId = payloadObj.kybId;
+            break;
+          }
+          // Check if this is a COD webhook with kybRequestDto containing kybId
+          const kybRequestDto = payloadObj.kybRequestDto;
+          if (
+            kybRequestDto &&
+            typeof kybRequestDto === "object" &&
+            !Array.isArray(kybRequestDto)
+          ) {
+            const kybDto = kybRequestDto as Record<string, unknown>;
+            if (kybDto.kybId && typeof kybDto.kybId === "string") {
+              kybId = kybDto.kybId;
+              break;
+            }
+          }
+          // Check if this is a KYB webhook with requestId as kybId
+          if (payloadObj.requestId && typeof payloadObj.requestId === "string") {
+            // KYB webhook has requestId that matches the kybId pattern (e.g., KYB00006)
+            const requestId = payloadObj.requestId as string;
+            if (requestId.startsWith("KYB")) {
+              kybId = requestId;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const kybPortalUrl = kybId
+      ? `${regtankConfig.adminPortalUrl}/app/screen-kyb/result/${kybId}`
       : null;
 
     // Get approval flags based on portal type
@@ -1741,6 +1826,141 @@ export class AdminService {
       ? (investorOrg?.sophisticated_investor_reason ?? null)
       : undefined;
 
+    // Director KYC status (only for corporate onboarding)
+    const directorKycStatusRaw =
+      record.organization_type === "COMPANY"
+        ? isInvestorOrg
+          ? (investorOrg as { director_kyc_status?: unknown })?.director_kyc_status
+          : (issuerOrg as { director_kyc_status?: unknown })?.director_kyc_status
+        : undefined;
+
+    const directorKycStatus:
+      | {
+          corpIndvDirectorCount: number;
+          corpIndvShareholderCount: number;
+          corpBizShareholderCount: number;
+          directors: Array<{
+            eodRequestId: string;
+            name: string;
+            email: string;
+            role: string;
+            kycStatus:
+              | "PENDING"
+              | "LIVENESS_STARTED"
+              | "WAIT_FOR_APPROVAL"
+              | "APPROVED"
+              | "REJECTED";
+            kycId?: string;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
+      | undefined = directorKycStatusRaw
+      ? {
+          ...(directorKycStatusRaw as {
+            corpIndvDirectorCount: number;
+            corpIndvShareholderCount: number;
+            corpBizShareholderCount: number;
+            directors: Array<{
+              eodRequestId: string;
+              name: string;
+              email: string;
+              role: string;
+              kycStatus: string;
+              kycId?: string;
+              lastUpdated: string;
+            }>;
+            lastSyncedAt: string;
+          }),
+          directors: (
+            (
+              directorKycStatusRaw as {
+                directors: Array<{
+                  eodRequestId: string;
+                  name: string;
+                  email: string;
+                  role: string;
+                  kycStatus: string;
+                  kycId?: string;
+                  lastUpdated: string;
+                }>;
+              }
+            ).directors || []
+          ).map((d) => ({
+            ...d,
+            kycStatus: d.kycStatus as
+              | "PENDING"
+              | "LIVENESS_STARTED"
+              | "WAIT_FOR_APPROVAL"
+              | "APPROVED"
+              | "REJECTED",
+          })),
+        }
+      : undefined;
+
+    // Director AML status (only for corporate onboarding)
+    const directorAmlStatusRaw =
+      record.organization_type === "COMPANY"
+        ? isInvestorOrg
+          ? (investorOrg as { director_aml_status?: unknown })?.director_aml_status
+          : (issuerOrg as { director_aml_status?: unknown })?.director_aml_status
+        : undefined;
+
+    const directorAmlStatus:
+      | {
+          directors: Array<{
+            kycId: string;
+            name: string;
+            email: string;
+            role: string;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
+      | undefined = directorAmlStatusRaw
+      ? {
+          ...(directorAmlStatusRaw as {
+            directors: Array<{
+              kycId: string;
+              name: string;
+              email: string;
+              role: string;
+              amlStatus: string;
+              amlMessageStatus: string;
+              amlRiskScore: number | null;
+              amlRiskLevel: string | null;
+              lastUpdated: string;
+            }>;
+            lastSyncedAt: string;
+          }),
+          directors: (
+            (
+              directorAmlStatusRaw as {
+                directors: Array<{
+                  kycId: string;
+                  name: string;
+                  email: string;
+                  role: string;
+                  amlStatus: string;
+                  amlMessageStatus: string;
+                  amlRiskScore: number | null;
+                  amlRiskLevel: string | null;
+                  lastUpdated: string;
+                }>;
+              }
+            ).directors || []
+          ).map((d) => ({
+            ...d,
+            amlStatus: d.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
+            amlMessageStatus: d.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
+          })),
+        }
+      : undefined;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1756,6 +1976,7 @@ export class AdminService {
       regtankSubstatus: record.substatus,
       regtankPortalUrl,
       kycPortalUrl,
+      kybPortalUrl,
       status,
       ssmVerified: false, // Will be implemented when SSM verification is added
       ssmVerifiedAt: null,
@@ -1769,6 +1990,8 @@ export class AdminService {
       isCompleted,
       isSophisticatedInvestor,
       sophisticatedInvestorReason,
+      directorKycStatus,
+      directorAmlStatus,
     };
   }
 
@@ -2069,13 +2292,43 @@ export class AdminService {
         throw new AppError(400, "VALIDATION_ERROR", "Terms and conditions acceptance is required");
       }
 
-      // For company accounts, also check SSM approval
-      if (isCompany && !investorOrg.ssm_approved) {
+      // For company accounts, also check SSM approval and director KYC completion
+      if (isCompany) {
+        if (!investorOrg.ssm_approved) {
         throw new AppError(
           400,
           "VALIDATION_ERROR",
           "SSM approval is required for company accounts"
         );
+        }
+
+        // Check if all directors have completed KYC
+        if (investorOrg.director_kyc_status) {
+          const directorKycStatus = investorOrg.director_kyc_status as {
+            directors: Array<{
+              eodRequestId: string;
+              name: string;
+              email: string;
+              role: string;
+              kycStatus: string;
+              kycId?: string;
+              lastUpdated: string;
+            }>;
+            [key: string]: unknown;
+          };
+
+          const pendingDirectors = directorKycStatus.directors.filter(
+            (director) => director.kycStatus !== "APPROVED"
+          );
+
+          if (pendingDirectors.length > 0) {
+            throw new AppError(
+              400,
+              "VALIDATION_ERROR",
+              `All directors/shareholders must complete KYC verification before final approval. ${pendingDirectors.length} director(s) still pending: ${pendingDirectors.map((d) => d.name).join(", ")}`
+            );
+          }
+        }
       }
 
       // Update investor organization
@@ -2102,6 +2355,34 @@ export class AdminService {
       }
       if (!issuerOrg.ssm_checked) {
         throw new AppError(400, "VALIDATION_ERROR", "SSM check is required for issuer accounts");
+      }
+
+      // Check if all directors have completed KYC
+      if (issuerOrg.director_kyc_status) {
+        const directorKycStatus = issuerOrg.director_kyc_status as {
+          directors: Array<{
+            eodRequestId: string;
+            name: string;
+            email: string;
+            role: string;
+            kycStatus: string;
+            kycId?: string;
+            lastUpdated: string;
+          }>;
+          [key: string]: unknown;
+        };
+
+        const pendingDirectors = directorKycStatus.directors.filter(
+          (director) => director.kycStatus !== "APPROVED"
+        );
+
+        if (pendingDirectors.length > 0) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `All directors/shareholders must complete KYC verification before final approval. ${pendingDirectors.length} director(s) still pending: ${pendingDirectors.map((d) => d.name).join(", ")}`
+          );
+        }
       }
 
       // Update issuer organization
@@ -2161,10 +2442,13 @@ export class AdminService {
 
     // Create onboarding log entries
     // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
+    // For corporate onboarding, use CORPORATE_ONBOARDING_COMPLETED
+    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+    const eventType = isCorporateOnboarding ? "CORPORATE_ONBOARDING_COMPLETED" : "FINAL_APPROVAL_COMPLETED";
     await prisma.onboardingLog.create({
       data: {
         user_id: onboarding.user_id,
-        event_type: "FINAL_APPROVAL_COMPLETED",
+        event_type: eventType,
         role: isInvestor ? "INVESTOR" : "ISSUER",
         portal: onboarding.portal_type,
         ip_address:
@@ -2178,6 +2462,7 @@ export class AdminService {
           portalType: onboarding.portal_type,
           approvedBy: adminUserId,
           regtankRequestId: onboarding.request_id,
+          isCorporateOnboarding,
         },
       },
     });
@@ -2197,6 +2482,140 @@ export class AdminService {
     return {
       success: true,
       message: "Onboarding has been completed successfully. The user is now fully onboarded.",
+    };
+  }
+
+  /**
+   * Approve AML screening for an onboarding application
+   * Sets aml_approved = true and updates regtank_onboarding.status to APPROVED for corporate
+   */
+  async approveAmlScreening(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Check if AML is already approved
+    const isAmlApproved = isInvestor
+      ? onboarding.investor_organization?.aml_approved
+      : onboarding.issuer_organization?.aml_approved;
+
+    if (isAmlApproved) {
+      throw new AppError(400, "ALREADY_APPROVED", "AML screening is already approved");
+    }
+
+    // Update the organization's aml_approved flag
+    const now = new Date();
+    if (isInvestor && onboarding.investor_organization) {
+      await prisma.investorOrganization.update({
+        where: { id: org.id },
+        data: {
+          aml_approved: true,
+          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+        },
+      });
+    } else if (!isInvestor && onboarding.issuer_organization) {
+      await prisma.issuerOrganization.update({
+        where: { id: org.id },
+        data: {
+          aml_approved: true,
+          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+        },
+      });
+    }
+
+    // For corporate onboarding, update regtank_onboarding.status to APPROVED
+    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+    if (isCorporateOnboarding) {
+      await this.regTankRepository.updateStatus(onboarding.request_id, {
+        status: "APPROVED",
+      });
+
+      logger.info(
+        {
+          onboardingId,
+          regtankRequestId: onboarding.request_id,
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          previousRegTankStatus: onboarding.status,
+          newRegTankStatus: "APPROVED",
+          adminUserId,
+        },
+        "[AML Approval] Updated regtank_onboarding.status to APPROVED for corporate onboarding"
+      );
+    }
+
+    // Create onboarding log entry
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: onboarding.user_id,
+        event_type: "AML_APPROVED",
+        role: isInvestor ? "INVESTOR" : "ISSUER",
+        portal: onboarding.portal_type,
+        ip_address:
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        user_agent: req.headers["user-agent"] || null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          organizationId: org.id,
+          organizationType: onboarding.organization_type,
+          portalType: onboarding.portal_type,
+          onboardingRequestId: onboarding.request_id,
+          isCorporateOnboarding,
+          previousStatus: org.onboarding_status,
+          newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+          approvedBy: adminUserId,
+          approvedAt: now.toISOString(),
+        },
+      },
+    });
+
+    logger.info(
+      {
+        onboardingId,
+        organizationId: org.id,
+        userId: onboarding.user_id,
+        adminUserId,
+        portalType: onboarding.portal_type,
+        organizationType: onboarding.organization_type,
+        isCorporateOnboarding,
+      },
+      "AML screening approved by admin"
+    );
+
+    return {
+      success: true,
+      message: isCorporateOnboarding
+        ? "AML screening approved. RegTank onboarding status updated to APPROVED. Organization moved to SSM review."
+        : "AML screening approved. Organization moved to SSM review.",
     };
   }
 
@@ -2307,5 +2726,565 @@ export class AdminService {
       success: true,
       message: "SSM verification has been approved successfully.",
     };
+  }
+
+  /**
+   * Refresh corporate onboarding status by fetching latest director KYC statuses from RegTank
+   * Fetches COD details and EOD details for each director to update their KYC statuses
+   */
+  async refreshCorporateOnboardingStatus(
+    _req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    // Only applicable for corporate onboarding
+    if (onboarding.onboarding_type !== "CORPORATE") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Refresh corporate status is only applicable for corporate onboarding"
+      );
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const codRequestId = onboarding.request_id;
+
+    try {
+      // Fetch COD details from RegTank API
+      logger.info(
+        { codRequestId, organizationId: org.id, adminUserId },
+        "Fetching COD details to refresh director KYC statuses"
+      );
+
+      const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
+
+      // Helper function to normalize name+email for duplicate detection
+      const normalizeKey = (name: string, email: string): string => {
+        return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
+      };
+
+      // Extract and update director information
+      // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
+      const directorsMap = new Map<string, {
+        eodRequestId: string; // Keep director EOD ID as primary
+        shareholderEodRequestId?: string; // Track shareholder EOD ID if different
+        name: string;
+        email: string;
+        role: string;
+        kycStatus: string;
+        kycId?: string;
+        lastUpdated: string;
+      }>();
+
+      // Process individual directors
+      if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
+        for (const director of codDetails.corpIndvDirectors) {
+          const eodRequestId = director.corporateIndividualRequest?.requestId || "";
+          const userInfo = director.corporateUserRequestInfo;
+          const formContent = userInfo?.formContent?.content || [];
+
+          // Extract name, email, role from formContent
+          type FormField = { fieldName: string; fieldValue: string };
+          const typedFormContent = formContent as FormField[];
+          const firstName =
+            typedFormContent.find((f) => f.fieldName === "First Name")?.fieldValue || "";
+          const lastName =
+            typedFormContent.find((f) => f.fieldName === "Last Name")?.fieldValue || "";
+          const designation =
+            typedFormContent.find((f) => f.fieldName === "Designation")?.fieldValue || "";
+          const email =
+            typedFormContent.find((f) => f.fieldName === "Email Address")?.fieldValue ||
+            userInfo?.email ||
+            "";
+          const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+
+          const mapKey = normalizeKey(name, email);
+
+          // Fetch EOD details to get latest KYC status
+          let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
+          let kycId = director.kycRequestInfo?.kycId;
+
+          if (eodRequestId) {
+            try {
+              const eodDetails =
+                await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
+              const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
+
+              // Map EOD status to KYC status
+              if (eodStatus === "LIVENESS_STARTED") {
+                kycStatus = "LIVENESS_STARTED";
+              } else if (eodStatus === "WAIT_FOR_APPROVAL") {
+                kycStatus = "WAIT_FOR_APPROVAL";
+              } else if (eodStatus === "APPROVED") {
+                kycStatus = "APPROVED";
+              } else if (eodStatus === "REJECTED") {
+                kycStatus = "REJECTED";
+              }
+
+              // Get KYC ID from EOD details if available
+              if (eodDetails.kycRequestInfo?.kycId) {
+                kycId = eodDetails.kycRequestInfo.kycId;
+              }
+            } catch (eodError) {
+              logger.warn(
+                {
+                  error: eodError instanceof Error ? eodError.message : String(eodError),
+                  eodRequestId,
+                  codRequestId,
+                },
+                "Failed to fetch EOD details for director (non-blocking)"
+              );
+            }
+          }
+
+          directorsMap.set(mapKey, {
+            eodRequestId,
+            name,
+            email,
+            role: designation || "Director",
+            kycStatus,
+            kycId,
+            lastUpdated: new Date().toISOString(),
+          });
+        }
+      }
+
+      // Process individual shareholders
+      // If they already exist as directors, merge the roles; otherwise add as new entry
+      if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
+        for (const shareholder of codDetails.corpIndvShareholders) {
+          const shareholderEodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
+          const userInfo = shareholder.corporateUserRequestInfo;
+          const formContent = userInfo?.formContent?.content || [];
+
+          type FormField = { fieldName: string; fieldValue: string };
+          const typedFormContent = formContent as FormField[];
+          const firstName =
+            typedFormContent.find((f) => f.fieldName === "First Name")?.fieldValue || "";
+          const lastName =
+            typedFormContent.find((f) => f.fieldName === "Last Name")?.fieldValue || "";
+          const email =
+            typedFormContent.find((f) => f.fieldName === "Email Address")?.fieldValue ||
+            userInfo?.email ||
+            "";
+          const sharePercent =
+            typedFormContent.find((f) => f.fieldName === "% of Shares")?.fieldValue || "";
+          const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+
+          const mapKey = normalizeKey(name, email);
+          const existingDirector = directorsMap.get(mapKey);
+          const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
+
+          // Fetch EOD details to get latest KYC status
+          let kycStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
+          let kycId = shareholder.kycRequestInfo?.kycId;
+
+          if (shareholderEodRequestId) {
+            try {
+              const eodDetails =
+                await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+              const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
+
+              if (eodStatus === "LIVENESS_STARTED") {
+                kycStatus = "LIVENESS_STARTED";
+              } else if (eodStatus === "WAIT_FOR_APPROVAL") {
+                kycStatus = "WAIT_FOR_APPROVAL";
+              } else if (eodStatus === "APPROVED") {
+                kycStatus = "APPROVED";
+              } else if (eodStatus === "REJECTED") {
+                kycStatus = "REJECTED";
+              }
+
+              if (eodDetails.kycRequestInfo?.kycId) {
+                kycId = eodDetails.kycRequestInfo.kycId;
+              }
+            } catch (eodError) {
+              logger.warn(
+                {
+                  error: eodError instanceof Error ? eodError.message : String(eodError),
+                  eodRequestId: shareholderEodRequestId,
+                  codRequestId,
+                },
+                "Failed to fetch EOD details for shareholder (non-blocking)"
+              );
+            }
+          }
+
+          if (existingDirector) {
+            // Person is both director and shareholder - merge roles
+            existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+            existingDirector.shareholderEodRequestId = shareholderEodRequestId;
+            
+            // Fetch both EOD details to check which one has kycId
+            let directorKycId: string | undefined;
+            let shareholderKycId: string | undefined;
+            
+            // Fetch director EOD details
+            if (existingDirector.eodRequestId) {
+              try {
+                const directorEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(existingDirector.eodRequestId);
+                directorKycId = directorEodDetails.kycRequestInfo?.kycId;
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId: existingDirector.eodRequestId,
+                    codRequestId,
+                  },
+                  "Failed to fetch director EOD details for kycId check (non-blocking)"
+                );
+              }
+            }
+            
+            // Fetch shareholder EOD details
+            if (shareholderEodRequestId) {
+              try {
+                const shareholderEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId: shareholderEodRequestId,
+                    codRequestId,
+                  },
+                  "Failed to fetch shareholder EOD details for kycId check (non-blocking)"
+                );
+              }
+            }
+            
+            // Use kycId from whichever EOD record has it (prioritize director if both have it)
+            if (directorKycId) {
+              existingDirector.kycId = directorKycId;
+            } else if (shareholderKycId) {
+              existingDirector.kycId = shareholderKycId;
+            } else {
+              // Fallback to COD response if EOD details don't have it
+              if (kycId && !existingDirector.kycId) {
+                existingDirector.kycId = kycId;
+              }
+            }
+            
+            // Update KYC status if shareholder has a more recent or different status
+            // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
+            const statusPriority = {
+              APPROVED: 4,
+              WAIT_FOR_APPROVAL: 3,
+              LIVENESS_STARTED: 2,
+              PENDING: 1,
+              REJECTED: 0,
+            };
+            const currentPriority = statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
+            const newPriority = statusPriority[kycStatus as keyof typeof statusPriority] || 0;
+            if (newPriority > currentPriority) {
+              existingDirector.kycStatus = kycStatus;
+            }
+            
+            existingDirector.lastUpdated = new Date().toISOString();
+          } else {
+            // Person is only a shareholder - add as new entry
+            directorsMap.set(mapKey, {
+              eodRequestId: shareholderEodRequestId,
+              name,
+              email,
+              role: shareholderRole,
+              kycStatus,
+              kycId,
+              lastUpdated: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      // Convert Map to Array
+      const directors = Array.from(directorsMap.values());
+
+      // Update organization with refreshed director KYC statuses
+      const directorKycStatus = {
+        corpIndvDirectorCount: codDetails.corpIndvDirectorCount || 0,
+        corpIndvShareholderCount: codDetails.corpIndvShareholderCount || 0,
+        corpBizShareholderCount: codDetails.corpBizShareholderCount || 0,
+        directors,
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      if (isInvestor) {
+        await prisma.investorOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+          },
+        });
+      } else {
+        await prisma.issuerOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      logger.info(
+        {
+          onboardingId,
+          codRequestId,
+          organizationId: org.id,
+          adminUserId,
+          directorsUpdated: directors.length,
+        },
+        "Refreshed corporate onboarding director KYC statuses"
+      );
+
+      return {
+        success: true,
+        message: `Successfully refreshed ${directors.length} director KYC status${directors.length !== 1 ? "es" : ""}.`,
+        directorsUpdated: directors.length,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          onboardingId,
+          codRequestId,
+          organizationId: org.id,
+          adminUserId,
+        },
+        "Failed to refresh corporate onboarding status"
+      );
+      throw new AppError(
+        500,
+        "REFRESH_FAILED",
+        `Failed to refresh corporate onboarding status: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Refresh corporate AML status for all directors
+   * Fetches latest AML status from RegTank KYC query API for each director with a kycId
+   */
+  async refreshCorporateAmlStatus(
+    _req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+    // Get the onboarding record
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+        user: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    // Only applicable for corporate onboarding
+    if (onboarding.onboarding_type !== "CORPORATE") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Refresh corporate AML status is only applicable for corporate onboarding"
+      );
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    // Get director_kyc_status to extract kycIds
+    const directorKycStatus = org.director_kyc_status as any;
+    if (!directorKycStatus || !directorKycStatus.directors || !Array.isArray(directorKycStatus.directors)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Director KYC status not found. Please refresh corporate onboarding status first."
+      );
+    }
+
+    try {
+      logger.info(
+        { onboardingId, organizationId: org.id, adminUserId },
+        "Fetching AML status for all directors"
+      );
+
+      const directorsAmlStatus: Array<{
+        kycId: string;
+        name: string;
+        email: string;
+        role: string;
+        amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+        amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+        amlRiskScore: number | null;
+        amlRiskLevel: string | null;
+        lastUpdated: string;
+      }> = [];
+
+      // Fetch AML status for each director with a kycId
+      for (const director of directorKycStatus.directors) {
+        if (!director.kycId) {
+          logger.debug(
+            { directorName: director.name, eodRequestId: director.eodRequestId },
+            "Skipping director without kycId"
+          );
+          continue;
+        }
+
+        try {
+          const kycStatusResponse = await this.regTankApiClient.queryKYCStatus(director.kycId);
+          
+          // RegTank returns an array with one object
+          const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
+          
+          // Map RegTank status to our AML status
+          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
+          if (regTankStatus === "APPROVED") {
+            amlStatus = "Approved";
+          } else if (regTankStatus === "REJECTED") {
+            amlStatus = "Rejected";
+          } else if (regTankStatus === "UNRESOLVED") {
+            amlStatus = "Unresolved";
+          }
+
+          // Extract risk score and level
+          const individualRiskScore = kycStatusData?.individualRiskScore;
+          const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
+            ? parseFloat(String(individualRiskScore.score))
+            : null;
+          const amlRiskLevel = individualRiskScore?.level || null;
+
+          // Extract message status
+          const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+
+          directorsAmlStatus.push({
+            kycId: director.kycId,
+            name: director.name,
+            email: director.email,
+            role: director.role,
+            amlStatus,
+            amlMessageStatus,
+            amlRiskScore,
+            amlRiskLevel,
+            lastUpdated: new Date().toISOString(),
+          });
+
+          logger.debug(
+            {
+              kycId: director.kycId,
+              directorName: director.name,
+              amlStatus,
+              amlMessageStatus,
+              amlRiskScore,
+              amlRiskLevel,
+            },
+            "Fetched AML status for director"
+          );
+        } catch (kycError) {
+          logger.warn(
+            {
+              error: kycError instanceof Error ? kycError.message : String(kycError),
+              kycId: director.kycId,
+              directorName: director.name,
+            },
+            "Failed to fetch AML status for director (non-blocking)"
+          );
+          // Continue with other directors even if one fails
+        }
+      }
+
+      // Update organization with refreshed director AML statuses
+      const directorAmlStatus = {
+        directors: directorsAmlStatus,
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      if (isInvestor) {
+        await prisma.investorOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+          },
+        });
+      } else {
+        await prisma.issuerOrganization.update({
+          where: { id: org.id },
+          data: {
+            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      logger.info(
+        {
+          onboardingId,
+          organizationId: org.id,
+          adminUserId,
+          directorsUpdated: directorsAmlStatus.length,
+        },
+        "Refreshed corporate AML statuses"
+      );
+
+      return {
+        success: true,
+        message: `Successfully refreshed ${directorsAmlStatus.length} director AML status${directorsAmlStatus.length !== 1 ? "es" : ""}.`,
+        directorsUpdated: directorsAmlStatus.length,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          onboardingId,
+          organizationId: org.id,
+          adminUserId,
+        },
+        "Failed to refresh corporate AML status"
+      );
+      throw new AppError(
+        500,
+        "REFRESH_FAILED",
+        `Failed to refresh corporate AML status: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 }

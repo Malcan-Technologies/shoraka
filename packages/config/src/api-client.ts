@@ -281,9 +281,6 @@ export class ApiClient {
     if (params.portal) queryParams.append("portal", params.portal);
     if (params.type) queryParams.append("type", params.type);
     if (params.status) queryParams.append("status", params.status);
-    if (params.excludeStatuses && params.excludeStatuses.length > 0) {
-      queryParams.append("excludeStatuses", params.excludeStatuses.join(","));
-    }
 
     return this.get<OnboardingApplicationsResponse>(
       `/v1/admin/onboarding-applications?${queryParams.toString()}`
@@ -337,6 +334,20 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/complete-final-approval`, {});
   }
 
+  // Approve AML screening for an onboarding application
+  async approveAmlScreening(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-aml`, {});
+  }
+
   // Approve SSM verification for a company organization
   async approveSsmVerification(onboardingId: string): Promise<
     | ApiResponse<{
@@ -349,6 +360,38 @@ export class ApiClient {
       success: boolean;
       message: string;
     }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-ssm`, {});
+  }
+
+  // Refresh corporate onboarding status by fetching latest director KYC statuses
+  async refreshCorporateStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        directorsUpdated: number;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-corporate-status`, {});
+  }
+
+  // Refresh corporate AML status by fetching latest director AML statuses
+  async refreshCorporateAmlStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        directorsUpdated: number;
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
   }
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {

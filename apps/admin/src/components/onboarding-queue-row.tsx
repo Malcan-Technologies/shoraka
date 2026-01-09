@@ -61,7 +61,10 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       );
     case "COMPLETED":
       return (
-        <Badge variant="outline" className="border-emerald-600/30 text-foreground bg-emerald-600/10">
+        <Badge
+          variant="outline"
+          className="border-emerald-600/30 text-foreground bg-emerald-600/10"
+        >
           <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />
           Completed
         </Badge>
@@ -170,12 +173,41 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
       <TableRow className={needsAction ? "bg-muted/30" : undefined}>
         <TableCell className="min-w-[180px] max-w-[280px]">
           <div className="space-y-0.5 min-w-0">
-            <div className="font-medium text-sm truncate" title={currentApplication.userName}>{currentApplication.userName}</div>
-            <div className="text-sm text-muted-foreground truncate" title={currentApplication.userEmail}>{currentApplication.userEmail}</div>
-            {currentApplication.type === "COMPANY" && currentApplication.registrationNumber && (
-              <div className="text-xs text-muted-foreground truncate" title={`SSM: ${currentApplication.registrationNumber}`}>
-                SSM: {currentApplication.registrationNumber}
-              </div>
+            {currentApplication.type === "COMPANY" ? (
+              <>
+                <div
+                  className="font-medium text-sm truncate"
+                  title={currentApplication.organizationName || "Unnamed Organization"}
+                >
+                  {currentApplication.organizationName || "Unnamed Organization"}
+                </div>
+                <div
+                  className="text-sm text-muted-foreground truncate"
+                  title={currentApplication.userEmail}
+                >
+                  {currentApplication.userEmail}
+                </div>
+                {currentApplication.registrationNumber && (
+                  <div
+                    className="text-xs text-muted-foreground truncate"
+                    title={`SSM: ${currentApplication.registrationNumber}`}
+                  >
+                    SSM: {currentApplication.registrationNumber}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="font-medium text-sm truncate" title={currentApplication.userName}>
+                  {currentApplication.userName}
+                </div>
+                <div
+                  className="text-sm text-muted-foreground truncate"
+                  title={currentApplication.userEmail}
+                >
+                  {currentApplication.userEmail}
+                </div>
+              </>
             )}
           </div>
         </TableCell>

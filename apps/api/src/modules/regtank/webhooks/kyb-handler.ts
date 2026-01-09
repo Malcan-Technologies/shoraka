@@ -6,6 +6,7 @@ import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 
 /**
@@ -191,17 +192,22 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_SSM_REVIEW
-            );
+            // Set aml_approved = true and update status to PENDING_SSM_REVIEW
+            await prisma.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+                aml_approved: true,
+              },
+            });
 
             // Create onboarding log
             try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,
@@ -212,6 +218,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   trigger: "KYB_APPROVED",
                   riskLevel,
                   riskScore,
+                  isCorporateOnboarding,
                 },
               });
             } catch (logError) {
@@ -240,17 +247,22 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_SSM_REVIEW
-            );
+            // Set aml_approved = true and update status to PENDING_SSM_REVIEW
+            await prisma.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+                aml_approved: true,
+              },
+            });
 
             // Create onboarding log
             try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 metadata: {
                   organizationId,

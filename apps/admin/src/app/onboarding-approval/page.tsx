@@ -15,8 +15,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   MagnifyingGlassIcon,
@@ -29,22 +27,22 @@ import {
   useOnboardingApplications,
   useInvalidateOnboardingApplications,
 } from "../../hooks/use-onboarding-applications";
-import type { OnboardingApprovalStatus, PortalType, OrganizationTypeEnum } from "@cashsouk/types";
+import type {
+  OnboardingApprovalStatusFilter,
+  PortalType,
+  OrganizationTypeEnum,
+} from "@cashsouk/types";
 
 type PortalFilter = "all" | PortalType;
 type TypeFilter = "all" | OrganizationTypeEnum;
-type StatusFilter = "all" | OnboardingApprovalStatus;
+type StatusFilter = OnboardingApprovalStatusFilter;
 
 export default function OnboardingApprovalPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [portalFilter, setPortalFilter] = React.useState<PortalFilter>("all");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
-  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
-  const [hideCancelled, setHideCancelled] = React.useState(true);
-  const [hideInProgress, setHideInProgress] = React.useState(true);
-  const [hideExpired, setHideExpired] = React.useState(true);
-  const [hideCompleted, setHideCompleted] = React.useState(true);
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("PENDING_ALL");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
 
@@ -67,28 +65,9 @@ export default function OnboardingApprovalPage() {
       search: debouncedSearch || undefined,
       portal: portalFilter !== "all" ? portalFilter : undefined,
       type: typeFilter !== "all" ? typeFilter : undefined,
-      status: statusFilter !== "all" ? statusFilter : undefined,
-      excludeStatuses: (() => {
-        const excluded: ("CANCELLED" | "PENDING_ONBOARDING" | "EXPIRED" | "COMPLETED")[] = [];
-        if (hideCancelled) excluded.push("CANCELLED");
-        if (hideInProgress) excluded.push("PENDING_ONBOARDING");
-        if (hideExpired) excluded.push("EXPIRED");
-        if (hideCompleted) excluded.push("COMPLETED");
-        return excluded.length > 0 ? excluded : undefined;
-      })(),
+      status: statusFilter,
     }),
-    [
-      currentPage,
-      pageSize,
-      debouncedSearch,
-      portalFilter,
-      typeFilter,
-      statusFilter,
-      hideCancelled,
-      hideInProgress,
-      hideExpired,
-      hideCompleted,
-    ]
+    [currentPage, pageSize, debouncedSearch, portalFilter, typeFilter, statusFilter]
   );
 
   const { data, isLoading, isError, error, refetch, isFetching } =
@@ -104,11 +83,7 @@ export default function OnboardingApprovalPage() {
     setDebouncedSearch("");
     setPortalFilter("all");
     setTypeFilter("all");
-    setStatusFilter("all");
-    setHideCancelled(true);
-    setHideInProgress(true);
-    setHideExpired(true);
-    setHideCompleted(true);
+    setStatusFilter("PENDING_ALL");
     setCurrentPage(1);
   };
 
@@ -116,24 +91,11 @@ export default function OnboardingApprovalPage() {
     searchQuery !== "" ||
     portalFilter !== "all" ||
     typeFilter !== "all" ||
-    statusFilter !== "all" ||
-    !hideCancelled ||
-    !hideInProgress ||
-    !hideExpired ||
-    !hideCompleted;
+    statusFilter !== "PENDING_ALL";
 
   // Get applications data
   const applications = data?.applications || [];
   const totalApplications = data?.pagination?.totalCount || 0;
-
-  // Count items requiring admin action (excludes PENDING_ONBOARDING which is user action)
-  const pendingCount = applications.filter(
-    (app) =>
-      app.status === "PENDING_APPROVAL" ||
-      app.status === "PENDING_AML" ||
-      app.status === "PENDING_SSM_REVIEW" ||
-      app.status === "PENDING_FINAL_APPROVAL"
-  ).length;
 
   return (
     <>
@@ -141,9 +103,9 @@ export default function OnboardingApprovalPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">Onboarding Approval</h1>
-        {pendingCount > 0 && (
+        {statusFilter === "PENDING_ALL" && totalApplications > 0 && (
           <Badge variant="destructive" className="ml-2">
-            {pendingCount} pending
+            {totalApplications} pending
           </Badge>
         )}
         <div className="ml-auto">
@@ -259,22 +221,14 @@ export default function OnboardingApprovalPage() {
                 <Button variant="outline" className="gap-2 h-11 rounded-xl">
                   <FunnelIcon className="h-4 w-4" />
                   Status
-                  {(() => {
-                    const count =
-                      (statusFilter !== "all" ? 1 : 0) +
-                      (hideCancelled ? 1 : 0) +
-                      (hideInProgress ? 1 : 0) +
-                      (hideExpired ? 1 : 0) +
-                      (hideCompleted ? 1 : 0);
-                    return count > 0 ? (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-                      >
-                        {count}
-                      </Badge>
-                    ) : null;
-                  })()}
+                  {statusFilter !== "PENDING_ALL" && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
+                    >
+                      1
+                    </Badge>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -282,29 +236,11 @@ export default function OnboardingApprovalPage() {
                 <DropdownMenuRadioGroup
                   value={statusFilter}
                   onValueChange={(v) => {
-                    const newStatus = v as StatusFilter;
-                    const prevStatus = statusFilter;
-                    
-                    setStatusFilter(newStatus);
+                    setStatusFilter(v as StatusFilter);
                     setCurrentPage(1);
-                    
-                    // Re-hide the previous status if it was one of the hideable statuses
-                    if (prevStatus === "PENDING_ONBOARDING") setHideInProgress(true);
-                    if (prevStatus === "COMPLETED") setHideCompleted(true);
-                    if (prevStatus === "EXPIRED") setHideExpired(true);
-                    if (prevStatus === "CANCELLED") setHideCancelled(true);
-                    
-                    // Auto-uncheck the corresponding hide filter when user selects a status
-                    if (newStatus === "PENDING_ONBOARDING") setHideInProgress(false);
-                    if (newStatus === "COMPLETED") setHideCompleted(false);
-                    if (newStatus === "EXPIRED") setHideExpired(false);
-                    if (newStatus === "CANCELLED") setHideCancelled(false);
                   }}
                 >
-                  <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">
-                    In Progress
-                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_ALL">All Pending</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_APPROVAL">
                     Pending Approval
                   </DropdownMenuRadioItem>
@@ -315,33 +251,14 @@ export default function OnboardingApprovalPage() {
                   <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
                     Pending Final Approval
                   </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">
+                    In Progress
+                  </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="EXPIRED">Expired</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="CANCELLED">Cancelled</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={hideInProgress}
-                  onCheckedChange={setHideInProgress}
-                >
-                  Hide In Progress
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={hideCompleted}
-                  onCheckedChange={setHideCompleted}
-                >
-                  Hide Completed
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={hideExpired} onCheckedChange={setHideExpired}>
-                  Hide Expired
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={hideCancelled}
-                  onCheckedChange={setHideCancelled}
-                >
-                  Hide Cancelled
-                </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

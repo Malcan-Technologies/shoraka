@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
 import express from "express";
-import { RegTankDevWebhookHandler } from "./webhook-handler-dev";
 import { IndividualOnboardingWebhookHandler } from "./webhooks/individual-onboarding-handler";
 import { CODWebhookHandler } from "./webhooks/cod-handler";
 import { EODWebhookHandler } from "./webhooks/eod-handler";
@@ -11,7 +10,6 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 
 const router = Router();
-const devWebhookHandler = new RegTankDevWebhookHandler();
 
 // Specialized webhook handlers
 const individualHandler = new IndividualOnboardingWebhookHandler();
@@ -27,14 +25,15 @@ const kytHandler = new KYTWebhookHandler();
  * Helper function to extract raw body and signature from request
  */
 function extractWebhookData(req: Request): { rawBody: string; signature: string | undefined } {
-  const rawBody = req.body instanceof Buffer 
-    ? req.body.toString("utf8")
-    : typeof req.body === "string"
-    ? req.body
-    : JSON.stringify(req.body);
-  
+  const rawBody =
+    req.body instanceof Buffer
+      ? req.body.toString("utf8")
+      : typeof req.body === "string"
+        ? req.body
+        : JSON.stringify(req.body);
+
   const signature = req.headers["x-regtank-signature"] as string | undefined;
-  
+
   return { rawBody, signature };
 }
 
@@ -207,91 +206,103 @@ router.post(
 );
 
 /**
- * @swagger
- * /v1/webhooks/regtank/dev:
- *   post:
- *     summary: RegTank dev webhook endpoint (public, no auth)
- *     tags: [RegTank]
- *     description: Receives webhook notifications from RegTank for onboarding status updates and writes to DEV database. Use this for testing webhooks in production.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [requestId, status]
- *             properties:
- *               requestId:
- *                 type: string
- *               status:
- *                 type: string
- *               substatus:
- *                 type: string
- *     responses:
- *       200:
- *         description: Webhook processed successfully (written to dev database)
- *       401:
- *         description: Invalid signature
- *       400:
- *         description: Invalid payload
+ * Dev webhook endpoint - only available in non-production environments
+ * or when ENABLE_REGTANK_DEV_WEBHOOK=true is explicitly set
  */
-router.post(
-  "/regtank/dev",
-  express.raw({ type: "application/json" }),
-  async (req: Request, res: Response, _next: NextFunction) => {
-    try {
-      // Get raw body (Buffer from express.raw())
-      const rawBody = req.body instanceof Buffer 
-        ? req.body.toString("utf8")
-        : typeof req.body === "string"
-        ? req.body
-        : JSON.stringify(req.body);
-      
-      const signature = req.headers["x-regtank-signature"] as string | undefined;
+if (process.env.NODE_ENV !== "production" || process.env.ENABLE_REGTANK_DEV_WEBHOOK === "true") {
+  /**
+   * @swagger
+   * /v1/webhooks/regtank/dev:
+   *   post:
+   *     summary: RegTank dev webhook endpoint (public, no auth)
+   *     tags: [RegTank]
+   *     description: Receives webhook notifications from RegTank for onboarding status updates and writes to DEV database. Use this for testing webhooks in production.
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [requestId, status]
+   *             properties:
+   *               requestId:
+   *                 type: string
+   *               status:
+   *                 type: string
+   *               substatus:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully (written to dev database)
+   *       401:
+   *         description: Invalid signature
+   *       400:
+   *         description: Invalid payload
+   */
+  router.post(
+    "/regtank/dev",
+    express.raw({ type: "application/json" }),
+    async (req: Request, res: Response, _next: NextFunction) => {
+      try {
+        // Lazy load the dev handler only when the endpoint is actually called
+        const { RegTankDevWebhookHandler } = await import("./webhook-handler-dev");
+        const devWebhookHandler = new RegTankDevWebhookHandler();
 
-      logger.debug(
-        {
-          hasSignature: !!signature,
-          contentType: req.headers["content-type"],
-          bodyLength: rawBody.length,
-          database: "dev",
-        },
-        "RegTank dev webhook received"
-      );
+        // Get raw body (Buffer from express.raw())
+        const rawBody =
+          req.body instanceof Buffer
+            ? req.body.toString("utf8")
+            : typeof req.body === "string"
+              ? req.body
+              : JSON.stringify(req.body);
 
-      await devWebhookHandler.processWebhook(rawBody, signature);
+        const signature = req.headers["x-regtank-signature"] as string | undefined;
 
-      // Return 200 OK immediately (webhook processing is async)
-      res.status(200).json({
-        success: true,
-        message: "Webhook received and processed (dev database)",
-      });
-    } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          database: "dev",
-        },
-        "Error processing RegTank dev webhook"
-      );
+        logger.debug(
+          {
+            hasSignature: !!signature,
+            contentType: req.headers["content-type"],
+            bodyLength: rawBody.length,
+            database: "dev",
+          },
+          "RegTank dev webhook received"
+        );
 
-      if (error instanceof AppError) {
-        res.status(error.statusCode).json({
-          success: false,
-          error: error.code,
-          message: error.message,
+        await devWebhookHandler.processWebhook(rawBody, signature);
+
+        // Return 200 OK immediately (webhook processing is async)
+        res.status(200).json({
+          success: true,
+          message: "Webhook received and processed (dev database)",
         });
-      } else {
-        res.status(500).json({
-          success: false,
-          error: "INTERNAL_ERROR",
-          message: "Internal server error processing webhook",
-        });
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            database: "dev",
+          },
+          "Error processing RegTank dev webhook"
+        );
+
+        if (error instanceof AppError) {
+          res.status(error.statusCode).json({
+            success: false,
+            error: error.code,
+            message: error.message,
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            error: "INTERNAL_ERROR",
+            message: "Internal server error processing webhook",
+          });
+        }
       }
     }
-  }
-);
+  );
+
+  logger.info("🧪 Dev webhook endpoint enabled at /v1/webhooks/regtank/dev");
+}
 
 export { router as regTankWebhookRouter };
-

@@ -7,7 +7,6 @@ import {
   ChevronsUpDown,
   LogOut,
 } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
 
 import {
   Avatar,
@@ -31,32 +30,16 @@ import {
 } from "@/components/ui/sidebar"
 import { Skeleton } from "@cashsouk/ui"
 import { logout } from "../lib/auth"
-import { createApiClient, useAuthToken } from "@cashsouk/config"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
-
-interface ApiUserData {
-  first_name: string | null
-  last_name: string | null
-  email: string
-}
+import { useAuthToken } from "@cashsouk/config"
+import { useCurrentUser } from "../hooks/use-current-user"
 
 export function NavUser() {
   const { isMobile } = useSidebar()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const { getAccessToken, signOut } = useAuthToken()
 
-  const { data: userData, isLoading } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const apiClient = createApiClient(API_URL, getAccessToken)
-      const result = await apiClient.get<{ user: ApiUserData }>("/v1/auth/me")
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-      return result.data.user
-    },
-  })
+  const { data, isLoading } = useCurrentUser()
+  const userData = data?.user
 
   const user = {
     name: userData 

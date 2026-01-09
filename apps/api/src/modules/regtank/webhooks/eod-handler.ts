@@ -7,6 +7,7 @@ import { UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
+import { OrganizationRepository } from "../../organization/repository";
 
 /**
  * EOD (Entity Onboarding Data) Webhook Handler
@@ -16,11 +17,13 @@ import type { PortalType } from "../types";
 export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private authRepository: AuthRepository;
+  private organizationRepository: OrganizationRepository;
 
   constructor() {
     super();
     this.repository = new RegTankRepository();
     this.authRepository = new AuthRepository();
+    this.organizationRepository = new OrganizationRepository();
   }
 
   protected getWebhookType(): string {
@@ -182,6 +185,142 @@ export class EODWebhookHandler extends BaseWebhookHandler {
         },
         "[EOD Webhook] Failed to create EOD onboarding log entry (non-blocking)"
       );
+    }
+
+    // Update director KYC status in parent organization's director_kyc_status JSON field
+    if (organizationId) {
+      try {
+        const portalType = onboarding.portal_type as PortalType;
+        
+        // Map EOD status to KYC status
+        let kycStatus = "PENDING";
+        if (statusUpper === "LIVENESS_STARTED") {
+          kycStatus = "LIVENESS_STARTED";
+        } else if (statusUpper === "WAIT_FOR_APPROVAL") {
+          kycStatus = "WAIT_FOR_APPROVAL";
+        } else if (statusUpper === "APPROVED") {
+          kycStatus = "APPROVED";
+        } else if (statusUpper === "REJECTED") {
+          kycStatus = "REJECTED";
+        }
+
+        if (portalType === "investor") {
+          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
+          if (org && org.director_kyc_status) {
+            const directorKycStatus = org.director_kyc_status as {
+              directors: Array<{
+                eodRequestId: string;
+                name: string;
+                email: string;
+                role: string;
+                kycStatus: string;
+                kycId?: string;
+                lastUpdated: string;
+              }>;
+              [key: string]: unknown;
+            };
+
+            // Find and update the matching director
+            const updatedDirectors = directorKycStatus.directors.map((director) => {
+              if (director.eodRequestId === eodRequestId) {
+                return {
+                  ...director,
+                  kycStatus,
+                  kycId: kycId || director.kycId,
+                  lastUpdated: new Date().toISOString(),
+                };
+              }
+              return director;
+            });
+
+            // Update organization with new director statuses
+            await prisma.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                director_kyc_status: {
+                  ...directorKycStatus,
+                  directors: updatedDirectors,
+                  lastSyncedAt: new Date().toISOString(),
+                } as Prisma.InputJsonValue,
+              },
+            });
+
+            logger.info(
+              {
+                eodRequestId,
+                codRequestId: onboarding.request_id,
+                organizationId,
+                kycStatus,
+                kycId,
+              },
+              "[EOD Webhook] Updated director KYC status in investor organization"
+            );
+          }
+        } else {
+          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          if (org && org.director_kyc_status) {
+            const directorKycStatus = org.director_kyc_status as {
+              directors: Array<{
+                eodRequestId: string;
+                name: string;
+                email: string;
+                role: string;
+                kycStatus: string;
+                kycId?: string;
+                lastUpdated: string;
+              }>;
+              [key: string]: unknown;
+            };
+
+            // Find and update the matching director
+            const updatedDirectors = directorKycStatus.directors.map((director) => {
+              if (director.eodRequestId === eodRequestId) {
+                return {
+                  ...director,
+                  kycStatus,
+                  kycId: kycId || director.kycId,
+                  lastUpdated: new Date().toISOString(),
+                };
+              }
+              return director;
+            });
+
+            // Update organization with new director statuses
+            await prisma.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                director_kyc_status: {
+                  ...directorKycStatus,
+                  directors: updatedDirectors,
+                  lastSyncedAt: new Date().toISOString(),
+                } as Prisma.InputJsonValue,
+              },
+            });
+
+            logger.info(
+              {
+                eodRequestId,
+                codRequestId: onboarding.request_id,
+                organizationId,
+                kycStatus,
+                kycId,
+              },
+              "[EOD Webhook] Updated director KYC status in issuer organization"
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            eodRequestId,
+            codRequestId: onboarding.request_id,
+            organizationId,
+          },
+          "[EOD Webhook] Failed to update director KYC status (non-blocking)"
+        );
+        // Don't throw - allow webhook to complete even if director status update fails
+      }
     }
 
     // Note: EOD represents individual directors/shareholders, not the company itself

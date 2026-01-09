@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import type { PortalType } from "../types";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -358,6 +359,224 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         },
         "[KYC Webhook] KYC status is not APPROVED, no organization update needed"
       );
+    }
+
+    // Handle director AML status update for corporate onboarding
+    // If onboardingId starts with "EOD", this is a director's individual KYC
+    if (onboardingId && onboardingId.startsWith("EOD") && organizationId) {
+      try {
+        const eodRequestId = onboardingId;
+        const portalType = onboarding.portal_type as PortalType;
+        const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+
+        if (!isCorporateOnboarding) {
+          logger.debug(
+            { eodRequestId, kycRequestId: requestId },
+            "[KYC Webhook] Not a corporate onboarding, skipping director AML status update"
+          );
+          return;
+        }
+
+        logger.info(
+          {
+            eodRequestId,
+            kycRequestId: requestId,
+            organizationId,
+            portalType,
+            status: statusUpper,
+            messageStatus,
+          },
+          "[KYC Webhook] Processing director AML status update for corporate onboarding"
+        );
+
+        // Find parent COD onboarding record
+        // Search through all corporate onboardings to find the one that contains this EOD
+        const allCorporateOnboardings = await prisma.regTankOnboarding.findMany({
+          where: {
+            onboarding_type: "CORPORATE",
+            portal_type: portalType,
+            OR: [
+              { investor_organization_id: organizationId },
+              { issuer_organization_id: organizationId },
+            ],
+          },
+        });
+
+        let parentOnboarding = null;
+        for (const corporateOnboarding of allCorporateOnboardings) {
+          // Check webhook payloads for COD webhook that contains this EOD requestId
+          if (corporateOnboarding.webhook_payloads && Array.isArray(corporateOnboarding.webhook_payloads)) {
+            for (const webhookPayload of corporateOnboarding.webhook_payloads) {
+              if (webhookPayload && typeof webhookPayload === "object" && !Array.isArray(webhookPayload)) {
+                const payloadObj = webhookPayload as Record<string, unknown>;
+                // Check if this is a COD webhook with corpIndvDirectors or corpIndvShareholders
+                const codDetails = payloadObj as any;
+                const corpIndvDirectors = codDetails.corpIndvDirectors;
+                const corpIndvShareholders = codDetails.corpIndvShareholders;
+
+                if (
+                  (corpIndvDirectors && Array.isArray(corpIndvDirectors) &&
+                    corpIndvDirectors.some((d: any) => d?.corporateIndividualRequest?.requestId === eodRequestId)) ||
+                  (corpIndvShareholders && Array.isArray(corpIndvShareholders) &&
+                    corpIndvShareholders.some((s: any) => s?.corporateIndividualRequest?.requestId === eodRequestId))
+                ) {
+                  parentOnboarding = corporateOnboarding;
+                  break;
+                }
+              }
+            }
+            if (parentOnboarding) break;
+          }
+        }
+
+        if (!parentOnboarding) {
+          logger.warn(
+            { eodRequestId, kycRequestId: requestId, organizationId },
+            "[KYC Webhook] Parent COD onboarding not found for EOD, skipping director AML status update"
+          );
+          return;
+        }
+
+        // Get organization with director_kyc_status to find matching director
+        const org = portalType === "investor"
+          ? await prisma.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: {
+                id: true,
+                director_kyc_status: true,
+                director_aml_status: true,
+              },
+            })
+          : await prisma.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: {
+                id: true,
+                director_kyc_status: true,
+                director_aml_status: true,
+              },
+            });
+
+        if (!org) {
+          logger.warn(
+            { eodRequestId, kycRequestId: requestId, organizationId, portalType },
+            "[KYC Webhook] Organization not found, skipping director AML status update"
+          );
+          return;
+        }
+
+        // Get director_kyc_status to find the director by kycId
+        const directorKycStatus = org.director_kyc_status as any;
+        if (!directorKycStatus || !directorKycStatus.directors || !Array.isArray(directorKycStatus.directors)) {
+          logger.warn(
+            { eodRequestId, kycRequestId: requestId, organizationId },
+            "[KYC Webhook] director_kyc_status not found or invalid, skipping director AML status update"
+          );
+          return;
+        }
+
+        // Find the director by kycId
+        const directorIndex = directorKycStatus.directors.findIndex(
+          (d: any) => d.kycId === requestId
+        );
+
+        if (directorIndex === -1) {
+          logger.warn(
+            { eodRequestId, kycRequestId: requestId, organizationId },
+            "[KYC Webhook] Director not found in director_kyc_status by kycId, skipping AML status update"
+          );
+          return;
+        }
+
+        const director = directorKycStatus.directors[directorIndex];
+
+        // Map RegTank status to our AML status
+        let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+        if (statusUpper === "APPROVED") {
+          amlStatus = "Approved";
+        } else if (statusUpper === "REJECTED") {
+          amlStatus = "Rejected";
+        } else if (statusUpper === "UNRESOLVED") {
+          amlStatus = "Unresolved";
+        }
+
+        // Extract risk score and level from payload
+        // Note: riskScore and riskLevel come from the webhook payload
+        const amlRiskScore = riskScore ? parseFloat(String(riskScore)) : null;
+        const amlRiskLevel = riskLevel || null;
+
+        // Get or create director_aml_status
+        let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+        if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+          directorAmlStatus.directors = [];
+        }
+
+        // Find or create AML status entry for this director
+        const amlIndex = directorAmlStatus.directors.findIndex(
+          (d: any) => d.kycId === requestId
+        );
+
+        const amlEntry = {
+          kycId: requestId,
+          name: director.name,
+          email: director.email,
+          role: director.role,
+          amlStatus,
+          amlMessageStatus: messageStatus || "PENDING",
+          amlRiskScore,
+          amlRiskLevel,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        if (amlIndex === -1) {
+          directorAmlStatus.directors.push(amlEntry);
+        } else {
+          directorAmlStatus.directors[amlIndex] = amlEntry;
+        }
+
+        directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+        // Update organization with new director_aml_status
+        if (portalType === "investor") {
+          await prisma.investorOrganization.update({
+            where: { id: organizationId },
+            data: {
+              director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+            },
+          });
+        } else {
+          await prisma.issuerOrganization.update({
+            where: { id: organizationId },
+            data: {
+              director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        logger.info(
+          {
+            eodRequestId,
+            kycRequestId: requestId,
+            organizationId,
+            directorName: director.name,
+            amlStatus,
+            amlMessageStatus: messageStatus,
+            amlRiskScore,
+            amlRiskLevel,
+          },
+          "[KYC Webhook] ✓ Updated director AML status in organization"
+        );
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            kycRequestId: requestId,
+            onboardingId,
+            organizationId,
+          },
+          "[KYC Webhook] Failed to update director AML status (non-blocking)"
+        );
+        // Don't throw - allow webhook to complete even if director AML update fails
+      }
     }
   }
 }

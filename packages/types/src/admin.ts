@@ -491,6 +491,44 @@ export type OnboardingApprovalStatus =
   | "EXPIRED"
   | "CANCELLED";
 
+// Filter-only status that represents all pending admin action statuses
+export type OnboardingApprovalStatusFilter = OnboardingApprovalStatus | "PENDING_ALL";
+
+export interface DirectorKycStatus {
+  eodRequestId: string;
+  name: string;
+  email: string;
+  role: string; // "Director", "Shareholder", etc.
+  kycStatus: "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
+  kycId?: string;
+  lastUpdated: string; // ISO timestamp
+}
+
+export interface CorporateDirectorData {
+  corpIndvDirectorCount: number;
+  corpIndvShareholderCount: number;
+  corpBizShareholderCount: number;
+  directors: DirectorKycStatus[];
+  lastSyncedAt: string; // ISO timestamp
+}
+
+export interface DirectorAmlStatus {
+  kycId: string;
+  name: string;
+  email: string;
+  role: string; // "Director", "Shareholder", etc.
+  amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  lastUpdated: string; // ISO timestamp
+}
+
+export interface CorporateAmlData {
+  directors: DirectorAmlStatus[];
+  lastSyncedAt: string; // ISO timestamp
+}
+
 export interface OnboardingApplicationResponse {
   id: string;
   userId: string;
@@ -506,6 +544,7 @@ export interface OnboardingApplicationResponse {
   regtankSubstatus: string | null;
   regtankPortalUrl: string | null;
   kycPortalUrl: string | null;
+  kybPortalUrl: string | null;
   status: OnboardingApprovalStatus;
   ssmVerified: boolean;
   ssmVerifiedAt: string | null;
@@ -521,14 +560,17 @@ export interface OnboardingApplicationResponse {
   // Sophisticated investor status (only for investor portal)
   isSophisticatedInvestor?: boolean;
   sophisticatedInvestorReason?: string | null;
+  // Director KYC status (only for corporate onboarding)
+  directorKycStatus?: CorporateDirectorData;
+  // Director AML status (only for corporate onboarding)
+  directorAmlStatus?: CorporateAmlData;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {
   search?: string;
   portal?: PortalType;
   type?: OrganizationTypeEnum;
-  status?: OnboardingApprovalStatus;
-  excludeStatuses?: OnboardingApprovalStatus[];
+  status?: OnboardingApprovalStatusFilter;
 }
 
 export interface OnboardingApplicationsResponse {

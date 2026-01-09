@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   Logo,
+  InfoTooltip,
 } from "@cashsouk/ui";
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
 import { redirectToLanding } from "../../lib/auth";
@@ -313,29 +314,61 @@ function OnboardingStartPageContent() {
           {step === "name-input" && (
             <Card className="rounded-2xl shadow-lg w-full">
               <CardHeader className="text-center space-y-2 pb-4">
-                <CardTitle className="text-2xl font-bold">Enter Your Name</CardTitle>
+                <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
+                  Enter Your Name
+                  <InfoTooltip
+                    className="max-w-[320px]"
+                    content={
+                      <div className="space-y-2">
+                        <p className="font-medium text-sm">How to fill in your name:</p>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-muted-foreground">
+                              <th className="text-left font-normal pb-1">First Name</th>
+                              <th className="text-left font-normal pb-1">Last Name</th>
+                            </tr>
+                          </thead>
+                          <tbody className="font-mono">
+                            <tr>
+                              <td className="pr-8">Aisyah</td>
+                              <td>binti Rahman</td>
+                            </tr>
+                            <tr>
+                              <td className="pr-8">Priya</td>
+                              <td>Krishnan</td>
+                            </tr>
+                            <tr>
+                              <td className="pr-8">Tan</td>
+                              <td>Mei Ling</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    }
+                  />
+                </CardTitle>
                 <CardDescription className="text-[15px] leading-7">
                   We need your first and last name to proceed with onboarding
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name (As appeared on your IC)</Label>
+                  <Label htmlFor="firstName">First Name (As appears on your IC)</Label>
                   <Input
                     id="firstName"
                     value={nameForm.firstName}
                     onChange={(e) => setNameForm({ ...nameForm, firstName: e.target.value })}
-                    placeholder="Enter your first name"
+                    placeholder="Aisyah"
                     className="h-11"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name (As appeared on your IC)</Label>
+                  <Label htmlFor="lastName">Last Name (As appears on your IC)</Label>
                   <Input
                     id="lastName"
                     value={nameForm.lastName}
                     onChange={(e) => setNameForm({ ...nameForm, lastName: e.target.value })}
-                    placeholder="Enter your last name"
+                    placeholder="binti Rahman"
                     className="h-11"
                   />
                 </div>
