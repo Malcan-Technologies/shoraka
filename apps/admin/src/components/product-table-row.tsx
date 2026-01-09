@@ -103,7 +103,7 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{product.name}"? This action cannot be undone.
+              Are you sure you want to delete <span className="font-semibold">{product.name}</span>? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
