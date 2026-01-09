@@ -3,9 +3,9 @@ import { getRegTankConfig } from "../../config/regtank";
 import { RegTankWebhookPayload } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
-import { prismaDev } from "../../lib/prisma-dev";
+import { getPrismaDevClient } from "../../lib/prisma-dev";
 import { prisma } from "../../lib/prisma";
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { OnboardingStatus, UserRole, PrismaClient } from "@prisma/client";
 import { PortalType } from "./types";
 import { AuthRepository } from "../auth/repository";
 
@@ -61,10 +61,7 @@ export class RegTankDevWebhookHandler {
    * Process webhook payload for DEV database
    * Verifies signature and processes the webhook to dev database
    */
-  async processWebhook(
-    rawBody: string,
-    signature: string | undefined
-  ): Promise<void> {
+  async processWebhook(rawBody: string, signature: string | undefined): Promise<void> {
     // Verify signature if provided
     if (signature) {
       const isValid = this.verifySignature(rawBody, signature);
@@ -77,11 +74,7 @@ export class RegTankDevWebhookHandler {
           },
           "Invalid webhook signature - rejecting request"
         );
-        throw new AppError(
-          401,
-          "INVALID_SIGNATURE",
-          "Invalid webhook signature"
-        );
+        throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
       }
 
       logger.debug("Webhook signature verified successfully");
@@ -125,8 +118,23 @@ export class RegTankDevWebhookHandler {
       "Processing RegTank webhook (DEV database)"
     );
 
+    // Get dev Prisma client (lazy initialization)
+    const prismaDev = await getPrismaDevClient();
+
+    if (!prismaDev) {
+      logger.error(
+        { requestId: payload.requestId },
+        "Dev database not configured - cannot process dev webhook"
+      );
+      throw new AppError(
+        503,
+        "DEV_DB_NOT_CONFIGURED",
+        "Dev database is not configured. Set DATABASE_URL_DEV environment variable."
+      );
+    }
+
     // Process webhook using dev database
-    await this.handleWebhookUpdate(payload);
+    await this.handleWebhookUpdate(payload, prismaDev);
 
     logger.info(
       {
@@ -142,7 +150,8 @@ export class RegTankDevWebhookHandler {
    * Handle webhook update for DEV database
    */
   private async handleWebhookUpdate(
-    payload: RegTankWebhookPayload
+    payload: RegTankWebhookPayload,
+    prismaDev: PrismaClient
   ): Promise<void> {
     const { requestId, status, substatus } = payload;
 
@@ -163,7 +172,7 @@ export class RegTankDevWebhookHandler {
         { requestId, database: "dev" },
         "Onboarding not found in dev database, checking production database"
       );
-      
+
       const prodOnboarding = await prisma.regTankOnboarding.findUnique({
         where: { request_id: requestId },
         include: {
@@ -178,7 +187,7 @@ export class RegTankDevWebhookHandler {
           { requestId, database: "dev" },
           "Found onboarding in production database, creating copy in dev database"
         );
-        
+
         // Create a copy in dev database for future webhook processing
         // This ensures subsequent webhooks can find it in dev
         const existingInDev = await prismaDev.regTankOnboarding.findUnique({
@@ -201,18 +210,15 @@ export class RegTankDevWebhookHandler {
               verify_link_expires_at: prodOnboarding.verify_link_expires_at,
               status: prodOnboarding.status,
               substatus: prodOnboarding.substatus,
-              regtank_response: prodOnboarding.regtank_response as any,
-              webhook_payloads: prodOnboarding.webhook_payloads as any,
+              regtank_response: (prodOnboarding.regtank_response as object) ?? undefined,
+              webhook_payloads: (prodOnboarding.webhook_payloads ?? []) as object[],
               created_at: prodOnboarding.created_at,
               updated_at: prodOnboarding.updated_at,
               completed_at: prodOnboarding.completed_at,
             },
           });
 
-          logger.info(
-            { requestId, database: "dev" },
-            "Created onboarding copy in dev database"
-          );
+          logger.info({ requestId, database: "dev" }, "Created onboarding copy in dev database");
         }
 
         // Re-query from dev database to ensure we have the dev version
@@ -252,7 +258,7 @@ export class RegTankDevWebhookHandler {
     }
 
     // Append webhook payload to history
-    const currentPayloads = (onboarding.webhook_payloads || []) as any[];
+    const currentPayloads = (onboarding.webhook_payloads || []) as object[];
     await prismaDev.regTankOnboarding.update({
       where: { request_id: requestId },
       data: {
@@ -264,20 +270,19 @@ export class RegTankDevWebhookHandler {
 
     // Update status
     const statusUpper = status.toUpperCase();
-    
+
     // Detect when liveness test is completed
     // RegTank sends LIVENESS_PASSED or WAIT_FOR_APPROVAL when liveness is done
-    const isLivenessCompleted = 
-      statusUpper === "LIVENESS_PASSED" || 
-      statusUpper === "WAIT_FOR_APPROVAL";
+    const isLivenessCompleted =
+      statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL";
 
     // Status transition logic for regtank_onboarding table:
     // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
     // Note: Final approval is done on our side, not in RegTank
-    
+
     // Map RegTank status to our internal status
     let internalStatus = statusUpper;
-    
+
     // Map form filling statuses (before liveness test)
     if (
       statusUpper === "PROCESSING" ||
@@ -331,7 +336,7 @@ export class RegTankDevWebhookHandler {
           const orgExists = await prismaDev.investorOrganization.findUnique({
             where: { id: organizationId },
           });
-          
+
           if (orgExists) {
             await prismaDev.investorOrganization.update({
               where: { id: organizationId },
@@ -354,7 +359,7 @@ export class RegTankDevWebhookHandler {
           const orgExists = await prismaDev.issuerOrganization.findUnique({
             where: { id: organizationId },
           });
-          
+
           if (orgExists) {
             await prismaDev.issuerOrganization.update({
               where: { id: organizationId },
@@ -400,7 +405,7 @@ export class RegTankDevWebhookHandler {
           const orgExists = await prismaDev.investorOrganization.findUnique({
             where: { id: organizationId },
           });
-          
+
           if (orgExists) {
             await prismaDev.investorOrganization.update({
               where: { id: organizationId },
@@ -409,7 +414,10 @@ export class RegTankDevWebhookHandler {
                 onboarded_at: new Date(),
               },
             });
-            logger.info({ organizationId, database: "dev" }, "Updated investor organization status to COMPLETED");
+            logger.info(
+              { organizationId, database: "dev" },
+              "Updated investor organization status to COMPLETED"
+            );
           } else {
             logger.warn(
               { organizationId, database: "dev" },
@@ -420,7 +428,7 @@ export class RegTankDevWebhookHandler {
           const orgExists = await prismaDev.issuerOrganization.findUnique({
             where: { id: organizationId },
           });
-          
+
           if (orgExists) {
             await prismaDev.issuerOrganization.update({
               where: { id: organizationId },
@@ -429,7 +437,10 @@ export class RegTankDevWebhookHandler {
                 onboarded_at: new Date(),
               },
             });
-            logger.info({ organizationId, database: "dev" }, "Updated issuer organization status to COMPLETED");
+            logger.info(
+              { organizationId, database: "dev" },
+              "Updated issuer organization status to COMPLETED"
+            );
           } else {
             logger.warn(
               { organizationId, database: "dev" },
@@ -455,12 +466,9 @@ export class RegTankDevWebhookHandler {
       });
 
       if (user) {
-        const accountArrayField =
-          portalType === "investor" ? "investor_account" : "issuer_account";
+        const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
         const currentArray =
-          portalType === "investor"
-            ? user.investor_account
-            : user.issuer_account;
+          portalType === "investor" ? user.investor_account : user.issuer_account;
 
         // Find the first 'temp' and replace it with the organization ID
         const tempIndex = currentArray.indexOf("temp");
@@ -478,8 +486,7 @@ export class RegTankDevWebhookHandler {
       }
 
       // Log onboarding completed in dev database
-      const role =
-        portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
       await prismaDev.onboardingLog.create({
         data: {
@@ -513,7 +520,7 @@ export class RegTankDevWebhookHandler {
       const portalType = onboarding.portal_type as PortalType;
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
       const authRepository = new AuthRepository();
-      
+
       // Determine event type based on status
       let eventType = "WEBHOOK_RECEIVED";
       if (statusUpper === "APPROVED") {
@@ -524,12 +531,16 @@ export class RegTankDevWebhookHandler {
         eventType = "WEBHOOK_PENDING_APPROVAL";
       } else if (statusUpper === "LIVENESS_PASSED") {
         eventType = "WEBHOOK_LIVENESS_PASSED";
-      } else if (statusUpper === "FORM_FILLING" || statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED") {
+      } else if (
+        statusUpper === "FORM_FILLING" ||
+        statusUpper === "PROCESSING" ||
+        statusUpper === "ID_UPLOADED"
+      ) {
         eventType = "WEBHOOK_FORM_FILLING";
       } else if (statusUpper === "IN_PROGRESS") {
         eventType = "WEBHOOK_IN_PROGRESS";
       }
-      
+
       await authRepository.createOnboardingLog({
         userId: onboarding.user_id,
         role,
@@ -543,7 +554,7 @@ export class RegTankDevWebhookHandler {
           database: "dev", // Indicate this came from dev webhook handler
         },
       });
-      
+
       logger.debug(
         {
           requestId,
@@ -578,4 +589,3 @@ export class RegTankDevWebhookHandler {
     );
   }
 }
-
