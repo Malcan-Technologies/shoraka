@@ -66,7 +66,7 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
         <TableCell>
           <span className="text-sm text-muted-foreground">
             {product.updatedAt
-              ? formatDistanceToNow(product.updated_at, { addSuffix: true })
+              ? formatDistanceToNow(new Date(product.updatedAt), { addSuffix: true })
               : " "}
           </span>
         </TableCell>
