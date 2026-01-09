@@ -86,7 +86,7 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
   
   // Financing Type: check if type object exists
   if (stepName.includes("financing type")) {
-    return config.type && typeof config.type === 'object' && config.type.title;
+    return config.type && typeof config.type === 'object' && config.type.name;
   }
   
   // Financing Terms: check if any field is set

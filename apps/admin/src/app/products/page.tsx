@@ -55,7 +55,7 @@ export default function ProductsPage() {
       
       return {
         id: product.id,
-        name: type.title || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
+        name: type.name || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
         description: type.description || null,
         category: type.category || null,
         steps: workflow.length,

@@ -9,7 +9,7 @@ import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 
 interface FinancingTypeConfig {
   type?: {
-    title: string;
+    name: string;
     description: string;
     category?: string;
     image_url?: string;
@@ -25,14 +25,14 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const currentType = config.type || null;
 
   const [isEditing, setIsEditing] = React.useState(!currentType);
-  const [newTitle, setNewTitle] = React.useState("");
+  const [newName, setNewName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
   const [newImageUrl, setNewImageUrl] = React.useState("");
 
   React.useEffect(() => {
     if (currentType && isEditing) {
-      setNewTitle(currentType.title);
+      setNewName(currentType.name);
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
       setNewImageUrl(currentType.image_url || "");
@@ -40,10 +40,10 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   }, [currentType, isEditing]);
 
   const saveFinancingType = () => {
-    if (!newTitle.trim() || !newCategory.trim()) return;
+    if (!newName.trim() || !newCategory.trim()) return;
 
     const newType = {
-      title: newTitle.trim(),
+      name: newName.trim(),
       description: newDescription.trim() || "",
       category: newCategory.trim(),
       image_url: newImageUrl.trim() || "",
@@ -59,7 +59,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   };
 
   const resetForm = () => {
-    setNewTitle("");
+    setNewName("");
     setNewDescription("");
     setNewCategory("");
     setNewImageUrl("");
@@ -67,7 +67,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
 
   const startEdit = () => {
     if (currentType) {
-      setNewTitle(currentType.title);
+      setNewName(currentType.name);
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
       setNewImageUrl(currentType.image_url || "");
@@ -123,14 +123,14 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             {currentType.image_url && (
               <img
                 src={currentType.image_url}
-                alt={currentType.title}
+                alt={currentType.name}
                 className="h-16 w-16 rounded object-cover"
               />
             )}
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm">{currentType.title}</span>
+                <span className="font-semibold text-sm">{currentType.name}</span>
                 {currentType.category && (
                   <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
                     {currentType.category}
@@ -153,14 +153,14 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
           
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="newTitle" className="text-sm font-medium">
+              <Label htmlFor="newName" className="text-sm font-medium">
                 Product Name <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="newTitle"
+                id="newName"
                 placeholder="e.g., Invoice Financing (Islamic)"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
                 className="h-10 bg-background"
               />
               <p className="text-xs text-muted-foreground">
@@ -211,7 +211,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
               <Button
                 type="button"
                 onClick={saveFinancingType}
-                disabled={!newTitle.trim() || !newCategory.trim()}
+                disabled={!newName.trim() || !newCategory.trim()}
                 className="flex-1"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />

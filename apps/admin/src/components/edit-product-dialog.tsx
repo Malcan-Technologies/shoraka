@@ -28,7 +28,7 @@ function hasConfiguredContent(step: { name: string; config?: Record<string, any>
   
   // Financing Type: must have type object
   if (stepName.includes("financing type")) {
-    return config.type && typeof config.type === 'object' && config.type.title;
+    return config.type && typeof config.type === 'object' && config.type.name;
   }
   
   // Financing Terms and Invoice Details: no configuration required (not yet implemented)
