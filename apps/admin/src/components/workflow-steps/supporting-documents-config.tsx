@@ -77,12 +77,6 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
     const docTitle = newDocTitle[catIndex]?.trim();
     if (!docTitle) return;
 
-    // Check if document already exists in this category
-    const existingDocs = existingCategories[catIndex].documents.map(d => d.title.toLowerCase());
-    if (existingDocs.includes(docTitle.toLowerCase())) {
-      return; // Don't add duplicates
-    }
-
     const newCategories = [...existingCategories];
     // All documents are required
     newCategories[catIndex].documents.push({ title: docTitle, required: true });
