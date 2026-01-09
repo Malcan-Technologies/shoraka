@@ -10,7 +10,7 @@ export function useProducts(params: GetProductsParams) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["admin", "products", params],
+    queryKey: ["products"],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       queryParams.append("page", params.page.toString());
@@ -43,7 +43,7 @@ export function useDeleteProduct() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product deleted successfully");
     },
     onError: (error: Error) => {
@@ -68,7 +68,7 @@ export function useUpdateProduct() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product updated successfully");
     },
     onError: (error: Error) => {
@@ -94,7 +94,7 @@ export function useCreateProduct() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product created successfully");
     },
     onError: (error: Error) => {
