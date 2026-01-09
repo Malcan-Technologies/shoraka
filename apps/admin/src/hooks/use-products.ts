@@ -61,7 +61,7 @@ export function useUpdateProduct() {
 
   return useMutation({
     mutationFn: async ({ productId, data }: { productId: string; data: any }) => {
-      const response = await apiClient.put(`/v1/products/${productId}`, data);
+      const response = await apiClient.patch(`/v1/products/${productId}`, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }

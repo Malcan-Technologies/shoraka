@@ -251,14 +251,18 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
                 s.enabled && s.name.toLowerCase().includes("document")
               );
               
-              const hasFinancingType = financingTypeStep && hasConfiguredContent(financingTypeStep);
-              const hasDeclaration = declarationStep && hasConfiguredContent(declarationStep);
-              const hasDocument = documentStep && hasConfiguredContent(documentStep);
-              
               const requiredItems = [];
-              if (!hasFinancingType) requiredItems.push("Financing Type");
-              if (!hasDeclaration) requiredItems.push("Declaration");
-              if (!hasDocument) requiredItems.push("Supporting Documents");
+              
+              // Only check if step exists AND is enabled but not configured
+              if (financingTypeStep && !hasConfiguredContent(financingTypeStep)) {
+                requiredItems.push("Financing Type");
+              }
+              if (declarationStep && !hasConfiguredContent(declarationStep)) {
+                requiredItems.push("Declaration");
+              }
+              if (documentStep && !hasConfiguredContent(documentStep)) {
+                requiredItems.push("Supporting Documents");
+              }
               
               if (requiredItems.length > 0) {
                 return (

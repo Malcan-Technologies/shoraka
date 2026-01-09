@@ -43,16 +43,23 @@ export default function ProductsPage() {
     
     return apiProducts.map((product: any) => {
       const workflow = Array.isArray(product.workflow) ? product.workflow : [];
-      const firstStep = workflow[0];
-      const enabledSteps = workflow.filter((step: any) => step.enabled);
+      
+      // Find financing type step for name and description
+      const financingTypeStep = workflow.find((step: any) => 
+        step.name?.toLowerCase().includes("financing type")
+      );
+      
+      // Get name and description from financing type config
+      const financingTypeConfig = financingTypeStep?.config || {};
+      const types = financingTypeConfig.types || [];
+      const firstType = types[0] || {};
       
       return {
         id: product.id,
-        name: firstStep?.name || `Product ${product.id.slice(0, 8)}`,
-        category: `${workflow.length} step${workflow.length !== 1 ? 's' : ''} (${enabledSteps.length} enabled)`,
-        description: workflow.length > 0 
-          ? `Workflow with ${workflow.length} step${workflow.length !== 1 ? 's' : ''}`
-          : "No workflow steps",
+        name: firstType.title || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
+        description: firstType.description || null,
+        category: firstType.category || null,
+        steps: workflow.length,
         workflow: workflow,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,

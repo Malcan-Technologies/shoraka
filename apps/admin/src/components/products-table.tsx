@@ -27,7 +27,17 @@ function TableSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
           <TableCell>
-            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-32" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-16" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-32" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-32" />
@@ -62,6 +72,9 @@ export function ProductsTable({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Name</TableHead>
                 <TableHead className="text-sm font-semibold">Category</TableHead>
+                <TableHead className="text-sm font-semibold">Steps</TableHead>
+                <TableHead className="text-sm font-semibold">Created</TableHead>
+                <TableHead className="text-sm font-semibold">Updated</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -70,7 +83,7 @@ export function ProductsTable({
                 <TableSkeleton />
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>

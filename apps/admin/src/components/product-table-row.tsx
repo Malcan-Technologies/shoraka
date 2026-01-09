@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { format, formatDistanceToNow } from "date-fns";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,12 +44,31 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
           <div className="flex flex-col">
             <span>{product.name}</span>
             {product.description && (
-              <span className="text-xs text-muted-foreground line-clamp-1">{product.description}</span>
+              <span className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                {product.description}
+              </span>
             )}
           </div>
         </TableCell>
         <TableCell>
-          <span className="text-sm">{product.category}</span>
+          <span className="text-sm">{product.category || ""}</span>
+        </TableCell>
+        <TableCell>
+          <span className="text-sm">{product.steps || 0} step{product.steps !== 1 ? 's' : ''}</span>
+        </TableCell>
+        <TableCell>
+          <span className="text-sm text-muted-foreground">
+            {product.createdAt
+              ? format(new Date(product.createdAt), "MMM dd, yyyy")
+              : " "}
+          </span>
+        </TableCell>
+        <TableCell>
+          <span className="text-sm text-muted-foreground">
+            {product.updatedAt
+              ? formatDistanceToNow(product.updated_at, { addSuffix: true })
+              : " "}
+          </span>
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-2">
@@ -72,18 +92,18 @@ export function ProductTableRow({ product }: ProductTableRowProps) {
         </TableCell>
       </TableRow>
 
-      {/* <EditProductDialog
+      <EditProductDialog
         product={product}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
-      /> */}
+      />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{product.name}" ({product.category})? This action cannot be undone.
+              Are you sure you want to delete "{product.name}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
