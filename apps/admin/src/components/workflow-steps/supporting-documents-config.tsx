@@ -228,7 +228,7 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
                       addDocument(catIndex);
                     }
                   }}
-                  className="h-8 text-xs bg-background flex-1"
+                  className="h-10 bg-background flex-1 text-sm"
                 />
                 <Button
                   type="button"

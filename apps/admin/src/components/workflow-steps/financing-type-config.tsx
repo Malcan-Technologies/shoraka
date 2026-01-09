@@ -130,7 +130,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-base">{currentType.title}</span>
+                <span className="font-semibold text-sm">{currentType.title}</span>
                 {currentType.category && (
                   <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
                     {currentType.category}
@@ -147,13 +147,13 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
         </div>
       ) : (
         <div className="space-y-3 p-4 rounded-lg border-2 border-dashed border-border bg-muted/30">
-          <Label className="text-base font-semibold">
+          <Label className="text-sm font-semibold">
             {currentType ? "Edit Financing Type" : "Add Financing Type"}
           </Label>
           
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="newTitle" className="text-sm">
+              <Label htmlFor="newTitle" className="text-sm font-medium">
                 Product Name <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -161,7 +161,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="e.g., Invoice Financing (Islamic)"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="h-11 bg-background font-medium"
+                className="h-10 bg-background"
               />
               <p className="text-xs text-muted-foreground">
                 This will be the main product name shown to borrowers
@@ -169,7 +169,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="newCategory" className="text-sm">
+              <Label htmlFor="newCategory" className="text-sm font-medium">
                 Product Category <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -177,12 +177,12 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="e.g., Trade Finance, Financing Invoice, Working Capital"
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
-                className="h-11 bg-background font-medium"
+                className="h-10 bg-background"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newImageUrl" className="text-sm">
+              <Label htmlFor="newImageUrl" className="text-sm font-medium">
                 Product Image URL <span className="text-muted-foreground text-xs">(optional)</span>
               </Label>
               <Input
@@ -190,12 +190,12 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="https://example.com/product-image.jpg"
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
-                      className="h-11 bg-background"
+                className="h-10 bg-background"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="newDescription" className="text-sm">
+              <Label htmlFor="newDescription" className="text-sm font-medium">
                 Product Description <span className="text-muted-foreground text-xs">(optional)</span>
               </Label>
               <Textarea
@@ -203,7 +203,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="Describe what this financing product is for and who it's suitable for..."
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                className="min-h-[80px] bg-background"
+                className="min-h-[80px] bg-background text-sm"
               />
             </div>
             

@@ -101,7 +101,7 @@ export function DeclarationConfig({ config, onChange }: DeclarationConfigProps) 
                 addDeclaration();
               }
             }}
-            className="min-h-[80px] text-xs"
+            className="min-h-[80px] text-sm"
           />
           <Button
             type="button"
