@@ -12,10 +12,7 @@ import {
   BanknotesIcon,
   BuildingOfficeIcon,
   ClipboardDocumentCheckIcon,
-  ShieldCheckIcon,
-  DocumentCheckIcon,
   CurrencyDollarIcon,
-  ScaleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 
@@ -27,7 +24,7 @@ export interface StepType {
   defaultConfig?: Record<string, any>;
 }
 
-// 
+// Available workflow steps - Edit this array to add/remove steps
 const AVAILABLE_STEPS: StepType[] = [
   {
     id: "financing_type",
@@ -52,7 +49,7 @@ const AVAILABLE_STEPS: StepType[] = [
   },
   {
     id: "company_info",
-    name: "Verify Company Info",
+    name: "Company Info",
     description: "Business verification and details",
     icon: BuildingOfficeIcon,
     defaultConfig: {},
@@ -62,40 +59,6 @@ const AVAILABLE_STEPS: StepType[] = [
     name: "Supporting Documents",
     description: "Required document uploads",
     icon: ClipboardDocumentCheckIcon,
-    defaultConfig: {
-      maxFiles: 10,
-      documents: [
-        { title: "Buyer confirmation letter", required: true },
-        { title: "Latest trade receivables aging report", required: false },
-      ],
-    },
-  },
-  {
-    id: "buyer_docs",
-    name: "Buyer Docs",
-    description: "Buyer-related documentation",
-    icon: DocumentCheckIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "financial_docs",
-    name: "Financial Docs",
-    description: "Financial statements and reports",
-    icon: BanknotesIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "legal_docs",
-    name: "Legal Docs",
-    description: "Legal agreements and contracts",
-    icon: ScaleIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "compliance_docs",
-    name: "Compliance Docs",
-    description: "Regulatory and compliance documents",
-    icon: ShieldCheckIcon,
     defaultConfig: {},
   },
   {
@@ -110,27 +73,6 @@ const AVAILABLE_STEPS: StepType[] = [
     name: "Review & Submit",
     description: "Final review before submission",
     icon: CheckCircleIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "eligibility_check",
-    name: "Eligibility Check",
-    description: "Check borrower eligibility criteria",
-    icon: ShieldCheckIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "additional_fees",
-    name: "Additional Fees",
-    description: "Configure additional fees and charges",
-    icon: CurrencyDollarIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "funding_agreement",
-    name: "Funding Agreement",
-    description: "Funding terms and agreement",
-    icon: DocumentCheckIcon,
     defaultConfig: {},
   },
 ];
