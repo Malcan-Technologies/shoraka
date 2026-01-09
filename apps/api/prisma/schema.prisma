@@ -431,25 +431,9 @@ enum SiteDocumentType {
   OTHER
 }
 
-// model Product {
-//   id                    String   @id @default(cuid())
-//   name                  String
-//   description           String
-//   image_url             String
-//   required_documents    Json
-//   declarations          Json?
-//   max_financing_percent Decimal  @db.Decimal(5, 2)
-//   min_profit_rate       Decimal  @db.Decimal(5, 2)
-//   max_profit_rate       Decimal  @db.Decimal(5, 2)
-//   created_at            DateTime @default(now())
-//   updated_at            DateTime @updatedAt
-
-//   @@map("products")
-// }
-
 model Product {
   id         String   @id @default(cuid())
-  workflow   Json // Stores array of workflow steps: [{ id, name, enabled, config }]
+  workflow   Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
