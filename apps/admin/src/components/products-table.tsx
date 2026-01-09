@@ -70,7 +70,7 @@ export function ProductsTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="text-sm font-semibold">Name</TableHead>
+                <TableHead className="text-sm font-semibold">Title</TableHead>
                 <TableHead className="text-sm font-semibold">Category</TableHead>
                 <TableHead className="text-sm font-semibold">Steps</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
