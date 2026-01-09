@@ -5,23 +5,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 
 interface FinancingTypeConfig {
-  types?: Array<{
+  type?: {
     title: string;
     description: string;
     category?: string;
     image_url?: string;
-  }>;
-  availableCategories?: string[];
+  };
 }
 
 interface FinancingTypeConfigProps {
@@ -30,18 +22,13 @@ interface FinancingTypeConfigProps {
 }
 
 export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigProps) {
-  const types = config.types || [];
-  const availableCategories = config.availableCategories || ["Financing Invoice", "Trade Finance", "Working Capital"];
+  const currentType = config.type || null;
 
-  const [isEditing, setIsEditing] = React.useState(types.length === 0);
+  const [isEditing, setIsEditing] = React.useState(!currentType);
   const [newTitle, setNewTitle] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
   const [newImageUrl, setNewImageUrl] = React.useState("");
-  const [isNewCategory, setIsNewCategory] = React.useState(false);
-  const [customCategory, setCustomCategory] = React.useState("");
-
-  const currentType = types.length > 0 ? types[0] : null;
 
   React.useEffect(() => {
     if (currentType && isEditing) {
@@ -55,24 +42,16 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const saveFinancingType = () => {
     if (!newTitle.trim() || !newCategory.trim()) return;
 
-    const categoryToUse = isNewCategory ? customCategory.trim() : newCategory;
-
     const newType = {
       title: newTitle.trim(),
       description: newDescription.trim() || "",
-      category: categoryToUse,
+      category: newCategory.trim(),
       image_url: newImageUrl.trim() || "",
     };
 
-    const updatedCategories = isNewCategory && customCategory.trim()
-      ? [...availableCategories, customCategory.trim()]
-      : availableCategories;
-
-    // Always replace with single type - only ONE financing type per product workflow
     onChange({
       ...config,
-      types: [newType],
-      availableCategories: updatedCategories,
+      type: newType,
     });
 
     setIsEditing(false);
@@ -84,8 +63,6 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     setNewDescription("");
     setNewCategory("");
     setNewImageUrl("");
-    setCustomCategory("");
-    setIsNewCategory(false);
   };
 
   const startEdit = () => {
@@ -106,7 +83,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const removeFinancingType = () => {
     onChange({
       ...config,
-      types: [],
+      type: undefined,
     });
     setIsEditing(true);
     resetForm();
@@ -195,58 +172,13 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
               <Label htmlFor="newCategory" className="text-sm">
                 Product Category <span className="text-destructive">*</span>
               </Label>
-              <div className="flex gap-2 items-start">
-                {!isNewCategory ? (
-                  <>
-                    <Select value={newCategory} onValueChange={setNewCategory}>
-                      <SelectTrigger id="newCategory" className="h-11 bg-background font-medium">
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableCategories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsNewCategory(true)}
-                      className="h-10 px-3 whitespace-nowrap"
-                    >
-                      + Custom
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      placeholder="Enter custom category"
-                      value={customCategory}
-                      onChange={(e) => {
-                        setCustomCategory(e.target.value);
-                        setNewCategory(e.target.value);
-                      }}
-                      className="h-11 bg-background font-medium"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsNewCategory(false);
-                        setCustomCategory("");
-                        setNewCategory("");
-                      }}
-                      className="h-10 px-3"
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                )}
-              </div>
+              <Input
+                id="newCategory"
+                placeholder="e.g., Trade Finance, Financing Invoice, Working Capital"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="h-11 bg-background font-medium"
+              />
             </div>
 
             <div className="space-y-2">

@@ -35,27 +35,47 @@ export class ProductRepository {
   }> {
     const skip = (params.page - 1) * params.pageSize;
 
-    const where: Prisma.ProductWhereInput = {};
+    if (params.search && params.search.trim()) {
+      const searchTerm = `%${params.search.trim()}%`;
+      
+      const searchQuery = Prisma.sql`
+        SELECT DISTINCT p.*
+        FROM products p
+        WHERE 
+          LOWER((p.workflow::jsonb->0->'config'->'type'->>'title')::text) LIKE LOWER(${searchTerm})
+          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'category')::text) LIKE LOWER(${searchTerm})
+        ORDER BY p.created_at DESC
+        LIMIT ${params.pageSize} OFFSET ${skip}
+      `;
 
-    // Add search filter if provided
-    // Note: Searching within JSON arrays in Prisma is complex
-    // For now, we'll do a simple text search on the JSON string
-    // You may want to implement more sophisticated search logic later
-    if (params.search) {
-      // Prisma doesn't have great support for searching within JSON arrays
-      // This would require raw SQL or filtering after fetching
-      // For now, we'll skip the search filter for JSON arrays
-      // TODO: Implement proper JSON array search if needed
+      const countQuery = Prisma.sql`
+        SELECT COUNT(DISTINCT p.id) as count
+        FROM products p
+        WHERE 
+          LOWER((p.workflow::jsonb->0->'config'->'type'->>'title')::text) LIKE LOWER(${searchTerm})
+          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'category')::text) LIKE LOWER(${searchTerm})
+      `;
+
+      const [productsResult, countResult] = await Promise.all([
+        prisma.$queryRaw<Product[]>(searchQuery),
+        prisma.$queryRaw<[{ count: bigint }]>(countQuery),
+      ]);
+
+      const totalCount = Number(countResult[0]?.count || 0);
+
+      return {
+        products: productsResult,
+        totalCount,
+      };
     }
 
     const [products, totalCount] = await Promise.all([
       prisma.product.findMany({
-        where,
         skip,
         take: params.pageSize,
         orderBy: { created_at: "desc" },
       }),
-      prisma.product.count({ where }),
+      prisma.product.count(),
     ]);
 
     return { products, totalCount };

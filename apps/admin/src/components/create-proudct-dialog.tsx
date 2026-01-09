@@ -26,9 +26,9 @@ function hasConfiguredContent(step: { name: string; config?: Record<string, any>
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
   
-  // Financing Type: must have types array with at least one item
+  // Financing Type: must have type object
   if (stepName.includes("financing type")) {
-    return config.types && Array.isArray(config.types) && config.types.length > 0;
+    return config.type && typeof config.type === 'object' && config.type.title;
   }
   
   // Financing Terms and Invoice Details: no configuration required (not yet implemented)
@@ -59,27 +59,14 @@ const createProductSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
-      enabled: z.boolean(),
       config: z.record(z.any()).optional(),
     })
   )
     .min(1, "At least one workflow step is required")
     .refine(
       (steps) => {
-        // At least one step must be enabled
-        const enabledSteps = steps.filter((s) => s.enabled);
-        return enabledSteps.length > 0;
-      },
-      {
-        message: "At least one workflow step must be enabled",
-      }
-    )
-    .refine(
-      (steps) => {
-        // Check that enabled steps with required config are properly configured
-        const enabledSteps = steps.filter((s) => s.enabled);
-        
-        for (const step of enabledSteps) {
+        // Check that steps with required config are properly configured
+        for (const step of steps) {
           const stepName = step.name.toLowerCase();
           
           // Financing Type is required and must be configured
@@ -93,14 +80,14 @@ const createProductSchema = z.object({
         return true;
       },
       {
-        message: "Financing Type step must be configured when enabled",
+        message: "Financing Type step must be configured",
       }
     )
     .refine(
       (steps) => {
         // Check that at least one declaration exists
         const declarationStep = steps.find((s) => 
-          s.enabled && s.name.toLowerCase().includes("declaration")
+          s.name.toLowerCase().includes("declaration")
         );
         
         if (declarationStep) {
@@ -120,7 +107,7 @@ const createProductSchema = z.object({
       (steps) => {
         // Check that at least one supporting document exists
         const documentStep = steps.find((s) => 
-          s.enabled && s.name.toLowerCase().includes("document")
+          s.name.toLowerCase().includes("document")
         );
         
         if (documentStep) {
@@ -146,13 +133,13 @@ interface CreateProductDialogProps {
 }
 
 const DEFAULT_WORKFLOW: any[] = [
-  { id: "financing_type_1", name: "Financing Type", enabled: true, config: {} },
-  { id: "financing_terms_1", name: "Financing Terms", enabled: true, config: {} },
-  { id: "invoice_details_1", name: "Invoice Details", enabled: true, config: {} },
-  { id: "company_info_1", name: "Company Info", enabled: true, config: {} },
-  { id: "supporting_documents_1", name: "Supporting Documents", enabled: true, config: {} },
-  { id: "declaration_1", name: "Declaration", enabled: true, config: {} },
-  { id: "review_submit_1", name: "Review & Submit", enabled: true, config: {} },
+  { id: "financing_type_1", name: "Financing Type", config: {} },
+  { id: "financing_terms_1", name: "Financing Terms", config: {} },
+  { id: "invoice_details_1", name: "Invoice Details", config: {} },
+  { id: "company_info_1", name: "Company Info", config: {} },
+  { id: "supporting_documents_1", name: "Supporting Documents", config: {} },
+  { id: "declaration_1", name: "Declaration", config: {} },
+  { id: "review_submit_1", name: "Review & Submit", config: {} },
 ];
 
 export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogProps) {
@@ -242,18 +229,18 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
             {(() => {
               const steps = form.watch("workflow") || [];
               const financingTypeStep = steps.find((s: any) => 
-                s.enabled && s.name.toLowerCase().includes("financing type")
+                s.name.toLowerCase().includes("financing type")
               );
               const declarationStep = steps.find((s: any) => 
-                s.enabled && s.name.toLowerCase().includes("declaration")
+                s.name.toLowerCase().includes("declaration")
               );
               const documentStep = steps.find((s: any) => 
-                s.enabled && s.name.toLowerCase().includes("document")
+                s.name.toLowerCase().includes("document")
               );
               
               const requiredItems = [];
               
-              // Only check if step exists AND is enabled but not configured
+              // Check if step exists but not configured
               if (financingTypeStep && !hasConfiguredContent(financingTypeStep)) {
                 requiredItems.push("Financing Type");
               }

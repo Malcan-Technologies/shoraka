@@ -58,7 +58,6 @@ import { UseFormReturn } from "react-hook-form";
 export interface WorkflowStep {
   id: string;
   name: string;
-  enabled: boolean;
   config?: Record<string, any>;
 }
 
@@ -85,9 +84,9 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
   
-  // Financing Type: check if types array has items
+  // Financing Type: check if type object exists
   if (stepName.includes("financing type")) {
-    return config.types && Array.isArray(config.types) && config.types.length > 0;
+    return config.type && typeof config.type === 'object' && config.type.title;
   }
   
   // Financing Terms: check if any field is set
@@ -388,7 +387,6 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
     const newStep: WorkflowStep = {
       id: `${stepType.id}_${Date.now()}`,
       name: stepType.name,
-      enabled: true,
       config: stepType.defaultConfig || {},
     };
     

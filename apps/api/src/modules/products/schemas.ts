@@ -4,7 +4,6 @@ import { z } from "zod";
 const workflowStepSchema = z.object({
   id: z.string(),
   name: z.string(),
-  enabled: z.boolean(),
   config: z.record(z.unknown()).optional(),
 });
 

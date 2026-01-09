@@ -51,14 +51,13 @@ export default function ProductsPage() {
       
       // Get name and description from financing type config
       const financingTypeConfig = financingTypeStep?.config || {};
-      const types = financingTypeConfig.types || [];
-      const firstType = types[0] || {};
+      const type = financingTypeConfig.type || {};
       
       return {
         id: product.id,
-        name: firstType.title || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
-        description: firstType.description || null,
-        category: firstType.category || null,
+        name: type.title || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
+        description: type.description || null,
+        category: type.category || null,
         steps: workflow.length,
         workflow: workflow,
         createdAt: product.createdAt,
