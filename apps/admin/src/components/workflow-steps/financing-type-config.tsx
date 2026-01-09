@@ -142,7 +142,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             </div>
           </div>
           
-          <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-primary/20 bg-card">
+          <div className="flex items-start space-x-3 p-4 rounded-lg border bg-card">
             {currentType.image_url && (
               <img
                 src={currentType.image_url}
@@ -169,9 +169,9 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
           </div>
         </div>
       ) : (
-        <div className="space-y-3 p-4 rounded-lg border-2 border-dashed bg-muted/30">
+        <div className="space-y-3 p-4 rounded-lg border-2 border-dashed border-border bg-muted/30">
           <Label className="text-base font-semibold">
-            {currentType ? "Edit Product Type" : "Create Product Type"}
+            {currentType ? "Edit Financing Type" : "Add Financing Type"}
           </Label>
           
           <div className="space-y-4">
@@ -184,7 +184,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="e.g., Invoice Financing (Islamic)"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="h-10 bg-background"
+                className="h-11 bg-background font-medium"
               />
               <p className="text-xs text-muted-foreground">
                 This will be the main product name shown to borrowers
@@ -199,7 +199,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 {!isNewCategory ? (
                   <>
                     <Select value={newCategory} onValueChange={setNewCategory}>
-                      <SelectTrigger id="newCategory" className="h-10 bg-background">
+                      <SelectTrigger id="newCategory" className="h-11 bg-background font-medium">
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -229,7 +229,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                         setCustomCategory(e.target.value);
                         setNewCategory(e.target.value);
                       }}
-                      className="h-10 bg-background"
+                      className="h-11 bg-background font-medium"
                     />
                     <Button
                       type="button"
@@ -258,7 +258,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 placeholder="https://example.com/product-image.jpg"
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
-                className="h-10 bg-background"
+                      className="h-11 bg-background"
               />
             </div>
             
@@ -283,7 +283,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 className="flex-1"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
-                {currentType ? "Update Product" : "Create Product"}
+                {currentType ? "Update Type" : "Add Financing Type"}
               </Button>
               {currentType && (
                 <Button

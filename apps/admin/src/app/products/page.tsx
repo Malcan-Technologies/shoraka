@@ -35,71 +35,34 @@ export default function ProductsPage() {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  // Mock data for preview (remove this when backend is ready)
-  const MOCK_PRODUCTS: any[] = [
-    {
-      id: "prod_001",
-      category: "Financing Invoice",
-      name: "AP",
-      description: "Accounts Payable financing for immediate cash flow",
-      image_url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=200&h=200&fit=crop",
-      created_at: "2024-01-15T10:30:00Z",
-      updated_at: "2024-01-20T14:45:00Z",
-    },
-    {
-      id: "prod_002",
-      category: "Financing Invoice",
-      name: "AR",
-      description: "Accounts Receivable financing to bridge payment gaps",
-      image_url: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=200&h=200&fit=crop",
-      created_at: "2024-01-10T09:00:00Z",
-      updated_at: "2024-01-18T16:20:00Z",
-    },
-    {
-      id: "prod_003",
-      category: "Trade Finance",
-      name: "Import Finance",
-      description: "Financing for import trade activities and purchase orders",
-      image_url: "https://images.unsplash.com/photo-1578574577315-3fbeb0cecdc2?w=200&h=200&fit=crop",
-      created_at: "2024-01-05T11:15:00Z",
-      updated_at: "2024-01-22T10:30:00Z",
-    },
-    {
-      id: "prod_004",
-      category: "Trade Finance",
-      name: "Export Finance",
-      description: "Financing for export trade and overseas transactions",
-      image_url: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=200&h=200&fit=crop",
-      created_at: "2024-01-12T13:45:00Z",
-      updated_at: "2024-01-25T09:10:00Z",
-    },
-    {
-      id: "prod_005",
-      category: "Working Capital",
-      name: "Business Loan",
-      description: "General purpose working capital for business operations",
-      image_url: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=200&h=200&fit=crop",
-      created_at: "2024-01-08T15:20:00Z",
-      updated_at: "2024-01-19T11:05:00Z",
-    },
-    {
-      id: "prod_006",
-      category: "Equipment Finance",
-      name: "Machinery Lease",
-      description: "Financing for purchasing or leasing business equipment",
-      image_url: "https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c7?w=200&h=200&fit=crop",
-      created_at: "2024-01-14T08:15:00Z",
-      updated_at: "2024-01-23T14:20:00Z",
-    },
-  ];
+  // Transform API products to match table structure
+  const products = React.useMemo(() => {
+    if (!data || typeof data !== 'object' || !('products' in data)) return [];
+    
+    const apiProducts = (data as { products: any[] }).products || [];
+    
+    return apiProducts.map((product: any) => {
+      const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+      const firstStep = workflow[0];
+      const enabledSteps = workflow.filter((step: any) => step.enabled);
+      
+      return {
+        id: product.id,
+        name: firstStep?.name || `Product ${product.id.slice(0, 8)}`,
+        category: `${workflow.length} step${workflow.length !== 1 ? 's' : ''} (${enabledSteps.length} enabled)`,
+        description: workflow.length > 0 
+          ? `Workflow with ${workflow.length} step${workflow.length !== 1 ? 's' : ''}`
+          : "No workflow steps",
+        workflow: workflow,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      };
+    });
+  }, [data]);
 
-  // Use mock data for preview (replace with real data when backend is ready)
-  const USE_MOCK_DATA = true; // Set to false when backend is ready
-  const products = USE_MOCK_DATA ? MOCK_PRODUCTS : (data?.products || []);
-  const totalProducts = USE_MOCK_DATA ? MOCK_PRODUCTS.length : (data?.pagination.totalCount || 0);
-
-  // const totalProducts = (data as any)?.pagination.totalCount || 0;
-  // const products = (data as any)?.products || [];
+  const totalProducts = data && typeof data === 'object' && 'pagination' in data 
+    ? (data as { pagination: { totalCount: number } }).pagination.totalCount 
+    : 0;
 
   return (
     <>

@@ -449,7 +449,7 @@ enum SiteDocumentType {
 
 model Product {
   id         String   @id @default(cuid())
-  workflow   Json // Stores complete workflow with category, name, description, image_url, and workflow steps
+  workflow   Json // Stores array of workflow steps: [{ id, name, enabled, config }]
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

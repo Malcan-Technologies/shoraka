@@ -10,7 +10,7 @@ export function useProducts(params: GetProductsParams) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["admin", "products"],
+    queryKey: ["admin", "products", params],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       queryParams.append("page", params.page.toString());
@@ -18,7 +18,7 @@ export function useProducts(params: GetProductsParams) {
       if (params.search) {
         queryParams.append("search", params.search);
       }
-      const response = await apiClient.get(`/v1/admin/products?${queryParams.toString()}`);
+      const response = await apiClient.get(`/v1/products?${queryParams.toString()}`);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -36,7 +36,7 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async ({ productId }: { productId: string }) => {
-      const response = await apiClient.delete(`/v1/admin/products/${productId}`);
+      const response = await apiClient.delete(`/v1/products/${productId}`);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -61,7 +61,7 @@ export function useUpdateProduct() {
 
   return useMutation({
     mutationFn: async ({ productId, data }: { productId: string; data: any }) => {
-      const response = await apiClient.put(`/v1/admin/products/${productId}`, data);
+      const response = await apiClient.put(`/v1/products/${productId}`, data);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -87,7 +87,7 @@ export function useCreateProduct() {
 
   return useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.post("/v1/admin/products", data);
+      const response = await apiClient.post("/v1/products", data);
       if (!response.success) {
         throw new Error(response.error.message);
       }

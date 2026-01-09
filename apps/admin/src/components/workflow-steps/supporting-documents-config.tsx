@@ -56,11 +56,18 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
 
   const [newDocTitle, setNewDocTitle] = React.useState<{ [key: number]: string }>({});
 
+  // Filter out categories with no documents before saving
+  const filterEmptyCategories = (cats: DocumentCategory[]): DocumentCategory[] => {
+    return cats.filter(cat => cat.documents && cat.documents.length > 0);
+  };
+
   const toggleDocument = (catIndex: number, docIndex: number) => {
     const newCategories = [...categories];
     newCategories[catIndex].documents[docIndex].required =
       !newCategories[catIndex].documents[docIndex].required;
-    onChange({ ...config, categories: newCategories });
+    // Filter out empty categories before saving
+    const filteredCategories = filterEmptyCategories(newCategories);
+    onChange({ ...config, categories: filteredCategories.length > 0 ? filteredCategories : undefined });
   };
 
   const addDocument = (catIndex: number) => {
@@ -69,14 +76,18 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
 
     const newCategories = [...categories];
     newCategories[catIndex].documents.push({ title, required: true });
-    onChange({ ...config, categories: newCategories });
+    // Filter out empty categories before saving
+    const filteredCategories = filterEmptyCategories(newCategories);
+    onChange({ ...config, categories: filteredCategories.length > 0 ? filteredCategories : undefined });
     setNewDocTitle({ ...newDocTitle, [catIndex]: "" });
   };
 
   const removeDocument = (catIndex: number, docIndex: number) => {
     const newCategories = [...categories];
     newCategories[catIndex].documents.splice(docIndex, 1);
-    onChange({ ...config, categories: newCategories });
+    // Filter out empty categories before saving
+    const filteredCategories = filterEmptyCategories(newCategories);
+    onChange({ ...config, categories: filteredCategories.length > 0 ? filteredCategories : undefined });
   };
 
   const totalDocs = categories.reduce((sum, cat) => sum + cat.documents.length, 0);
