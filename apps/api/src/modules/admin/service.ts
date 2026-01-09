@@ -1591,15 +1591,15 @@ export class AdminService {
       const { applications } = await this.regTankRepository.listOnboardingApplications({
         page: 1,
         pageSize: 1000,
-        search: params.search,
-        portal: params.portal as "investor" | "issuer" | undefined,
-        type: params.type as OrganizationType | undefined,
-      });
+      search: params.search,
+      portal: params.portal as "investor" | "issuer" | undefined,
+      type: params.type as OrganizationType | undefined,
+    });
 
-      // Map applications to response format with derived approval status
-      const mappedApplications = applications.map((app) =>
-        this.mapToOnboardingApplicationResponse(app)
-      );
+    // Map applications to response format with derived approval status
+    const mappedApplications = applications.map((app) =>
+      this.mapToOnboardingApplicationResponse(app)
+    );
 
       // Filter by status
       let filteredApplications: OnboardingApplicationResponse[];
@@ -2295,11 +2295,11 @@ export class AdminService {
       // For company accounts, also check SSM approval and director KYC completion
       if (isCompany) {
         if (!investorOrg.ssm_approved) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            "SSM approval is required for company accounts"
-          );
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "SSM approval is required for company accounts"
+        );
         }
 
         // Check if all directors have completed KYC
@@ -2785,10 +2785,16 @@ export class AdminService {
 
       const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
 
+      // Helper function to normalize name+email for duplicate detection
+      const normalizeKey = (name: string, email: string): string => {
+        return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
+      };
+
       // Extract and update director information
-      // Use a Map to deduplicate by eodRequestId and merge roles for people who are both directors and shareholders
+      // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
       const directorsMap = new Map<string, {
-        eodRequestId: string;
+        eodRequestId: string; // Keep director EOD ID as primary
+        shareholderEodRequestId?: string; // Track shareholder EOD ID if different
         name: string;
         email: string;
         role: string;
@@ -2817,6 +2823,9 @@ export class AdminService {
             typedFormContent.find((f) => f.fieldName === "Email Address")?.fieldValue ||
             userInfo?.email ||
             "";
+          const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+
+          const mapKey = normalizeKey(name, email);
 
           // Fetch EOD details to get latest KYC status
           let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
@@ -2855,9 +2864,9 @@ export class AdminService {
             }
           }
 
-          directorsMap.set(eodRequestId, {
+          directorsMap.set(mapKey, {
             eodRequestId,
-            name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+            name,
             email,
             role: designation || "Director",
             kycStatus,
@@ -2871,7 +2880,7 @@ export class AdminService {
       // If they already exist as directors, merge the roles; otherwise add as new entry
       if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
         for (const shareholder of codDetails.corpIndvShareholders) {
-          const eodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
+          const shareholderEodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
           const userInfo = shareholder.corporateUserRequestInfo;
           const formContent = userInfo?.formContent?.content || [];
 
@@ -2887,15 +2896,20 @@ export class AdminService {
             "";
           const sharePercent =
             typedFormContent.find((f) => f.fieldName === "% of Shares")?.fieldValue || "";
+          const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+
+          const mapKey = normalizeKey(name, email);
+          const existingDirector = directorsMap.get(mapKey);
+          const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
 
           // Fetch EOD details to get latest KYC status
           let kycStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
           let kycId = shareholder.kycRequestInfo?.kycId;
 
-          if (eodRequestId) {
+          if (shareholderEodRequestId) {
             try {
               const eodDetails =
-                await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
+                await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
 
               if (eodStatus === "LIVENESS_STARTED") {
@@ -2915,7 +2929,7 @@ export class AdminService {
               logger.warn(
                 {
                   error: eodError instanceof Error ? eodError.message : String(eodError),
-                  eodRequestId,
+                  eodRequestId: shareholderEodRequestId,
                   codRequestId,
                 },
                 "Failed to fetch EOD details for shareholder (non-blocking)"
@@ -2923,12 +2937,61 @@ export class AdminService {
             }
           }
 
-          const existingDirector = directorsMap.get(eodRequestId);
-          const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
-
           if (existingDirector) {
             // Person is both director and shareholder - merge roles
             existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+            existingDirector.shareholderEodRequestId = shareholderEodRequestId;
+            
+            // Fetch both EOD details to check which one has kycId
+            let directorKycId: string | undefined;
+            let shareholderKycId: string | undefined;
+            
+            // Fetch director EOD details
+            if (existingDirector.eodRequestId) {
+              try {
+                const directorEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(existingDirector.eodRequestId);
+                directorKycId = directorEodDetails.kycRequestInfo?.kycId;
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId: existingDirector.eodRequestId,
+                    codRequestId,
+                  },
+                  "Failed to fetch director EOD details for kycId check (non-blocking)"
+                );
+              }
+            }
+            
+            // Fetch shareholder EOD details
+            if (shareholderEodRequestId) {
+              try {
+                const shareholderEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId: shareholderEodRequestId,
+                    codRequestId,
+                  },
+                  "Failed to fetch shareholder EOD details for kycId check (non-blocking)"
+                );
+              }
+            }
+            
+            // Use kycId from whichever EOD record has it (prioritize director if both have it)
+            if (directorKycId) {
+              existingDirector.kycId = directorKycId;
+            } else if (shareholderKycId) {
+              existingDirector.kycId = shareholderKycId;
+            } else {
+              // Fallback to COD response if EOD details don't have it
+              if (kycId && !existingDirector.kycId) {
+                existingDirector.kycId = kycId;
+              }
+            }
+            
             // Update KYC status if shareholder has a more recent or different status
             // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
             const statusPriority = {
@@ -2943,16 +3006,13 @@ export class AdminService {
             if (newPriority > currentPriority) {
               existingDirector.kycStatus = kycStatus;
             }
-            // Update KYC ID if available from shareholder
-            if (kycId && !existingDirector.kycId) {
-              existingDirector.kycId = kycId;
-            }
+            
             existingDirector.lastUpdated = new Date().toISOString();
           } else {
             // Person is only a shareholder - add as new entry
-            directorsMap.set(eodRequestId, {
-              eodRequestId,
-              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+            directorsMap.set(mapKey, {
+              eodRequestId: shareholderEodRequestId,
+              name,
               email,
               role: shareholderRole,
               kycStatus,

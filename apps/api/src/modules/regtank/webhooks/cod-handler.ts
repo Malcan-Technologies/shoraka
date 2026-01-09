@@ -119,10 +119,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
         const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
         
+        // Helper function to normalize name+email for duplicate detection
+        const normalizeKey = (name: string, email: string): string => {
+          return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
+        };
+        
         // Extract director information from COD details
-        // Use a Map to deduplicate by eodRequestId and merge roles for people who are both directors and shareholders
+        // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
         const directorsMap = new Map<string, {
-          eodRequestId: string;
+          eodRequestId: string; // Keep director EOD ID as primary
+          shareholderEodRequestId?: string; // Track shareholder EOD ID if different
           name: string;
           email: string;
           role: string;
@@ -143,14 +149,53 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
             const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+            const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
             
-            directorsMap.set(eodRequestId, {
+            const mapKey = normalizeKey(name, email);
+            
+            // Fetch EOD details to get latest KYC status and kycId
+            let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
+            let kycId = director.kycRequestInfo?.kycId;
+            
+            if (eodRequestId) {
+              try {
+                const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+                const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
+                
+                // Map EOD status to KYC status
+                if (eodStatus === "LIVENESS_STARTED") {
+                  kycStatus = "LIVENESS_STARTED";
+                } else if (eodStatus === "WAIT_FOR_APPROVAL") {
+                  kycStatus = "WAIT_FOR_APPROVAL";
+                } else if (eodStatus === "APPROVED") {
+                  kycStatus = "APPROVED";
+                } else if (eodStatus === "REJECTED") {
+                  kycStatus = "REJECTED";
+                }
+                
+                // Get KYC ID from EOD details if available
+                if (eodDetails.kycRequestInfo?.kycId) {
+                  kycId = eodDetails.kycRequestInfo.kycId;
+                }
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId,
+                    requestId,
+                  },
+                  "Failed to fetch EOD details for director (non-blocking)"
+                );
+              }
+            }
+            
+            directorsMap.set(mapKey, {
               eodRequestId,
-              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+              name,
               email,
               role: designation || "Director",
-              kycStatus: director.corporateIndividualRequest?.status || "PENDING",
-              kycId: director.kycRequestInfo?.kycId,
+              kycStatus,
+              kycId,
               lastUpdated: new Date().toISOString(),
             });
           }
@@ -160,7 +205,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         // If they already exist as directors, merge the roles; otherwise add as new entry
         if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
           for (const shareholder of codDetails.corpIndvShareholders) {
-            const eodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
+            const shareholderEodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
             const userInfo = shareholder.corporateUserRequestInfo;
             const formContent = userInfo?.formContent?.content || [];
             
@@ -168,16 +213,103 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
+            const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
             
-            const existingDirector = directorsMap.get(eodRequestId);
+            const mapKey = normalizeKey(name, email);
+            const existingDirector = directorsMap.get(mapKey);
             const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
+            
+            // Fetch EOD details to get latest KYC status and kycId
+            let kycStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
+            let kycId = shareholder.kycRequestInfo?.kycId;
+            
+            if (shareholderEodRequestId) {
+              try {
+                const eodDetails = await this.apiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
+                
+                if (eodStatus === "LIVENESS_STARTED") {
+                  kycStatus = "LIVENESS_STARTED";
+                } else if (eodStatus === "WAIT_FOR_APPROVAL") {
+                  kycStatus = "WAIT_FOR_APPROVAL";
+                } else if (eodStatus === "APPROVED") {
+                  kycStatus = "APPROVED";
+                } else if (eodStatus === "REJECTED") {
+                  kycStatus = "REJECTED";
+                }
+                
+                if (eodDetails.kycRequestInfo?.kycId) {
+                  kycId = eodDetails.kycRequestInfo.kycId;
+                }
+              } catch (eodError) {
+                logger.warn(
+                  {
+                    error: eodError instanceof Error ? eodError.message : String(eodError),
+                    eodRequestId: shareholderEodRequestId,
+                    requestId,
+                  },
+                  "Failed to fetch EOD details for shareholder (non-blocking)"
+                );
+              }
+            }
             
             if (existingDirector) {
               // Person is both director and shareholder - merge roles
               existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+              existingDirector.shareholderEodRequestId = shareholderEodRequestId;
+              
+              // Fetch both EOD details to check which one has kycId
+              let directorKycId: string | undefined;
+              let shareholderKycId: string | undefined;
+              
+              // Fetch director EOD details
+              if (existingDirector.eodRequestId) {
+                try {
+                  const directorEodDetails = await this.apiClient.getEntityOnboardingDetails(existingDirector.eodRequestId);
+                  directorKycId = directorEodDetails.kycRequestInfo?.kycId;
+                } catch (eodError) {
+                  logger.warn(
+                    {
+                      error: eodError instanceof Error ? eodError.message : String(eodError),
+                      eodRequestId: existingDirector.eodRequestId,
+                      requestId,
+                    },
+                    "Failed to fetch director EOD details for kycId check (non-blocking)"
+                  );
+                }
+              }
+              
+              // Fetch shareholder EOD details
+              if (shareholderEodRequestId) {
+                try {
+                  const shareholderEodDetails = await this.apiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                  shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
+                } catch (eodError) {
+                  logger.warn(
+                    {
+                      error: eodError instanceof Error ? eodError.message : String(eodError),
+                      eodRequestId: shareholderEodRequestId,
+                      requestId,
+                    },
+                    "Failed to fetch shareholder EOD details for kycId check (non-blocking)"
+                  );
+                }
+              }
+              
+              // Use kycId from whichever EOD record has it (prioritize director if both have it)
+              if (directorKycId) {
+                existingDirector.kycId = directorKycId;
+              } else if (shareholderKycId) {
+                existingDirector.kycId = shareholderKycId;
+              } else {
+                // Fallback to COD response if EOD details don't have it
+                if (shareholder.kycRequestInfo?.kycId && !existingDirector.kycId) {
+                  existingDirector.kycId = shareholder.kycRequestInfo.kycId;
+                }
+              }
+              
               // Update KYC status if shareholder has a more recent or different status
-              const shareholderStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
-              if (shareholderStatus !== existingDirector.kycStatus) {
+              if (kycStatus !== existingDirector.kycStatus) {
                 // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
                 const statusPriority = {
                   APPROVED: 4,
@@ -187,25 +319,22 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   REJECTED: 0,
                 };
                 const currentPriority = statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
-                const newPriority = statusPriority[shareholderStatus as keyof typeof statusPriority] || 0;
+                const newPriority = statusPriority[kycStatus as keyof typeof statusPriority] || 0;
                 if (newPriority > currentPriority) {
-                  existingDirector.kycStatus = shareholderStatus;
+                  existingDirector.kycStatus = kycStatus;
                 }
               }
-              // Update KYC ID if available from shareholder
-              if (shareholder.kycRequestInfo?.kycId && !existingDirector.kycId) {
-                existingDirector.kycId = shareholder.kycRequestInfo.kycId;
-              }
+              
               existingDirector.lastUpdated = new Date().toISOString();
             } else {
               // Person is only a shareholder - add as new entry
-              directorsMap.set(eodRequestId, {
-                eodRequestId,
-                name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+              directorsMap.set(mapKey, {
+                eodRequestId: shareholderEodRequestId,
+                name,
                 email,
                 role: shareholderRole,
-                kycStatus: shareholder.corporateIndividualRequest?.status || "PENDING",
-                kycId: shareholder.kycRequestInfo?.kycId,
+                kycStatus,
+                kycId,
                 lastUpdated: new Date().toISOString(),
               });
             }

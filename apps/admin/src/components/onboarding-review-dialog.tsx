@@ -654,8 +654,8 @@ export function OnboardingReviewDialog({
 
   return (
     <TooltipProvider>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl flex items-center gap-3">
@@ -669,18 +669,18 @@ export function OnboardingReviewDialog({
             </DialogTitle>
             <div className="flex gap-2">
               {(isCompany && application.directorKycStatus) || onRefresh ? (
-                <Button
-                  variant="outline"
-                  size="sm"
+              <Button
+                variant="outline"
+                size="sm"
                   onClick={handleCombinedRefresh}
                   disabled={isCombinedRefreshing}
-                  className="gap-1.5"
-                >
+                className="gap-1.5"
+              >
                   <ArrowPathIcon
                     className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
                   />
-                  Refresh
-                </Button>
+                Refresh
+              </Button>
               ) : null}
             </div>
           </div>
@@ -817,7 +817,7 @@ export function OnboardingReviewDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </Dialog>
+    </Dialog>
     </TooltipProvider>
   );
 }
