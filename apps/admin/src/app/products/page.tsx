@@ -8,6 +8,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ProductsTableToolbar } from "@/components/products-table-toolbar";
 import { useProducts } from "@/hooks/use-products";
 import { ProductsTable } from "@/components/products-table";
+import { CreateProductDialog } from "@/components/create-proudct-dialog";
 
 export default function ProductsPage() {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
@@ -147,6 +148,11 @@ export default function ProductsPage() {
           />
         </div>
       </div>
+
+      <CreateProductDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </>
   );
 }

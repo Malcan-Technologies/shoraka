@@ -78,3 +78,29 @@ export function useUpdateProduct() {
     },
   });
 }
+
+
+export function useCreateProduct() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post("/v1/admin/products", data);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      toast.success("Product created successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to create product", {
+        description: error.message,
+      });
+    },
+  });
+}
