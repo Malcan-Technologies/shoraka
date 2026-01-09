@@ -43,7 +43,7 @@ export class ProductRepository {
         FROM products p
         WHERE 
           LOWER((p.workflow::jsonb->0->'config'->'type'->>'title')::text) LIKE LOWER(${searchTerm})
-          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'description')::text) LIKE LOWER(${searchTerm})
+          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'category')::text) LIKE LOWER(${searchTerm})
         ORDER BY p.created_at DESC
         LIMIT ${params.pageSize} OFFSET ${skip}
       `;
