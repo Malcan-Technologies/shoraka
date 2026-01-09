@@ -23,6 +23,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   ApprovalProgressStepper,
   getPersonalOnboardingSteps,
   getCompanyOnboardingSteps,
@@ -169,23 +175,24 @@ export function OnboardingReviewDialog({
     });
   };
 
-  const handleRefreshCorporateStatus = () => {
-    refreshCorporateMutation.mutate(application.id, {
-      onSuccess: (data) => {
-        toast.success("Director KYC statuses refreshed", {
-          description: data.message,
-        });
-        if (onRefresh) {
-          onRefresh();
-        }
-      },
-      onError: (error) => {
+  // Combined refresh handler that refreshes both KYC status and onboarding status
+  const handleCombinedRefresh = async () => {
+    if (isCompany && application.directorKycStatus) {
+      try {
+        await refreshCorporateMutation.mutateAsync(application.id);
+        toast.success("Director KYC statuses refreshed");
+      } catch (error) {
         toast.error("Failed to refresh director statuses", {
-          description: error.message,
+          description: error instanceof Error ? error.message : String(error),
         });
-      },
-    });
+      }
+    }
+    if (onRefresh) {
+      onRefresh();
+    }
   };
+
+  const isCombinedRefreshing = refreshCorporateMutation.isPending || (isRefreshing ?? false);
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-";
@@ -275,33 +282,24 @@ export function OnboardingReviewDialog({
                 <>
                   <Separator />
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <h4 className="text-sm font-medium">Director/Shareholder KYC Status</h4>
-                      <Button
-                        onClick={handleRefreshCorporateStatus}
-                        variant="outline"
-                        size="sm"
-                        disabled={refreshCorporateMutation.isPending}
-                        className="gap-1.5"
-                      >
-                        <ArrowPathIcon
-                          className={`h-3.5 w-3.5 ${refreshCorporateMutation.isPending ? "animate-spin" : ""}`}
-                        />
-                        Refresh
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            All directors/shareholders must complete their KYC verification in RegTank
+                            before corporate onboarding can be approved.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <DirectorKycList
                       directors={application.directorKycStatus.directors}
                       isRefreshing={refreshCorporateMutation.isPending}
                     />
-                    <div className="text-xs text-muted-foreground bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
-                      <p className="font-medium mb-1">Note:</p>
-                      <p>
-                        All directors/shareholders must complete their KYC verification in RegTank
-                        before corporate onboarding can be approved. Use the refresh button to check
-                        the latest status.
-                      </p>
-                    </div>
                   </div>
                 </>
               )}
@@ -359,33 +357,25 @@ export function OnboardingReviewDialog({
                 <>
                   <Separator />
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <h4 className="text-sm font-medium">Director/Shareholder KYC Status</h4>
-                      <Button
-                        onClick={handleRefreshCorporateStatus}
-                        variant="outline"
-                        size="sm"
-                        disabled={refreshCorporateMutation.isPending}
-                        className="gap-1.5"
-                      >
-                        <ArrowPathIcon
-                          className={`h-3.5 w-3.5 ${refreshCorporateMutation.isPending ? "animate-spin" : ""}`}
-                        />
-                        Refresh
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            Individual director AML must be approved in RegTank before corporate AML
+                            approval. Once all directors are approved, corporate KYB/AML will be
+                            processed automatically.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <DirectorKycList
                       directors={application.directorKycStatus.directors}
                       isRefreshing={refreshCorporateMutation.isPending}
                     />
-                    <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
-                      <p className="font-medium mb-1">Info:</p>
-                      <p>
-                        Individual director AML must be approved in RegTank before corporate AML
-                        approval. Once all directors are approved, corporate KYB/AML will be
-                        processed automatically.
-                      </p>
-                    </div>
                   </div>
                 </>
               )}
@@ -643,8 +633,9 @@ export function OnboardingReviewDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+    <TooltipProvider>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl flex items-center gap-3">
@@ -657,32 +648,20 @@ export function OnboardingReviewDialog({
               </Badge>
             </DialogTitle>
             <div className="flex gap-2">
-              {isCompany && application.directorKycStatus && (
+              {(isCompany && application.directorKycStatus) || onRefresh ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleRefreshCorporateStatus}
-                  disabled={refreshCorporateMutation.isPending}
+                  onClick={handleCombinedRefresh}
+                  disabled={isCombinedRefreshing}
                   className="gap-1.5"
                 >
                   <ArrowPathIcon
-                    className={`h-4 w-4 ${refreshCorporateMutation.isPending ? "animate-spin" : ""}`}
+                    className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
                   />
-                  Refresh KYC Status
+                  Refresh
                 </Button>
-              )}
-            {onRefresh && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRefresh}
-                disabled={isRefreshing}
-                className="gap-1.5"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-            )}
+              ) : null}
             </div>
           </div>
           <DialogDescription>
@@ -818,6 +797,7 @@ export function OnboardingReviewDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+      </Dialog>
+    </TooltipProvider>
   );
 }

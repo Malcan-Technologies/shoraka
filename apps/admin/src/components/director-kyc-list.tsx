@@ -15,22 +15,22 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
     switch (status) {
       case "APPROVED":
         return (
-          <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-            <CheckCircleIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
+            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
             Approved
           </Badge>
         );
       case "WAIT_FOR_APPROVAL":
         return (
-          <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600">
-            <ClockIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
             Pending Approval
           </Badge>
         );
       case "LIVENESS_STARTED":
         return (
-          <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">
-            <ClockIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
             In Progress
           </Badge>
         );
@@ -44,13 +44,60 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
       case "PENDING":
       default:
         return (
-          <Badge variant="secondary">
-            <ClockIcon className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
             Pending
           </Badge>
         );
     }
   };
+
+  // Filter directors and shareholders based on role
+  const directorRoles = [
+    "Director",
+    "Managing",
+    "CEO",
+    "COO",
+    "CTO",
+    "CMO",
+    "CFO",
+    "President",
+    "Vice President",
+    "Controller",
+    "Authorised Personnel",
+  ];
+
+  const directorsList = directors.filter((d) =>
+    directorRoles.some((role) => d.role.includes(role))
+  );
+  const shareholdersList = directors.filter((d) => d.role.includes("Shareholder"));
+
+  const renderPersonCard = (person: DirectorKycStatus) => (
+    <div
+      key={person.eodRequestId}
+      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+    >
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-sm">{person.name}</span>
+          {getStatusBadge(person.kycStatus)}
+        </div>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>
+            <span className="font-medium">Email:</span> {person.email}
+          </div>
+          <div>
+            <span className="font-medium">Role:</span> {person.role}
+          </div>
+          {person.kycId && (
+            <div>
+              <span className="font-medium">KYC ID:</span> {person.kycId}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   if (directors.length === 0) {
     return (
@@ -61,33 +108,27 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
   }
 
   return (
-    <div className="space-y-3">
-      {directors.map((director) => (
-        <div
-          key={director.eodRequestId}
-          className="flex items-center justify-between p-3 rounded-lg border bg-card"
-        >
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-sm">{director.name}</span>
-              {getStatusBadge(director.kycStatus)}
-            </div>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div>
-                <span className="font-medium">Email:</span> {director.email}
-              </div>
-              <div>
-                <span className="font-medium">Role:</span> {director.role}
-              </div>
-              {director.kycId && (
-                <div>
-                  <span className="font-medium">KYC ID:</span> {director.kycId}
-                </div>
-              )}
-            </div>
-          </div>
+    <div className="space-y-4">
+      {/* Directors / Controllers / Authorised Personnel Section */}
+      {directorsList.length > 0 && (
+        <div className="space-y-3">
+          <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Directors / Controllers / Authorised Personnel
+          </h5>
+          {directorsList.map(renderPersonCard)}
         </div>
-      ))}
+      )}
+
+      {/* Individual Shareholders / Ultimate Beneficiaries Section */}
+      {shareholdersList.length > 0 && (
+        <div className="space-y-3">
+          <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Individual Shareholders / Ultimate Beneficiaries
+          </h5>
+          {shareholdersList.map(renderPersonCard)}
+        </div>
+      )}
+
       {isRefreshing && (
         <div className="text-xs text-muted-foreground text-center py-2">
           Refreshing director statuses...
