@@ -14,6 +14,7 @@ import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
+import { createProductRouter } from "./modules/products/controller";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -64,19 +65,21 @@ export function registerRoutes(app: Application): void {
 
   // Register module routes
   v1Router.use("/auth", authRouter);
-  
+
   // Cognito OAuth routes under v1 (for consistency with versioned API)
   v1Router.use("/auth/cognito", cognitoAuthRouter);
-  
+
   // Organization routes
   v1Router.use("/organizations", createOrganizationRouter());
-  
+
+  v1Router.use("/products", createProductRouter());
+
   // RegTank routes (require authentication)
   v1Router.use("/regtank", requireAuth, regTankRouter);
-  
+
   // RegTank admin routes (require authentication + ADMIN role)
   v1Router.use("/regtank", requireAuth, regTankAdminRouter);
-  
+
   // Admin routes - use dev bypass if DISABLE_AUTH=true, otherwise use real auth
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
@@ -88,9 +91,10 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
   }
-  
+
   // Site documents routes (authenticated users)
   v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
+
 
   app.use("/v1", v1Router);
 }
