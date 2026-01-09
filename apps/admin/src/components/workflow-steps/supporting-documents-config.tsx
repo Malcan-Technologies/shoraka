@@ -102,10 +102,10 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
         <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
           {categories.map((category, catIndex) => (
             <div key={catIndex} className="p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 mb-3">
                 <p className="text-sm font-medium">{category.name}</p>
-                <span className="text-xs text-muted-foreground">
-                  {category.documents.filter((d) => d.required).length}/{category.documents.length} required
+                <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded-full">
+                  {category.documents.length}
                 </span>
               </div>
 
@@ -120,15 +120,6 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
                         className="mt-0.5"
                       />
                       <span className="flex-1 text-xs">{doc.title}</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${
-                          doc.required
-                            ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {doc.required ? "Required" : "Optional"}
-                      </span>
                       <Button
                         type="button"
                         variant="ghost"

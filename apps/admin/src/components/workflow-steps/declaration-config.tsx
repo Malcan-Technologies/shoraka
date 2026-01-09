@@ -95,6 +95,12 @@ export function DeclarationConfig({ config, onChange }: DeclarationConfigProps) 
             placeholder="Type declaration statement (e.g., 'The invoice submitted is genuine and valid...')"
             value={newDeclaration}
             onChange={(e) => setNewDeclaration(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                addDeclaration();
+              }
+            }}
             className="min-h-[80px] text-xs"
           />
           <Button
@@ -108,7 +114,7 @@ export function DeclarationConfig({ config, onChange }: DeclarationConfigProps) 
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Add declaration statements that borrowers must agree to before submitting
+          Add declaration statements that borrowers must agree to before submitting. Press Ctrl+Enter (or Cmd+Enter) to add.
         </p>
       </div>
 
