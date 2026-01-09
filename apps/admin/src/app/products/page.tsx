@@ -100,7 +100,7 @@ export default function ProductsPage() {
           <ProductsTableToolbar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            totalCount={totalProducts} // potential issue, total products count might be inaccurate
+            totalCount={totalProducts}
             filteredCount={totalProducts}
             onClearFilters={handleClearFilters}
             onReload={handleReload}
