@@ -93,7 +93,6 @@ const navPlatform = [
       { title: "Security", url: "/settings/security" },
       { title: "Notifications", url: "/settings/notifications" },
       { title: "Roles", url: "/settings/roles" },
-      { title: "Products", url: "/products" },
     ],
   },
 ];
@@ -190,7 +189,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Collapsible
                       key={item.title}
                       asChild
-                      defaultOpen={pathname.startsWith("/settings") || pathname.startsWith("/products")}
+                      defaultOpen={pathname.startsWith("/settings")}
                       className="group/collapsible"
                     >
                       <SidebarMenuItem>

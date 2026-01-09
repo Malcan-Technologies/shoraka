@@ -722,10 +722,3 @@ export interface ExportDocumentLogsParams extends Omit<GetDocumentLogsParams, "p
   eventTypes?: DocumentEventType[];
   format?: "csv" | "json";
 }
-
-// Products
-export interface GetProductsParams {
-  page: number;
-  pageSize: number;
-  search?: string;
-}
