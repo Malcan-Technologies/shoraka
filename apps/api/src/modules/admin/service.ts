@@ -1731,17 +1731,39 @@ export class AdminService {
       ? `${regtankConfig.adminPortalUrl}/app/screen-kyc/result/${kycId}`
       : null;
 
-    // Build KYB portal URL for corporate AML review (extract kybId from COD webhook payloads)
+    // Build KYB portal URL for corporate AML review (extract kybId from COD/KYB webhook payloads)
     let kybId: string | null = null;
     if (record.onboarding_type === "CORPORATE" && record.webhook_payloads) {
-      // Find kybId from COD webhook payloads
+      // Find kybId from webhook payloads (check both COD webhooks with kybRequestDto and KYB webhooks)
       for (const payload of record.webhook_payloads) {
         if (payload && typeof payload === "object" && !Array.isArray(payload)) {
           const payloadObj = payload as Record<string, unknown>;
-          // Check if this is a COD webhook (has kybId field)
+          // Check if this is a COD webhook with kybId directly
           if (payloadObj.kybId && typeof payloadObj.kybId === "string") {
             kybId = payloadObj.kybId;
             break;
+          }
+          // Check if this is a COD webhook with kybRequestDto containing kybId
+          const kybRequestDto = payloadObj.kybRequestDto;
+          if (
+            kybRequestDto &&
+            typeof kybRequestDto === "object" &&
+            !Array.isArray(kybRequestDto)
+          ) {
+            const kybDto = kybRequestDto as Record<string, unknown>;
+            if (kybDto.kybId && typeof kybDto.kybId === "string") {
+              kybId = kybDto.kybId;
+              break;
+            }
+          }
+          // Check if this is a KYB webhook with requestId as kybId
+          if (payloadObj.requestId && typeof payloadObj.requestId === "string") {
+            // KYB webhook has requestId that matches the kybId pattern (e.g., KYB00006)
+            const requestId = payloadObj.requestId as string;
+            if (requestId.startsWith("KYB")) {
+              kybId = requestId;
+              break;
+            }
           }
         }
       }
@@ -2695,7 +2717,8 @@ export class AdminService {
       const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
 
       // Extract and update director information
-      const directors: Array<{
+      // Use a Map to deduplicate by eodRequestId and merge roles for people who are both directors and shareholders
+      const directorsMap = new Map<string, {
         eodRequestId: string;
         name: string;
         email: string;
@@ -2703,7 +2726,7 @@ export class AdminService {
         kycStatus: string;
         kycId?: string;
         lastUpdated: string;
-      }> = [];
+      }>();
 
       // Process individual directors
       if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
@@ -2763,7 +2786,7 @@ export class AdminService {
             }
           }
 
-          directors.push({
+          directorsMap.set(eodRequestId, {
             eodRequestId,
             name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
             email,
@@ -2776,6 +2799,7 @@ export class AdminService {
       }
 
       // Process individual shareholders
+      // If they already exist as directors, merge the roles; otherwise add as new entry
       if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
         for (const shareholder of codDetails.corpIndvShareholders) {
           const eodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
@@ -2830,17 +2854,48 @@ export class AdminService {
             }
           }
 
-          directors.push({
-            eodRequestId,
-            name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
-            email,
-            role: `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`,
-            kycStatus,
-            kycId,
-            lastUpdated: new Date().toISOString(),
-          });
+          const existingDirector = directorsMap.get(eodRequestId);
+          const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
+
+          if (existingDirector) {
+            // Person is both director and shareholder - merge roles
+            existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+            // Update KYC status if shareholder has a more recent or different status
+            // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
+            const statusPriority = {
+              APPROVED: 4,
+              WAIT_FOR_APPROVAL: 3,
+              LIVENESS_STARTED: 2,
+              PENDING: 1,
+              REJECTED: 0,
+            };
+            const currentPriority = statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
+            const newPriority = statusPriority[kycStatus as keyof typeof statusPriority] || 0;
+            if (newPriority > currentPriority) {
+              existingDirector.kycStatus = kycStatus;
+            }
+            // Update KYC ID if available from shareholder
+            if (kycId && !existingDirector.kycId) {
+              existingDirector.kycId = kycId;
+            }
+            existingDirector.lastUpdated = new Date().toISOString();
+          } else {
+            // Person is only a shareholder - add as new entry
+            directorsMap.set(eodRequestId, {
+              eodRequestId,
+              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+              email,
+              role: shareholderRole,
+              kycStatus,
+              kycId,
+              lastUpdated: new Date().toISOString(),
+            });
+          }
         }
       }
+
+      // Convert Map to Array
+      const directors = Array.from(directorsMap.values());
 
       // Update organization with refreshed director KYC statuses
       const directorKycStatus = {

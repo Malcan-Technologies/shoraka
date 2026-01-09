@@ -348,6 +348,7 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenKycReview}
                 className="w-full gap-2"
+                disabled={isCompany ? !application.kybPortalUrl : !application.kycPortalUrl}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}

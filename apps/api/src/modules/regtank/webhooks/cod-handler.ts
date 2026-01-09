@@ -120,7 +120,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
         
         // Extract director information from COD details
-        const directors: Array<{
+        // Use a Map to deduplicate by eodRequestId and merge roles for people who are both directors and shareholders
+        const directorsMap = new Map<string, {
           eodRequestId: string;
           name: string;
           email: string;
@@ -128,7 +129,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           kycStatus: string;
           kycId?: string;
           lastUpdated: string;
-        }> = [];
+        }>();
 
         // Process individual directors
         if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
@@ -143,7 +144,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             
-            directors.push({
+            directorsMap.set(eodRequestId, {
               eodRequestId,
               name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
               email,
@@ -156,6 +157,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         }
 
         // Process individual shareholders
+        // If they already exist as directors, merge the roles; otherwise add as new entry
         if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
           for (const shareholder of codDetails.corpIndvShareholders) {
             const eodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
@@ -167,17 +169,51 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
             
-            directors.push({
-              eodRequestId,
-              name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
-              email,
-              role: `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`,
-              kycStatus: shareholder.corporateIndividualRequest?.status || "PENDING",
-              kycId: shareholder.kycRequestInfo?.kycId,
-              lastUpdated: new Date().toISOString(),
-            });
+            const existingDirector = directorsMap.get(eodRequestId);
+            const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
+            
+            if (existingDirector) {
+              // Person is both director and shareholder - merge roles
+              existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+              // Update KYC status if shareholder has a more recent or different status
+              const shareholderStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
+              if (shareholderStatus !== existingDirector.kycStatus) {
+                // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
+                const statusPriority = {
+                  APPROVED: 4,
+                  WAIT_FOR_APPROVAL: 3,
+                  LIVENESS_STARTED: 2,
+                  PENDING: 1,
+                  REJECTED: 0,
+                };
+                const currentPriority = statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
+                const newPriority = statusPriority[shareholderStatus as keyof typeof statusPriority] || 0;
+                if (newPriority > currentPriority) {
+                  existingDirector.kycStatus = shareholderStatus;
+                }
+              }
+              // Update KYC ID if available from shareholder
+              if (shareholder.kycRequestInfo?.kycId && !existingDirector.kycId) {
+                existingDirector.kycId = shareholder.kycRequestInfo.kycId;
+              }
+              existingDirector.lastUpdated = new Date().toISOString();
+            } else {
+              // Person is only a shareholder - add as new entry
+              directorsMap.set(eodRequestId, {
+                eodRequestId,
+                name: `${firstName} ${lastName}`.trim() || userInfo?.fullName || "",
+                email,
+                role: shareholderRole,
+                kycStatus: shareholder.corporateIndividualRequest?.status || "PENDING",
+                kycId: shareholder.kycRequestInfo?.kycId,
+                lastUpdated: new Date().toISOString(),
+              });
+            }
           }
         }
+
+        // Convert Map to Array
+        const directors = Array.from(directorsMap.values());
 
         // Store director KYC status in organization
         const directorKycStatus = {
