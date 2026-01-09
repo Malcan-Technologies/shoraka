@@ -550,6 +550,239 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         // If still not found, will fall back to webhook payloads extraction in admin service
         const finalKybId = extractedKybId;
 
+        // When COD is APPROVED, also refresh director KYC statuses to get updated kycId values
+        // The kycId may not have been available at WAIT_FOR_APPROVAL stage
+        try {
+          if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
+            const codDetailsObj = codDetails as Record<string, unknown>;
+            
+            // Helper function to normalize name+email for duplicate detection
+            const normalizeKey = (name: string, email: string): string => {
+              return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
+            };
+            
+            // Get existing director_kyc_status from organization
+            const org = portalType === "investor"
+              ? await prisma.investorOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { director_kyc_status: true },
+                })
+              : await prisma.issuerOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { director_kyc_status: true },
+                });
+            
+            if (org && org.director_kyc_status) {
+              const existingStatus = org.director_kyc_status as any;
+              const directorsMap = new Map<string, any>();
+              
+              // Build map from existing directors
+              if (existingStatus.directors && Array.isArray(existingStatus.directors)) {
+                for (const dir of existingStatus.directors) {
+                  const key = normalizeKey(dir.name, dir.email);
+                  directorsMap.set(key, { ...dir });
+                }
+              }
+              
+              // Process COD details to update kycId values
+              const corpIndvDirectors = codDetailsObj.corpIndvDirectors as any[];
+              const corpIndvShareholders = codDetailsObj.corpIndvShareholders as any[];
+              
+              // Update directors that don't have kycId yet
+              if (corpIndvDirectors && Array.isArray(corpIndvDirectors)) {
+                for (const director of corpIndvDirectors) {
+                  const eodRequestId = director.corporateIndividualRequest?.requestId;
+                  const userInfo = director.corporateUserRequestInfo;
+                  const formContent = userInfo?.formContent?.content || [];
+                  const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+                  const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+                  const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+                  const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+                  const key = normalizeKey(name, email);
+                  
+                  const existing = directorsMap.get(key);
+                  if (existing && eodRequestId && !existing.kycId) {
+                    // Fetch EOD details to get kycId
+                    try {
+                      const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+                      if (eodDetails.kycRequestInfo?.kycId) {
+                        existing.kycId = eodDetails.kycRequestInfo.kycId;
+                        existing.lastUpdated = new Date().toISOString();
+                        logger.debug(
+                          { eodRequestId, codRequestId: requestId, kycId: existing.kycId, name },
+                          "Updated kycId for director from EOD details after COD approval"
+                        );
+                      }
+                    } catch (eodError) {
+                      logger.warn(
+                        {
+                          error: eodError instanceof Error ? eodError.message : String(eodError),
+                          eodRequestId,
+                          codRequestId: requestId,
+                        },
+                        "Failed to fetch director EOD details for kycId update (non-blocking)"
+                      );
+                    }
+                  }
+                }
+              }
+              
+              // Update shareholders (and check duplicates for kycId)
+              if (corpIndvShareholders && Array.isArray(corpIndvShareholders)) {
+                for (const shareholder of corpIndvShareholders) {
+                  const shareholderEodRequestId = shareholder.corporateIndividualRequest?.requestId;
+                  const userInfo = shareholder.corporateUserRequestInfo;
+                  const formContent = userInfo?.formContent?.content || [];
+                  const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+                  const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+                  const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
+                  const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+                  const key = normalizeKey(name, email);
+                  
+                  const existing = directorsMap.get(key);
+                  if (existing) {
+                    // Person is both director and shareholder - check both EOD records for kycId
+                    if (!existing.kycId && existing.eodRequestId && shareholderEodRequestId) {
+                      let directorKycId: string | undefined;
+                      let shareholderKycId: string | undefined;
+                      
+                      // Check director EOD
+                      if (existing.eodRequestId) {
+                        try {
+                          const directorEodDetails = await this.apiClient.getEntityOnboardingDetails(existing.eodRequestId);
+                          directorKycId = directorEodDetails.kycRequestInfo?.kycId;
+                        } catch (eodError) {
+                          logger.warn(
+                            {
+                              error: eodError instanceof Error ? eodError.message : String(eodError),
+                              eodRequestId: existing.eodRequestId,
+                              codRequestId: requestId,
+                            },
+                            "Failed to fetch director EOD details for kycId check (non-blocking)"
+                          );
+                        }
+                      }
+                      
+                      // Check shareholder EOD
+                      if (shareholderEodRequestId) {
+                        try {
+                          const shareholderEodDetails = await this.apiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                          shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
+                        } catch (eodError) {
+                          logger.warn(
+                            {
+                              error: eodError instanceof Error ? eodError.message : String(eodError),
+                              eodRequestId: shareholderEodRequestId,
+                              codRequestId: requestId,
+                            },
+                            "Failed to fetch shareholder EOD details for kycId check (non-blocking)"
+                          );
+                        }
+                      }
+                      
+                      // Use kycId from whichever EOD record has it (prioritize director if both have it)
+                      if (directorKycId) {
+                        existing.kycId = directorKycId;
+                        existing.lastUpdated = new Date().toISOString();
+                        logger.debug(
+                          { directorEodRequestId: existing.eodRequestId, shareholderEodRequestId, kycId: directorKycId, name },
+                          "Updated kycId for duplicate director/shareholder from director EOD after COD approval"
+                        );
+                      } else if (shareholderKycId) {
+                        existing.kycId = shareholderKycId;
+                        existing.lastUpdated = new Date().toISOString();
+                        logger.debug(
+                          { directorEodRequestId: existing.eodRequestId, shareholderEodRequestId, kycId: shareholderKycId, name },
+                          "Updated kycId for duplicate director/shareholder from shareholder EOD after COD approval"
+                        );
+                      }
+                    }
+                  } else if (shareholderEodRequestId) {
+                    // Person is only shareholder - check for kycId if they exist in director_kyc_status
+                    // Note: We only update existing entries, not add new ones here
+                    // New shareholders are handled during WAIT_FOR_APPROVAL
+                    // Check both eodRequestId and shareholderEodRequestId to handle all cases
+                    for (const [, dir] of directorsMap.entries()) {
+                      const matchesShareholderEod = dir.eodRequestId === shareholderEodRequestId || dir.shareholderEodRequestId === shareholderEodRequestId;
+                      if (matchesShareholderEod && !dir.kycId) {
+                        try {
+                          const eodDetails = await this.apiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                          if (eodDetails.kycRequestInfo?.kycId) {
+                            dir.kycId = eodDetails.kycRequestInfo.kycId;
+                            dir.lastUpdated = new Date().toISOString();
+                            logger.debug(
+                              { eodRequestId: shareholderEodRequestId, codRequestId: requestId, kycId: dir.kycId, name },
+                              "Updated kycId for shareholder-only entry from EOD details after COD approval"
+                            );
+                          }
+                        } catch (eodError) {
+                          logger.warn(
+                            {
+                              error: eodError instanceof Error ? eodError.message : String(eodError),
+                              eodRequestId: shareholderEodRequestId,
+                              codRequestId: requestId,
+                            },
+                            "Failed to fetch shareholder EOD details for kycId update (non-blocking)"
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Update organization with refreshed director_kyc_status
+              const updatedDirectors = Array.from(directorsMap.values());
+              const directorsWithKycId = updatedDirectors.filter((d) => d.kycId).length;
+              
+              if (directorsWithKycId > 0) {
+                const updatedStatus = {
+                  ...existingStatus,
+                  directors: updatedDirectors,
+                  lastSyncedAt: new Date().toISOString(),
+                };
+                
+                if (portalType === "investor") {
+                  await prisma.investorOrganization.update({
+                    where: { id: organizationId },
+                    data: { director_kyc_status: updatedStatus as Prisma.InputJsonValue },
+                  });
+                } else {
+                  await prisma.issuerOrganization.update({
+                    where: { id: organizationId },
+                    data: { director_kyc_status: updatedStatus as Prisma.InputJsonValue },
+                  });
+                }
+                
+                logger.info(
+                  {
+                    organizationId,
+                    codRequestId: requestId,
+                    directorsUpdated: directorsWithKycId,
+                    totalDirectors: updatedDirectors.length,
+                  },
+                  "Updated director_kyc_status with kycId values after COD approval"
+                );
+              } else {
+                logger.debug(
+                  { organizationId, codRequestId: requestId },
+                  "No kycId values to update after COD approval"
+                );
+              }
+            }
+          }
+        } catch (kycUpdateError) {
+          logger.warn(
+            {
+              error: kycUpdateError instanceof Error ? kycUpdateError.message : String(kycUpdateError),
+              codRequestId: requestId,
+              organizationId,
+            },
+            "Failed to refresh director kycId values after COD approval (non-blocking)"
+          );
+          // Don't throw - allow status update to proceed even if kycId refresh fails
+        }
+
         // When COD is APPROVED and KYB exists, update to PENDING_AML
         // Set onboarding_approved = true if not already set
         if (portalType === "investor") {

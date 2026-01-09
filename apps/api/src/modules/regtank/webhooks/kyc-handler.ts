@@ -120,6 +120,65 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       }
     }
 
+    // If onboardingId is an EOD requestId and we haven't found the onboarding record yet,
+    // search for the parent COD onboarding record by looking through webhook payloads
+    if (!onboarding && onboardingId && onboardingId.startsWith("EOD")) {
+      logger.debug(
+        { eodRequestId: onboardingId, kycRequestId: requestId },
+        "[KYC Webhook] onboardingId is an EOD requestId, searching for parent COD onboarding record"
+      );
+      
+      // Search through all corporate onboardings to find the one that contains this EOD
+      const allCorporateOnboardings = await prisma.regTankOnboarding.findMany({
+        where: {
+          onboarding_type: "CORPORATE",
+        },
+      });
+
+      for (const corporateOnboarding of allCorporateOnboardings) {
+        // Check webhook payloads for COD webhook that contains this EOD requestId
+        if (corporateOnboarding.webhook_payloads && Array.isArray(corporateOnboarding.webhook_payloads)) {
+          for (const webhookPayload of corporateOnboarding.webhook_payloads) {
+            if (webhookPayload && typeof webhookPayload === "object" && !Array.isArray(webhookPayload)) {
+              const payloadObj = webhookPayload as Record<string, unknown>;
+              // Check if this is a COD webhook with corpIndvDirectors or corpIndvShareholders
+              const codDetails = payloadObj as any;
+              const corpIndvDirectors = codDetails.corpIndvDirectors;
+              const corpIndvShareholders = codDetails.corpIndvShareholders;
+
+              if (
+                (corpIndvDirectors && Array.isArray(corpIndvDirectors) &&
+                  corpIndvDirectors.some((d: any) => d?.corporateIndividualRequest?.requestId === onboardingId)) ||
+                (corpIndvShareholders && Array.isArray(corpIndvShareholders) &&
+                  corpIndvShareholders.some((s: any) => s?.corporateIndividualRequest?.requestId === onboardingId))
+              ) {
+                onboarding = corporateOnboarding;
+                foundBy = "eodParentCod";
+                logger.info(
+                  { 
+                    eodRequestId: onboardingId,
+                    kycRequestId: requestId,
+                    codRequestId: corporateOnboarding.request_id,
+                    foundBy 
+                  },
+                  "[KYC Webhook] ✓ Found parent COD onboarding record for EOD requestId"
+                );
+                break;
+              }
+            }
+          }
+          if (onboarding) break;
+        }
+      }
+      
+      if (!onboarding) {
+        logger.debug(
+          { eodRequestId: onboardingId, kycRequestId: requestId },
+          "[KYC Webhook] No parent COD onboarding record found for EOD requestId"
+        );
+      }
+    }
+
     if (!onboarding) {
       logger.warn(
         { 
@@ -363,6 +422,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
     // Handle director AML status update for corporate onboarding
     // If onboardingId starts with "EOD", this is a director's individual KYC
+    // The onboarding record should already be the parent COD record if we found it above
     if (onboardingId && onboardingId.startsWith("EOD") && organizationId) {
       try {
         const eodRequestId = onboardingId;
@@ -381,6 +441,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           {
             eodRequestId,
             kycRequestId: requestId,
+            codRequestId: onboarding.request_id,
             organizationId,
             portalType,
             status: statusUpper,
@@ -388,54 +449,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           },
           "[KYC Webhook] Processing director AML status update for corporate onboarding"
         );
-
-        // Find parent COD onboarding record
-        // Search through all corporate onboardings to find the one that contains this EOD
-        const allCorporateOnboardings = await prisma.regTankOnboarding.findMany({
-          where: {
-            onboarding_type: "CORPORATE",
-            portal_type: portalType,
-            OR: [
-              { investor_organization_id: organizationId },
-              { issuer_organization_id: organizationId },
-            ],
-          },
-        });
-
-        let parentOnboarding = null;
-        for (const corporateOnboarding of allCorporateOnboardings) {
-          // Check webhook payloads for COD webhook that contains this EOD requestId
-          if (corporateOnboarding.webhook_payloads && Array.isArray(corporateOnboarding.webhook_payloads)) {
-            for (const webhookPayload of corporateOnboarding.webhook_payloads) {
-              if (webhookPayload && typeof webhookPayload === "object" && !Array.isArray(webhookPayload)) {
-                const payloadObj = webhookPayload as Record<string, unknown>;
-                // Check if this is a COD webhook with corpIndvDirectors or corpIndvShareholders
-                const codDetails = payloadObj as any;
-                const corpIndvDirectors = codDetails.corpIndvDirectors;
-                const corpIndvShareholders = codDetails.corpIndvShareholders;
-
-                if (
-                  (corpIndvDirectors && Array.isArray(corpIndvDirectors) &&
-                    corpIndvDirectors.some((d: any) => d?.corporateIndividualRequest?.requestId === eodRequestId)) ||
-                  (corpIndvShareholders && Array.isArray(corpIndvShareholders) &&
-                    corpIndvShareholders.some((s: any) => s?.corporateIndividualRequest?.requestId === eodRequestId))
-                ) {
-                  parentOnboarding = corporateOnboarding;
-                  break;
-                }
-              }
-            }
-            if (parentOnboarding) break;
-          }
-        }
-
-        if (!parentOnboarding) {
-          logger.warn(
-            { eodRequestId, kycRequestId: requestId, organizationId },
-            "[KYC Webhook] Parent COD onboarding not found for EOD, skipping director AML status update"
-          );
-          return;
-        }
 
         // Get organization with director_kyc_status to find matching director
         const org = portalType === "investor"
