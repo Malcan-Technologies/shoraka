@@ -1,10 +1,5 @@
 "use client";
 
-import * as React from "react";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
-
 interface ReviewSubmitConfig {
   showSummary?: boolean;
   confirmationMessage?: string;
@@ -17,7 +12,7 @@ interface ReviewSubmitConfigProps {
   onChange: (config: ReviewSubmitConfig) => void;
 }
 
-export function ReviewSubmitConfig({ config, onChange }: ReviewSubmitConfigProps) {
+export function ReviewSubmitConfig(_props: ReviewSubmitConfigProps) {
   return (
     <div className="space-y-4 pt-4">
       <div className="text-center py-8 text-muted-foreground">
@@ -27,4 +22,3 @@ export function ReviewSubmitConfig({ config, onChange }: ReviewSubmitConfigProps
     </div>
   );
 }
-
