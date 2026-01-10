@@ -1,10 +1,6 @@
 import { Request } from "express";
 import { ProductRepository } from "./repository";
-import {
-  CreateProductInput,
-  UpdateProductInput,
-  ListProductsQuery,
-} from "./schemas";
+import { CreateProductInput, UpdateProductInput, ListProductsQuery } from "./schemas";
 import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
@@ -20,12 +16,9 @@ export class ProductService {
   /**
    * Create a new product
    */
-  async createProduct(
-    req: Request,
-    input: CreateProductInput
-  ): Promise<Product> {
+  async createProduct(req: Request, input: CreateProductInput): Promise<Product> {
     const metadata = extractRequestMetadata(req);
-    
+
     logger.info({ ...metadata, input }, "Creating product");
 
     // Add any business logic here (e.g., validation, defaults)
@@ -86,13 +79,9 @@ export class ProductService {
   /**
    * Update product
    */
-  async updateProduct(
-    req: Request,
-    id: string,
-    input: UpdateProductInput
-  ): Promise<Product> {
+  async updateProduct(req: Request, id: string, input: UpdateProductInput): Promise<Product> {
     const metadata = extractRequestMetadata(req);
-    
+
     // Check if product exists
     const existing = await this.repository.findById(id);
     if (!existing) {
@@ -115,7 +104,7 @@ export class ProductService {
    */
   async deleteProduct(req: Request, id: string): Promise<void> {
     const metadata = extractRequestMetadata(req);
-    
+
     // Check if product exists
     const existing = await this.repository.findById(id);
     if (!existing) {

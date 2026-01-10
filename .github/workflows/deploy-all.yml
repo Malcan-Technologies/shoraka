@@ -3,6 +3,11 @@ name: Deploy Selected Services
 on:
   workflow_dispatch:
     inputs:
+      run_migration_only:
+        description: "Run migrations only (no deployments)"
+        required: true
+        type: boolean
+        default: false
       deploy_api:
         description: "Deploy API"
         required: true
@@ -54,20 +59,144 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Migration-only mode: Build and run migrations without any deployments
+      - name: Build migration image (migration-only mode)
+        if: ${{ inputs.run_migration_only }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: cashsouk-migrate
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "🔨 Building migration image (migration-only mode)..."
+
+          max_attempts=3
+          attempt=1
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            
+            if docker build -f docker/migrate.Dockerfile \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
+              echo "✅ Build successful!"
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Build failed after $max_attempts attempts"
+                exit 1
+              fi
+              
+              echo "⚠️ Build failed, waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
+
+          echo "📦 Pushing migration image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
+
+      - name: Run Database Migrations (migration-only mode)
+        if: ${{ inputs.run_migration_only }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "📝 Ensuring CloudWatch log group exists..."
+          aws logs create-log-group \
+            --log-group-name /ecs/cashsouk-migrate \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Log group already exists"
+
+          echo "📦 Registering migration task definition from template..."
+
+          TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE')
+
+          aws ecs register-task-definition \
+            --cli-input-json "$TASK_DEF" \
+            --region ${{ env.AWS_REGION }}
+
+          echo "📦 Running migrations via ECS task..."
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster default \
+            --launch-type FARGATE \
+            --task-definition cashsouk-migrate \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "❌ Failed to start migration task"
+            exit 1
+          fi
+
+          echo "⏳ Waiting for migrations to complete (Task: $TASK_ARN)..."
+
+          aws ecs wait tasks-stopped \
+            --cluster default \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }}
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster default \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ] && [ "$EXIT_CODE" != "None" ]; then
+            echo "❌ Migrations failed with exit code $EXIT_CODE"
+            
+            echo "📋 Task details:"
+            aws ecs describe-tasks \
+              --cluster default \
+              --tasks $TASK_ARN \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0].containers[0]' || true
+            
+            TASK_ID=$(echo $TASK_ARN | awk -F'/' '{print $NF}')
+            echo "📋 Migration logs (Task ID: $TASK_ID):"
+            
+            echo "Available log streams:"
+            aws logs describe-log-streams \
+              --log-group-name /ecs/cashsouk-migrate \
+              --region ${{ env.AWS_REGION }} \
+              --max-items 5 \
+              --order-by LastEventTime \
+              --descending || echo "Could not list log streams"
+            
+            aws logs tail /ecs/cashsouk-migrate \
+              --since 15m \
+              --format short \
+              --region ${{ env.AWS_REGION }} || echo "Could not retrieve logs"
+            
+            exit 1
+          elif [ "$EXIT_CODE" = "None" ]; then
+            echo "⚠️ Task stopped but exit code is None - checking task status..."
+            aws ecs describe-tasks \
+              --cluster default \
+              --tasks $TASK_ARN \
+              --region ${{ env.AWS_REGION }} \
+              --query 'tasks[0]' || true
+            exit 1
+          fi
+
+          echo "✅ Migrations completed successfully (migration-only mode)"
+
       # API: Build → Migrate → Push → Deploy (immediately)
       - name: Build API image
-        if: ${{ inputs.deploy_api }}
+        if: ${{ inputs.deploy_api && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: api-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building API image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -89,24 +218,24 @@ jobs:
 
       - name: Check for migration changes
         id: migration_check
-        if: ${{ inputs.deploy_api }}
+        if: ${{ inputs.deploy_api && !inputs.run_migration_only }}
         run: |
           # For manual deployment, always run migrations to be safe
           echo "migrations_changed=true" >> $GITHUB_OUTPUT
 
       - name: Build and push migration image
-        if: ${{ inputs.deploy_api && steps.migration_check.outputs.migrations_changed == 'true' }}
+        if: ${{ inputs.deploy_api && !inputs.run_migration_only && steps.migration_check.outputs.migrations_changed == 'true' }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: cashsouk-migrate
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building migration image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -130,7 +259,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG || echo "⚠️ Image already exists, skipping push"
 
       - name: Run Database Migrations
-        if: ${{ inputs.deploy_api && steps.migration_check.outputs.migrations_changed == 'true' }}
+        if: ${{ inputs.deploy_api && !inputs.run_migration_only && steps.migration_check.outputs.migrations_changed == 'true' }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
@@ -227,7 +356,7 @@ jobs:
           echo "✅ Migrations completed successfully"
 
       - name: Push and deploy API
-        if: ${{ inputs.deploy_api }}
+        if: ${{ inputs.deploy_api && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: api-cashsouk
@@ -261,18 +390,18 @@ jobs:
 
       # Landing: Build → Push → Deploy (immediately)
       - name: Build push and deploy Landing
-        if: ${{ inputs.deploy_landing }}
+        if: ${{ inputs.deploy_landing && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: landing-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Landing image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -327,18 +456,18 @@ jobs:
 
       # Investor: Build → Push → Deploy (immediately)
       - name: Build push and deploy Investor
-        if: ${{ inputs.deploy_investor }}
+        if: ${{ inputs.deploy_investor && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: investor-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Investor image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -393,18 +522,18 @@ jobs:
 
       # Issuer: Build → Push → Deploy (immediately)
       - name: Build push and deploy Issuer
-        if: ${{ inputs.deploy_issuer }}
+        if: ${{ inputs.deploy_issuer && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: issuer-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Issuer image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -459,18 +588,18 @@ jobs:
 
       # Admin: Build → Push → Deploy (immediately)
       - name: Build push and deploy Admin
-        if: ${{ inputs.deploy_admin }}
+        if: ${{ inputs.deploy_admin && !inputs.run_migration_only }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: admin-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "🔨 Building Admin image..."
-          
+
           # Retry logic for Docker Hub outages
           max_attempts=3
           attempt=1
-          
+
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts..."
             
@@ -526,12 +655,17 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "✅ Deployment completed"
-          echo "Image tag: ${{ github.sha }}"
-          echo ""
-          echo "Services deployed:"
-          if [ "${{ inputs.deploy_api }}" == "true" ]; then echo "  - API"; fi
-          if [ "${{ inputs.deploy_landing }}" == "true" ]; then echo "  - Landing"; fi
-          if [ "${{ inputs.deploy_investor }}" == "true" ]; then echo "  - Investor Portal"; fi
-          if [ "${{ inputs.deploy_issuer }}" == "true" ]; then echo "  - Issuer Portal"; fi
-          if [ "${{ inputs.deploy_admin }}" == "true" ]; then echo "  - Admin Portal"; fi
+          if [ "${{ inputs.run_migration_only }}" == "true" ]; then
+            echo "✅ Migration-only run completed"
+            echo "Image tag: ${{ github.sha }}"
+          else
+            echo "✅ Deployment completed"
+            echo "Image tag: ${{ github.sha }}"
+            echo ""
+            echo "Services deployed:"
+            if [ "${{ inputs.deploy_api }}" == "true" ]; then echo "  - API"; fi
+            if [ "${{ inputs.deploy_landing }}" == "true" ]; then echo "  - Landing"; fi
+            if [ "${{ inputs.deploy_investor }}" == "true" ]; then echo "  - Investor Portal"; fi
+            if [ "${{ inputs.deploy_issuer }}" == "true" ]; then echo "  - Issuer Portal"; fi
+            if [ "${{ inputs.deploy_admin }}" == "true" ]; then echo "  - Admin Portal"; fi
+          fi
