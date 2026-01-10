@@ -46,7 +46,7 @@ async function createProduct(
 async function getProduct(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = productIdParamSchema.parse(req.params);
-    const product = await productService.getProduct(req, id);
+    const product = await productService.getProduct(id);
 
     res.json({
       success: true,
@@ -74,7 +74,7 @@ async function listProducts(
 ) {
   try {
     const query = listProductsQuerySchema.parse(req.query);
-    const result = await productService.listProducts(req, query);
+    const result = await productService.listProducts(query);
 
     res.json({
       success: true,

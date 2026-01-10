@@ -12,11 +12,6 @@ export const createProductSchema = z.object({
   workflow: z.array(workflowStepSchema),
 });
 
-// Debug: Log schema shape to verify it's loaded correctly
-if (process.env.NODE_ENV !== "production") {
-  console.log("[Products Schema] createProductSchema expects workflow as array");
-}
-
 // Update product input schema
 export const updateProductSchema = z.object({
   workflow: z.array(workflowStepSchema).optional(),

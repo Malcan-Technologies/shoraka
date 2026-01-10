@@ -42,7 +42,7 @@ export class ProductService {
   /**
    * Get product by ID
    */
-  async getProduct(req: Request, id: string): Promise<Product> {
+  async getProduct(id: string): Promise<Product> {
     const product = await this.repository.findById(id);
 
     if (!product) {
@@ -55,10 +55,7 @@ export class ProductService {
   /**
    * List products with pagination
    */
-  async listProducts(
-    req: Request,
-    params: ListProductsQuery
-  ): Promise<{
+  async listProducts(params: ListProductsQuery): Promise<{
     products: Product[];
     pagination: {
       page: number;
