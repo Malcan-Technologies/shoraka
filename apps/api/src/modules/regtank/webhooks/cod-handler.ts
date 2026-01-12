@@ -123,6 +123,188 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         const normalizeKey = (name: string, email: string): string => {
           return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
         };
+
+        // Extract Banking Details (Operational Information)
+        const extractBankingDetails = (codDetails: any) => {
+          const operationalInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Operational Information"
+          );
+          
+          if (!operationalInfo) return null;
+          
+          const content = operationalInfo.content || [];
+          return {
+            bank: content.find((f: any) => f.fieldName === "Bank")?.fieldValue || null,
+            accountNumber: content.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || null,
+            accountType: content.find((f: any) => f.fieldName === "Account type")?.fieldValue || null,
+          };
+        };
+
+        // Extract Transaction Information
+        const extractTransactionInfo = (codDetails: any) => {
+          const transactionInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Transaction Information"
+          );
+          
+          if (!transactionInfo) return null;
+          
+          const content = transactionInfo.content || [];
+          return {
+            sourceOfFunds: content.find((f: any) => f.fieldName === "Source of funds")?.fieldValue || null,
+            sourceOfFundsOther: content.find((f: any) => f.fieldName?.includes("Others"))?.fieldValue || null,
+            netAssetValue: content.find((f: any) => f.fieldName === "Net asset value (RM)")?.fieldValue || null,
+          };
+        };
+
+        // Extract Beneficiary Account Information
+        const extractBeneficiaryInfo = (codDetails: any) => {
+          const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Beneficiary Account Information"
+          );
+          
+          if (!beneficiaryInfo) return null;
+          
+          const content = beneficiaryInfo.content || [];
+          return {
+            pepStatus: content.find((f: any) => f.fieldName?.includes("PEP"))?.fieldValue || null,
+            belongsToGroups: content.find((f: any) => f.fieldName?.includes("belong to any"))?.fieldValue || null,
+          };
+        };
+
+        // Extract Corporate Onboarding Data
+        const extractCorporateOnboardingData = (codDetails: any) => {
+          const basicInfoArea = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Basic Information Setting"
+          );
+          
+          const basicContent = basicInfoArea?.content || [];
+          
+          // Extract basic info
+          const basicInfo = {
+            businessName: basicContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || null,
+            entityType: basicContent.find((f: any) => f.fieldName === "Type of Entity")?.fieldValue || null,
+            ssmRegistrationNumber: basicContent.find((f: any) => f.fieldName === "New SSM registration number")?.fieldValue || null,
+            tin: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
+            industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
+            numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
+          };
+          
+          // Extract entity criteria
+          const entityCriteria = {
+            publicCompanyCriteria: basicContent.find((f: any) => f.fieldName === "Public Company Criteria: ")?.fieldValue || null,
+            trustCompanyCriteria: basicContent.find((f: any) => f.fieldName === "Trust Company Criteria: ")?.fieldValue || null,
+            privateLimitedCriteria: basicContent.find((f: any) => f.fieldName?.includes("Private Limited"))?.fieldValue || null,
+            partnershipCriteria: basicContent.find((f: any) => f.fieldName?.includes("Partnership"))?.fieldValue || null,
+            statutoryBodyCriteria: basicContent.find((f: any) => f.fieldName?.includes("Statutory Body"))?.fieldValue || null,
+            pensionFundCriteria: basicContent.find((f: any) => f.fieldName?.includes("Pension Fund"))?.fieldValue || null,
+          };
+          
+          // Extract addresses
+          const addresses = {
+            business: {
+              line1: basicContent.find((f: any) => f.fieldName === "Address (line 1)")?.fieldValue || null,
+              line2: basicContent.find((f: any) => f.fieldName === "Address (line 2)")?.fieldValue || null,
+              city: basicContent.find((f: any) => f.fieldName === "City")?.fieldValue || null,
+              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code")?.fieldValue || null,
+              state: basicContent.find((f: any) => f.fieldName === "State")?.fieldValue || null,
+              country: basicContent.find((f: any) => f.fieldName === "Country")?.fieldValue || null,
+            },
+            registered: {
+              line1: basicContent.find((f: any) => f.fieldName === "Address line 1 (Registered Address)")?.fieldValue || null,
+              line2: basicContent.find((f: any) => f.fieldName === "Address line 2 (Registered Address)")?.fieldValue || null,
+              city: basicContent.find((f: any) => f.fieldName === "City (Registered Address)")?.fieldValue || null,
+              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code (Registered Address)")?.fieldValue || null,
+              state: basicContent.find((f: any) => f.fieldName === "State (Registered Address)")?.fieldValue || null,
+              country: basicContent.find((f: any) => f.fieldName === "Country (Registered Address)")?.fieldValue || null,
+            },
+          };
+          
+          return {
+            basicInfo,
+            entityCriteria,
+            addresses,
+          };
+        };
+
+        // Extract Required Documents
+        const extractRequiredDocuments = (codDetails: any) => {
+          const documentsArea = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Required Documents"
+          );
+          
+          if (!documentsArea) return null;
+          
+          const requiredDocuments = (documentsArea.content || []).map((doc: any) => ({
+            fieldName: doc.fieldName || null,
+            fileName: doc.fileName || null,
+            fileType: doc.fileType || null,
+            url: doc.fieldValue || null,
+          }));
+          
+          return requiredDocuments;
+        };
+
+        // Extract full entity details for corporate_entities
+        const extractCorporateEntities = (codDetails: any) => {
+          const directors = (codDetails.corpIndvDirectors || []).map((director: any) => ({
+            eodRequestId: director.corporateIndividualRequest?.requestId || null,
+            personalInfo: {
+              firstName: director.corporateUserRequestInfo?.firstName || null,
+              lastName: director.corporateUserRequestInfo?.lastName || null,
+              middleName: director.corporateUserRequestInfo?.middleName || null,
+              fullName: director.corporateUserRequestInfo?.fullName || null,
+              email: director.corporateUserRequestInfo?.email || null,
+              formContent: director.corporateUserRequestInfo?.formContent || null,
+            },
+            documents: {
+              documentType: director.corporateDocumentInfo?.documentType || null,
+              countryCode: director.corporateDocumentInfo?.countryCode || null,
+              ocrStatus: director.corporateDocumentInfo?.ocrStatus || null,
+              frontDocumentUrl: director.corporateDocumentInfo?.frontDocumentUrl || null,
+              backDocumentUrl: director.corporateDocumentInfo?.backDocumentUrl || null,
+            },
+            status: director.corporateIndividualRequest?.status || null,
+            approveStatus: director.corporateIndividualRequest?.approveStatus || null,
+            kycType: director.corporateIndividualRequest?.kycType || null,
+            createdDate: director.corporateIndividualRequest?.createdDate || null,
+            updatedDate: director.corporateIndividualRequest?.updatedDate || null,
+          }));
+          
+          const shareholders = (codDetails.corpIndvShareholders || []).map((shareholder: any) => ({
+            eodRequestId: shareholder.corporateIndividualRequest?.requestId || null,
+            personalInfo: {
+              firstName: shareholder.corporateUserRequestInfo?.firstName || null,
+              lastName: shareholder.corporateUserRequestInfo?.lastName || null,
+              middleName: shareholder.corporateUserRequestInfo?.middleName || null,
+              fullName: shareholder.corporateUserRequestInfo?.fullName || null,
+              email: shareholder.corporateUserRequestInfo?.email || null,
+              formContent: shareholder.corporateUserRequestInfo?.formContent || null,
+            },
+            documents: {
+              documentType: shareholder.corporateDocumentInfo?.documentType || null,
+              countryCode: shareholder.corporateDocumentInfo?.countryCode || null,
+              ocrStatus: shareholder.corporateDocumentInfo?.ocrStatus || null,
+              frontDocumentUrl: shareholder.corporateDocumentInfo?.frontDocumentUrl || null,
+              backDocumentUrl: shareholder.corporateDocumentInfo?.backDocumentUrl || null,
+            },
+            status: shareholder.corporateIndividualRequest?.status || null,
+            approveStatus: shareholder.corporateIndividualRequest?.approveStatus || null,
+            kycType: shareholder.corporateIndividualRequest?.kycType || null,
+            createdDate: shareholder.corporateIndividualRequest?.createdDate || null,
+            updatedDate: shareholder.corporateIndividualRequest?.updatedDate || null,
+          }));
+          
+          const corporateShareholders = (codDetails.corpBizShareholders || []).map((corpShareholder: any) => ({
+            // Extract corporate shareholder details if available
+            ...corpShareholder,
+          }));
+          
+          return {
+            directors,
+            shareholders,
+            corporateShareholders,
+          };
+        };
         
         // Extract director information from COD details
         // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
@@ -353,6 +535,14 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           lastSyncedAt: new Date().toISOString(),
         };
 
+        // Extract additional corporate onboarding data
+        const bankingDetails = extractBankingDetails(codDetails);
+        const transactionInfo = extractTransactionInfo(codDetails);
+        const beneficiaryInfo = extractBeneficiaryInfo(codDetails);
+        const corporateOnboardingData = extractCorporateOnboardingData(codDetails);
+        const corporateRequiredDocuments = extractRequiredDocuments(codDetails);
+        const corporateEntities = extractCorporateEntities(codDetails);
+
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
@@ -363,6 +553,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+                bank_account_details: bankingDetails as Prisma.InputJsonValue,
+                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
+                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
+                corporate_entities: corporateEntities as Prisma.InputJsonValue,
               },
             });
 
@@ -407,6 +603,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+                bank_account_details: bankingDetails as Prisma.InputJsonValue,
+                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
+                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
+                corporate_entities: corporateEntities as Prisma.InputJsonValue,
               },
             });
 

@@ -237,6 +237,11 @@ model InvestorOrganization {
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
 
+  // Corporate onboarding data extracted from COD
+  corporate_onboarding_data Json? // Basic info, criteria, addresses
+  corporate_required_documents Json? // Required documents uploaded during onboarding
+  corporate_entities Json? // Full director/shareholder/corporate shareholder details
+
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
   regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
@@ -290,6 +295,11 @@ model IssuerOrganization {
   // Corporate director/shareholder KYC tracking
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
+
+  // Corporate onboarding data extracted from COD
+  corporate_onboarding_data Json? // Basic info, criteria, addresses
+  corporate_required_documents Json? // Required documents uploaded during onboarding
+  corporate_entities Json? // Full director/shareholder/corporate shareholder details
 
   owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   members OrganizationMember[]
