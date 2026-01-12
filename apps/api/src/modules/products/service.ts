@@ -1,6 +1,6 @@
 import { Request } from "express";
-import { ProductRepository } from "./repository";
-import { CreateProductInput, UpdateProductInput, ListProductsQuery } from "./schemas";
+import { ProductRepository, productLogRepository } from "./repository";
+import { CreateProductInput, UpdateProductInput, ListProductsQuery, ProductEventType } from "./schemas";
 import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
@@ -28,6 +28,19 @@ export class ProductService {
     });
 
     logger.info({ ...metadata, productId: product.id }, "Product created");
+
+    // Log the product creation
+    if (req.user?.user_id) {
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        product.id,
+        "PRODUCT_CREATED",
+        {
+          product_id: product.id,
+        }
+      );
+    }
 
     return product;
   }
@@ -96,6 +109,19 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: product.id }, "Product updated");
 
+    // Log the product update
+    if (req.user?.user_id) {
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        product.id,
+        "PRODUCT_UPDATED",
+        {
+          product_id: product.id,
+        }
+      );
+    }
+
     return product;
   }
 
@@ -116,5 +142,44 @@ export class ProductService {
     await this.repository.delete(id);
 
     logger.info({ ...metadata, productId: id }, "Product deleted");
+
+    // Log the product deletion
+    if (req.user?.user_id) {
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        id,
+        "PRODUCT_DELETED",
+        {
+          product_id: id,
+        }
+      );
+    }
+  }
+
+  // ========== Private helpers ==========
+
+  private async logProductEvent(
+    req: Request,
+    userId: string,
+    productId: string | null,
+    eventType: ProductEventType,
+    metadata: Record<string, unknown>
+  ) {
+    const deviceInfo = getDeviceInfo(req);
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      null;
+
+    await productLogRepository.create({
+      userId,
+      productId,
+      eventType,
+      ipAddress,
+      userAgent: req.headers["user-agent"] ?? null,
+      deviceInfo,
+      metadata,
+    });
   }
 }
