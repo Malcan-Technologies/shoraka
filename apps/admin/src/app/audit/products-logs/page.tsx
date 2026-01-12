@@ -38,18 +38,12 @@ import {
   FunnelIcon,
 } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
+import { DATE_RANGES } from "@cashsouk/config";
 
 const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
   { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
   { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
   { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
-];
-
-const DATE_RANGES = [
-  { value: "all", label: "All Time" },
-  { value: "24h", label: "Last 24 Hours" },
-  { value: "7d", label: "Last 7 Days" },
-  { value: "30d", label: "Last 30 Days" },
 ];
 
 function formatDate(dateStr: string): string {

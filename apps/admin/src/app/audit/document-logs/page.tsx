@@ -38,6 +38,7 @@ import {
   FunnelIcon,
 } from "@heroicons/react/24/outline";
 import type { DocumentEventType, GetDocumentLogsParams } from "@cashsouk/types";
+import { DATE_RANGES } from "@cashsouk/config";
 
 const DOCUMENT_EVENT_TYPES: { value: DocumentEventType; label: string; color: string }[] = [
   { value: "DOCUMENT_CREATED", label: "Created", color: "bg-green-500" },
@@ -45,13 +46,6 @@ const DOCUMENT_EVENT_TYPES: { value: DocumentEventType; label: string; color: st
   { value: "DOCUMENT_REPLACED", label: "Replaced", color: "bg-yellow-500" },
   { value: "DOCUMENT_DELETED", label: "Archived", color: "bg-red-500" },
   { value: "DOCUMENT_RESTORED", label: "Restored", color: "bg-purple-500" },
-];
-
-const DATE_RANGES = [
-  { value: "all", label: "All Time" },
-  { value: "24h", label: "Last 24 Hours" },
-  { value: "7d", label: "Last 7 Days" },
-  { value: "30d", label: "Last 30 Days" },
 ];
 
 function formatDate(dateStr: string): string {
