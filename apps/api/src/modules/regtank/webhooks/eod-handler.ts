@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { OrganizationRepository } from "../../organization/repository";
+import { getRegTankAPIClient } from "../api-client";
 
 /**
  * EOD (Entity Onboarding Data) Webhook Handler
@@ -18,12 +19,14 @@ export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private authRepository: AuthRepository;
   private organizationRepository: OrganizationRepository;
+  private apiClient: ReturnType<typeof getRegTankAPIClient>;
 
   constructor() {
     super();
     this.repository = new RegTankRepository();
     this.authRepository = new AuthRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.apiClient = getRegTankAPIClient();
   }
 
   protected getWebhookType(): string {
@@ -320,6 +323,225 @@ export class EODWebhookHandler extends BaseWebhookHandler {
           "[EOD Webhook] Failed to update director KYC status (non-blocking)"
         );
         // Don't throw - allow webhook to complete even if director status update fails
+      }
+    }
+
+    // After updating director_kyc_status, if status is APPROVED, fetch AML status
+    if (statusUpper === "APPROVED" && organizationId) {
+      // Wait 3 seconds for RegTank to process the KYC
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      try {
+        const portalType = onboarding.portal_type as PortalType;
+        let finalKycId = kycId;
+
+        // If kycId is not in webhook payload, fetch EOD details to get it
+        if (!finalKycId) {
+          try {
+            logger.info(
+              {
+                eodRequestId,
+                codRequestId: onboarding.request_id,
+                organizationId,
+              },
+              "[EOD Webhook] kycId not in webhook, fetching EOD details after 3-second delay"
+            );
+
+            const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+            finalKycId = eodDetails.kycRequestInfo?.kycId;
+
+            if (finalKycId) {
+              // Update director_kyc_status with the fetched kycId
+              const org = portalType === "investor"
+                ? await prisma.investorOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { director_kyc_status: true },
+                  })
+                : await prisma.issuerOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { director_kyc_status: true },
+                  });
+
+              if (org && org.director_kyc_status) {
+                const directorKycStatus = org.director_kyc_status as any;
+                const updatedDirectors = directorKycStatus.directors.map((d: any) => {
+                  if (d.eodRequestId === eodRequestId) {
+                    return { ...d, kycId: finalKycId, lastUpdated: new Date().toISOString() };
+                  }
+                  return d;
+                });
+
+                if (portalType === "investor") {
+                  await prisma.investorOrganization.update({
+                    where: { id: organizationId },
+                    data: {
+                      director_kyc_status: {
+                        ...directorKycStatus,
+                        directors: updatedDirectors,
+                        lastSyncedAt: new Date().toISOString(),
+                      } as Prisma.InputJsonValue,
+                    },
+                  });
+                } else {
+                  await prisma.issuerOrganization.update({
+                    where: { id: organizationId },
+                    data: {
+                      director_kyc_status: {
+                        ...directorKycStatus,
+                        directors: updatedDirectors,
+                        lastSyncedAt: new Date().toISOString(),
+                      } as Prisma.InputJsonValue,
+                    },
+                  });
+                }
+              }
+            }
+          } catch (eodError) {
+            logger.warn(
+              {
+                error: eodError instanceof Error ? eodError.message : String(eodError),
+                eodRequestId,
+                organizationId,
+              },
+              "[EOD Webhook] Failed to fetch EOD details for kycId (non-blocking, will retry on COD approval)"
+            );
+          }
+        }
+
+        // If we have a kycId, fetch AML status
+        if (finalKycId) {
+          logger.info(
+            {
+              eodRequestId,
+              codRequestId: onboarding.request_id,
+              kycId: finalKycId,
+              organizationId,
+            },
+            "[EOD Webhook] Fetching AML status after 3-second delay"
+          );
+
+          const kycStatusResponse = await this.apiClient.queryKYCStatus(finalKycId);
+          const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
+
+          // Map RegTank status to our AML status
+          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
+          if (regTankStatus === "APPROVED") {
+            amlStatus = "Approved";
+          } else if (regTankStatus === "REJECTED") {
+            amlStatus = "Rejected";
+          } else if (regTankStatus === "UNRESOLVED") {
+            amlStatus = "Unresolved";
+          }
+
+          // Extract risk score and level
+          const individualRiskScore = kycStatusData?.individualRiskScore;
+          const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
+            ? parseFloat(String(individualRiskScore.score))
+            : null;
+          const amlRiskLevel = individualRiskScore?.level || null;
+
+          // Extract message status
+          const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+
+          // Get organization to update director_aml_status
+          const org = portalType === "investor"
+            ? await prisma.investorOrganization.findUnique({
+                where: { id: organizationId },
+                select: { id: true, director_kyc_status: true, director_aml_status: true },
+              })
+            : await prisma.issuerOrganization.findUnique({
+                where: { id: organizationId },
+                select: { id: true, director_kyc_status: true, director_aml_status: true },
+              });
+
+          if (org && org.director_kyc_status) {
+            const directorKycStatus = org.director_kyc_status as any;
+            const director = directorKycStatus.directors?.find(
+              (d: any) => d.eodRequestId === eodRequestId
+            );
+
+            if (director) {
+              // Get or create director_aml_status
+              let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+              if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+                directorAmlStatus.directors = [];
+              }
+
+              // Find or create AML status entry
+              const amlIndex = directorAmlStatus.directors.findIndex(
+                (d: any) => d.kycId === finalKycId
+              );
+
+              const amlEntry = {
+                kycId: finalKycId,
+                name: director.name,
+                email: director.email,
+                role: director.role,
+                amlStatus,
+                amlMessageStatus,
+                amlRiskScore,
+                amlRiskLevel,
+                lastUpdated: new Date().toISOString(),
+              };
+
+              if (amlIndex === -1) {
+                directorAmlStatus.directors.push(amlEntry);
+              } else {
+                directorAmlStatus.directors[amlIndex] = amlEntry;
+              }
+
+              directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+              // Update organization
+              if (portalType === "investor") {
+                await prisma.investorOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+                  },
+                });
+              } else {
+                await prisma.issuerOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+                  },
+                });
+              }
+
+              logger.info(
+                {
+                  eodRequestId,
+                  kycId: finalKycId,
+                  organizationId,
+                  amlStatus,
+                  amlMessageStatus,
+                },
+                "[EOD Webhook] ✓ Updated director AML status after delayed fetch"
+              );
+            }
+          }
+        } else {
+          logger.warn(
+            {
+              eodRequestId,
+              codRequestId: onboarding.request_id,
+              organizationId,
+            },
+            "[EOD Webhook] kycId not available after delay, will retry on COD approval"
+          );
+        }
+      } catch (amlError) {
+        logger.warn(
+          {
+            error: amlError instanceof Error ? amlError.message : String(amlError),
+            eodRequestId,
+            organizationId,
+          },
+          "[EOD Webhook] Failed to fetch AML status after delay (non-blocking, will retry on COD approval)"
+        );
+        // Don't throw - allow webhook to complete, will retry when COD is approved
       }
     }
 

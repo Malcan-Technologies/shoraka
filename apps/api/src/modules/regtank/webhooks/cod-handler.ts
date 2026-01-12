@@ -783,6 +783,172 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow status update to proceed even if kycId refresh fails
         }
 
+        // After refreshing kycId values, fetch AML statuses for all directors with kycId
+        // This is a fallback if EOD webhook didn't successfully fetch AML status
+        try {
+          logger.info(
+            { requestId, organizationId, portalType },
+            "[COD Webhook] Fetching AML statuses for all directors after COD approval (fallback)"
+          );
+
+          // Wait 3 seconds for RegTank to process all KYC checks
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          // Get updated organization with refreshed director_kyc_status
+          const org = portalType === "investor"
+            ? await prisma.investorOrganization.findUnique({
+                where: { id: organizationId },
+                select: { director_kyc_status: true, director_aml_status: true },
+              })
+            : await prisma.issuerOrganization.findUnique({
+                where: { id: organizationId },
+                select: { director_kyc_status: true, director_aml_status: true },
+              });
+
+          if (org && org.director_kyc_status) {
+            const directorKycStatus = org.director_kyc_status as any;
+            const directorsAmlStatus: Array<{
+              kycId: string;
+              name: string;
+              email: string;
+              role: string;
+              amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+              amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+              amlRiskScore: number | null;
+              amlRiskLevel: string | null;
+              lastUpdated: string;
+            }> = [];
+
+            // Fetch AML status for each director with a kycId
+            for (const director of directorKycStatus.directors || []) {
+              if (!director.kycId) {
+                logger.debug(
+                  { directorName: director.name, eodRequestId: director.eodRequestId },
+                  "[COD Webhook] Skipping director without kycId for AML status fetch"
+                );
+                continue;
+              }
+
+              try {
+                const kycStatusResponse = await this.apiClient.queryKYCStatus(director.kycId);
+                const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
+
+                // Map RegTank status to our AML status
+                let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+                const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
+                if (regTankStatus === "APPROVED") {
+                  amlStatus = "Approved";
+                } else if (regTankStatus === "REJECTED") {
+                  amlStatus = "Rejected";
+                } else if (regTankStatus === "UNRESOLVED") {
+                  amlStatus = "Unresolved";
+                }
+
+                // Extract risk score and level
+                const individualRiskScore = kycStatusData?.individualRiskScore;
+                const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
+                  ? parseFloat(String(individualRiskScore.score))
+                  : null;
+                const amlRiskLevel = individualRiskScore?.level || null;
+
+                // Extract message status
+                const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+
+                directorsAmlStatus.push({
+                  kycId: director.kycId,
+                  name: director.name,
+                  email: director.email,
+                  role: director.role,
+                  amlStatus,
+                  amlMessageStatus,
+                  amlRiskScore,
+                  amlRiskLevel,
+                  lastUpdated: new Date().toISOString(),
+                });
+
+                logger.debug(
+                  {
+                    kycId: director.kycId,
+                    directorName: director.name,
+                    amlStatus,
+                    amlMessageStatus,
+                  },
+                  "[COD Webhook] Fetched AML status for director"
+                );
+              } catch (kycError) {
+                logger.warn(
+                  {
+                    error: kycError instanceof Error ? kycError.message : String(kycError),
+                    kycId: director.kycId,
+                    directorName: director.name,
+                  },
+                  "[COD Webhook] Failed to fetch AML status for director (non-blocking)"
+                );
+                // Continue with other directors even if one fails
+              }
+            }
+
+            // Update organization with AML statuses (merge with existing if any)
+            if (directorsAmlStatus.length > 0) {
+              let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+              if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+                directorAmlStatus.directors = [];
+              }
+
+              // Merge new AML statuses with existing ones
+              for (const newAmlStatus of directorsAmlStatus) {
+                const existingIndex = directorAmlStatus.directors.findIndex(
+                  (d: any) => d.kycId === newAmlStatus.kycId
+                );
+
+                if (existingIndex === -1) {
+                  directorAmlStatus.directors.push(newAmlStatus);
+                } else {
+                  // Update existing entry with latest data
+                  directorAmlStatus.directors[existingIndex] = newAmlStatus;
+                }
+              }
+
+              directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+              if (portalType === "investor") {
+                await prisma.investorOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+                  },
+                });
+              } else {
+                await prisma.issuerOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+                  },
+                });
+              }
+
+              logger.info(
+                {
+                  requestId,
+                  organizationId,
+                  directorsUpdated: directorsAmlStatus.length,
+                },
+                "[COD Webhook] ✓ Updated director AML statuses after delayed fetch (fallback)"
+              );
+            }
+          }
+        } catch (amlFetchError) {
+          logger.error(
+            {
+              error: amlFetchError instanceof Error ? amlFetchError.message : String(amlFetchError),
+              requestId,
+              organizationId,
+            },
+            "[COD Webhook] Failed to fetch AML statuses after delay (non-blocking)"
+          );
+          // Don't throw - allow webhook to complete
+        }
+
         // When COD is APPROVED and KYB exists, update to PENDING_AML
         // Set onboarding_approved = true if not already set
         if (portalType === "investor") {
