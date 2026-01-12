@@ -4,7 +4,7 @@ import { CreateProductInput, UpdateProductInput, ListProductsQuery } from "./sch
 import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-utils";
 
 export class ProductService {
   private repository: ProductRepository;
