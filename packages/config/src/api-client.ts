@@ -47,6 +47,9 @@ import type {
   GetDocumentLogsParams,
   DocumentLogsResponse,
   ExportDocumentLogsParams,
+  GetProductLogsParams,
+  ProductLogsResponse,
+  ExportProductLogsParams,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -810,6 +813,54 @@ export class ApiClient {
     queryParams.append("format", params.format || "json");
 
     const url = `${this.baseUrl}/v1/admin/document-logs/export?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
+  }
+
+  // Admin - Product Logs
+  async getProductLogs(
+    params: GetProductLogsParams
+  ): Promise<ApiResponse<ProductLogsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+
+    return this.get<ProductLogsResponse>(
+      `/v1/admin/product-logs?${queryParams.toString()}`
+    );
+  }
+
+  async exportProductLogs(params: ExportProductLogsParams): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    queryParams.append("format", params.format || "json");
+
+    const url = `${this.baseUrl}/v1/admin/product-logs/export?${queryParams.toString()}`;
     const authToken = await this.getAuthToken();
 
     const headers: HeadersInit = {

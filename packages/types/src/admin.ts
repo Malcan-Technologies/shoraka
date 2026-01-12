@@ -723,6 +723,47 @@ export interface ExportDocumentLogsParams extends Omit<GetDocumentLogsParams, "p
   format?: "csv" | "json";
 }
 
+// Product Logs
+export type ProductEventType =
+  | "PRODUCT_CREATED"
+  | "PRODUCT_UPDATED"
+  | "PRODUCT_DELETED";
+
+export interface ProductLogUser {
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
+export interface ProductLogResponse {
+  id: string;
+  user_id: string;
+  user: ProductLogUser;
+  product_id: string | null;
+  event_type: ProductEventType;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GetProductLogsParams extends PaginationParams {
+  search?: string;
+  eventType?: ProductEventType;
+  dateRange?: "24h" | "7d" | "30d" | "all";
+}
+
+export interface ProductLogsResponse {
+  logs: ProductLogResponse[];
+  pagination: PaginationResponse;
+}
+
+export interface ExportProductLogsParams extends Omit<GetProductLogsParams, "page" | "pageSize"> {
+  eventTypes?: ProductEventType[];
+  format?: "csv" | "json";
+}
+
 // Products
 export interface GetProductsParams {
   page: number;
