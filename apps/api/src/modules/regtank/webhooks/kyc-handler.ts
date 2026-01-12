@@ -141,16 +141,16 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           for (const webhookPayload of corporateOnboarding.webhook_payloads) {
             if (webhookPayload && typeof webhookPayload === "object" && !Array.isArray(webhookPayload)) {
               const payloadObj = webhookPayload as Record<string, unknown>;
-              // Check if this is a COD webhook with corpIndvDirectors or corpIndvShareholders
-              const codDetails = payloadObj as any;
-              const corpIndvDirectors = codDetails.corpIndvDirectors;
-              const corpIndvShareholders = codDetails.corpIndvShareholders;
+              // Check if this is a COD webhook (has corpIndvDirectors, corpIndvShareholders, or corpBizShareholders)
+              // These are arrays of strings (EOD requestIds), not arrays of objects
+              const corpIndvDirectors = payloadObj.corpIndvDirectors as string[] | undefined;
+              const corpIndvShareholders = payloadObj.corpIndvShareholders as string[] | undefined;
+              const corpBizShareholders = payloadObj.corpBizShareholders as string[] | undefined;
 
               if (
-                (corpIndvDirectors && Array.isArray(corpIndvDirectors) &&
-                  corpIndvDirectors.some((d: any) => d?.corporateIndividualRequest?.requestId === onboardingId)) ||
-                (corpIndvShareholders && Array.isArray(corpIndvShareholders) &&
-                  corpIndvShareholders.some((s: any) => s?.corporateIndividualRequest?.requestId === onboardingId))
+                (corpIndvDirectors && Array.isArray(corpIndvDirectors) && corpIndvDirectors.includes(onboardingId)) ||
+                (corpIndvShareholders && Array.isArray(corpIndvShareholders) && corpIndvShareholders.includes(onboardingId)) ||
+                (corpBizShareholders && Array.isArray(corpBizShareholders) && corpBizShareholders.includes(onboardingId))
               ) {
                 onboarding = corporateOnboarding;
                 foundBy = "eodParentCod";
