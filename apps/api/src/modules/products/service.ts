@@ -1,6 +1,13 @@
 import { Request } from "express";
 import { ProductRepository, productLogRepository } from "./repository";
-import { CreateProductInput, UpdateProductInput, ListProductsQuery, ProductEventType } from "./schemas";
+import {
+  CreateProductInput,
+  UpdateProductInput,
+  ListProductsQuery,
+  ProductEventType,
+  GetProductLogsQuery,
+  ExportProductLogsQuery,
+} from "./schemas";
 import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
@@ -8,6 +15,30 @@ import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-ut
 
 export class ProductService {
   private repository: ProductRepository;
+
+  private async logProductEvent(
+    req: Request,
+    userId: string,
+    productId: string | null,
+    eventType: ProductEventType,
+    metadata: Record<string, unknown>
+  ) {
+    const deviceInfo = getDeviceInfo(req);
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      null;
+
+    await productLogRepository.create({
+      userId,
+      productId,
+      eventType,
+      ipAddress,
+      userAgent: req.headers["user-agent"] ?? null,
+      deviceInfo,
+      metadata,
+    });
+  }
 
   constructor() {
     this.repository = new ProductRepository();
@@ -157,29 +188,34 @@ export class ProductService {
     }
   }
 
-  // ========== Private helpers ==========
+  /**
+   * Get product logs with pagination and filters
+   */
+  async getProductLogs(query: GetProductLogsQuery) {
+    const { logs, total } = await productLogRepository.findAll(query);
 
-  private async logProductEvent(
-    req: Request,
-    userId: string,
-    productId: string | null,
-    eventType: ProductEventType,
-    metadata: Record<string, unknown>
-  ) {
-    const deviceInfo = getDeviceInfo(req);
-    const ipAddress =
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
-      req.socket.remoteAddress ||
-      null;
+    return {
+      logs,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount: total,
+        totalPages: Math.ceil(total / query.pageSize),
+      },
+    };
+  }
 
-    await productLogRepository.create({
-      userId,
-      productId,
-      eventType,
-      ipAddress,
-      userAgent: req.headers["user-agent"] ?? null,
-      deviceInfo,
-      metadata,
+  /**
+   * Export product logs
+   */
+  async exportProductLogs(query: Omit<ExportProductLogsQuery, "format">) {
+    return productLogRepository.findForExport({
+      search: query.search,
+      eventType: query.eventType,
+      eventTypes: query.eventTypes,
+      dateRange: query.dateRange,
     });
   }
 }
+
+export const productService = new ProductService();

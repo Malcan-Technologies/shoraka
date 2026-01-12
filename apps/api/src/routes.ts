@@ -10,6 +10,7 @@ import { regTankAdminRouter } from "./modules/regtank/admin-controller";
 import { siteDocumentAdminRouter } from "./modules/site-documents/admin-controller";
 import { siteDocumentUserRouter } from "./modules/site-documents/user-controller";
 import { documentLogRouter } from "./modules/site-documents/log-controller";
+import { productLogRouter } from "./modules/products/log-controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -86,10 +87,12 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
+    v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
+    v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
   }
 
   // Site documents routes (authenticated users)
