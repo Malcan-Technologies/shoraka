@@ -179,7 +179,7 @@ model OnboardingLog {
   metadata    Json?
   created_at  DateTime @default(now())
   user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
+  
   @@index([user_id])
   @@index([role])
   @@index([event_type])
@@ -354,7 +354,7 @@ model RegTankOnboarding {
   investor_organization    InvestorOrganization? @relation("RegTankOnboardingToInvestorOrg", fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization      IssuerOrganization?   @relation("RegTankOnboardingToIssuerOrg", fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
+  
   @@index([user_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])

@@ -564,6 +564,12 @@ export interface OnboardingApplicationResponse {
   directorKycStatus?: CorporateDirectorData;
   // Director AML status (only for corporate onboarding)
   directorAmlStatus?: CorporateAmlData;
+  // Corporate entities (directors, shareholders, corporate shareholders) - only for corporate onboarding
+  corporateEntities?: {
+    directors?: Array<Record<string, unknown>>;
+    shareholders?: Array<Record<string, unknown>>;
+    corporateShareholders?: Array<Record<string, unknown>>;
+  };
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

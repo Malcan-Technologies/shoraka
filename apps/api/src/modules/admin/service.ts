@@ -1961,6 +1961,22 @@ export class AdminService {
         }
       : undefined;
 
+    // Corporate entities (only for corporate onboarding)
+    const corporateEntitiesRaw =
+      record.organization_type === "COMPANY"
+        ? isInvestorOrg
+          ? (investorOrg as { corporate_entities?: unknown })?.corporate_entities
+          : (issuerOrg as { corporate_entities?: unknown })?.corporate_entities
+        : undefined;
+
+    const corporateEntities = corporateEntitiesRaw
+      ? (corporateEntitiesRaw as {
+          directors?: Array<Record<string, unknown>>;
+          shareholders?: Array<Record<string, unknown>>;
+          corporateShareholders?: Array<Record<string, unknown>>;
+        })
+      : undefined;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -1992,6 +2008,7 @@ export class AdminService {
       sophisticatedInvestorReason,
       directorKycStatus,
       directorAmlStatus,
+      corporateEntities,
     };
   }
 

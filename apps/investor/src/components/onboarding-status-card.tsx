@@ -5,6 +5,7 @@ import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import type { Organization } from "@cashsouk/config";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
+import { CorporateShareholdersList } from "./corporate-shareholders-list";
 
 interface OnboardingStep {
   id: string;
@@ -186,6 +187,18 @@ export function OnboardingStatusCard({
             <DirectorKycList directors={organization.directorKycStatus.directors} />
           </div>
         )}
+
+      {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) - Show in PENDING_APPROVAL */}
+      {organization.type === "COMPANY" &&
+        organization.onboardingStatus === "PENDING_APPROVAL" &&
+        organization.corporateEntities?.corporateShareholders &&
+        organization.corporateEntities.corporateShareholders.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <CorporateShareholdersList
+              corporateShareholders={organization.corporateEntities.corporateShareholders}
+            />
+          </div>
+        )}
       
       {/* Individual AML Screening Status Section (for corporate onboarding) - Only show in PENDING_AML */}
       {organization.type === "COMPANY" &&
@@ -194,6 +207,18 @@ export function OnboardingStatusCard({
         organization.directorAmlStatus.directors.length > 0 && (
           <div className="mt-6 pt-6 border-t">
             <DirectorAmlList directors={organization.directorAmlStatus.directors} />
+          </div>
+        )}
+
+      {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) - Show in PENDING_AML */}
+      {organization.type === "COMPANY" &&
+        organization.onboardingStatus === "PENDING_AML" &&
+        organization.corporateEntities?.corporateShareholders &&
+        organization.corporateEntities.corporateShareholders.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <CorporateShareholdersList
+              corporateShareholders={organization.corporateEntities.corporateShareholders}
+            />
           </div>
         )}
     </div>

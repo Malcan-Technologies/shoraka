@@ -102,6 +102,29 @@ async function listOrganizations(
                   lastSyncedAt: string;
                 })
               : undefined,
+            directorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status
+              ? ((org as { director_aml_status: unknown }).director_aml_status as {
+                  directors: Array<{
+                    kycId: string;
+                    name: string;
+                    email: string;
+                    role: string;
+                    amlStatus: string;
+                    amlMessageStatus: string;
+                    amlRiskScore: number | null;
+                    amlRiskLevel: string | null;
+                    lastUpdated: string;
+                  }>;
+                  lastSyncedAt: string;
+                })
+              : undefined,
+            corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities
+              ? ((org as { corporate_entities: unknown }).corporate_entities as {
+                  directors?: Array<Record<string, unknown>>;
+                  shareholders?: Array<Record<string, unknown>>;
+                  corporateShareholders?: Array<Record<string, unknown>>;
+                })
+              : undefined,
           }),
         })),
         hasPersonalOrganization: hasPersonal,

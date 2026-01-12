@@ -115,6 +115,12 @@ export interface Organization {
     }>;
     lastSyncedAt: string;
   };
+  // Corporate entities (directors, shareholders, corporate shareholders) - only for COMPANY type
+  corporateEntities?: {
+    directors?: Array<Record<string, unknown>>;
+    shareholders?: Array<Record<string, unknown>>;
+    corporateShareholders?: Array<Record<string, unknown>>;
+  };
 }
 
 interface OrganizationContextType {
