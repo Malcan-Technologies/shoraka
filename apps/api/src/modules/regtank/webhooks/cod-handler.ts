@@ -1151,6 +1151,143 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow webhook to complete
         }
 
+        // Refresh document URLs in corporate_entities by fetching EOD details
+        // Documents should be fully processed by the time COD is APPROVED
+        try {
+          logger.info(
+            { requestId, organizationId, portalType },
+            "[COD Webhook] Refreshing document URLs in corporate_entities after COD approval"
+          );
+
+          const org = portalType === "investor"
+            ? await prisma.investorOrganization.findUnique({
+                where: { id: organizationId },
+                select: { corporate_entities: true },
+              })
+            : await prisma.issuerOrganization.findUnique({
+                where: { id: organizationId },
+                select: { corporate_entities: true },
+              });
+
+          if (org && org.corporate_entities) {
+            const corporateEntities = org.corporate_entities as any;
+            let updated = false;
+
+            // Update directors' document URLs
+            if (corporateEntities.directors && Array.isArray(corporateEntities.directors)) {
+              for (const director of corporateEntities.directors) {
+                if (director.eodRequestId && (!director.documents?.frontDocumentUrl || !director.documents?.backDocumentUrl)) {
+                  try {
+                    const eodDetails = await this.apiClient.getEntityOnboardingDetails(director.eodRequestId);
+                    if (eodDetails.corporateDocumentInfo) {
+                      director.documents = {
+                        documentType: eodDetails.corporateDocumentInfo?.documentType || director.documents?.documentType || null,
+                        countryCode: eodDetails.corporateDocumentInfo?.countryCode || director.documents?.countryCode || null,
+                        ocrStatus: eodDetails.corporateDocumentInfo?.ocrStatus || director.documents?.ocrStatus || null,
+                        frontDocumentUrl: eodDetails.corporateDocumentInfo?.frontDocumentUrl || director.documents?.frontDocumentUrl || null,
+                        backDocumentUrl: eodDetails.corporateDocumentInfo?.backDocumentUrl || director.documents?.backDocumentUrl || null,
+                      };
+                      updated = true;
+                      logger.debug(
+                        {
+                          eodRequestId: director.eodRequestId,
+                          hasFrontUrl: !!director.documents.frontDocumentUrl,
+                          hasBackUrl: !!director.documents.backDocumentUrl,
+                        },
+                        "[COD Webhook] Updated director document URLs from EOD details"
+                      );
+                    }
+                  } catch (eodError) {
+                    logger.warn(
+                      {
+                        error: eodError instanceof Error ? eodError.message : String(eodError),
+                        eodRequestId: director.eodRequestId,
+                      },
+                      "[COD Webhook] Failed to fetch EOD details for director document URLs (non-blocking)"
+                    );
+                  }
+                }
+              }
+            }
+
+            // Update shareholders' document URLs
+            if (corporateEntities.shareholders && Array.isArray(corporateEntities.shareholders)) {
+              for (const shareholder of corporateEntities.shareholders) {
+                if (shareholder.eodRequestId && (!shareholder.documents?.frontDocumentUrl || !shareholder.documents?.backDocumentUrl)) {
+                  try {
+                    const eodDetails = await this.apiClient.getEntityOnboardingDetails(shareholder.eodRequestId);
+                    if (eodDetails.corporateDocumentInfo) {
+                      shareholder.documents = {
+                        documentType: eodDetails.corporateDocumentInfo?.documentType || shareholder.documents?.documentType || null,
+                        countryCode: eodDetails.corporateDocumentInfo?.countryCode || shareholder.documents?.countryCode || null,
+                        ocrStatus: eodDetails.corporateDocumentInfo?.ocrStatus || shareholder.documents?.ocrStatus || null,
+                        frontDocumentUrl: eodDetails.corporateDocumentInfo?.frontDocumentUrl || shareholder.documents?.frontDocumentUrl || null,
+                        backDocumentUrl: eodDetails.corporateDocumentInfo?.backDocumentUrl || shareholder.documents?.backDocumentUrl || null,
+                      };
+                      updated = true;
+                      logger.debug(
+                        {
+                          eodRequestId: shareholder.eodRequestId,
+                          hasFrontUrl: !!shareholder.documents.frontDocumentUrl,
+                          hasBackUrl: !!shareholder.documents.backDocumentUrl,
+                        },
+                        "[COD Webhook] Updated shareholder document URLs from EOD details"
+                      );
+                    }
+                  } catch (eodError) {
+                    logger.warn(
+                      {
+                        error: eodError instanceof Error ? eodError.message : String(eodError),
+                        eodRequestId: shareholder.eodRequestId,
+                      },
+                      "[COD Webhook] Failed to fetch EOD details for shareholder document URLs (non-blocking)"
+                    );
+                  }
+                }
+              }
+            }
+
+            // Update organization if any documents were refreshed
+            if (updated) {
+              if (portalType === "investor") {
+                await prisma.investorOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              } else {
+                await prisma.issuerOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              }
+
+              logger.info(
+                { requestId, organizationId },
+                "[COD Webhook] ✓ Refreshed document URLs in corporate_entities after COD approval"
+              );
+            } else {
+              logger.debug(
+                { requestId, organizationId },
+                "[COD Webhook] No document URLs to refresh in corporate_entities (already present or no EOD requestIds)"
+              );
+            }
+          }
+        } catch (docRefreshError) {
+          logger.error(
+            {
+              error: docRefreshError instanceof Error ? docRefreshError.message : String(docRefreshError),
+              requestId,
+              organizationId,
+            },
+            "[COD Webhook] Failed to refresh document URLs in corporate_entities (non-blocking)"
+          );
+          // Don't throw - allow webhook to complete even if document refresh fails
+        }
+
         // When COD is APPROVED and KYB exists, update to PENDING_AML
         // Set onboarding_approved = true if not already set
         if (portalType === "investor") {
