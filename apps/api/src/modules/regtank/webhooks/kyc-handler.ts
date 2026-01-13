@@ -487,20 +487,52 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           return;
         }
 
-        // Find the director by kycId
-        const directorIndex = directorKycStatus.directors.findIndex(
-          (d: any) => d.kycId === requestId
+        // Find the director by eodRequestId first (more reliable), then by kycId
+        let directorIndex = directorKycStatus.directors.findIndex(
+          (d: any) => d.eodRequestId === eodRequestId
         );
+
+        if (directorIndex === -1) {
+          // Fallback: try to find by kycId
+          directorIndex = directorKycStatus.directors.findIndex(
+            (d: any) => d.kycId === requestId
+          );
+        }
 
         if (directorIndex === -1) {
           logger.warn(
             { eodRequestId, kycRequestId: requestId, organizationId },
-            "[KYC Webhook] Director not found in director_kyc_status by kycId, skipping AML status update"
+            "[KYC Webhook] Director not found in director_kyc_status by eodRequestId or kycId, skipping AML status update"
           );
           return;
         }
 
         const director = directorKycStatus.directors[directorIndex];
+        
+        // Update kycId in director_kyc_status if it's missing or different
+        if (!director.kycId || director.kycId !== requestId) {
+          director.kycId = requestId;
+          // Update director_kyc_status with the new kycId
+          if (portalType === "investor") {
+            await prisma.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+              },
+            });
+          } else {
+            await prisma.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+              },
+            });
+          }
+          logger.debug(
+            { eodRequestId, kycRequestId: requestId, organizationId, directorName: director.name },
+            "[KYC Webhook] Updated kycId in director_kyc_status"
+          );
+        }
 
         // Map RegTank status to our AML status
         let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
@@ -523,13 +555,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           directorAmlStatus.directors = [];
         }
 
-        // Find or create AML status entry for this director
-        const amlIndex = directorAmlStatus.directors.findIndex(
-          (d: any) => d.kycId === requestId
+        // Find or create AML status entry for this director (match by kycId or eodRequestId)
+        let amlIndex = directorAmlStatus.directors.findIndex(
+          (d: any) => d.kycId === requestId || d.eodRequestId === eodRequestId
         );
 
         const amlEntry = {
           kycId: requestId,
+          eodRequestId: eodRequestId,
           name: director.name,
           email: director.email,
           role: director.role,

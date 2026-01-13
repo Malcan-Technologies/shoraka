@@ -387,7 +387,7 @@ export function OnboardingReviewDialog({
               </Button>
               
               {/* Individual AML Screening Status Section (for corporate onboarding) */}
-              {isCompany && application.directorAmlStatus && (
+              {isCompany && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -407,7 +407,7 @@ export function OnboardingReviewDialog({
                       </Tooltip>
                     </div>
                     <DirectorAmlList
-                      directors={application.directorAmlStatus.directors}
+                      directors={application.directorAmlStatus?.directors || []}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
                     />
                   </div>
