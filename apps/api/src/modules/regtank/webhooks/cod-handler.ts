@@ -1403,7 +1403,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.REJECTED
             );
 
-            // Create onboarding log
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
