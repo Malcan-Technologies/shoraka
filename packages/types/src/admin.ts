@@ -499,7 +499,7 @@ export interface DirectorKycStatus {
   name: string;
   email: string;
   role: string; // "Director", "Shareholder", etc.
-  kycStatus: "PENDING" | "LIVENESS_STARTED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
+  kycStatus: "PENDING" | "EMAIL_SENT" | "LIVENESS_STARTED" | "LIVENESS_PASSED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
   kycId?: string;
   lastUpdated: string; // ISO timestamp
 }

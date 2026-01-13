@@ -21,6 +21,8 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
           </Badge>
         );
       case "WAIT_FOR_APPROVAL":
+      case "LIVENESS_PASSED":
+        // LIVENESS_PASSED means liveness check is complete and waiting for approval
         return (
           <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
@@ -28,6 +30,14 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
           </Badge>
         );
       case "LIVENESS_STARTED":
+        return (
+          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
+            In Progress
+          </Badge>
+        );
+      case "EMAIL_SENT":
+        // EMAIL_SENT means onboarding link has been sent, user is in progress
         return (
           <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />

@@ -94,9 +94,9 @@ export function CorporateShareholdersList({
                 <span className="font-medium">Email:</span> {email}
               </div>
             )}
-            <div>
+              <div>
               <span className="font-medium">Role:</span> {role}
-            </div>
+              </div>
             {kybId && (
               <div>
                 <span className="font-medium">KYB ID:</span> {kybId}

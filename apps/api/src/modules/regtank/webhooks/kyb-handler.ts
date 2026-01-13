@@ -322,6 +322,133 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         "[KYB Webhook] KYB approved but not corporate onboarding - skipping status update"
       );
     }
+
+    // Handle KYB webhook for business shareholders (corporate shareholders)
+    // If onboardingId is provided and it's a COD requestId for a business shareholder,
+    // update that business shareholder's KYB AML status
+    if (onboardingId && statusUpper === "APPROVED") {
+      try {
+        // Find all corporate onboardings that might contain this business shareholder
+        const corporateOnboardings = await prisma.regTankOnboarding.findMany({
+          where: {
+            OR: [
+              { investor_organization_id: { not: null } },
+              { issuer_organization_id: { not: null } },
+            ],
+            onboarding_type: "CORPORATE",
+          },
+          include: {
+            investor_organization: {
+              select: {
+                id: true,
+                corporate_entities: true,
+                onboarding_status: true,
+              },
+            },
+            issuer_organization: {
+              select: {
+                id: true,
+                corporate_entities: true,
+                onboarding_status: true,
+              },
+            },
+          },
+        });
+
+        for (const corpOnboarding of corporateOnboardings) {
+          const orgId = corpOnboarding.investor_organization_id || corpOnboarding.issuer_organization_id;
+          const org = corpOnboarding.investor_organization || corpOnboarding.issuer_organization;
+          const portalType = corpOnboarding.portal_type as PortalType;
+
+          if (!org || !orgId || !org.corporate_entities) continue;
+
+          const corporateEntities = org.corporate_entities as any;
+          if (!corporateEntities.corporateShareholders || !Array.isArray(corporateEntities.corporateShareholders)) {
+            continue;
+          }
+
+          // Check if this onboardingId matches any business shareholder's COD requestId
+          let foundShareholder = false;
+          for (const shareholder of corporateEntities.corporateShareholders) {
+            const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
+            
+            if (codRequestId === onboardingId) {
+              foundShareholder = true;
+              
+              // This KYB webhook is for this business shareholder
+              // Update the KYB AML status
+              const kybStatus = status?.toUpperCase() || "";
+              let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+              
+              if (kybStatus === "APPROVED") {
+                amlStatus = "Approved";
+              } else if (kybStatus === "REJECTED") {
+                amlStatus = "Rejected";
+              } else if (kybStatus === "UNRESOLVED") {
+                amlStatus = "Unresolved";
+              }
+
+              const amlMessageStatus = (messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+              const amlRiskScore = riskScore ? parseFloat(String(riskScore)) : null;
+              const amlRiskLevel = riskLevel || null;
+
+              // Update shareholder with KYB ID and AML status
+              (shareholder as any).kybId = requestId; // KYB requestId is the kybId
+              (shareholder as any).kybAmlStatus = {
+                status: amlStatus,
+                messageStatus: amlMessageStatus,
+                riskScore: amlRiskScore,
+                riskLevel: amlRiskLevel,
+                lastUpdated: new Date().toISOString(),
+              };
+
+              // Update the organization
+              if (portalType === "investor") {
+                await prisma.investorOrganization.update({
+                  where: { id: orgId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              } else {
+                await prisma.issuerOrganization.update({
+                  where: { id: orgId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              }
+
+              logger.info(
+                {
+                  kybRequestId: requestId,
+                  codRequestId: onboardingId,
+                  shareholderName: (shareholder as any).name || (shareholder as any).businessName,
+                  organizationId: orgId,
+                  amlStatus,
+                },
+                "[KYB Webhook] Updated business shareholder KYB AML status from KYB webhook"
+              );
+              break;
+            }
+          }
+
+          if (foundShareholder) {
+            break; // Found and updated, no need to check other onboardings
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            kybRequestId: requestId,
+            onboardingId,
+          },
+          "[KYB Webhook] Failed to update business shareholder KYB AML status (non-blocking)"
+        );
+        // Don't throw - allow webhook to complete even if business shareholder update fails
+      }
+    }
   }
 }
 
