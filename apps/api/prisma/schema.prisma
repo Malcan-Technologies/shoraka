@@ -33,6 +33,7 @@ model User {
   loans                    Loan[]
   onboarding_logs          OnboardingLog[]
   organization_memberships OrganizationMember[]
+  product_logs             ProductLog[]
   regtank_onboarding       RegTankOnboarding[]
   security_logs            SecurityLog[]
   sessions                 UserSession[]
@@ -407,6 +408,35 @@ model DocumentLog {
   @@map("document_logs")
 }
 
+model ProductLog {
+  id          String   @id @default(cuid())
+  user_id     String
+  product_id  String?
+  event_type  String
+  ip_address  String?
+  user_agent  String?
+  device_info String?
+  metadata    Json?
+  created_at  DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([product_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("product_logs")
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  workflow   Json
+
+  @@map("products")
+}
+
 enum UserRole {
   INVESTOR
   ISSUER
@@ -461,13 +491,4 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
-}
-
-model Product {
-  id         String   @id @default(cuid())
-  workflow   Json
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("products")
 }

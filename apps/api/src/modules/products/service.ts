@@ -1,13 +1,60 @@
 import { Request } from "express";
-import { ProductRepository } from "./repository";
-import { CreateProductInput, UpdateProductInput, ListProductsQuery } from "./schemas";
+import { ProductRepository, productLogRepository } from "./repository";
+import {
+  CreateProductInput,
+  UpdateProductInput,
+  ListProductsQuery,
+  ProductEventType,
+  GetProductLogsQuery,
+  ExportProductLogsQuery,
+} from "./schemas";
 import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-utils";
 
 export class ProductService {
   private repository: ProductRepository;
+
+  /**
+   * Extract product name from workflow JSON
+   */
+  private extractProductName(workflow: Prisma.JsonValue): string | null {
+    try {
+      if (!workflow || !Array.isArray(workflow) || workflow.length === 0) {
+        return null;
+      }
+
+      const firstStep = workflow[0] as { config?: { type?: { name?: string } } };
+      return firstStep?.config?.type?.name || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async logProductEvent(
+    req: Request,
+    userId: string,
+    productId: string | null,
+    eventType: ProductEventType,
+    metadata: Record<string, unknown>
+  ) {
+    const deviceInfo = getDeviceInfo(req);
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      null;
+
+    await productLogRepository.create({
+      userId,
+      productId,
+      eventType,
+      ipAddress,
+      userAgent: req.headers["user-agent"] ?? null,
+      deviceInfo,
+      metadata,
+    });
+  }
 
   constructor() {
     this.repository = new ProductRepository();
@@ -28,6 +75,21 @@ export class ProductService {
     });
 
     logger.info({ ...metadata, productId: product.id }, "Product created");
+
+    // Log the product creation
+    if (req.user?.user_id) {
+      const productName = this.extractProductName(product.workflow);
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        product.id,
+        "PRODUCT_CREATED",
+        {
+          product_id: product.id,
+          name: productName,
+        }
+      );
+    }
 
     return product;
   }
@@ -96,6 +158,21 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: product.id }, "Product updated");
 
+    // Log the product update
+    if (req.user?.user_id) {
+      const productName = this.extractProductName(product.workflow);
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        product.id,
+        "PRODUCT_UPDATED",
+        {
+          product_id: product.id,
+          name: productName,
+        }
+      );
+    }
+
     return product;
   }
 
@@ -113,8 +190,56 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: id }, "Deleting product");
 
+    // Extract product name before deletion
+    const productName = this.extractProductName(existing.workflow);
+
     await this.repository.delete(id);
 
     logger.info({ ...metadata, productId: id }, "Product deleted");
+
+    // Log the product deletion
+    if (req.user?.user_id) {
+      await this.logProductEvent(
+        req,
+        req.user.user_id,
+        id,
+        "PRODUCT_DELETED",
+        {
+          product_id: id,
+          name: productName,
+        }
+      );
+    }
+  }
+
+  /**
+   * Get product logs with pagination and filters
+   */
+  async getProductLogs(query: GetProductLogsQuery) {
+    const { logs, total } = await productLogRepository.findAll(query);
+
+    return {
+      logs,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount: total,
+        totalPages: Math.ceil(total / query.pageSize),
+      },
+    };
+  }
+
+  /**
+   * Export product logs
+   */
+  async exportProductLogs(query: Omit<ExportProductLogsQuery, "format">) {
+    return productLogRepository.findForExport({
+      search: query.search,
+      eventType: query.eventType,
+      eventTypes: query.eventTypes,
+      dateRange: query.dateRange,
+    });
   }
 }
+
+export const productService = new ProductService();

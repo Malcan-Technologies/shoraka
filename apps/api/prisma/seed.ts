@@ -9,8 +9,8 @@ async function main() {
 
   // Admin user - use environment variable for cognito_sub if provided
   const adminCognitoSub = process.env.ADMIN_COGNITO_SUB || `seed_admin_${Date.now()}`;
-  const adminCognitoUsername = "lucas.deng@malcan.io";
-  const adminEmail = "lucas.deng@malcan.io";
+  const adminCognitoUsername = "max.chng@malcan.io";
+  const adminEmail = "max.chng@malcan.io";
 
   // Check if user already exists by email or cognito_sub
   let existingUser = await prisma.user.findUnique({
@@ -52,8 +52,8 @@ async function main() {
         cognito_sub: adminCognitoSub,
         cognito_username: adminCognitoUsername,
         roles: [UserRole.ADMIN],
-        first_name: "Lucas",
-        last_name: "Deng",
+        first_name: "Max",
+        last_name: "Chng",
         phone: "+60165584792",
           investor_account: [],
           issuer_account: [],

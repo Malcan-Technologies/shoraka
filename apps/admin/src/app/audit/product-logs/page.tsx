@@ -26,7 +26,7 @@ import {
   DropdownMenuLabel,
 } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
-import { useDocumentLogs, useExportDocumentLogs } from "../../../hooks/use-document-logs";
+import { useProductLogs, useExportProductLogs } from "../../../hooks/use-product-logs";
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -34,18 +34,16 @@ import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  DocumentIcon,
+  CubeIcon,
   FunnelIcon,
 } from "@heroicons/react/24/outline";
-import type { DocumentEventType, GetDocumentLogsParams } from "@cashsouk/types";
+import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
 
-const DOCUMENT_EVENT_TYPES: { value: DocumentEventType; label: string; color: string }[] = [
-  { value: "DOCUMENT_CREATED", label: "Created", color: "bg-green-500" },
-  { value: "DOCUMENT_UPDATED", label: "Updated", color: "bg-blue-500" },
-  { value: "DOCUMENT_REPLACED", label: "Replaced", color: "bg-yellow-500" },
-  { value: "DOCUMENT_DELETED", label: "Archived", color: "bg-red-500" },
-  { value: "DOCUMENT_RESTORED", label: "Restored", color: "bg-purple-500" },
+const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
+  { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
+  { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
+  { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
 ];
 
 function formatDate(dateStr: string): string {
@@ -58,21 +56,8 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function formatDocumentType(type: string): string {
-  const typeLabels: Record<string, string> = {
-    TERMS_AND_CONDITIONS: "Terms & Conditions",
-    PRIVACY_POLICY: "Privacy Policy",
-    RISK_DISCLOSURE: "Risk Disclosure",
-    PLATFORM_AGREEMENT: "Platform Agreement",
-    INVESTOR_GUIDE: "Investor Guide",
-    ISSUER_GUIDE: "Issuer Guide",
-    OTHER: "Other",
-  };
-  return typeLabels[type] || type;
-}
-
-function getEventTypeBadge(eventType: DocumentEventType) {
-  const type = DOCUMENT_EVENT_TYPES.find((t) => t.value === eventType);
+function getEventTypeBadge(eventType: ProductEventType) {
+  const type = PRODUCT_EVENT_TYPES.find((t) => t.value === eventType);
   if (!type) return <Badge variant="outline">{eventType}</Badge>;
 
   return (
@@ -91,17 +76,17 @@ function getEventTypeBadge(eventType: DocumentEventType) {
 
 const ITEMS_PER_PAGE = 15;
 
-export default function DocumentLogsPage() {
+export default function ProductLogsPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = React.useState(1);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState<string>("all");
 
-  const getExportLogs = useExportDocumentLogs();
+  const getExportLogs = useExportProductLogs();
 
   const apiParams = React.useMemo(() => {
-    const params: GetDocumentLogsParams = {
+    const params: GetProductLogsParams = {
       page,
       pageSize: ITEMS_PER_PAGE,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
@@ -112,13 +97,13 @@ export default function DocumentLogsPage() {
     }
 
     if (eventTypeFilter !== "all") {
-      params.eventType = eventTypeFilter as DocumentEventType;
+      params.eventType = eventTypeFilter as ProductEventType;
     }
 
     return params;
   }, [page, searchQuery, eventTypeFilter, dateRangeFilter]);
 
-  const { data, isLoading, error } = useDocumentLogs(apiParams);
+  const { data, isLoading, error } = useProductLogs(apiParams);
 
   const logs = data?.logs || [];
   const totalCount = data?.pagination.totalCount || 0;
@@ -137,14 +122,14 @@ export default function DocumentLogsPage() {
   };
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "document-logs"] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "product-logs"] });
   };
 
   const handleExport = async (format: "csv" | "json") => {
     try {
       const blob = await getExportLogs({
         search: searchQuery || undefined,
-        eventType: eventTypeFilter !== "all" ? (eventTypeFilter as DocumentEventType) : undefined,
+        eventType: eventTypeFilter !== "all" ? (eventTypeFilter as ProductEventType) : undefined,
         dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         format,
       });
@@ -152,7 +137,7 @@ export default function DocumentLogsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `document-logs-${new Date().toISOString().split("T")[0]}.${format}`;
+      a.download = `product-logs-${new Date().toISOString().split("T")[0]}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -171,7 +156,7 @@ export default function DocumentLogsPage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Document Logs</h1>
+        <h1 className="text-lg font-semibold">Product Logs</h1>
         <div className="ml-auto">
           <SystemHealthIndicator />
         </div>
@@ -207,7 +192,7 @@ export default function DocumentLogsPage() {
                 <DropdownMenuLabel>Event Type</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={setEventTypeFilter}>
                   <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
-                  {DOCUMENT_EVENT_TYPES.map((type) => (
+                  {PRODUCT_EVENT_TYPES.map((type) => (
                     <DropdownMenuRadioItem key={type.value} value={type.value}>
                       {type.label}
                     </DropdownMenuRadioItem>
@@ -285,7 +270,7 @@ export default function DocumentLogsPage() {
 
           {error && (
             <div className="text-center py-8 text-destructive">
-              Error loading document logs:{" "}
+              Error loading product logs:{" "}
               {error instanceof Error ? error.message : "Unknown error"}
             </div>
           )}
@@ -298,7 +283,7 @@ export default function DocumentLogsPage() {
                   <TableHead>Timestamp</TableHead>
                   <TableHead className="min-w-[180px] max-w-[280px]">Admin</TableHead>
                   <TableHead>Event</TableHead>
-                  <TableHead>Document</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead>IP Address</TableHead>
                   <TableHead>Device</TableHead>
                 </TableRow>
@@ -333,18 +318,18 @@ export default function DocumentLogsPage() {
                       colSpan={6}
                       className="text-center py-12 text-muted-foreground"
                     >
-                      <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No document logs found</p>
+                      <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No product logs found</p>
                       <p className="text-sm mt-1">
-                        Document changes will be recorded here
+                        Product changes will be recorded here
                       </p>
                     </TableCell>
                   </TableRow>
                 ) : (
                   logs.map((log) => {
                     const metadata = log.metadata as Record<string, unknown> | null;
-                    const documentTitle = (metadata?.title as string) || "—";
-                    const documentType = metadata?.type as string | undefined;
+                    const productName = (metadata?.name as string) || (metadata?.title as string) || "—";
+                    const productId = log.product_id || "—";
 
                     return (
                       <TableRow key={log.id}>
@@ -362,14 +347,14 @@ export default function DocumentLogsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {getEventTypeBadge(log.event_type as DocumentEventType)}
+                          {getEventTypeBadge(log.event_type)}
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="max-w-[250px]">
-                            <p className="font-medium text-sm truncate">{documentTitle}</p>
-                            {documentType && (
+                            <p className="font-medium text-sm truncate">{productName}</p>
+                            {productId !== "—" && (
                               <p className="text-xs text-muted-foreground">
-                                {formatDocumentType(documentType)}
+                                ID: {productId}
                               </p>
                             )}
                           </div>
