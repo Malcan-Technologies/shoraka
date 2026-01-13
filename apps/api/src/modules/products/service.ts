@@ -16,6 +16,22 @@ import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-ut
 export class ProductService {
   private repository: ProductRepository;
 
+  /**
+   * Extract product name from workflow JSON
+   */
+  private extractProductName(workflow: Prisma.JsonValue): string | null {
+    try {
+      if (!workflow || !Array.isArray(workflow) || workflow.length === 0) {
+        return null;
+      }
+
+      const firstStep = workflow[0] as { config?: { type?: { name?: string } } };
+      return firstStep?.config?.type?.name || null;
+    } catch {
+      return null;
+    }
+  }
+
   private async logProductEvent(
     req: Request,
     userId: string,
@@ -62,6 +78,7 @@ export class ProductService {
 
     // Log the product creation
     if (req.user?.user_id) {
+      const productName = this.extractProductName(product.workflow);
       await this.logProductEvent(
         req,
         req.user.user_id,
@@ -69,6 +86,7 @@ export class ProductService {
         "PRODUCT_CREATED",
         {
           product_id: product.id,
+          name: productName,
         }
       );
     }
@@ -142,6 +160,7 @@ export class ProductService {
 
     // Log the product update
     if (req.user?.user_id) {
+      const productName = this.extractProductName(product.workflow);
       await this.logProductEvent(
         req,
         req.user.user_id,
@@ -149,6 +168,7 @@ export class ProductService {
         "PRODUCT_UPDATED",
         {
           product_id: product.id,
+          name: productName,
         }
       );
     }
@@ -170,6 +190,9 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: id }, "Deleting product");
 
+    // Extract product name before deletion
+    const productName = this.extractProductName(existing.workflow);
+
     await this.repository.delete(id);
 
     logger.info({ ...metadata, productId: id }, "Product deleted");
@@ -183,6 +206,7 @@ export class ProductService {
         "PRODUCT_DELETED",
         {
           product_id: id,
+          name: productName,
         }
       );
     }
