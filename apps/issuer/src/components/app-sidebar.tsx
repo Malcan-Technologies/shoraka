@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import { APP_VERSION, useOrganization } from "@cashsouk/config";
-import { HomeIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, UserCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -29,7 +29,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { isOnboarded, isPendingApproval, activeOrganization } = useOrganization();
   const isOnboardingPage = pathname === "/onboarding-start";
-  
+
   // Check if organization has a status that allows Account/Profile access
   const allowsAccountAccess = useMemo(() => {
     const status = activeOrganization?.onboardingStatus;
@@ -39,7 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       status === "COMPLETED"
     );
   }, [activeOrganization]);
-  
+
   // Disable all navigation when on onboarding page (adding new organization)
   // Also disable if active org is not onboarded (except for pending approval states)
   const isDisabled = isOnboardingPage || (!isOnboarded && !isPendingApproval);
@@ -149,6 +149,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/">
                       <HomeIcon className="h-4 w-4" />
                       <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <ClockIcon className="h-4 w-4" />
+                    <span>Activity</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton asChild isActive={pathname === "/activity"} tooltip="Activity">
+                    <Link href="/activity">
+                      <ClockIcon className="h-4 w-4" />
+                      <span>Activity</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
