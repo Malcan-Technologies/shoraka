@@ -43,6 +43,7 @@ import {
 } from "@/hooks/use-onboarding-applications";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
+import { CorporateShareholdersList } from "./corporate-shareholders-list";
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -323,6 +324,18 @@ export function OnboardingReviewDialog({
                   </div>
                 </>
               )}
+
+              {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) */}
+              {isCompany && application.corporateEntities?.corporateShareholders && application.corporateEntities.corporateShareholders.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <CorporateShareholdersList
+                      corporateShareholders={application.corporateEntities.corporateShareholders}
+                    />
+                  </div>
+                </>
+              )}
               
               <Separator />
               <div className="text-sm text-muted-foreground">
@@ -395,6 +408,18 @@ export function OnboardingReviewDialog({
                     <DirectorAmlList
                       directors={application.directorAmlStatus.directors}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) */}
+              {isCompany && application.corporateEntities?.corporateShareholders && application.corporateEntities.corporateShareholders.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <CorporateShareholdersList
+                      corporateShareholders={application.corporateEntities.corporateShareholders}
                     />
                   </div>
                 </>

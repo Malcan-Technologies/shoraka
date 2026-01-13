@@ -123,6 +123,188 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         const normalizeKey = (name: string, email: string): string => {
           return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
         };
+
+        // Extract Banking Details (Operational Information)
+        const extractBankingDetails = (codDetails: any) => {
+          const operationalInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Operational Information"
+          );
+          
+          if (!operationalInfo) return null;
+          
+          const content = operationalInfo.content || [];
+          return {
+            bank: content.find((f: any) => f.fieldName === "Bank")?.fieldValue || null,
+            accountNumber: content.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || null,
+            accountType: content.find((f: any) => f.fieldName === "Account type")?.fieldValue || null,
+          };
+        };
+
+        // Extract Transaction Information
+        const extractTransactionInfo = (codDetails: any) => {
+          const transactionInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Transaction Information"
+          );
+          
+          if (!transactionInfo) return null;
+          
+          const content = transactionInfo.content || [];
+          return {
+            sourceOfFunds: content.find((f: any) => f.fieldName === "Source of funds")?.fieldValue || null,
+            sourceOfFundsOther: content.find((f: any) => f.fieldName?.includes("Others"))?.fieldValue || null,
+            netAssetValue: content.find((f: any) => f.fieldName === "Net asset value (RM)")?.fieldValue || null,
+          };
+        };
+
+        // Extract Beneficiary Account Information
+        const extractBeneficiaryInfo = (codDetails: any) => {
+          const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Beneficiary Account Information"
+          );
+          
+          if (!beneficiaryInfo) return null;
+          
+          const content = beneficiaryInfo.content || [];
+          return {
+            pepStatus: content.find((f: any) => f.fieldName?.includes("PEP"))?.fieldValue || null,
+            belongsToGroups: content.find((f: any) => f.fieldName?.includes("belong to any"))?.fieldValue || null,
+          };
+        };
+
+        // Extract Corporate Onboarding Data
+        const extractCorporateOnboardingData = (codDetails: any) => {
+          const basicInfoArea = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Basic Information Setting"
+          );
+          
+          const basicContent = basicInfoArea?.content || [];
+          
+          // Extract basic info
+          const basicInfo = {
+            businessName: basicContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || null,
+            entityType: basicContent.find((f: any) => f.fieldName === "Type of Entity")?.fieldValue || null,
+            ssmRegistrationNumber: basicContent.find((f: any) => f.fieldName === "New SSM registration number")?.fieldValue || null,
+            tin: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
+            industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
+            numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
+          };
+          
+          // Extract entity criteria
+          const entityCriteria = {
+            publicCompanyCriteria: basicContent.find((f: any) => f.fieldName === "Public Company Criteria: ")?.fieldValue || null,
+            trustCompanyCriteria: basicContent.find((f: any) => f.fieldName === "Trust Company Criteria: ")?.fieldValue || null,
+            privateLimitedCriteria: basicContent.find((f: any) => f.fieldName?.includes("Private Limited"))?.fieldValue || null,
+            partnershipCriteria: basicContent.find((f: any) => f.fieldName?.includes("Partnership"))?.fieldValue || null,
+            statutoryBodyCriteria: basicContent.find((f: any) => f.fieldName?.includes("Statutory Body"))?.fieldValue || null,
+            pensionFundCriteria: basicContent.find((f: any) => f.fieldName?.includes("Pension Fund"))?.fieldValue || null,
+          };
+          
+          // Extract addresses
+          const addresses = {
+            business: {
+              line1: basicContent.find((f: any) => f.fieldName === "Address (line 1)")?.fieldValue || null,
+              line2: basicContent.find((f: any) => f.fieldName === "Address (line 2)")?.fieldValue || null,
+              city: basicContent.find((f: any) => f.fieldName === "City")?.fieldValue || null,
+              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code")?.fieldValue || null,
+              state: basicContent.find((f: any) => f.fieldName === "State")?.fieldValue || null,
+              country: basicContent.find((f: any) => f.fieldName === "Country")?.fieldValue || null,
+            },
+            registered: {
+              line1: basicContent.find((f: any) => f.fieldName === "Address line 1 (Registered Address)")?.fieldValue || null,
+              line2: basicContent.find((f: any) => f.fieldName === "Address line 2 (Registered Address)")?.fieldValue || null,
+              city: basicContent.find((f: any) => f.fieldName === "City (Registered Address)")?.fieldValue || null,
+              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code (Registered Address)")?.fieldValue || null,
+              state: basicContent.find((f: any) => f.fieldName === "State (Registered Address)")?.fieldValue || null,
+              country: basicContent.find((f: any) => f.fieldName === "Country (Registered Address)")?.fieldValue || null,
+            },
+          };
+          
+          return {
+            basicInfo,
+            entityCriteria,
+            addresses,
+          };
+        };
+
+        // Extract Required Documents
+        const extractRequiredDocuments = (codDetails: any) => {
+          const documentsArea = codDetails.formContent?.displayAreas?.find(
+            (area: any) => area.displayArea === "Required Documents"
+          );
+          
+          if (!documentsArea) return null;
+          
+          const requiredDocuments = (documentsArea.content || []).map((doc: any) => ({
+            fieldName: doc.fieldName || null,
+            fileName: doc.fileName || null,
+            fileType: doc.fileType || null,
+            url: doc.fieldValue || null,
+          }));
+          
+          return requiredDocuments;
+        };
+
+        // Extract full entity details for corporate_entities
+        const extractCorporateEntities = (codDetails: any) => {
+          const directors = (codDetails.corpIndvDirectors || []).map((director: any) => ({
+            eodRequestId: director.corporateIndividualRequest?.requestId || null,
+            personalInfo: {
+              firstName: director.corporateUserRequestInfo?.firstName || null,
+              lastName: director.corporateUserRequestInfo?.lastName || null,
+              middleName: director.corporateUserRequestInfo?.middleName || null,
+              fullName: director.corporateUserRequestInfo?.fullName || null,
+              email: director.corporateUserRequestInfo?.email || null,
+              formContent: director.corporateUserRequestInfo?.formContent || null,
+            },
+            documents: {
+              documentType: director.corporateDocumentInfo?.documentType || null,
+              countryCode: director.corporateDocumentInfo?.countryCode || null,
+              ocrStatus: director.corporateDocumentInfo?.ocrStatus || null,
+              frontDocumentUrl: director.corporateDocumentInfo?.frontDocumentUrl || null,
+              backDocumentUrl: director.corporateDocumentInfo?.backDocumentUrl || null,
+            },
+            status: director.corporateIndividualRequest?.status || null,
+            approveStatus: director.corporateIndividualRequest?.approveStatus || null,
+            kycType: director.corporateIndividualRequest?.kycType || null,
+            createdDate: director.corporateIndividualRequest?.createdDate || null,
+            updatedDate: director.corporateIndividualRequest?.updatedDate || null,
+          }));
+          
+          const shareholders = (codDetails.corpIndvShareholders || []).map((shareholder: any) => ({
+            eodRequestId: shareholder.corporateIndividualRequest?.requestId || null,
+            personalInfo: {
+              firstName: shareholder.corporateUserRequestInfo?.firstName || null,
+              lastName: shareholder.corporateUserRequestInfo?.lastName || null,
+              middleName: shareholder.corporateUserRequestInfo?.middleName || null,
+              fullName: shareholder.corporateUserRequestInfo?.fullName || null,
+              email: shareholder.corporateUserRequestInfo?.email || null,
+              formContent: shareholder.corporateUserRequestInfo?.formContent || null,
+            },
+            documents: {
+              documentType: shareholder.corporateDocumentInfo?.documentType || null,
+              countryCode: shareholder.corporateDocumentInfo?.countryCode || null,
+              ocrStatus: shareholder.corporateDocumentInfo?.ocrStatus || null,
+              frontDocumentUrl: shareholder.corporateDocumentInfo?.frontDocumentUrl || null,
+              backDocumentUrl: shareholder.corporateDocumentInfo?.backDocumentUrl || null,
+            },
+            status: shareholder.corporateIndividualRequest?.status || null,
+            approveStatus: shareholder.corporateIndividualRequest?.approveStatus || null,
+            kycType: shareholder.corporateIndividualRequest?.kycType || null,
+            createdDate: shareholder.corporateIndividualRequest?.createdDate || null,
+            updatedDate: shareholder.corporateIndividualRequest?.updatedDate || null,
+          }));
+          
+          const corporateShareholders = (codDetails.corpBizShareholders || []).map((corpShareholder: any) => ({
+            // Extract corporate shareholder details if available
+            ...corpShareholder,
+          }));
+          
+          return {
+            directors,
+            shareholders,
+            corporateShareholders,
+          };
+        };
         
         // Extract director information from COD details
         // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
@@ -353,6 +535,14 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           lastSyncedAt: new Date().toISOString(),
         };
 
+        // Extract additional corporate onboarding data
+        const bankingDetails = extractBankingDetails(codDetails);
+        const transactionInfo = extractTransactionInfo(codDetails);
+        const beneficiaryInfo = extractBeneficiaryInfo(codDetails);
+        const corporateOnboardingData = extractCorporateOnboardingData(codDetails);
+        const corporateRequiredDocuments = extractRequiredDocuments(codDetails);
+        const corporateEntities = extractCorporateEntities(codDetails);
+
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
@@ -363,6 +553,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+                bank_account_details: bankingDetails as Prisma.InputJsonValue,
+                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
+                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
+                corporate_entities: corporateEntities as Prisma.InputJsonValue,
               },
             });
 
@@ -407,6 +603,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 onboarding_status: OnboardingStatus.PENDING_APPROVAL,
                 onboarding_approved: true,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+                bank_account_details: bankingDetails as Prisma.InputJsonValue,
+                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
+                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
+                corporate_entities: corporateEntities as Prisma.InputJsonValue,
               },
             });
 
@@ -949,6 +1151,143 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow webhook to complete
         }
 
+        // Refresh document URLs in corporate_entities by fetching EOD details
+        // Documents should be fully processed by the time COD is APPROVED
+        try {
+          logger.info(
+            { requestId, organizationId, portalType },
+            "[COD Webhook] Refreshing document URLs in corporate_entities after COD approval"
+          );
+
+          const org = portalType === "investor"
+            ? await prisma.investorOrganization.findUnique({
+                where: { id: organizationId },
+                select: { corporate_entities: true },
+              })
+            : await prisma.issuerOrganization.findUnique({
+                where: { id: organizationId },
+                select: { corporate_entities: true },
+              });
+
+          if (org && org.corporate_entities) {
+            const corporateEntities = org.corporate_entities as any;
+            let updated = false;
+
+            // Update directors' document URLs
+            if (corporateEntities.directors && Array.isArray(corporateEntities.directors)) {
+              for (const director of corporateEntities.directors) {
+                if (director.eodRequestId && (!director.documents?.frontDocumentUrl || !director.documents?.backDocumentUrl)) {
+                  try {
+                    const eodDetails = await this.apiClient.getEntityOnboardingDetails(director.eodRequestId);
+                    if (eodDetails.corporateDocumentInfo) {
+                      director.documents = {
+                        documentType: eodDetails.corporateDocumentInfo?.documentType || director.documents?.documentType || null,
+                        countryCode: eodDetails.corporateDocumentInfo?.countryCode || director.documents?.countryCode || null,
+                        ocrStatus: eodDetails.corporateDocumentInfo?.ocrStatus || director.documents?.ocrStatus || null,
+                        frontDocumentUrl: eodDetails.corporateDocumentInfo?.frontDocumentUrl || director.documents?.frontDocumentUrl || null,
+                        backDocumentUrl: eodDetails.corporateDocumentInfo?.backDocumentUrl || director.documents?.backDocumentUrl || null,
+                      };
+                      updated = true;
+                      logger.debug(
+                        {
+                          eodRequestId: director.eodRequestId,
+                          hasFrontUrl: !!director.documents.frontDocumentUrl,
+                          hasBackUrl: !!director.documents.backDocumentUrl,
+                        },
+                        "[COD Webhook] Updated director document URLs from EOD details"
+                      );
+                    }
+                  } catch (eodError) {
+                    logger.warn(
+                      {
+                        error: eodError instanceof Error ? eodError.message : String(eodError),
+                        eodRequestId: director.eodRequestId,
+                      },
+                      "[COD Webhook] Failed to fetch EOD details for director document URLs (non-blocking)"
+                    );
+                  }
+                }
+              }
+            }
+
+            // Update shareholders' document URLs
+            if (corporateEntities.shareholders && Array.isArray(corporateEntities.shareholders)) {
+              for (const shareholder of corporateEntities.shareholders) {
+                if (shareholder.eodRequestId && (!shareholder.documents?.frontDocumentUrl || !shareholder.documents?.backDocumentUrl)) {
+                  try {
+                    const eodDetails = await this.apiClient.getEntityOnboardingDetails(shareholder.eodRequestId);
+                    if (eodDetails.corporateDocumentInfo) {
+                      shareholder.documents = {
+                        documentType: eodDetails.corporateDocumentInfo?.documentType || shareholder.documents?.documentType || null,
+                        countryCode: eodDetails.corporateDocumentInfo?.countryCode || shareholder.documents?.countryCode || null,
+                        ocrStatus: eodDetails.corporateDocumentInfo?.ocrStatus || shareholder.documents?.ocrStatus || null,
+                        frontDocumentUrl: eodDetails.corporateDocumentInfo?.frontDocumentUrl || shareholder.documents?.frontDocumentUrl || null,
+                        backDocumentUrl: eodDetails.corporateDocumentInfo?.backDocumentUrl || shareholder.documents?.backDocumentUrl || null,
+                      };
+                      updated = true;
+                      logger.debug(
+                        {
+                          eodRequestId: shareholder.eodRequestId,
+                          hasFrontUrl: !!shareholder.documents.frontDocumentUrl,
+                          hasBackUrl: !!shareholder.documents.backDocumentUrl,
+                        },
+                        "[COD Webhook] Updated shareholder document URLs from EOD details"
+                      );
+                    }
+                  } catch (eodError) {
+                    logger.warn(
+                      {
+                        error: eodError instanceof Error ? eodError.message : String(eodError),
+                        eodRequestId: shareholder.eodRequestId,
+                      },
+                      "[COD Webhook] Failed to fetch EOD details for shareholder document URLs (non-blocking)"
+                    );
+                  }
+                }
+              }
+            }
+
+            // Update organization if any documents were refreshed
+            if (updated) {
+              if (portalType === "investor") {
+                await prisma.investorOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              } else {
+                await prisma.issuerOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                  },
+                });
+              }
+
+              logger.info(
+                { requestId, organizationId },
+                "[COD Webhook] ✓ Refreshed document URLs in corporate_entities after COD approval"
+              );
+            } else {
+              logger.debug(
+                { requestId, organizationId },
+                "[COD Webhook] No document URLs to refresh in corporate_entities (already present or no EOD requestIds)"
+              );
+            }
+          }
+        } catch (docRefreshError) {
+          logger.error(
+            {
+              error: docRefreshError instanceof Error ? docRefreshError.message : String(docRefreshError),
+              requestId,
+              organizationId,
+            },
+            "[COD Webhook] Failed to refresh document URLs in corporate_entities (non-blocking)"
+          );
+          // Don't throw - allow webhook to complete even if document refresh fails
+        }
+
         // When COD is APPROVED and KYB exists, update to PENDING_AML
         // Set onboarding_approved = true if not already set
         if (portalType === "investor") {
@@ -1064,7 +1403,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               OnboardingStatus.REJECTED
             );
 
-            // Create onboarding log
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
