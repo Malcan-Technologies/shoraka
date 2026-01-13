@@ -56,6 +56,8 @@ import type {
   ProductImageDownloadUrlResponse,
   RequestProductImageReplaceUrlInput,
   RequestProductImageReplaceUrlResponse,
+  GetActivitiesParams,
+  ActivitiesResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -915,6 +917,21 @@ export class ApiClient {
       `/v1/products/images/replace-url`,
       data
     );
+  }
+
+  // Activities
+  async getActivities(params: GetActivitiesParams): Promise<ApiResponse<ActivitiesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("limit", String(params.limit));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.type) queryParams.append("type", params.type);
+    if (params.types && params.types.length > 0)
+      queryParams.append("types", params.types.join(","));
+    if (params.startDate) queryParams.append("startDate", params.startDate);
+    if (params.endDate) queryParams.append("endDate", params.endDate);
+
+    return this.get<ActivitiesResponse>(`/v1/activities?${queryParams.toString()}`);
   }
 }
 

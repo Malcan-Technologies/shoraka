@@ -63,5 +63,56 @@ export interface Investment {
   updatedAt: string;
 }
 
+export type ActivityType =
+  | "LOGIN"
+  | "LOGOUT"
+  | "LOGIN_FAILED"
+  | "NEW_DEVICE_LOGIN"
+  | "PASSWORD_CHANGED"
+  | "EMAIL_VERIFIED"
+  | "SECURITY_ALERT"
+  | "PROFILE_UPDATED"
+  | "SETTINGS_CHANGED"
+  | "DEPOSIT"
+  | "WITHDRAWAL"
+  | "INVESTMENT"
+  | "TRANSACTION_COMPLETED"
+  | "ONBOARDING_STARTED"
+  | "ONBOARDING_COMPLETED"
+  | "KYC_SUBMITTED";
+
+export interface Activity {
+  id: string;
+  user_id: string;
+  activity_type: ActivityType;
+  title: string;
+  description: string | null;
+  metadata: any | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  created_at: string;
+}
+
+export interface GetActivitiesParams {
+  page: number;
+  limit: number;
+  search?: string;
+  type?: ActivityType;
+  types?: ActivityType[];
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ActivitiesResponse {
+  activities: Activity[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
 export * from "./admin";
 
