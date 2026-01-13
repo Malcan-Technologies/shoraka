@@ -196,6 +196,7 @@ export function OnboardingStatusCard({
           <div className="mt-6 pt-6 border-t">
             <CorporateShareholdersList
               corporateShareholders={organization.corporateEntities.corporateShareholders}
+              status={organization.onboardingStatus}
             />
           </div>
         )}
@@ -218,6 +219,7 @@ export function OnboardingStatusCard({
           <div className="mt-6 pt-6 border-t">
             <CorporateShareholdersList
               corporateShareholders={organization.corporateEntities.corporateShareholders}
+              status={organization.onboardingStatus}
             />
           </div>
         )}
