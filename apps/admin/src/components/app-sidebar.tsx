@@ -104,7 +104,7 @@ const navAudit = [
   { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
   { title: "Onboarding Logs", url: "/audit/onboarding-logs", icon: UserCircleIcon },
   { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
-  { title: "Products Log", url: "/audit/products-logs", icon: CubeIcon },
+  { title: "Product Logs", url: "/audit/product-logs", icon: CubeIcon },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
