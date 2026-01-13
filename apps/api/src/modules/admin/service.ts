@@ -3052,19 +3052,148 @@ export class AdminService {
         lastSyncedAt: new Date().toISOString(),
       };
 
+      // Refresh corporate shareholders status from COD details
+      let corporateEntitiesUpdated = false;
+      let updatedCorporateEntities: any = null;
+      const existingOrg = isInvestor
+        ? await prisma.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { corporate_entities: true },
+          })
+        : await prisma.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { corporate_entities: true },
+          });
+
+      if (existingOrg && codDetails.corpBizShareholders) {
+        const corporateEntities = (existingOrg.corporate_entities as any) || {
+          directors: [],
+          shareholders: [],
+          corporateShareholders: [],
+        };
+        let updated = false;
+
+        // Update corporate shareholders with latest status from COD details
+        if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
+          const codCorpShareholders = codDetails.corpBizShareholders as any[];
+
+          // Create a map of existing corporate shareholders by COD requestId or company name
+          const existingMap = new Map<string, any>();
+          for (const existing of corporateEntities.corporateShareholders) {
+            const key =
+              existing.corporateOnboardingRequest?.requestId ||
+              existing.requestId ||
+              existing.name ||
+              "";
+            if (key) {
+              existingMap.set(key, existing);
+            }
+          }
+
+          // Update existing corporate shareholders with latest status from COD details
+          for (const codShareholder of codCorpShareholders) {
+            const codRequestId =
+              codShareholder.corporateOnboardingRequest?.requestId ||
+              codShareholder.requestId ||
+              "";
+            const codName = codShareholder.name || codShareholder.businessName || "";
+            const key = codRequestId || codName;
+
+            if (key) {
+              const existing = existingMap.get(key);
+              if (existing) {
+                // Update status and other fields from COD details
+                const updatedShareholder = {
+                  ...existing,
+                  ...codShareholder,
+                  // Preserve any fields we want to keep from existing
+                  lastUpdated: new Date().toISOString(),
+                };
+
+                // Replace in array
+                const index = corporateEntities.corporateShareholders.findIndex(
+                  (s: any) =>
+                    (s.corporateOnboardingRequest?.requestId || s.requestId || s.name || "") === key
+                );
+                if (index !== -1) {
+                  corporateEntities.corporateShareholders[index] = updatedShareholder;
+                  updated = true;
+                  logger.debug(
+                    {
+                      codRequestId,
+                      name: codName,
+                      status:
+                        codShareholder.status ||
+                        codShareholder.corporateOnboardingRequest?.status,
+                    },
+                    "[Admin Refresh] Updated corporate shareholder status from COD details"
+                  );
+                }
+              } else {
+                // New corporate shareholder - add it
+                corporateEntities.corporateShareholders.push({
+                  ...codShareholder,
+                  lastUpdated: new Date().toISOString(),
+                });
+                updated = true;
+                logger.debug(
+                  {
+                    codRequestId,
+                    name: codName,
+                  },
+                  "[Admin Refresh] Added new corporate shareholder from COD details"
+                );
+              }
+            }
+          }
+        } else if (
+          codDetails.corpBizShareholders &&
+          Array.isArray(codDetails.corpBizShareholders) &&
+          codDetails.corpBizShareholders.length > 0
+        ) {
+          // No existing corporate shareholders, but COD has them - initialize the array
+          corporateEntities.corporateShareholders = (codDetails.corpBizShareholders as any[]).map(
+            (corpShareholder: any) => ({
+              ...corpShareholder,
+              lastUpdated: new Date().toISOString(),
+            })
+          );
+          updated = true;
+          logger.debug(
+            {
+              count: codDetails.corpBizShareholders.length,
+            },
+            "[Admin Refresh] Initialized corporate shareholders array from COD details"
+          );
+        }
+
+        if (updated) {
+          corporateEntitiesUpdated = true;
+          updatedCorporateEntities = corporateEntities;
+        }
+      }
+
+      // Update organization with refreshed director KYC statuses and corporate entities
+      const updateData: {
+        director_kyc_status: Prisma.InputJsonValue;
+        corporate_entities?: Prisma.InputJsonValue;
+      } = {
+        director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+      };
+
+      if (corporateEntitiesUpdated && updatedCorporateEntities) {
+        updateData.corporate_entities = updatedCorporateEntities as Prisma.InputJsonValue;
+      }
+
       if (isInvestor) {
         await prisma.investorOrganization.update({
           where: { id: org.id },
-          data: {
-            director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
-          },
+          data: updateData,
         });
       } else {
         await prisma.issuerOrganization.update({
           where: { id: org.id },
-          data: {
-            director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
-          },
+          data: updateData,
         });
       }
 
@@ -3075,13 +3204,14 @@ export class AdminService {
           organizationId: org.id,
           adminUserId,
           directorsUpdated: directors.length,
+          corporateShareholdersUpdated: corporateEntitiesUpdated,
         },
-        "Refreshed corporate onboarding director KYC statuses"
+        "Refreshed corporate onboarding director KYC statuses and corporate shareholders"
       );
 
       return {
         success: true,
-        message: `Successfully refreshed ${directors.length} director KYC status${directors.length !== 1 ? "es" : ""}.`,
+        message: `Successfully refreshed ${directors.length} director KYC status${directors.length !== 1 ? "es" : ""}${corporateEntitiesUpdated ? " and corporate shareholders status" : ""}.`,
         directorsUpdated: directors.length,
       };
     } catch (error) {
