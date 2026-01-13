@@ -9,36 +9,37 @@ datasource db {
 }
 
 model User {
-  user_id                       String                           @id @unique @db.VarChar(5)
-  first_name                    String
-  last_name                     String
-  phone                         String?
-  email                         String                           @unique
-  cognito_sub                   String                           @unique @db.VarChar(255)
-  cognito_username              String                           @db.VarChar(255)
-  investor_account              String[]                         @default([])
-  issuer_account                String[]                         @default([])
-  password_changed_at           DateTime?
-  created_at                    DateTime                         @default(now())
-  updated_at                    DateTime                         @updatedAt
-  email_verified                Boolean                          @default(false)
-  roles                         UserRole[]
-  access_logs                   AccessLog[]
-  sent_admin_invitations        AdminInvitation[]                @relation("SentAdminInvitations")
-  sent_investor_org_invitations InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
-  sent_issuer_org_invitations   IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
-  admin                         Admin?
-  document_logs                 DocumentLog[]
-  investments                   Investment[]
-  investor_organizations        InvestorOrganization[]
-  issuer_organizations          IssuerOrganization[]
-  loans                         Loan[]
-  onboarding_logs               OnboardingLog[]
-  organization_memberships      OrganizationMember[]
-  product_logs                  ProductLog[]
-  regtank_onboarding            RegTankOnboarding[]
-  security_logs                 SecurityLog[]
-  sessions                      UserSession[]
+  user_id                  String                 @id @unique @db.VarChar(5)
+  first_name               String
+  last_name                String
+  phone                    String?
+  email                    String                 @unique
+  cognito_sub              String                 @unique @db.VarChar(255)
+  cognito_username         String                 @db.VarChar(255)
+  investor_account         String[]               @default([])
+  issuer_account           String[]               @default([])
+  password_changed_at      DateTime?
+  created_at               DateTime               @default(now())
+  updated_at               DateTime               @updatedAt
+  email_verified           Boolean                @default(false)
+  roles                    UserRole[]
+  access_logs              AccessLog[]
+  sent_admin_invitations           AdminInvitation[]                        @relation("SentAdminInvitations")
+  sent_investor_org_invitations    InvestorOrganizationInvitation[]         @relation("SentInvestorOrgInvitations")
+  sent_issuer_org_invitations       IssuerOrganizationInvitation[]          @relation("SentIssuerOrgInvitations")
+  admin                            Admin?
+  document_logs                    DocumentLog[]
+  investments                      Investment[]
+  investor_organizations           InvestorOrganization[]
+  issuer_organizations             IssuerOrganization[]
+  loans                            Loan[]
+  onboarding_logs                  OnboardingLog[]
+  organization_memberships         OrganizationMember[]
+  product_logs                     ProductLog[]
+  regtank_onboarding               RegTankOnboarding[]
+  security_logs                    SecurityLog[]
+  sessions                         UserSession[]
+  activities                       Activity[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -182,6 +183,7 @@ model OnboardingLog {
   metadata    Json?
   created_at  DateTime @default(now())
   user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
 
   @@index([user_id])
   @@index([role])
@@ -402,6 +404,7 @@ model RegTankOnboarding {
   issuer_organization      IssuerOrganization?   @relation("RegTankOnboardingToIssuerOrg", fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
+
   @@index([user_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
@@ -514,6 +517,26 @@ model Product {
   @@map("products")
 }
 
+model Activity {
+  id            String       @id @default(cuid())
+  user_id       String
+  activity_type ActivityType
+  title         String
+  description   String?
+  metadata      Json?
+  ip_address    String?
+  user_agent    String?
+  device_info   String?
+  created_at    DateTime     @default(now())
+  user          User         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([activity_type])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("activities")
+}
+
 enum UserRole {
   INVESTOR
   ISSUER
@@ -567,4 +590,32 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
+}
+
+enum ActivityType {
+  // Authentication
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  NEW_DEVICE_LOGIN
+
+  // Security
+  PASSWORD_CHANGED
+  EMAIL_VERIFIED
+  SECURITY_ALERT
+
+  // Profile
+  PROFILE_UPDATED
+  SETTINGS_CHANGED
+
+  // Financial
+  DEPOSIT
+  WITHDRAWAL
+  INVESTMENT
+  TRANSACTION_COMPLETED
+
+  // Onboarding
+  ONBOARDING_STARTED
+  ONBOARDING_COMPLETED
+  KYC_SUBMITTED
 }
