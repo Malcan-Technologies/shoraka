@@ -118,7 +118,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         );
 
         const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
-        
+
         // Helper function to normalize name+email for duplicate detection
         const normalizeKey = (name: string, email: string): string => {
           return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
@@ -418,10 +418,17 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   kycStatus = "APPROVED";
                 } else if (eodStatus === "REJECTED") {
                   kycStatus = "REJECTED";
+                } else if (eodStatus === "PENDING" && eodDetails.kycRequestInfo?.kycId) {
+                  // If status is PENDING but kycId exists, it means KYC is completed and waiting for approval
+                  kycStatus = "WAIT_FOR_APPROVAL";
                 }
                 
                 if (eodDetails.kycRequestInfo?.kycId) {
                   kycId = eodDetails.kycRequestInfo.kycId;
+                  // If we have a kycId but status is still PENDING, it means KYC is completed
+                  if (kycStatus === "PENDING") {
+                    kycStatus = "WAIT_FOR_APPROVAL";
+                  }
                 }
               } catch (eodError) {
                 logger.warn(
@@ -432,6 +439,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   },
                   "Failed to fetch EOD details for shareholder (non-blocking)"
                 );
+              }
+            } else if (shareholder.kycRequestInfo?.kycId) {
+              // If we have kycId from COD response but no EOD request ID, KYC is likely completed
+              if (kycStatus === "PENDING") {
+                kycStatus = "WAIT_FOR_APPROVAL";
               }
             }
             
@@ -570,7 +582,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 eventType: "CORPORATE_ONBOARDING_APPROVED",
                 portal: portalType,
                 metadata: {
-                  organizationId,
+              organizationId,
                   requestId,
                   previousStatus,
                   newStatus: OnboardingStatus.PENDING_APPROVAL,
@@ -1420,22 +1432,61 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               );
             }
 
-            // If in PENDING_AML stage (COD approved with KYB), fetch KYB AML status for corporate shareholders with kybId
-            // Check if we have a kybId which indicates we're in PENDING_AML stage
+            // If in PENDING_AML stage (COD approved with KYB), fetch KYB AML status for corporate shareholders
+            // Flow: codRequestId -> GET /v3/onboarding/corp/query?requestId={codRequestId} -> kybId -> GET /v3/kyb/query?requestId={kybId} -> AML status
             if (finalKybId && corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
               let kybAmlUpdated = false;
               
               for (const shareholder of corporateEntities.corporateShareholders) {
-                const kybId = (shareholder as any).kybId || (shareholder as any).corporateOnboardingRequest?.kybId;
+                // Get codRequestId from the shareholder
+                const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
                 
-                if (kybId && !(shareholder as any).kybAmlStatus) {
+                if (codRequestId && !(shareholder as any).kybAmlStatus) {
                   try {
                     logger.debug(
-                      { kybId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
+                      { codRequestId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
+                      "[COD Webhook] Fetching COD details for corporate shareholder to get KYB ID"
+                    );
+
+                    // Step 1: Get COD details for this business shareholder to extract kybId
+                    const shareholderCodDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
+                    
+                    // Extract kybId from COD details
+                    let extractedKybId: string | null = null;
+                    
+                    // Try to get kybId from kybRequestDto
+                    if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
+                      const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
+                      if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
+                        const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
+                        if (kybDto.kybId && typeof kybDto.kybId === "string") {
+                          extractedKybId = kybDto.kybId;
+                        }
+                      }
+                      // Fallback: try direct kybId field
+                      if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
+                        extractedKybId = codDetailsObj.kybId;
+                      }
+                    }
+
+                    if (!extractedKybId) {
+                      logger.warn(
+                        {
+                          codRequestId,
+                          shareholderName: (shareholder as any).name || (shareholder as any).businessName,
+                        },
+                        "[COD Webhook] KYB ID not found in corporate shareholder COD details, skipping AML status fetch"
+                      );
+                      continue;
+                    }
+
+                    logger.debug(
+                      { codRequestId, kybId: extractedKybId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
                       "[COD Webhook] Fetching KYB AML status for corporate shareholder"
                     );
 
-                    const kybStatusResponse = await this.apiClient.queryKYBStatus(kybId);
+                    // Step 2: Query KYB status to get AML status
+                    const kybStatusResponse = await this.apiClient.queryKYBStatus(extractedKybId);
                     
                     // Extract AML status from KYB response (similar structure to KYC)
                     const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
@@ -1453,7 +1504,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                     const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
                     const amlRiskLevel = kybStatusResponse.riskLevel || null;
 
-                    // Update shareholder with KYB AML status
+                    // Update shareholder with KYB ID and AML status
+                    (shareholder as any).kybId = extractedKybId;
                     (shareholder as any).kybAmlStatus = {
                       status: amlStatus,
                       messageStatus: amlMessageStatus,
@@ -1465,7 +1517,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                     kybAmlUpdated = true;
                     logger.debug(
                       {
-                        kybId,
+                        codRequestId,
+                        kybId: extractedKybId,
                         shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                         amlStatus,
                         amlMessageStatus,
@@ -1476,7 +1529,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                     logger.warn(
                       {
                         error: kybError instanceof Error ? kybError.message : String(kybError),
-                        kybId,
+                        codRequestId,
                         shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                       },
                       "[COD Webhook] Failed to fetch KYB AML status for corporate shareholder (non-blocking)"

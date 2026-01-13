@@ -3172,21 +3172,61 @@ export class AdminService {
           updatedCorporateEntities = corporateEntities;
         }
 
-        // If organization is in PENDING_AML stage, fetch KYB AML status for corporate shareholders with kybId
+        // If organization is in PENDING_AML stage, fetch KYB AML status for corporate shareholders
+        // Flow: codRequestId -> GET /v3/onboarding/corp/query?requestId={codRequestId} -> kybId -> GET /v3/kyb/query?requestId={kybId} -> AML status
         if (org.onboarding_status === "PENDING_AML" && corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
           let kybAmlUpdated = false;
           
           for (const shareholder of corporateEntities.corporateShareholders) {
-            const kybId = (shareholder as any).kybId || (shareholder as any).corporateOnboardingRequest?.kybId;
+            // Get codRequestId from the shareholder
+            const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
             
-            if (kybId && !(shareholder as any).kybAmlStatus) {
+            if (codRequestId && !(shareholder as any).kybAmlStatus) {
               try {
                 logger.debug(
-                  { kybId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
+                  { codRequestId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
+                  "[Admin Refresh] Fetching COD details for corporate shareholder to get KYB ID"
+                );
+
+                // Step 1: Get COD details for this business shareholder to extract kybId
+                const shareholderCodDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
+                
+                // Extract kybId from COD details
+                let extractedKybId: string | null = null;
+                
+                // Try to get kybId from kybRequestDto
+                if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
+                  const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
+                  if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
+                    const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
+                    if (kybDto.kybId && typeof kybDto.kybId === "string") {
+                      extractedKybId = kybDto.kybId;
+                    }
+                  }
+                  // Fallback: try direct kybId field
+                  if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
+                    extractedKybId = codDetailsObj.kybId;
+                  }
+                }
+
+                if (!extractedKybId) {
+                  logger.warn(
+                    {
+                      codRequestId,
+                      shareholderName: (shareholder as any).name || (shareholder as any).businessName,
+                    },
+                    "[Admin Refresh] KYB ID not found in corporate shareholder COD details, skipping AML status fetch"
+                  );
+                  continue;
+                }
+
+                logger.debug(
+                  { codRequestId, kybId: extractedKybId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
                   "[Admin Refresh] Fetching KYB AML status for corporate shareholder"
                 );
 
-                const kybStatusResponse = await this.regTankApiClient.queryKYBStatus(kybId);
+                // Step 2: Query KYB status to get AML status
+                const kybStatusResponse = await this.regTankApiClient.queryKYBStatus(extractedKybId);
                 
                 // Extract AML status from KYB response (similar structure to KYC)
                 const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
@@ -3204,7 +3244,8 @@ export class AdminService {
                 const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
                 const amlRiskLevel = kybStatusResponse.riskLevel || null;
 
-                // Update shareholder with KYB AML status
+                // Update shareholder with KYB ID and AML status
+                (shareholder as any).kybId = extractedKybId;
                 (shareholder as any).kybAmlStatus = {
                   status: amlStatus,
                   messageStatus: amlMessageStatus,
@@ -3216,7 +3257,8 @@ export class AdminService {
                 kybAmlUpdated = true;
                 logger.debug(
                   {
-                    kybId,
+                    codRequestId,
+                    kybId: extractedKybId,
                     shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                     amlStatus,
                     amlMessageStatus,
@@ -3227,7 +3269,7 @@ export class AdminService {
                 logger.warn(
                   {
                     error: kybError instanceof Error ? kybError.message : String(kybError),
-                    kybId,
+                    codRequestId,
                     shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                   },
                   "[Admin Refresh] Failed to fetch KYB AML status for corporate shareholder (non-blocking)"
