@@ -132,7 +132,6 @@ export function CorporateShareholdersList({
 
     // In PENDING_AML stage, show KYB AML status instead of COD status
     const isPendingAml = status === "PENDING_AML";
-    const displayStatus = isPendingAml && kybAmlStatus ? kybAmlStatus : codStatus;
     const statusBadge = isPendingAml && kybAmlStatus 
       ? getKybAmlStatusBadge(kybAmlStatus)
       : getStatusBadge(codStatus);
