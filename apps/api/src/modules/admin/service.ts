@@ -3171,6 +3171,77 @@ export class AdminService {
           corporateEntitiesUpdated = true;
           updatedCorporateEntities = corporateEntities;
         }
+
+        // If organization is in PENDING_AML stage, fetch KYB AML status for corporate shareholders with kybId
+        if (org.onboarding_status === "PENDING_AML" && corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
+          let kybAmlUpdated = false;
+          
+          for (const shareholder of corporateEntities.corporateShareholders) {
+            const kybId = (shareholder as any).kybId || (shareholder as any).corporateOnboardingRequest?.kybId;
+            
+            if (kybId && !(shareholder as any).kybAmlStatus) {
+              try {
+                logger.debug(
+                  { kybId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
+                  "[Admin Refresh] Fetching KYB AML status for corporate shareholder"
+                );
+
+                const kybStatusResponse = await this.regTankApiClient.queryKYBStatus(kybId);
+                
+                // Extract AML status from KYB response (similar structure to KYC)
+                const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
+                let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+                
+                if (kybStatus === "APPROVED") {
+                  amlStatus = "Approved";
+                } else if (kybStatus === "REJECTED") {
+                  amlStatus = "Rejected";
+                } else if (kybStatus === "UNRESOLVED") {
+                  amlStatus = "Unresolved";
+                }
+
+                const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+                const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
+                const amlRiskLevel = kybStatusResponse.riskLevel || null;
+
+                // Update shareholder with KYB AML status
+                (shareholder as any).kybAmlStatus = {
+                  status: amlStatus,
+                  messageStatus: amlMessageStatus,
+                  riskScore: amlRiskScore,
+                  riskLevel: amlRiskLevel,
+                  lastUpdated: new Date().toISOString(),
+                };
+
+                kybAmlUpdated = true;
+                logger.debug(
+                  {
+                    kybId,
+                    shareholderName: (shareholder as any).name || (shareholder as any).businessName,
+                    amlStatus,
+                    amlMessageStatus,
+                  },
+                  "[Admin Refresh] Fetched KYB AML status for corporate shareholder"
+                );
+              } catch (kybError) {
+                logger.warn(
+                  {
+                    error: kybError instanceof Error ? kybError.message : String(kybError),
+                    kybId,
+                    shareholderName: (shareholder as any).name || (shareholder as any).businessName,
+                  },
+                  "[Admin Refresh] Failed to fetch KYB AML status for corporate shareholder (non-blocking)"
+                );
+                // Continue with other shareholders even if one fails
+              }
+            }
+          }
+
+          if (kybAmlUpdated) {
+            corporateEntitiesUpdated = true;
+            updatedCorporateEntities = corporateEntities;
+          }
+        }
       }
 
       // Update organization with refreshed director KYC statuses and corporate entities

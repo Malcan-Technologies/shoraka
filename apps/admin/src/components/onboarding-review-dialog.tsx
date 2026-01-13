@@ -332,6 +332,7 @@ export function OnboardingReviewDialog({
                   <div className="space-y-3">
                     <CorporateShareholdersList
                       corporateShareholders={application.corporateEntities.corporateShareholders}
+                      status={application.status}
                     />
                   </div>
                 </>
@@ -420,6 +421,7 @@ export function OnboardingReviewDialog({
                   <div className="space-y-3">
                     <CorporateShareholdersList
                       corporateShareholders={application.corporateEntities.corporateShareholders}
+                      status={application.status}
                     />
                   </div>
                 </>

@@ -397,6 +397,17 @@ export class RegTankAPIClient {
   }
 
   /**
+   * Query KYB status by kybId
+   * GET /v3/kyb/query?requestId={kybId}
+   * Returns AML screening status, risk score, and message status for business entities
+   */
+  async queryKYBStatus(kybId: string): Promise<any> {
+    logger.debug({ kybId }, "Querying RegTank KYB status");
+    
+    return this.makeRequest(`/v3/kyb/query?requestId=${kybId}`);
+  }
+
+  /**
    * Get onboarding settings
    * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.6-individual-onboarding-endpoint-json-get-setting
    */
