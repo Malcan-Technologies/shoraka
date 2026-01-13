@@ -389,6 +389,7 @@ export class RegTankRepository {
             sophisticated_investor_reason: true,
             director_kyc_status: true,
             director_aml_status: true,
+            corporate_entities: true,
           },
         },
         issuer_organization: {
@@ -406,6 +407,7 @@ export class RegTankRepository {
             kyc_id: true,
             director_kyc_status: true,
             director_aml_status: true,
+            corporate_entities: true,
           },
         },
       },
@@ -486,6 +488,7 @@ export class RegTankRepository {
               sophisticated_investor_reason: true,
               director_kyc_status: true,
               director_aml_status: true,
+              corporate_entities: true,
             },
           },
           issuer_organization: {
@@ -503,6 +506,7 @@ export class RegTankRepository {
               kyc_id: true,
               director_kyc_status: true,
               director_aml_status: true,
+              corporate_entities: true,
             },
           },
         },
