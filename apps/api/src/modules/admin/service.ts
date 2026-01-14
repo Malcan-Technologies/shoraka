@@ -3474,6 +3474,7 @@ export class AdminService {
 
       const directorsAmlStatus: Array<{
         kycId: string;
+        eodRequestId?: string;
         name: string;
         email: string;
         role: string;
@@ -3484,13 +3485,48 @@ export class AdminService {
         lastUpdated: string;
       }> = [];
 
-      // Fetch AML status for each director with a kycId
+      // Get existing director_aml_status to merge with
+      const existingDirectorAmlStatus = org.director_aml_status as any;
+      const existingDirectorsMap = new Map<string, any>();
+      if (existingDirectorAmlStatus?.directors && Array.isArray(existingDirectorAmlStatus.directors)) {
+        for (const existing of existingDirectorAmlStatus.directors) {
+          // Use eodRequestId as key if available, otherwise use name+email
+          const key = existing.eodRequestId || `${existing.name}|${existing.email}`;
+          existingDirectorsMap.set(key, existing);
+        }
+      }
+
+      // Fetch AML status for each director/shareholder
       for (const director of directorKycStatus.directors) {
+        const key = director.eodRequestId || `${director.name}|${director.email}`;
+        const existingAml = existingDirectorsMap.get(key);
+
+        // If no kycId, try to preserve existing AML status or skip
         if (!director.kycId) {
-          logger.debug(
-            { directorName: director.name, eodRequestId: director.eodRequestId },
-            "Skipping director without kycId"
-          );
+          if (existingAml) {
+            // Preserve existing AML status for shareholders without kycId
+            directorsAmlStatus.push({
+              kycId: existingAml.kycId || "",
+              eodRequestId: director.eodRequestId,
+              name: director.name,
+              email: director.email,
+              role: director.role,
+              amlStatus: existingAml.amlStatus || "Pending",
+              amlMessageStatus: existingAml.amlMessageStatus || "PENDING",
+              amlRiskScore: existingAml.amlRiskScore,
+              amlRiskLevel: existingAml.amlRiskLevel,
+              lastUpdated: existingAml.lastUpdated || new Date().toISOString(),
+            });
+            logger.debug(
+              { directorName: director.name, eodRequestId: director.eodRequestId },
+              "Preserved existing AML status for director/shareholder without kycId"
+            );
+          } else {
+            logger.debug(
+              { directorName: director.name, eodRequestId: director.eodRequestId },
+              "Skipping director/shareholder without kycId and no existing AML status"
+            );
+          }
           continue;
         }
 
@@ -3523,6 +3559,7 @@ export class AdminService {
 
           directorsAmlStatus.push({
             kycId: director.kycId,
+            eodRequestId: director.eodRequestId,
             name: director.name,
             email: director.email,
             role: director.role,
@@ -3553,11 +3590,26 @@ export class AdminService {
             },
             "Failed to fetch AML status for director (non-blocking)"
           );
+          // Preserve existing AML status if available
+          if (existingAml) {
+            directorsAmlStatus.push({
+              kycId: director.kycId,
+              eodRequestId: director.eodRequestId,
+              name: director.name,
+              email: director.email,
+              role: director.role,
+              amlStatus: existingAml.amlStatus || "Pending",
+              amlMessageStatus: existingAml.amlMessageStatus || "PENDING",
+              amlRiskScore: existingAml.amlRiskScore,
+              amlRiskLevel: existingAml.amlRiskLevel,
+              lastUpdated: existingAml.lastUpdated || new Date().toISOString(),
+            });
+          }
           // Continue with other directors even if one fails
         }
       }
 
-      // Update organization with refreshed director AML statuses
+      // Update organization with refreshed director AML statuses (merged with existing)
       const directorAmlStatus = {
         directors: directorsAmlStatus,
         lastSyncedAt: new Date().toISOString(),

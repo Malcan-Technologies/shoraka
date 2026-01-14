@@ -325,8 +325,9 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
     // Handle KYB webhook for business shareholders (corporate shareholders)
     // If onboardingId is provided and it's a COD requestId for a business shareholder,
-    // update that business shareholder's KYB AML status
-    if (onboardingId && statusUpper === "APPROVED") {
+    // or if kybId matches a stored business shareholder kybId, update that business shareholder's KYB AML status
+    // Process all statuses, not just APPROVED
+    if (onboardingId || requestId) {
       try {
         // Find all corporate onboardings that might contain this business shareholder
         const corporateOnboardings = await prisma.regTankOnboarding.findMany({
@@ -368,11 +369,14 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           }
 
           // Check if this onboardingId matches any business shareholder's COD requestId
+          // OR if the kybId (requestId) matches a stored business shareholder kybId
           let foundShareholder = false;
           for (const shareholder of corporateEntities.corporateShareholders) {
             const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
+            const storedKybId = (shareholder as any).kybId;
             
-            if (codRequestId === onboardingId) {
+            // Match by COD requestId (onboardingId) OR by stored kybId
+            if ((onboardingId && codRequestId === onboardingId) || (requestId && storedKybId === requestId)) {
               foundShareholder = true;
               
               // This KYB webhook is for this business shareholder
@@ -422,10 +426,11 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               logger.info(
                 {
                   kybRequestId: requestId,
-                  codRequestId: onboardingId,
+                  codRequestId: onboardingId || codRequestId,
                   shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                   organizationId: orgId,
                   amlStatus,
+                  matchedBy: onboardingId && codRequestId === onboardingId ? "codRequestId" : "kybId",
                 },
                 "[KYB Webhook] Updated business shareholder KYB AML status from KYB webhook"
               );
