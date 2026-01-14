@@ -13,27 +13,34 @@ import { CreateProductDialog } from "@/components/create-proudct-dialog";
 export default function ProductsPage() {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
+
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const { data, isLoading, refetch } = useProducts({
     page: currentPage,
     pageSize,
-    ...(searchQuery && { search: searchQuery }),
+    ...(debouncedSearch && { search: debouncedSearch }),
   });
 
   const handleClearFilters = () => {
     setSearchQuery("");
+    setDebouncedSearch("");
     setCurrentPage(1);
   };
 
   const handleReload = () => {
     refetch();
   };
-
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
 
   // Transform API products to table format
   const products = React.useMemo(() => {
