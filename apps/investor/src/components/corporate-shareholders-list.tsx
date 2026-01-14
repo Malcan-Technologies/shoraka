@@ -167,22 +167,22 @@ export function CorporateShareholdersList({
                   </div>
                 )}
                 {kybAmlStatus.riskLevel && (
-                  <div>
+              <div>
                     <span className="font-medium">Risk Level:</span> {kybAmlStatus.riskLevel}
-                  </div>
-                )}
+              </div>
+            )}
               </>
             ) : (
               <>
                 {kybId && (
-                  <div>
+              <div>
                     <span className="font-medium">KYB ID:</span> {kybId}
-                  </div>
-                )}
+              </div>
+            )}
                 {codRequestId && !kybId && (
-                  <div>
+              <div>
                     <span className="font-medium">COD:</span> {codRequestId}
-                  </div>
+              </div>
                 )}
               </>
             )}
