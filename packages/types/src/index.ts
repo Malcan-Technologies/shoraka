@@ -63,43 +63,28 @@ export interface Investment {
   updatedAt: string;
 }
 
-export type ActivityType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "LOGIN_FAILED"
-  | "NEW_DEVICE_LOGIN"
-  | "PASSWORD_CHANGED"
-  | "EMAIL_VERIFIED"
-  | "SECURITY_ALERT"
-  | "PROFILE_UPDATED"
-  | "SETTINGS_CHANGED"
-  | "DEPOSIT"
-  | "WITHDRAWAL"
-  | "INVESTMENT"
-  | "TRANSACTION_COMPLETED"
-  | "ONBOARDING_STARTED"
-  | "ONBOARDING_COMPLETED"
-  | "KYC_SUBMITTED";
+export type ActivityCategory = "security" | "onboarding" | "document";
 
 export interface Activity {
   id: string;
   user_id: string;
-  activity_type: ActivityType;
-  title: string;
-  description: string | null;
+  category: ActivityCategory;
+  event_type: string; // Displayed as "Event" in UI
+  activity: string;   // Displayed as "Activity" in UI (human-readable)
   metadata: any | null;
   ip_address: string | null;
   user_agent: string | null;
   device_info: string | null;
-  created_at: string;
+  created_at: string; // Displayed as "Time" in UI
+  source_table: string;
 }
 
 export interface GetActivitiesParams {
   page: number;
   limit: number;
   search?: string;
-  type?: ActivityType;
-  types?: ActivityType[];
+  categories?: ActivityCategory[];
+  eventTypes?: string[];
   startDate?: string;
   endDate?: string;
 }
@@ -115,4 +100,3 @@ export interface ActivitiesResponse {
 }
 
 export * from "./admin";
-

@@ -39,7 +39,6 @@ model User {
   regtank_onboarding               RegTankOnboarding[]
   security_logs                    SecurityLog[]
   sessions                         UserSession[]
-  activities                       Activity[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -517,26 +516,6 @@ model Product {
   @@map("products")
 }
 
-model Activity {
-  id            String       @id @default(cuid())
-  user_id       String
-  activity_type ActivityType
-  title         String
-  description   String?
-  metadata      Json?
-  ip_address    String?
-  user_agent    String?
-  device_info   String?
-  created_at    DateTime     @default(now())
-  user          User         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@index([user_id])
-  @@index([activity_type])
-  @@index([created_at])
-  @@index([user_id, created_at])
-  @@map("activities")
-}
-
 enum UserRole {
   INVESTOR
   ISSUER
@@ -590,32 +569,4 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
-}
-
-enum ActivityType {
-  // Authentication
-  LOGIN
-  LOGOUT
-  LOGIN_FAILED
-  NEW_DEVICE_LOGIN
-
-  // Security
-  PASSWORD_CHANGED
-  EMAIL_VERIFIED
-  SECURITY_ALERT
-
-  // Profile
-  PROFILE_UPDATED
-  SETTINGS_CHANGED
-
-  // Financial
-  DEPOSIT
-  WITHDRAWAL
-  INVESTMENT
-  TRANSACTION_COMPLETED
-
-  // Onboarding
-  ONBOARDING_STARTED
-  ONBOARDING_COMPLETED
-  KYC_SUBMITTED
 }

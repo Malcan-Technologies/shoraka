@@ -1,7 +1,6 @@
-import { PrismaClient, UserRole, AdminRole, ActivityType } from "@prisma/client";
+import { PrismaClient, UserRole, AdminRole } from "@prisma/client";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
-import { activityService } from "../src/modules/activity/service";
 
 const prisma = new PrismaClient();
 
@@ -10,8 +9,8 @@ async function main() {
 
   // Admin user - use environment variable for cognito_sub if provided
   const adminCognitoSub = process.env.ADMIN_COGNITO_SUB || `seed_admin_${Date.now()}`;
-  const adminCognitoUsername = "max.chng@malcan.io";
-  const adminEmail = "max.chng@malcan.io";
+  const adminCognitoUsername = "khai.kit@malcan.io";
+  const adminEmail = "khai.kit@malcan.io";
 
   // Check if user already exists by email or cognito_sub
   let existingUser = await prisma.user.findUnique({
@@ -53,8 +52,8 @@ async function main() {
         cognito_sub: adminCognitoSub,
         cognito_username: adminCognitoUsername,
         roles: [UserRole.ADMIN],
-        first_name: "Max",
-        last_name: "Chng",
+        first_name: "Khai",
+        last_name: "Kit",
         phone: "+60165584792",
           investor_account: [],
           issuer_account: [],
@@ -71,10 +70,12 @@ async function main() {
       user_id: adminUser.user_id,
       role_description: AdminRole.SUPER_ADMIN,
       status: "ACTIVE",
+      updated_at: new Date(),
     },
     update: {
       role_description: AdminRole.SUPER_ADMIN,
       status: "ACTIVE",
+      updated_at: new Date(),
     },
   });
 
@@ -131,100 +132,70 @@ async function main() {
 
   logger.info(`✅ Created ${accessLogs.length} access log entries`);
 
-  // --- ACTIVITY SEEDING ---
-  logger.info("🌱 Seeding activity data...");
+  logger.info("🌱 Seeding audit log data for activity feed...");
 
-  // Delete existing activities for this user
-  await prisma.activity.deleteMany({
-    where: { user_id: adminUser.user_id },
+  // Seed Security Logs
+  await prisma.securityLog.createMany({
+    data: [
+      {
+        user_id: adminUser.user_id,
+        event_type: "PASSWORD_CHANGED",
+        metadata: { success: true, reason: "USER_INITIATED" },
+        created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+      },
+      {
+        user_id: adminUser.user_id,
+        event_type: "ROLE_SWITCHED",
+        metadata: { newRole: "ADMIN" },
+        created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      },
+    ],
   });
 
-  const activities = [
-    {
-      activity_type: ActivityType.INVESTMENT,
-      metadata: { amount: "1,000", plan: "Fixed Income Plan" },
-      description: "You invested RM1,000 in Fixed Income Plan",
-      created_at: new Date(now.getTime() - 10 * 60 * 1000), // 10 mins ago
-    },
-    {
-      activity_type: ActivityType.DEPOSIT,
-      metadata: { amount: "500", method: "credit card" },
-      description: "RM500 added via credit card",
-      created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000), // 2 hours ago
-    },
-    {
-      activity_type: ActivityType.WITHDRAWAL,
-      metadata: { amount: "300" },
-      description: "Withdrawal request of RM300 has been submitted.",
-      created_at: new Date(now.getTime() - 5 * 60 * 60 * 1000), // 5 hours ago
-    },
-    {
-      activity_type: ActivityType.LOGIN,
-      metadata: { device: "New device" },
-      description: "Logged in from a new device.",
-      created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-    },
-    {
-      activity_type: ActivityType.PROFILE_UPDATED,
-      metadata: { fields: ["email", "phone"] },
-      description: "Profile information updated",
-      created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    },
-    {
-      activity_type: ActivityType.SECURITY_ALERT,
-      metadata: { type: "New device" },
-      description: "Logged in from a new device",
-      created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    },
-    {
-      activity_type: ActivityType.TRANSACTION_COMPLETED,
-      metadata: { status: "success" },
-      description: "Transaction completed successfully.",
-      created_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000), // 4 days ago
-    },
-    {
-      activity_type: ActivityType.SETTINGS_CHANGED,
-      metadata: { action: "password_change" },
-      description: "Password changed successfully.",
-      created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-    },
-    {
-      activity_type: ActivityType.WITHDRAWAL,
-      metadata: { amount: "300", status: "processed" },
-      description: "Withdrawal of RM300 has been successfully processed.",
-      created_at: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000), // 6 days ago
-    },
-    {
-      activity_type: ActivityType.SECURITY_ALERT,
-      metadata: { action: "password_change" },
-      description: "Password changed successfully.",
-      created_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-    },
-    {
-      activity_type: ActivityType.DEPOSIT,
-      metadata: { amount: "250", method: "credit card" },
-      description: "RM250 added to your wallet using credit card.",
-      created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000), // 8 days ago
-    },
-  ];
-
-  for (const act of activities) {
-    await prisma.activity.create({
-      data: {
+  // Seed Onboarding Logs
+  await prisma.onboardingLog.createMany({
+    data: [
+      {
         user_id: adminUser.user_id,
-        activity_type: act.activity_type,
-        title: activityService.buildActivityTitle(act.activity_type, act.metadata),
-        description: act.description,
-        metadata: act.metadata,
-        created_at: act.created_at,
-        ip_address: "192.168.1.100",
-        user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        device_info: "Desktop",
+        event_type: "ONBOARDING_STARTED",
+        role: UserRole.INVESTOR,
+        metadata: { portal: "investor" },
+        created_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
       },
-    });
-  }
+      {
+        user_id: adminUser.user_id,
+        event_type: "KYC_SUBMITTED",
+        role: UserRole.INVESTOR,
+        metadata: { status: "PENDING_APPROVAL" },
+        created_at: new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000),
+      },
+      {
+        user_id: adminUser.user_id,
+        event_type: "USER_COMPLETED",
+        role: UserRole.INVESTOR,
+        metadata: { status: "COMPLETED" },
+        created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000),
+      },
+    ],
+  });
 
-  logger.info(`✅ Created ${activities.length} activity entries for ${adminUser.email}`);
+  // Seed Document Logs
+  await prisma.documentLog.createMany({
+    data: [
+      {
+        user_id: adminUser.user_id,
+        event_type: "DOCUMENT_CREATED",
+        metadata: { fileName: "contract_v1.pdf", type: "PLATFORM_AGREEMENT" },
+        created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      },
+      {
+        user_id: adminUser.user_id,
+        event_type: "DOCUMENT_CREATED",
+        metadata: { fileName: "privacy_policy.pdf", type: "PRIVACY_POLICY" },
+        created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+      },
+    ],
+  });
 
   logger.info("🎉 Database seed completed successfully!");
 }
@@ -237,4 +208,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

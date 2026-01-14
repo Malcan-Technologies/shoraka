@@ -75,7 +75,7 @@ export default function ActivityPage() {
               <div className="grid grid-cols-[1fr_400px] gap-12 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
                 <div className="flex-1">Activity</div>
                 <div className="flex items-center gap-12">
-                  <div className="w-[120px]">Activity type</div>
+                  <div className="w-[120px]">Event</div>
                   <div className="min-w-[160px] text-right">Time</div>
                 </div>
               </div>
