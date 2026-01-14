@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useActivities } from "../../hooks/use-activities";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
@@ -12,13 +12,22 @@ import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const limit = 10;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data, isLoading } = useActivities({
     page,
     limit,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const activities = data?.activities || [];
@@ -52,7 +61,6 @@ export default function ActivityPage() {
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
-                    setPage(1);
                   }}
                 />
               </div>
