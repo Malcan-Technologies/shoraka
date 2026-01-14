@@ -31,20 +31,22 @@ export function CompanyInfoConfig({ config, onChange }: CompanyInfoConfigProps) 
   void onChange;
 
   return (
-    <div className="space-y-5 pt-4">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-5 rounded-lg border bg-card">
+      <div className="mb-4 sm:mb-5 flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-medium text-muted-foreground mb-1">
-            Company information requirements
-          </p>
-          <p className="text-xs text-muted-foreground">
+          <Label className="text-sm sm:text-base font-semibold">
+            Company Info
+          </Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
             All fields and verification steps are required
           </p>
         </div>
-        <span className="text-xs px-2 py-1 bg-muted rounded text-muted-foreground font-medium">
+        <span className="text-xs px-2 py-1 bg-muted rounded text-muted-foreground font-medium shrink-0">
           Read Only
         </span>
       </div>
+      
+      <div className="space-y-4 sm:space-y-5">
 
       {/* Required Fields */}
       <div className="space-y-2">
@@ -70,6 +72,7 @@ export function CompanyInfoConfig({ config, onChange }: CompanyInfoConfigProps) 
 
       <div className="pt-2 text-xs text-muted-foreground bg-muted/20 p-2 rounded">
         {AVAILABLE_FIELDS.length} field(s) required
+      </div>
       </div>
     </div>
   );
