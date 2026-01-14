@@ -161,7 +161,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 </Label>
                 <Input
                   id="newName"
-                  placeholder="e.g., Invoice Financing (Islamic)"
+                  placeholder="e.g., Account Receivable (AR) Financing"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   className="h-10 !text-sm"
@@ -177,7 +177,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 </Label>
                 <Input
                   id="newCategory"
-                  placeholder="e.g., Trade Finance, Working Capital"
+                  placeholder="e.g., Invoice Financing (Islamic)"
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="h-10 !text-sm"
