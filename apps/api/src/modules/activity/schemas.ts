@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { ActivityType } from "@prisma/client";
+
+/**
+ * Activity categories
+ */
+export const activityCategorySchema = z.enum(["security", "onboarding", "document"]);
+export type ActivityCategory = z.infer<typeof activityCategorySchema>;
 
 /**
  * Schema for fetching activities with filtering and pagination
@@ -8,42 +13,28 @@ export const getActivitiesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
-  type: z.nativeEnum(ActivityType).optional(),
-  types: z.array(z.nativeEnum(ActivityType)).optional(),
+  categories: z.array(activityCategorySchema).optional(),
+  eventTypes: z.array(z.string()).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
 });
 
 /**
- * Schema for activity response
+ * Schema for activity response (Unified format)
  */
 export const activityResponseSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  activity_type: z.nativeEnum(ActivityType),
-  title: z.string(),
-  description: z.string().nullable(),
-  metadata: z.any().nullable(),
-  ip_address: z.string().nullable(),
-  user_agent: z.string().nullable(),
-  device_info: z.string().nullable(),
-  created_at: z.date(),
-});
-
-/**
- * Schema for creating an activity (internal use)
- */
-export const createActivitySchema = z.object({
-  user_id: z.string(),
-  activity_type: z.nativeEnum(ActivityType),
-  title: z.string(),
-  description: z.string().optional(),
+  category: activityCategorySchema,
+  event_type: z.string(), // Displayed as "Event"
+  activity: z.string(),   // Displayed as "Activity" (description)
   metadata: z.any().optional(),
-  ip_address: z.string().optional(),
-  user_agent: z.string().optional(),
-  device_info: z.string().optional(),
+  ip_address: z.string().nullable().optional(),
+  user_agent: z.string().nullable().optional(),
+  device_info: z.string().nullable().optional(),
+  created_at: z.date(),   // Displayed as "Time"
+  source_table: z.string(),
 });
 
 export type GetActivitiesQuery = z.infer<typeof getActivitiesQuerySchema>;
 export type ActivityResponse = z.infer<typeof activityResponseSchema>;
-export type CreateActivityInput = z.infer<typeof createActivitySchema>;

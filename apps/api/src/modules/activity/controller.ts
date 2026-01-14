@@ -20,7 +20,22 @@ router.get(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const query = getActivitiesQuerySchema.parse(req.query);
+      // Ensure array parameters are actually arrays
+      const queryData = {
+        ...req.query,
+        categories: req.query.categories
+          ? Array.isArray(req.query.categories)
+            ? req.query.categories
+            : [req.query.categories]
+          : undefined,
+        eventTypes: req.query.eventTypes
+          ? Array.isArray(req.query.eventTypes)
+            ? req.query.eventTypes
+            : [req.query.eventTypes]
+          : undefined,
+      };
+
+      const query = getActivitiesQuerySchema.parse(queryData);
       const result = await activityService.getActivities(userId, query);
 
       res.json({
