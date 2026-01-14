@@ -15,7 +15,7 @@ export class SecurityLogAdapter implements AuditLogAdapter<SecurityLog> {
   async query(userId: string, filters: ActivityFilters): Promise<SecurityLog[]> {
     const { search, event_types, startDate, endDate, limit, offset } = filters;
 
-    return prisma.security_log.findMany({
+    return prisma.securityLog.findMany({
       where: {
         user_id: userId,
         event_type: event_types ? { in: event_types } : undefined,

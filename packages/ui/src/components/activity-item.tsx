@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "../lib/utils";
+import { cn, formatEventType } from "../lib/utils";
 import { Activity } from "@cashsouk/types";
 import { ActivityBadge } from "./activity-badge";
 import { format } from "date-fns";
@@ -18,15 +18,15 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
       {...props}
     >
       <div className="flex flex-col gap-1 flex-1">
-        <span className="font-semibold text-[15px]">{activity.title}</span>
-        {activity.description && (
-          <span className="text-sm text-muted-foreground">{activity.description}</span>
-        )}
+        <span className="font-semibold text-[15px]">{activity.activity}</span>
       </div>
 
       <div className="flex items-center gap-12 w-full max-w-[400px]">
-        <div className="w-[120px] flex justify-start">
-          <ActivityBadge type={activity.activity_type} />
+        <div className="flex-1 flex justify-start min-w-[120px]">
+          <ActivityBadge
+            category={activity.category}
+            label={formatEventType(activity.event_type)}
+          />
         </div>
 
         <div className="text-sm text-muted-foreground whitespace-nowrap min-w-[160px] text-right">

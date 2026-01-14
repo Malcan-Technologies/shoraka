@@ -1,22 +1,20 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
-import { ActivityType } from "@cashsouk/types";
+import { ActivityCategory } from "@cashsouk/types";
+import { Badge } from "./badge";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent",
   {
     variants: {
       variant: {
-        investment: "bg-[#E6F4EA] text-[#1E8E3E]",
-        deposit: "bg-[#E8F0FE] text-[#1967D2]",
-        withdrawal: "bg-[#F3E8FF] text-[#7E22CE]",
-        login: "bg-[#E8F0FE] text-[#1967D2]",
-        profile: "bg-[#FEF7E0] text-[#B06000]",
         security: "bg-[#E8F0FE] text-[#1967D2]",
-        transaction: "bg-[#E6F4EA] text-[#1E8E3E]",
-        settings: "bg-[#FEF7E0] text-[#B06000]",
-        onboarding: "bg-[#E8F0FE] text-[#1967D2]",
+        onboarding: "bg-[#E6F4EA] text-[#1E8E3E]",
+        document: "bg-[#F3E8FF] text-[#7E22CE]",
+        success: "bg-green-500/10 text-green-700 border-green-500/30",
+        warning: "bg-yellow-500/10 text-yellow-700 border-yellow-500/30",
+        destructive: "bg-red-500/10 text-red-700 border-red-500/30",
         default: "bg-muted text-muted-foreground",
       },
     },
@@ -29,33 +27,46 @@ const badgeVariants = cva(
 interface ActivityBadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {
-  type: ActivityType;
+  category?: ActivityCategory;
+  label?: string;
+  dotColor?: string;
 }
 
-const typeConfig: Record<ActivityType, { label: string; variant: VariantProps<typeof badgeVariants>["variant"] }> = {
-  INVESTMENT: { label: "Investment", variant: "investment" },
-  DEPOSIT: { label: "Deposit", variant: "deposit" },
-  WITHDRAWAL: { label: "Withdrawal", variant: "withdrawal" },
-  LOGIN: { label: "Login", variant: "login" },
-  LOGOUT: { label: "Logout", variant: "login" },
-  LOGIN_FAILED: { label: "Login Failed", variant: "security" },
-  NEW_DEVICE_LOGIN: { label: "Login", variant: "login" },
-  PASSWORD_CHANGED: { label: "Security", variant: "security" },
-  EMAIL_VERIFIED: { label: "Security", variant: "security" },
-  SECURITY_ALERT: { label: "Security", variant: "security" },
-  PROFILE_UPDATED: { label: "Profile Update", variant: "profile" },
-  SETTINGS_CHANGED: { label: "Settings Change", variant: "settings" },
-  TRANSACTION_COMPLETED: { label: "Transaction", variant: "transaction" },
-  ONBOARDING_STARTED: { label: "Onboarding", variant: "onboarding" },
-  ONBOARDING_COMPLETED: { label: "Onboarding", variant: "onboarding" },
-  KYC_SUBMITTED: { label: "Onboarding", variant: "onboarding" },
+const CATEGORY_CONFIG: Record<ActivityCategory, { label: string; color: string; variant: VariantProps<typeof badgeVariants>["variant"] }> = {
+  security: { label: "Security", color: "bg-rose-500", variant: "security" },
+  onboarding: { label: "Onboarding", color: "bg-emerald-500", variant: "onboarding" },
+  document: { label: "Document", color: "bg-violet-500", variant: "document" },
 };
 
-export function ActivityBadge({ type, className, ...props }: ActivityBadgeProps) {
-  const config = typeConfig[type] || { label: type, variant: "default" };
+// Map Tailwind color class to CSS color for background using color-mix
+const COLOR_MAP: Record<string, string> = {
+  "bg-rose-500": "rgb(244 63 94)",
+  "bg-emerald-500": "rgb(16 185 129)",
+  "bg-violet-500": "rgb(139 92 246)",
+  "bg-blue-500": "rgb(59 130 246)",
+  "bg-gray-500": "rgb(107 114 128)",
+};
+
+export function ActivityBadge({ category, label, dotColor, className, variant, ...props }: ActivityBadgeProps) {
+  const config = category ? CATEGORY_CONFIG[category] : null;
+
+  const finalLabel = label || config?.label || category || "Unknown";
+  const finalDotColor = dotColor || config?.color || "bg-gray-500";
+  const cssColor = COLOR_MAP[finalDotColor] || "rgb(107 114 128)";
+
   return (
-    <div className={cn(badgeVariants({ variant: config.variant }), className)} {...props}>
-      {config.label}
-    </div>
+    <Badge
+      variant="outline"
+      className={cn("text-xs w-fit whitespace-nowrap px-2 py-0.5", className)}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
+        borderColor: `color-mix(in srgb, ${cssColor} 20%, transparent)`,
+        color: cssColor,
+      }}
+      {...props}
+    >
+      <span className={cn("inline-block w-2 h-2 rounded-full mr-1.5", finalDotColor)} />
+      {finalLabel}
+    </Badge>
   );
 }

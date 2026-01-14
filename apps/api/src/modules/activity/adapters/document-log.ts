@@ -15,7 +15,7 @@ export class DocumentLogAdapter implements AuditLogAdapter<DocumentLog> {
   async query(userId: string, filters: ActivityFilters): Promise<DocumentLog[]> {
     const { search, event_types, startDate, endDate, limit, offset } = filters;
 
-    return prisma.document_log.findMany({
+    return prisma.documentLog.findMany({
       where: {
         user_id: userId,
         event_type: event_types ? { in: event_types } : undefined,

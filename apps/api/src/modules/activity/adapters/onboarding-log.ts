@@ -18,7 +18,7 @@ export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
   ): Promise<OnboardingLog[]> {
     const { search, event_types, startDate, endDate, limit, offset } = filters;
 
-    return prisma.onboarding_log.findMany({
+    return prisma.onboardingLog.findMany({
       where: {
         user_id: userId,
         event_type: event_types ? { in: event_types } : undefined,
