@@ -13,17 +13,28 @@ import { CreateProductDialog } from "@/components/create-proudct-dialog";
 export default function ProductsPage() {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
+
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const { data, isLoading, refetch } = useProducts({
     page: currentPage,
     pageSize,
-    ...(searchQuery && { search: searchQuery }),
+    ...(debouncedSearch && { search: debouncedSearch }),
   });
 
   const handleClearFilters = () => {
     setSearchQuery("");
+    setDebouncedSearch("");
     setCurrentPage(1);
   };
 
@@ -31,31 +42,24 @@ export default function ProductsPage() {
     refetch();
   };
 
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  // Transform API products to match table structure
+  // Transform API products to table format
   const products = React.useMemo(() => {
-    if (!data || typeof data !== 'object' || !('products' in data)) return [];
-    
-    const apiProducts = (data as { products: any[] }).products || [];
-    
-    return apiProducts.map((product: any) => {
-      const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+    if (!data || !(data as any).products) {
+      return [];
+    }
+
+    return ((data as any).products as any[]).map((product: any) => {
+      const workflow = product.workflow || [];
       
-      // Find financing type step for name and description
-      const financingTypeStep = workflow.find((step: any) => 
-        step.name?.toLowerCase().includes("financing type")
+      // Find Financing Type step to get name, description, category
+      const financingStep = workflow.find(
+        (step: any) => step.name?.toLowerCase().includes("financing type")
       );
-      
-      // Get name and description from financing type config
-      const financingTypeConfig = financingTypeStep?.config || {};
-      const type = financingTypeConfig.type || {};
-      
+      const type = financingStep?.config?.type || {};
+
       return {
         id: product.id,
-        name: type.name || financingTypeStep?.name || `Product ${product.id.slice(0, 8)}`,
+        name: type.name || null,
         description: type.description || null,
         category: type.category || null,
         steps: workflow.length,
@@ -66,9 +70,7 @@ export default function ProductsPage() {
     });
   }, [data]);
 
-  const totalProducts = data && typeof data === 'object' && 'pagination' in data 
-    ? (data as { pagination: { totalCount: number } }).pagination.totalCount 
-    : 0;
+  const totalProducts = (data as any)?.pagination?.totalCount || 0;
 
   return (
     <>

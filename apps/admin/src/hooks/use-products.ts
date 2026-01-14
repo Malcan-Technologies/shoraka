@@ -10,7 +10,7 @@ export function useProducts(params: GetProductsParams) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", params.page, params.pageSize, params.search],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       queryParams.append("page", params.page.toString());

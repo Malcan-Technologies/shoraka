@@ -193,38 +193,37 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
       {/* Header - click anywhere to expand/collapse */}
       <div 
         className={cn(
-          "flex items-center gap-3 p-4 cursor-pointer",
+          "flex items-center gap-2 sm:gap-3 p-3 sm:p-4 cursor-pointer",
           isExpanded && "border-b bg-muted/30"
         )}
         onClick={() => hasConfig && onExpand(step.id)}
       >
         {/* Icon: Lock (if locked) or Drag Handle */}
         {isLocked ? (
-          <div className="p-0.5" onClick={(e) => e.stopPropagation()}>
-            <LockClosedIcon className="h-5 w-5 text-muted-foreground" />
+          <div className="p-1 sm:p-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <LockClosedIcon className="h-5 w-5 sm:h-5 sm:w-5 text-muted-foreground" />
           </div>
         ) : (
-          <button
-            type="button"
-            className="cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-muted"
+          <div
             onClick={(e) => e.stopPropagation()} // Don't expand when dragging
             {...attributes}
             {...listeners}
+            className="shrink-0 p-1"
           >
-            <Bars3Icon className="h-5 w-5 text-muted-foreground hover:text-foreground" />
-          </button>
+            <Bars3Icon className="h-5 w-5 text-muted-foreground" />
+          </div>
         )}
 
         {/* Step name */}
-        <div className="flex-1">
-          <h4 className="font-medium text-sm">
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium text-xs sm:text-sm truncate">
             {step.name}
           </h4>
         </div>
 
         {/* "Configured" badge if step has meaningful config */}
         {hasConfiguredContent(step) && (
-          <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 rounded-full">
+          <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 rounded-full shrink-0">
             Configured
           </span>
         )}
@@ -237,17 +236,17 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
               e.stopPropagation();
               onDelete(step.id);
             }}
-            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            className="p-2 sm:p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
             title="Delete step"
           >
-            <TrashIcon className="h-4 w-4" />
+            <TrashIcon className="h-4 w-4 sm:h-4 sm:w-4" />
           </button>
         )}
 
         {/* Arrow icon to expand/collapse */}
         {hasConfig && (
           <div className={cn(
-            "p-1 rounded-full transition-all text-muted-foreground",
+            "p-1.5 sm:p-1 rounded-full transition-all text-muted-foreground shrink-0",
             isExpanded && "bg-primary/10 text-primary"
           )}>
             {isExpanded ? <ChevronDownIcon className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
@@ -257,7 +256,7 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
 
       {/* Configuration panel (shown when expanded) */}
       {isExpanded && hasConfig && (
-        <div className="px-4 pb-4">
+        <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3 sm:pb-4">
           <StepConfigContent step={step} onConfigure={(config) => onConfigure(step.id, config)} />
         </div>
       )}
@@ -433,29 +432,29 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Top Bar: Shows stats and action buttons */}
-      <div className="flex items-center justify-between gap-4 pb-3 border-b">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b">
         {/* Left: Step count and drag hint */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+          <span className="text-xs sm:text-sm text-muted-foreground font-medium">
             {steps.length} {steps.length === 1 ? 'step' : 'steps'}
           </span>
-          <Separator orientation="vertical" className="h-4" />
-          <span className="text-sm text-muted-foreground flex items-center gap-1">
-            Drag <Bars3Icon className="inline h-3 w-3" /> to reorder
+          <Separator orientation="vertical" className="hidden sm:block h-4" />
+          <span className="text-xs text-muted-foreground flex items-center gap-1 sm:gap-1">
+            <Bars3Icon className="h-3.5 w-3.5" /> Drag to reorder
           </span>
         </div>
         
         {/* Right: Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={collapseAll}
             disabled={expandedSteps.size === 0}
-            className="h-8 text-xs"
+            className="h-9 sm:h-8 text-xs w-full sm:w-auto justify-center"
           >
             Collapse All
           </Button>
@@ -464,22 +463,24 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
             variant="outline"
             size="sm"
             onClick={resetOrder}
-            className="h-8 text-xs"
+            className="h-9 sm:h-8 text-xs w-full sm:w-auto justify-center"
           >
             Reset Order
           </Button>
-          <StepSelectorPopover onSelect={addStep} existingSteps={steps} />
+          <div className="w-full sm:w-auto">
+            <StepSelectorPopover onSelect={addStep} existingSteps={steps} />
+          </div>
         </div>
       </div>
 
       {/* Drag and drop container for all steps */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={(steps as WorkflowStep[]).map((s: WorkflowStep) => s.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {/* Empty state */}
             {steps.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                <p className="text-sm text-muted-foreground mb-3">No workflow steps yet</p>
+              <div className="text-center py-8 sm:py-12 border-2 border-dashed rounded-lg">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-3">No workflow steps yet</p>
                 <StepSelectorPopover onSelect={addStep} />
               </div>
             ) : (
@@ -511,17 +512,17 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!stepToDelete} onOpenChange={(open) => !open && cancelDelete()}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete workflow step?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-base sm:text-lg">Delete workflow step?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
               Are you sure you want to delete <span className="font-semibold text-foreground">{stepToDelete?.name}</span>? 
               This will remove the step and all its configuration. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelDelete}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <AlertDialogCancel onClick={cancelDelete} className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete Step
             </AlertDialogAction>
           </AlertDialogFooter>

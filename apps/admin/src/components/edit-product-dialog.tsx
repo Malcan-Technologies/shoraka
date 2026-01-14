@@ -20,40 +20,91 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUpdateProduct } from "../hooks/use-products";
 import { WorkflowBuilder } from "./workflow-builder";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
-// Helper function to check if a step has meaningful configuration (same as create dialog)
+/**
+ * Check if a workflow step has been properly configured
+ * (Same logic as create dialog)
+ */
 function hasConfiguredContent(step: { name: string; config?: Record<string, any> }): boolean {
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
   
-  // Financing Type: must have type object
+  // Financing Type step: Must have a product name
   if (stepName.includes("financing type")) {
-    return config.type && typeof config.type === 'object' && config.type.name;
+    const hasName = config.type && typeof config.type === 'object' && config.type.name;
+    return hasName;
   }
   
-  // Financing Terms and Invoice Details: no configuration required (not yet implemented)
-  if (stepName.includes("financing terms") || stepName.includes("invoice")) {
-    return true;
-  }
-  
-  // Supporting Documents: must have at least one document category with documents
+  // Supporting Documents step: Must have at least one document
   if (stepName.includes("document")) {
-    if (!config.categories || !Array.isArray(config.categories)) return false;
-    return config.categories.some(
+    if (!config.categories || !Array.isArray(config.categories)) {
+      return false;
+    }
+    const hasDocuments = config.categories.some(
       (cat: any) => cat.documents && Array.isArray(cat.documents) && cat.documents.length > 0
     );
+    return hasDocuments;
   }
   
-  // Declaration: must have at least one declaration
+  // Declaration step: Must have at least one declaration
   if (stepName.includes("declaration")) {
-    return config.declarations && Array.isArray(config.declarations) && config.declarations.length > 0;
+    const hasDeclarations = config.declarations && Array.isArray(config.declarations) && config.declarations.length > 0;
+    return hasDeclarations;
   }
   
-  // Invoice Details, Company Info, Review & Submit don't require config
+  // Other steps don't need configuration
   return true;
 }
 
-// Form schema - same validation as create dialog
+/**
+ * Validation helper: Check if financing type step is configured
+ */
+function validateFinancingType(steps: any[]): boolean {
+  const financingTypeStep = steps.find((s) => 
+    s.name.toLowerCase().includes("financing type")
+  );
+  
+  if (!financingTypeStep) {
+    return false;
+  }
+  
+  return hasConfiguredContent(financingTypeStep);
+}
+
+/**
+ * Validation helper: Check if declaration step is configured
+ */
+function validateDeclaration(steps: any[]): boolean {
+  const declarationStep = steps.find((s) => 
+    s.name.toLowerCase().includes("declaration")
+  );
+  
+  if (!declarationStep) {
+    return true; // Optional
+  }
+  
+  return hasConfiguredContent(declarationStep);
+}
+
+/**
+ * Validation helper: Check if supporting documents step is configured
+ */
+function validateSupportingDocuments(steps: any[]): boolean {
+  const documentStep = steps.find((s) => 
+    s.name.toLowerCase().includes("document")
+  );
+  
+  if (!documentStep) {
+    return true; // Optional
+  }
+  
+  return hasConfiguredContent(documentStep);
+}
+
+/**
+ * Form validation schema (same as create dialog)
+ */
 const editProductSchema = z.object({
   workflow: z.array(
     z.object({
@@ -63,66 +114,15 @@ const editProductSchema = z.object({
     })
   )
     .min(1, "At least one workflow step is required")
-    .refine(
-      (steps) => {
-        // Check that steps with required config are properly configured
-        for (const step of steps) {
-          const stepName = step.name.toLowerCase();
-          
-          // Financing Type is required and must be configured
-          if (stepName.includes("financing type")) {
-            if (!hasConfiguredContent(step)) {
-              return false;
-            }
-          }
-        }
-        
-        return true;
-      },
-      {
-        message: "Financing Type step must be configured",
-      }
-    )
-    .refine(
-      (steps) => {
-        // Check that at least one declaration exists
-        const declarationStep = steps.find((s) => 
-          s.name.toLowerCase().includes("declaration")
-        );
-        
-        if (declarationStep) {
-          const hasDeclaration = hasConfiguredContent(declarationStep);
-          if (!hasDeclaration) {
-            return false;
-          }
-        }
-        
-        return true;
-      },
-      {
-        message: "At least one declaration must be configured",
-      }
-    )
-    .refine(
-      (steps) => {
-        // Check that at least one supporting document exists
-        const documentStep = steps.find((s) => 
-          s.name.toLowerCase().includes("document")
-        );
-        
-        if (documentStep) {
-          const hasDocument = hasConfiguredContent(documentStep);
-          if (!hasDocument) {
-            return false;
-          }
-        }
-        
-        return true;
-      },
-      {
-        message: "At least one supporting document must be configured",
-      }
-    ),
+    .refine(validateFinancingType, {
+      message: "Financing Type step must be configured with a product name",
+    })
+    .refine(validateDeclaration, {
+      message: "Declaration step must have at least one declaration",
+    })
+    .refine(validateSupportingDocuments, {
+      message: "Supporting Documents step must have at least one document",
+    }),
 });
 
 type EditProductFormValues = z.infer<typeof editProductSchema>;
@@ -153,39 +153,51 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
     }
   }, [open, product, form]);
 
+  // Remove empty document categories before saving
+  const cleanWorkflow = (workflow: any[]): any[] => {
+    return workflow.map((step: any) => {
+      // Only clean "Supporting Documents" steps
+      if (step.name?.toLowerCase().includes("document") && step.config?.categories) {
+        const categories = step.config.categories.filter(
+          (cat: any) => cat.documents?.length > 0
+        );
+        
+        return {
+          ...step,
+          config: {
+            ...step.config,
+            categories: categories.length > 0 ? categories : undefined,
+          },
+        };
+      }
+      
+      return step;
+    });
+  };
+
+  /**
+   * Handle form submission
+   * 1. Clean up the workflow
+   * 2. Send to API
+   * 3. Close dialog on success
+   */
   const onSubmit = async (values: EditProductFormValues) => {
     try {
-      // Clean up workflow: filter out empty document categories (same as create)
-      const cleanedWorkflow = values.workflow.map((step) => {
-        const stepName = step.name.toLowerCase();
-        
-        // For supporting documents, filter out categories with no documents
-        if (stepName.includes("document") && step.config?.categories) {
-          const filteredCategories = (step.config.categories as any[]).filter(
-            (cat: any) => cat.documents && Array.isArray(cat.documents) && cat.documents.length > 0
-          );
-          
-          return {
-            ...step,
-            config: {
-              ...step.config,
-              categories: filteredCategories.length > 0 ? filteredCategories : undefined,
-            },
-          };
-        }
-        
-        return step;
-      });
+      // Clean up workflow before saving
+      const cleanedWorkflow = cleanWorkflow(values.workflow);
 
-      // Send workflow array directly (same format as create)
+      // Prepare payload for API
       const payload = {
         workflow: cleanedWorkflow,
       };
 
+      // Update product via API
       await updateProduct.mutateAsync({
         productId: product.id,
         data: payload,
       });
+      
+      // Close dialog
       onOpenChange(false);
     } catch (error) {
       console.error("Error updating product:", error);
@@ -194,16 +206,17 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>Edit Product</DialogTitle>
           <DialogDescription>
             Update product workflow steps - modify financing types, terms, documents, and declarations.
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Workflow Builder */}
             <FormField
               control={form.control}
@@ -215,39 +228,54 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
               )}
             />
 
-            {/* Show required fields summary */}
+            {/* Show what still needs to be configured */}
             {(() => {
               const steps = form.watch("workflow") || [];
+              const missingItems: string[] = [];
+              
+              // Check each required step
               const financingTypeStep = steps.find((s: any) => 
                 s.name.toLowerCase().includes("financing type")
               );
-              const declarationStep = steps.find((s: any) => 
-                s.name.toLowerCase().includes("declaration")
-              );
+              if (financingTypeStep && !hasConfiguredContent(financingTypeStep)) {
+                missingItems.push("Financing Type (add at least one)");
+              }
+              
               const documentStep = steps.find((s: any) => 
                 s.name.toLowerCase().includes("document")
               );
-              
-              const requiredItems = [];
-              
-              // Check if step exists but not configured
-              if (financingTypeStep && !hasConfiguredContent(financingTypeStep)) {
-                requiredItems.push("Financing Type");
-              }
-              if (declarationStep && !hasConfiguredContent(declarationStep)) {
-                requiredItems.push("Declaration");
-              }
               if (documentStep && !hasConfiguredContent(documentStep)) {
-                requiredItems.push("Supporting Documents");
+                missingItems.push("Supporting Documents (add at least one)");
               }
               
-              if (requiredItems.length > 0) {
+              const declarationStep = steps.find((s: any) => 
+                s.name.toLowerCase().includes("declaration")
+              );
+              if (declarationStep && !hasConfiguredContent(declarationStep)) {
+                missingItems.push("Declaration (add at least one)");
+              }
+              
+              // Show missing items if any
+              if (missingItems.length > 0) {
                 return (
-                  <div className="bg-muted/50 border border-border rounded-lg p-4 space-y-2">
-                    <p className="text-sm font-medium">Required to complete:</p>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      {requiredItems.map((item) => (
-                        <li key={item}>{item}</li>
+                  <div className="bg-destructive/10 border-2 border-destructive/30 rounded-lg p-5 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-destructive/20">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-destructive flex-shrink-0" />
+                      </div>
+                      <p className="text-base font-semibold text-destructive">
+                        Configuration Required
+                      </p>
+                    </div>
+                    <p className="text-sm text-foreground">
+                      The following items need to be configured before you can save:
+                    </p>
+                    <ul className="space-y-2.5">
+                      {missingItems.map((item) => (
+                        <li key={item} className="flex items-center gap-2.5 text-sm text-foreground">
+                          <span className="text-destructive">•</span>
+                          <span className="font-medium">{item}</span>
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -255,25 +283,27 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
               }
               return null;
             })()}
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={updateProduct.isPending}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={updateProduct.isPending || !form.formState.isValid}
-              >
-                {updateProduct.isPending ? "Updating..." : "Update Product"}
-              </Button>
-            </DialogFooter>
           </form>
         </Form>
+        </div>
+
+        <DialogFooter className="px-6 pb-6 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={updateProduct.isPending}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit"
+            onClick={form.handleSubmit(onSubmit)}
+            disabled={updateProduct.isPending || !form.formState.isValid}
+          >
+            {updateProduct.isPending ? "Updating..." : "Update Product"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

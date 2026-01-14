@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 
 interface DocumentCategory {
   name: string;
@@ -66,6 +66,7 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
 
   const [newDocTitle, setNewDocTitle] = React.useState<{ [key: number]: string }>({});
   const [openCategoryPopover, setOpenCategoryPopover] = React.useState(false);
+  const [expandedCategories, setExpandedCategories] = React.useState<Set<number>>(new Set());
 
   // Filter out categories with no documents before saving
   const filterEmptyCategories = (cats: DocumentCategory[]): DocumentCategory[] => {
@@ -99,6 +100,18 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
     const newCategories = [...existingCategories, { ...categoryToAdd, documents: [] }];
     onChange({ ...config, categories: newCategories });
     setOpenCategoryPopover(false);
+    // Auto-expand newly added category
+    setExpandedCategories(new Set([...expandedCategories, existingCategories.length]));
+  };
+
+  const toggleCategory = (catIndex: number) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(catIndex)) {
+      newExpanded.delete(catIndex);
+    } else {
+      newExpanded.add(catIndex);
+    }
+    setExpandedCategories(newExpanded);
   };
 
   const removeCategory = (catIndex: number) => {
@@ -108,37 +121,120 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
     onChange({ ...config, categories: filteredCategories.length > 0 ? filteredCategories : undefined });
   };
 
-  const totalDocs = existingCategories.reduce((sum, cat) => sum + cat.documents.length, 0);
-
   return (
-    <div className="space-y-5 pt-4">
-      <div>
-        <p className="text-xs font-medium text-muted-foreground mb-1">
-          Configure supporting documents
-        </p>
-        <p className="text-xs text-muted-foreground">
+    <div className="p-3 sm:p-5 rounded-lg border bg-card">
+      <div className="mb-4 sm:mb-5">
+        <Label className="text-sm sm:text-base font-semibold">
+          Add Supporting Documents
+        </Label>
+        <p className="text-xs text-muted-foreground mt-0.5">
           Organize documents by category
         </p>
       </div>
 
-      {/* Document Categories */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Document Categories</Label>
-          {availableCategories.length > 0 && (
+      <div className="space-y-4 sm:space-y-5">
+        {/* Document Categories */}
+        {existingCategories.length > 0 && (
+          <div className="space-y-3 sm:space-y-4">
+            {existingCategories.map((category, catIndex) => {
+              const isExpanded = expandedCategories.has(catIndex);
+              return (
+                <div key={catIndex} className="space-y-3">
+                  {/* Category Header */}
+                  <div className="flex items-center justify-between pb-2 border-b gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(catIndex)}
+                      className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity flex-1 min-w-0"
+                    >
+                      {isExpanded ? (
+                        <ChevronUpIcon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronDownIcon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
+                      )}
+                      <Label className="text-xs sm:text-sm font-semibold cursor-pointer truncate">
+                        {category.name} ({category.documents.length})
+                      </Label>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeCategory(catIndex)}
+                      className="h-9 w-9 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Document List and Add Document - Collapsible */}
+                  {isExpanded && (
+                    <>
+                      {/* Document List */}
+                      {category.documents.length > 0 && (
+                        <div className="space-y-3 sm:space-y-4 max-h-64 overflow-y-auto">
+                          {category.documents.map((doc, docIndex) => {
+                            const isMultiLine = doc.title.includes('\n') || doc.title.length > 60;
+                            return (
+                              <div key={docIndex} className={`flex gap-2 sm:gap-3 group p-2 sm:p-2.5 rounded-md border border-transparent hover:border-destructive transition-all ${isMultiLine ? 'items-start' : 'items-center'}`}>
+                                <span className="text-xs sm:text-sm text-foreground font-medium w-3 sm:w-2 shrink-0">{docIndex + 1}.</span>
+                                <p className="text-xs sm:text-sm text-foreground leading-relaxed whitespace-pre-line flex-1 min-w-0 break-words">{doc.title}</p>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeDocument(catIndex, docIndex)}
+                                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 sm:h-7 sm:w-7 p-0 shrink-0"
+                                >
+                                  <TrashIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Add Document */}
+                      <div className="pt-3 border-t">
+                        <Input
+                          placeholder="Add document title..."
+                          value={newDocTitle[catIndex] || ""}
+                          onChange={(e) => setNewDocTitle({ ...newDocTitle, [catIndex]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addDocument(catIndex);
+                            }
+                          }}
+                          className="h-10 sm:h-10 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Add Category */}
+        {availableCategories.length > 0 && (
+          <div className="space-y-2 pt-3 border-t">
+            <Label className="text-xs sm:text-sm font-medium">
+              {existingCategories.length === 0 ? "Add New Category" : "Add Another Category"}
+            </Label>
             <Popover open={openCategoryPopover} onOpenChange={setOpenCategoryPopover}>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="h-8"
+                  className="w-full h-10 sm:h-10 justify-start text-sm"
                 >
-                  <PlusIcon className="h-3 w-3 mr-1.5" />
-                  Add Category
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  <span className="truncate">Select category to add</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-56 p-2" align="end">
+              <PopoverContent className="w-[calc(100vw-2rem)] sm:w-56 p-2" align="start" side="top">
                 <div className="space-y-1">
                   <p className="text-xs font-medium px-2 py-1.5 text-muted-foreground">
                     Select Category
@@ -158,90 +254,22 @@ export function SupportingDocumentsConfig({ config, onChange }: SupportingDocume
                 </div>
               </PopoverContent>
             </Popover>
-          )}
-        </div>
-        <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-          {existingCategories.length === 0 ? (
-            <div className="p-6 rounded-lg border-2 border-dashed border-border bg-muted/30 text-center">
-              <p className="text-sm text-muted-foreground">
-                No categories added yet. Use the "Add Category" button above to get started.
+            {existingCategories.length === 0 && (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Add document categories and configure required documents for each
               </p>
-            </div>
-          ) : (
-            existingCategories.map((category, catIndex) => (
-              <div key={catIndex} className="p-3 rounded-lg border bg-muted/30">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{category.name}</p>
-                    <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded-full">
-                      {category.documents.length}
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeCategory(catIndex)}
-                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                  >
-                    <TrashIcon className="h-3 w-3" />
-                  </Button>
-                </div>
+            )}
+          </div>
+        )}
 
-              {/* Document List */}
-              {category.documents.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {category.documents.map((doc, docIndex) => (
-                    <div key={docIndex} className="flex items-center gap-2 pl-2 group">
-                      <span className="flex-1 text-xs">{doc.title}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeDocument(catIndex, docIndex)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                      >
-                        <TrashIcon className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add Document */}
-              <div className="flex gap-2 mt-2">
-                <Input
-                  placeholder="Add document title..."
-                  value={newDocTitle[catIndex] || ""}
-                  onChange={(e) => setNewDocTitle({ ...newDocTitle, [catIndex]: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addDocument(catIndex);
-                    }
-                  }}
-                  className="h-10 bg-background flex-1 text-sm"
-                />
-                <Button
-                  type="button"
-                  onClick={() => addDocument(catIndex)}
-                  size="sm"
-                  disabled={!newDocTitle[catIndex]?.trim()}
-                  className="h-8 px-2"
-                >
-                  <PlusIcon className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="pt-2 text-xs text-muted-foreground bg-muted/20 p-2 rounded">
-        {totalDocs === 0
-          ? `No documents configured yet`
-          : `${totalDocs} document${totalDocs !== 1 ? 's' : ''} configured`}
+        {/* Empty State */}
+        {existingCategories.length === 0 && availableCategories.length === 0 && (
+          <div className="text-center py-6 sm:py-8 border-2 border-dashed rounded-lg">
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              All categories have been added
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

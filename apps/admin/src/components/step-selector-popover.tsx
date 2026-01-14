@@ -103,26 +103,27 @@ export function StepSelectorPopover({ onSelect, existingSteps = [] }: StepSelect
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       {/* Trigger Button */}
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="text-primary">
+        <Button type="button" variant="outline" size="sm" className="text-primary h-9 sm:h-8 text-xs w-full sm:w-auto justify-center">
           <PlusIcon className="h-4 w-4 mr-1" />
-          Add Step
+          <span className="hidden sm:inline">Add Step</span>
+          <span className="sm:hidden">Add</span>
         </Button>
       </PopoverTrigger>
 
       {/* Popover Content */}
-      <PopoverContent className="w-[400px] p-0" align="center">
-        <div className="flex flex-col">
+      <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="center" side="top">
+        <div className="flex flex-col h-[400px] sm:h-[500px]">
           {/* Search Bar */}
-          <div className="p-3 border-b">
+          <div className="p-3 border-b flex-shrink-0">
             <div className="relative">
               <Input
                 placeholder="Search step..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pr-8"
+                className="h-9 sm:h-9 pr-8 text-sm"
               />
               {/* Search Icon */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -134,10 +135,10 @@ export function StepSelectorPopover({ onSelect, existingSteps = [] }: StepSelect
           </div>
 
           {/* List of Available Steps */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="overflow-y-auto max-h-[350px] sm:max-h-[450px]">
             {filteredSteps.length === 0 ? (
               // Empty State
-              <div className="p-8 text-center text-sm text-muted-foreground">
+              <div className="p-6 sm:p-8 text-center text-xs sm:text-sm text-muted-foreground">
                 No steps found
               </div>
             ) : (
@@ -147,9 +148,8 @@ export function StepSelectorPopover({ onSelect, existingSteps = [] }: StepSelect
                   const Icon = step.icon;
 
                   // Check if this step is already added to the workflow
-                  const isAlreadyAdded = existingSteps.some((existing) =>
-                    existing.name.toLowerCase().includes(step.name.toLowerCase()) ||
-                    step.name.toLowerCase().includes(existing.name.toLowerCase())
+                  const isAlreadyAdded = existingSteps.some(
+                    (existing) => existing.name.toLowerCase() === step.name.toLowerCase()
                   );
 
                   return (
@@ -159,26 +159,26 @@ export function StepSelectorPopover({ onSelect, existingSteps = [] }: StepSelect
                       onClick={() => !isAlreadyAdded && selectStep(step)}
                       disabled={isAlreadyAdded}
                       className={cn(
-                        "w-full flex items-start gap-3 p-3 rounded-md text-left transition-colors",
+                        "w-full flex items-start gap-2 sm:gap-3 p-3 sm:p-3 rounded-md text-left transition-colors",
                         isAlreadyAdded
                           ? "opacity-50 cursor-not-allowed"
-                          : "hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          : "hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-accent"
                       )}
                     >
                       {/* Step Icon */}
                       <div className={cn(
-                        "mt-0.5 p-1.5 rounded-md",
+                        "mt-0.5 p-1.5 rounded-md shrink-0",
                         isAlreadyAdded ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
                       )}>
                         <Icon className="h-4 w-4" />
                       </div>
 
                       {/* Step Info */}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{step.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-xs sm:text-sm">{step.name}</span>
                           {isAlreadyAdded && (
-                            <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground">
+                            <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-muted rounded text-muted-foreground shrink-0">
                               Added
                             </span>
                           )}

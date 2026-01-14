@@ -90,53 +90,28 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   };
 
   return (
-    <div className="space-y-4 pt-4">
+    <div className="space-y-4">
       {!isEditing && currentType ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Current Product Type</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={startEdit}
-                className="h-8"
-              >
-                <PencilIcon className="h-3 w-3 mr-1.5" />
-                Edit
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={removeFinancingType}
-                className="h-8 text-destructive hover:text-destructive"
-              >
-                <TrashIcon className="h-3 w-3 mr-1.5" />
-                Remove
-              </Button>
-            </div>
-          </div>
-          
-          <div className="flex items-start space-x-3 p-4 rounded-lg border bg-card">
-            {currentType.image_url && (
-              <img
-                src={currentType.image_url}
-                alt={currentType.name}
-                className="h-16 w-16 rounded object-cover"
-              />
+        <div className="relative p-3 sm:p-4 rounded-lg border bg-card">
+          <div className="flex items-start gap-4">
+            {(currentType.image_url || "/logo.svg") && (
+              <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+                <img
+                  src={currentType.image_url || "/logo.svg"}
+                  alt={currentType.name}
+                  className="h-10 w-10 object-contain"
+                />
+              </div>
             )}
-            
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm">{currentType.name}</span>
+              <h4 className="font-semibold text-sm sm:text-base mb-1.5 flex items-center gap-2 flex-wrap">
+                {currentType.name}
                 {currentType.category && (
-                  <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-xs font-medium">
                     {currentType.category}
                   </span>
                 )}
-              </div>
+              </h4>
               {currentType.description && (
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {currentType.description}
@@ -144,78 +119,119 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
               )}
             </div>
           </div>
+          <div className="absolute top-4 right-4 flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={startEdit}
+              className="h-8 w-8 p-0"
+              title="Update"
+            >
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={removeFinancingType}
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Remove"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-3 p-4 rounded-lg border-2 border-dashed border-border bg-muted/30">
-          <Label className="text-sm font-semibold">
-            {currentType ? "Edit Financing Type" : "Add Financing Type"}
-          </Label>
+          <div className="p-3 sm:p-5 rounded-lg border bg-card">
+          <div className="mb-4 sm:mb-5">
+            <Label className="text-sm sm:text-base font-semibold">
+              {currentType ? "Update Financing Type" : "Add Financing Type"}
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {currentType ? "Modify the product type details below" : "Configure the financing product details"}
+            </p>
+          </div>
           
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newName" className="text-sm font-medium">
-                Product Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="newName"
-                placeholder="e.g., Invoice Financing (Islamic)"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="h-10 bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                This will be the main product name shown to borrowers
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="newCategory" className="text-sm font-medium">
-                Product Category <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="newCategory"
-                placeholder="e.g., Trade Finance, Financing Invoice, Working Capital"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="h-10 bg-background"
-              />
+          <div className="space-y-4 sm:space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newName" className="text-sm font-medium">
+                  Product Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="newName"
+                  placeholder="e.g., Account Receivable (AR) Financing"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="h-10 !text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Main product name shown to borrowers
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="newCategory" className="text-sm font-medium">
+                  Product Category <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="newCategory"
+                  placeholder="e.g., Invoice Financing (Islamic)"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="h-10 !text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Category classification
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="newImageUrl" className="text-sm font-medium">
-                Product Image URL <span className="text-muted-foreground text-xs">(optional)</span>
+                Product Image URL <span className="text-muted-foreground text-xs font-normal">(optional)</span>
               </Label>
               <Input
                 id="newImageUrl"
                 placeholder="https://example.com/product-image.jpg"
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
-                className="h-10 bg-background"
+                className="h-10 !text-sm"
               />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="newDescription" className="text-sm font-medium">
-                Product Description <span className="text-muted-foreground text-xs">(optional)</span>
+                Product Description <span className="text-muted-foreground text-xs font-normal">(optional)</span>
               </Label>
               <Textarea
                 id="newDescription"
                 placeholder="Describe what this financing product is for and who it's suitable for..."
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                className="min-h-[80px] bg-background text-sm"
+                className="min-h-[100px] text-sm"
               />
             </div>
             
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-3 pt-3 border-t">
               <Button
                 type="button"
                 onClick={saveFinancingType}
                 disabled={!newName.trim() || !newCategory.trim()}
                 className="flex-1"
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                {currentType ? "Update Type" : "Add Financing Type"}
+                {currentType ? (
+                  <>
+                    <PencilIcon className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                )}
               </Button>
               {currentType && (
                 <Button
