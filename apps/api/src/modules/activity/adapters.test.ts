@@ -5,9 +5,9 @@ import { prisma } from "../../lib/prisma";
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    security_log: { findMany: jest.fn() },
-    onboarding_log: { findMany: jest.fn() },
-    document_log: { findMany: jest.fn() },
+    securityLog: { findMany: jest.fn() },
+    onboardingLog: { findMany: jest.fn() },
+    documentLog: { findMany: jest.fn() },
   },
 }));
 
@@ -65,7 +65,7 @@ describe("Activity Adapters", () => {
     it("should query with correct filters", async () => {
       const filters = { limit: 10, offset: 0 };
       await adapter.query(userId, filters);
-      expect(prisma.security_log.findMany).toHaveBeenCalledWith(
+      expect(prisma.securityLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ user_id: userId }),
           take: 10,
