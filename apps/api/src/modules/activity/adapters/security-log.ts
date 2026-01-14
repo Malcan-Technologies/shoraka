@@ -66,14 +66,22 @@ export class SecurityLogAdapter implements AuditLogAdapter<SecurityLog> {
         return metadata?.success === false
           ? `Failed password change attempt: ${metadata?.error || "Unknown error"}`
           : "Changed password successfully";
+      case "EMAIL_CHANGED":
+        return metadata?.success === false
+          ? `Failed email change attempt: ${metadata?.error || "Unknown error"}`
+          : `Changed email to ${metadata?.newEmail || "new email"}`;
+      case "ROLE_ADDED":
+        return `Added new role: ${metadata?.role || "unknown"}`;
+      case "ROLE_SWITCHED":
+        return `Switched active role to ${metadata?.newRole || "unknown"}`;
+      case "PROFILE_UPDATED":
+        return "Updated profile information";
       case "EMAIL_VERIFIED":
         return metadata?.success === false
           ? "Failed email verification attempt"
           : "Email verified successfully";
       case "SECURITY_ALERT":
         return `Security alert: ${metadata?.alert_type || "Unknown alert"}`;
-      case "ROLE_SWITCHED":
-        return `Switched active role to ${metadata?.newRole || "unknown"}`;
       case "LOGIN_FAILURE":
         return `Failed login attempt: ${metadata?.reason || "Unknown reason"}`;
       case "NEW_DEVICE_LOGIN":
@@ -92,9 +100,12 @@ export class SecurityLogAdapter implements AuditLogAdapter<SecurityLog> {
   getEventTypes(): string[] {
     return [
       "PASSWORD_CHANGED",
+      "EMAIL_CHANGED",
+      "ROLE_ADDED",
+      "ROLE_SWITCHED",
+      "PROFILE_UPDATED",
       "EMAIL_VERIFIED",
       "SECURITY_ALERT",
-      "ROLE_SWITCHED",
       "LOGIN_FAILURE",
       "NEW_DEVICE_LOGIN",
     ];

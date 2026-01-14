@@ -59,22 +59,34 @@ export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
     switch (eventType) {
       case "ONBOARDING_STARTED":
         return "Started the onboarding process";
-      case "FORM_FILLED":
-        return `Completed onboarding section: ${metadata?.section || "Profile"}`;
-      case "KYC_SUBMITTED":
-        return "Submitted KYC documents for verification";
+      case "ONBOARDING_RESUMED":
+        return "Resumed the onboarding process";
       case "ONBOARDING_STATUS_UPDATED":
         return `Onboarding status updated to: ${metadata?.status || "Processing"}`;
+      case "ONBOARDING_CANCELLED":
+        return "Cancelled the onboarding process";
       case "ONBOARDING_REJECTED":
         return `Onboarding was rejected: ${metadata?.reason || "Check your documents"}`;
-      case "USER_COMPLETED":
-        return "Successfully completed the onboarding process";
-      case "AML_APPROVED":
-        return "AML verification was approved";
-      case "SSM_APPROVED":
-        return "SSM document verification was approved";
       case "SOPHISTICATED_STATUS_UPDATED":
         return `Sophisticated investor status: ${metadata?.isSophisticated ? "Approved" : "Rejected"}`;
+      case "FINAL_APPROVAL_COMPLETED":
+        return "Final onboarding approval completed";
+      case "FORM_FILLED":
+        return `Completed onboarding section: ${metadata?.section || "Profile"}`;
+      case "ONBOARDING_APPROVED":
+        return "Onboarding application was approved";
+      case "AML_APPROVED":
+        return "AML verification was approved";
+      case "TNC_APPROVED":
+        return "T&C documents were approved";
+      case "SSM_APPROVED":
+        return "SSM document verification was approved";
+      case "TNC_ACCEPTED":
+        return "Accepted the Terms & Conditions";
+      case "KYC_SUBMITTED":
+        return "Submitted KYC documents for verification";
+      case "USER_COMPLETED":
+        return "Successfully completed the onboarding process";
       default:
         return eventType
           .split("_")
@@ -88,14 +100,20 @@ export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
   getEventTypes(): string[] {
     return [
       "ONBOARDING_STARTED",
-      "FORM_FILLED",
-      "KYC_SUBMITTED",
+      "ONBOARDING_RESUMED",
       "ONBOARDING_STATUS_UPDATED",
+      "ONBOARDING_CANCELLED",
       "ONBOARDING_REJECTED",
-      "USER_COMPLETED",
-      "AML_APPROVED",
-      "SSM_APPROVED",
       "SOPHISTICATED_STATUS_UPDATED",
+      "FINAL_APPROVAL_COMPLETED",
+      "FORM_FILLED",
+      "ONBOARDING_APPROVED",
+      "AML_APPROVED",
+      "TNC_APPROVED",
+      "SSM_APPROVED",
+      "TNC_ACCEPTED",
+      "KYC_SUBMITTED",
+      "USER_COMPLETED",
     ];
   }
 }
