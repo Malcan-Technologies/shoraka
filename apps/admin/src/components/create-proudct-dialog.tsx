@@ -225,18 +225,19 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
                 missingItems.push("Financing Type (add at least one)");
               }
               
-              const declarationStep = steps.find((s: any) => 
-                s.name.toLowerCase().includes("declaration")
-              );
-              if (declarationStep && !hasConfiguredContent(declarationStep)) {
-                missingItems.push("Declaration (add at least one)");
-              }
               
               const documentStep = steps.find((s: any) => 
                 s.name.toLowerCase().includes("document")
               );
               if (documentStep && !hasConfiguredContent(documentStep)) {
                 missingItems.push("Supporting Documents (add at least one)");
+              }
+
+              const declarationStep = steps.find((s: any) => 
+                s.name.toLowerCase().includes("declaration")
+              );
+              if (declarationStep && !hasConfiguredContent(declarationStep)) {
+                missingItems.push("Declaration (add at least one)");
               }
               
               // Show missing items if any
