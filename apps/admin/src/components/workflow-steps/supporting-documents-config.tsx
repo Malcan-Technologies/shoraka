@@ -22,8 +22,6 @@ interface DocumentItem {
 
 interface SupportingDocumentsConfig {
   categories?: DocumentCategory[];
-  maxFiles?: number;
-  maxFileSize?: number;
 }
 
 interface SupportingDocumentsConfigProps {

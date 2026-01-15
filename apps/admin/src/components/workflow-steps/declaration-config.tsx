@@ -8,7 +8,6 @@ import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 interface DeclarationConfig {
   declarations?: string[];
-  requireAll?: boolean;
 }
 
 interface DeclarationConfigProps {
