@@ -30,6 +30,13 @@ export function getS3Client(): S3Client {
 
 export { S3_BUCKET, S3_REGION };
 
+/**
+ * Get public S3 URL from S3 key
+ */
+export function getS3PublicUrl(key: string): string {
+  return `https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${key}`;
+}
+
 // Presigned URL expiration times
 const UPLOAD_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 const DOWNLOAD_URL_EXPIRY_SECONDS = 60 * 60; // 1 hour
@@ -76,6 +83,7 @@ export async function generatePresignedUploadUrl(
 
 /**
  * Generate a presigned URL for downloading a file from S3
+ * For images, use ResponseContentDisposition: inline to display in browser
  */
 export async function generatePresignedDownloadUrl(
   params: PresignedDownloadUrlParams
@@ -98,6 +106,32 @@ export async function generatePresignedDownloadUrl(
 
   return {
     downloadUrl,
+    expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
+  };
+}
+
+/**
+ * Generate a presigned URL for viewing an image (inline display)
+ */
+export async function generatePresignedViewUrl(
+  params: { key: string }
+): Promise<{ viewUrl: string; expiresIn: number }> {
+  const client = getS3Client();
+
+  const command = new GetObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: params.key,
+    ResponseContentDisposition: "inline", // Display in browser instead of download
+  });
+
+  const viewUrl = await getSignedUrl(client, command, {
+    expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
+  });
+
+  logger.debug({ key: params.key }, "Generated presigned view URL for image");
+
+  return {
+    viewUrl,
     expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
   };
 }
