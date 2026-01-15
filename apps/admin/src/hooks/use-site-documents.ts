@@ -207,7 +207,7 @@ export function useDownloadSiteDocument() {
 export async function uploadFileToS3(
   uploadUrl: string,
   file: File
-): Promise<void> {
+): Promise<Response> {
   const response = await fetch(uploadUrl, {
     method: "PUT",
     body: file,
@@ -219,5 +219,7 @@ export async function uploadFileToS3(
   if (!response.ok) {
     throw new Error(`Upload failed: ${response.statusText}`);
   }
+  
+  return response;
 }
 

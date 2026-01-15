@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { WorkflowBuilder } from "./workflow-builder";
 import { useCreateProduct } from "../hooks/use-products";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { useImageUpload } from "../hooks/use-image-upload";
+import { getPendingFiles, clearPendingFile } from "./workflow-steps/financing-type-config";
 
 // Schema with validation rules
 const createProductSchema = z.object({
@@ -129,6 +131,7 @@ const DEFAULT_WORKFLOW = [
 export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogProps) {
   // Hook to create product via API
   const createProduct = useCreateProduct();
+  const uploadImage = useImageUpload();
 
   // Set up form with default workflow steps
   const form = useForm<CreateProductFormValues>({
@@ -172,7 +175,36 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
   const onSubmit = async (values: CreateProductFormValues) => {
     try {
       // Clean up workflow before saving (remove empty categories)
-      const cleanedWorkflow = cleanWorkflow(values.workflow);
+      let cleanedWorkflow = cleanWorkflow(values.workflow);
+
+      // Upload pending images and update s3_key in config
+      const pendingFilesMap = getPendingFiles();
+      cleanedWorkflow = await Promise.all(
+        cleanedWorkflow.map(async (step: any) => {
+          if (step.config?.type?._pendingFileId) {
+            const fileId = step.config.type._pendingFileId;
+            const pendingFile = pendingFilesMap.get(fileId);
+            
+            if (pendingFile) {
+              try {
+                const s3Key = await uploadImage.mutateAsync({
+                  file: pendingFile.file,
+                  financingTypeName: pendingFile.financingTypeName,
+                });
+                
+                // Update config with s3_key and remove pending file ID
+                step.config.type.s3_key = s3Key;
+                delete step.config.type._pendingFileId;
+                clearPendingFile(fileId);
+              } catch (error) {
+                console.error("Failed to upload image:", error);
+                throw error;
+              }
+            }
+          }
+          return step;
+        })
+      );
 
       // Send workflow to API
       await createProduct.mutateAsync({
