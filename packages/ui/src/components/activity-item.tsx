@@ -12,7 +12,7 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
   return (
     <div
       className={cn(
-        "flex items-center justify-between py-4 border-b border-border last:border-0 hover:bg-muted/50 transition-colors px-2",
+        "flex items-center justify-between py-4 hover:bg-muted/50 transition-colors px-2",
         className
       )}
       {...props}
@@ -23,8 +23,8 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
 
       <div className="flex items-center gap-12 w-full max-w-[400px]">
         <div className="flex-1 flex justify-start min-w-[120px]">
-          <ActivityBadge 
-            category={activity.category} 
+          <ActivityBadge
+            category={activity.category}
             eventType={activity.event_type}
           />
         </div>

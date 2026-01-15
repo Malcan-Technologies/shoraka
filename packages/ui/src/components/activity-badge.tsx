@@ -1,9 +1,8 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
-import { ActivityCategory } from "@cashsouk/types";
+import { ActivityCategory, getEventConfig } from "@cashsouk/types";
 import { Badge } from "./badge";
-import { getEventConfig } from "../lib/activity-config";
 
 const badgeVariants = cva(
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent",
@@ -55,7 +54,7 @@ const COLOR_MAP: Record<string, string> = {
 export function ActivityBadge({ category, eventType, label, dotColor, className, variant, ...props }: ActivityBadgeProps) {
   // If we have an event type, get its config
   const eventConfig = eventType ? getEventConfig(eventType) : null;
-  
+
   const finalLabel = label || eventConfig?.label || category || "Unknown";
   const finalDotColor = dotColor || eventConfig?.dotColor || "bg-gray-500";
   const cssColor = COLOR_MAP[finalDotColor] || "rgb(107 114 128)";
@@ -63,11 +62,10 @@ export function ActivityBadge({ category, eventType, label, dotColor, className,
   return (
     <Badge
       variant="outline"
-      className={cn("text-xs w-fit whitespace-nowrap px-2 py-0.5", className)}
+      className={cn("text-xs w-fit whitespace-nowrap", className)}
       style={{
         backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
-        borderColor: `color-mix(in srgb, ${cssColor} 20%, transparent)`,
-        color: cssColor,
+        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
       }}
       {...props}
     >

@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 /**
  * Activity category - maps to audit log source
  */
-export type ActivityCategory = "security" | "onboarding" | "document";
+export type ActivityCategory = "security" | "onboarding" | "document" | "access";
 
 /**
  * Unified activity structure returned to frontend
@@ -55,6 +55,11 @@ export interface AuditLogAdapter<T> {
    * Query audit logs for a specific user with filters
    */
   query(userId: string, filters: ActivityFilters): Promise<T[]>;
+
+  /**
+   * Count total audit logs for a specific user with filters
+   */
+  count(userId: string, filters: ActivityFilters): Promise<number>;
 
   /**
    * Transform a single audit log record into a unified activity

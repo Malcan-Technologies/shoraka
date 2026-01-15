@@ -2,20 +2,17 @@ import {
   AuditLogAdapter,
   UnifiedActivity,
   ActivityFilters,
-  ActivityCategory,
 } from "./adapters/base";
-import { SecurityLogAdapter } from "./adapters/security-log";
 import { OnboardingLogAdapter } from "./adapters/onboarding-log";
-import { DocumentLogAdapter } from "./adapters/document-log";
+import { AccessLogAdapter } from "./adapters/access-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
 
   constructor() {
     // Register default adapters
-    this.registerAdapter(new SecurityLogAdapter());
     this.registerAdapter(new OnboardingLogAdapter());
-    this.registerAdapter(new DocumentLogAdapter());
+    this.registerAdapter(new AccessLogAdapter());
   }
 
   /**
@@ -71,12 +68,15 @@ export class AuditLogAggregator {
     // Apply pagination slice
     const paginatedActivities = allActivities.slice(offset, offset + limit);
 
-    // Note: This 'total' is an approximation of the filtered set across all tables
-    // In a real high-volume scenario, we would use more complex cursor-based
-    // pagination or separate count queries. For a user activity feed, this is fine.
+    // Get the actual total count across all active adapters
+    const counts = await Promise.all(
+      activeAdapters.map((adapter) => adapter.count(userId, filters))
+    );
+    const totalCount = counts.reduce((acc, count) => acc + count, 0);
+
     return {
       activities: paginatedActivities,
-      total: allActivities.length,
+      total: totalCount,
     };
   }
 

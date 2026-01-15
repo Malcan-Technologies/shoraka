@@ -63,7 +63,7 @@ export interface Investment {
   updatedAt: string;
 }
 
-export type ActivityCategory = "security" | "onboarding" | "document";
+export type ActivityCategory = "security" | "onboarding" | "document" | "access";
 
 export interface Activity {
   id: string;
@@ -99,4 +99,5 @@ export interface ActivitiesResponse {
   };
 }
 
+export * from "@cashsouk/config/src/activity-config";
 export * from "./admin";

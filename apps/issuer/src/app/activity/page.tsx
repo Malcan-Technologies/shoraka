@@ -8,7 +8,7 @@ import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { ActivityItem, Badge, Skeleton } from "@cashsouk/ui";
-import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
   const [search, setSearch] = useState("");
@@ -104,31 +104,36 @@ export default function ActivityPage() {
                   </div>
                 )}
               </div>
-            </div>
 
-            {pagination && pagination.pages > 1 && (
-              <div className="flex items-center justify-end space-x-2 py-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  Page {page} of {pagination.pages}
+              {pagination && pagination.total > 0 && (
+                <div className="flex items-center justify-between border-t px-6 py-4 bg-white">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of {pagination.total}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      <ChevronLeftIcon className="h-4 w-4" />
+                    </Button>
+                    <div className="text-sm font-medium">
+                      Page {page} of {pagination.pages}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+                      disabled={page === pagination.pages}
+                    >
+                      <ChevronRightIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-                  disabled={page === pagination.pages}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
