@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { useActivities } from "../../hooks/use-activities";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
-import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Badge, Skeleton } from "@cashsouk/ui";
-import { MagnifyingGlassIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { ActivityItem, Badge, Skeleton, ActivityToolbar } from "@cashsouk/ui";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [eventTypes, setEventTypes] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
   const limit = 10;
 
@@ -24,14 +25,28 @@ export default function ActivityPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data, isLoading } = useActivities({
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [eventTypes, dateRange]);
+
+  const { data, isLoading, refetch } = useActivities({
     page,
     limit,
     search: debouncedSearch || undefined,
+    eventTypes: eventTypes.length > 0 ? eventTypes : undefined,
+    dateRange: dateRange !== "all" ? (dateRange as any) : undefined,
   });
 
   const activities = data?.activities || [];
   const pagination = data?.pagination;
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setEventTypes([]);
+    setDateRange("all");
+    setPage(1);
+  };
 
   return (
     <>
@@ -52,25 +67,22 @@ export default function ActivityPage() {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-64">
-                <MagnifyingGlassIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-9 bg-white border-border"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                  }}
-                />
-              </div>
-              <Button variant="outline" className="gap-2 bg-white border-border">
-                <FunnelIcon className="h-4 w-4" />
-                Filter
-              </Button>
-            </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 space-y-6">
+            <ActivityToolbar
+              searchQuery={search}
+              onSearchChange={setSearch}
+              eventTypeFilters={eventTypes}
+              onEventTypeFiltersChange={setEventTypes}
+              dateRangeFilter={dateRange}
+              onDateRangeFilterChange={setDateRange}
+              totalCount={pagination?.unfilteredTotal || 0}
+              filteredCount={pagination?.total || 0}
+              onClearFilters={handleClearFilters}
+              onReload={() => refetch()}
+              isLoading={isLoading}
+            />
+
             <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
               <div className="grid grid-cols-[1fr_400px] gap-12 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
                 <div className="flex-1">Activity</div>

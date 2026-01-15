@@ -26,12 +26,16 @@ router.get(
         categories: req.query.categories
           ? Array.isArray(req.query.categories)
             ? req.query.categories
-            : [req.query.categories]
+            : typeof req.query.categories === "string"
+              ? req.query.categories.split(",")
+              : [req.query.categories]
           : undefined,
         eventTypes: req.query.eventTypes
           ? Array.isArray(req.query.eventTypes)
             ? req.query.eventTypes
-            : [req.query.eventTypes]
+            : typeof req.query.eventTypes === "string"
+              ? req.query.eventTypes.split(",")
+              : [req.query.eventTypes]
           : undefined,
       };
 

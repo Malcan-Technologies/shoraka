@@ -14,9 +14,11 @@ export const getActivitiesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
   categories: z.array(activityCategorySchema).optional(),
+  eventType: z.string().optional(),
   eventTypes: z.array(z.string()).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  dateRange: z.enum(["24h", "7d", "30d", "all"]).optional(),
 });
 
 /**

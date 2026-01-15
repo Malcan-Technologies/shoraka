@@ -28,7 +28,7 @@ export class AuditLogAggregator {
   async aggregate(
     userId: string,
     filters: ActivityFilters
-  ): Promise<{ activities: UnifiedActivity[]; total: number }> {
+  ): Promise<{ activities: UnifiedActivity[]; total: number; unfilteredTotal: number }> {
     const { categories, limit = 10, offset = 0 } = filters;
 
     // Filter adapters by category if specified
@@ -74,9 +74,16 @@ export class AuditLogAggregator {
     );
     const totalCount = counts.reduce((acc, count) => acc + count, 0);
 
+    // Get the unfiltered total count (only user_id and categories filter)
+    const unfilteredCounts = await Promise.all(
+      activeAdapters.map((adapter) => adapter.count(userId, { categories }))
+    );
+    const unfilteredTotalCount = unfilteredCounts.reduce((acc, count) => acc + count, 0);
+
     return {
       activities: paginatedActivities,
       total: totalCount,
+      unfilteredTotal: unfilteredTotalCount,
     };
   }
 

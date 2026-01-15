@@ -20,8 +20,7 @@ export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
     const { search, event_types, startDate, endDate, limit, offset } = filters;
     const supportedTypes = this.getEventTypes();
 
-    // Determine which event types to fetch:
-    const finalEventTypes = event_types
+    let finalEventTypes = event_types
       ? event_types.filter(et => supportedTypes.includes(et))
       : supportedTypes;
 
@@ -86,7 +85,7 @@ export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
     const { search, event_types, startDate, endDate } = filters;
     const supportedTypes = this.getEventTypes();
 
-    const finalEventTypes = event_types
+    let finalEventTypes = event_types
       ? event_types.filter((et) => supportedTypes.includes(et))
       : supportedTypes;
 

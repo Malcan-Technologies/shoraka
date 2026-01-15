@@ -77,6 +77,7 @@ export interface Activity {
   device_info: string | null;
   created_at: string; // Displayed as "Time" in UI
   source_table: string;
+  status?: "success" | "failed";
 }
 
 export interface GetActivitiesParams {
@@ -84,15 +85,19 @@ export interface GetActivitiesParams {
   limit: number;
   search?: string;
   categories?: ActivityCategory[];
+  eventType?: string;
   eventTypes?: string[];
+  status?: "success" | "failed";
   startDate?: string;
   endDate?: string;
+  dateRange?: "24h" | "7d" | "30d" | "all";
 }
 
 export interface ActivitiesResponse {
   activities: Activity[];
   pagination: {
     total: number;
+    unfilteredTotal: number;
     page: number;
     limit: number;
     pages: number;
