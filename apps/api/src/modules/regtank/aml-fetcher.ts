@@ -534,95 +534,69 @@ export class AMLFetcherService {
 
         const shareholder = corporateEntities.corporateShareholders[shareholderIndex];
 
-        // Skip if already has kybAmlStatus (webhook may have already updated it)
-        if ((shareholder as any).kybAmlStatus) {
-          logger.debug(
-            { shareholderCodRequestId, codRequestId },
-            "[AML Fetcher] Business shareholder already has KYB AML status (webhook updated), skipping"
-          );
-          continue;
-        }
+        // Use existing kybId if available, otherwise extract from COD
+        let extractedKybId: string | null = (shareholder as any).kybId || null;
+        let kybRequestDto: any = (shareholder as any).kybRequestDto || null;
 
         try {
-          // Step 4: Get COD details for this business shareholder
-          const shareholderCodDetails = await this.apiClient.getCorporateOnboardingDetails(shareholderCodRequestId);
-          
-          // Step 5: Extract kybId from kybRequestDto
-          let extractedKybId: string | null = null;
-          let initialStatus: string | null = null;
-          let kybRequestDto: any = null;
-          
-          if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
-            const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
-            
-            // Try kybRequestDto first
-            if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
-              kybRequestDto = codDetailsObj.kybRequestDto;
-              const kybDto = kybRequestDto as Record<string, unknown>;
-              if (kybDto.kybId && typeof kybDto.kybId === "string") {
-                extractedKybId = kybDto.kybId;
-              }
-              if (kybDto.status && typeof kybDto.status === "string") {
-                initialStatus = kybDto.status;
-              }
-            }
-            
-            // Fallback: try direct kybId field
-            if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
-              extractedKybId = codDetailsObj.kybId;
-            }
-          }
-
+          // If we don't have kybId, get COD details and extract it
           if (!extractedKybId) {
-            logger.warn(
-              { shareholderCodRequestId, codRequestId },
-              "[AML Fetcher] KYB ID not found in business shareholder COD details"
-            );
-            continue;
-          }
-
-          // Step 6: Store kybId and kybRequestDto in corporate_entities
-          (shareholder as any).kybId = extractedKybId;
-          if (kybRequestDto) {
-            (shareholder as any).kybRequestDto = kybRequestDto;
-          }
-
-          // Step 7: Fetch AML status from KYB API
-          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          let amlMessageStatus: "DONE" | "PENDING" | "ERROR" = "PENDING";
-          let amlRiskScore: number | null = null;
-          let amlRiskLevel: string | null = null;
-
-          // Use initial status from kybRequestDto if available, otherwise fetch from KYB API
-          if (initialStatus) {
-            const kybStatus = initialStatus.toUpperCase();
-            if (kybStatus === "APPROVED") {
-              amlStatus = "Approved";
-            } else if (kybStatus === "REJECTED") {
-              amlStatus = "Rejected";
-            } else if (kybStatus === "UNRESOLVED") {
-              amlStatus = "Unresolved";
-            }
-            amlMessageStatus = "PENDING";
-          } else {
-            // Fetch from KYB API for full status
-            const kybStatusResponse = await this.apiClient.queryKYBStatus(extractedKybId);
+            // Step 4: Get COD details for this business shareholder
+            const shareholderCodDetails = await this.apiClient.getCorporateOnboardingDetails(shareholderCodRequestId);
             
-            const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
-            if (kybStatus === "APPROVED") {
-              amlStatus = "Approved";
-            } else if (kybStatus === "REJECTED") {
-              amlStatus = "Rejected";
-            } else if (kybStatus === "UNRESOLVED") {
-              amlStatus = "Unresolved";
+            // Step 5: Extract kybId from kybRequestDto
+            if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
+              const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
+              
+              // Try kybRequestDto first
+              if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
+                kybRequestDto = codDetailsObj.kybRequestDto;
+                const kybDto = kybRequestDto as Record<string, unknown>;
+                if (kybDto.kybId && typeof kybDto.kybId === "string") {
+                  extractedKybId = kybDto.kybId;
+                }
+              }
+              
+              // Fallback: try direct kybId field
+              if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
+                extractedKybId = codDetailsObj.kybId;
+              }
             }
 
-            amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-            amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
-            amlRiskLevel = kybStatusResponse.riskLevel || null;
+            if (!extractedKybId) {
+              logger.warn(
+                { shareholderCodRequestId, codRequestId },
+                "[AML Fetcher] KYB ID not found in business shareholder COD details or existing data"
+              );
+              continue;
+            }
+
+            // Step 6: Store kybId and kybRequestDto in corporate_entities
+            (shareholder as any).kybId = extractedKybId;
+            if (kybRequestDto) {
+              (shareholder as any).kybRequestDto = kybRequestDto;
+            }
           }
 
-          // Step 8: Update shareholder with AML status
+          // Step 7: Always fetch fresh AML status from KYB API
+          const kybStatusResponse = await this.apiClient.queryKYBStatus(extractedKybId);
+          
+          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+          const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
+          if (kybStatus === "APPROVED") {
+            amlStatus = "Approved";
+          } else if (kybStatus === "REJECTED") {
+            amlStatus = "Rejected";
+          } else if (kybStatus === "UNRESOLVED") {
+            amlStatus = "Unresolved";
+          }
+
+          const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
+          const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
+          const amlRiskLevel = kybStatusResponse.riskLevel || null;
+
+          // Step 8: Update shareholder with fresh AML status (always update, even if status exists)
+          const hadExistingStatus = !!(shareholder as any).kybAmlStatus;
           (shareholder as any).kybAmlStatus = {
             status: amlStatus,
             messageStatus: amlMessageStatus,
@@ -643,8 +617,8 @@ export class AMLFetcherService {
           });
 
           logger.debug(
-            { shareholderCodRequestId, kybId: extractedKybId, amlStatus },
-            "[AML Fetcher] ✓ Fetched business shareholder KYB AML status"
+            { shareholderCodRequestId, kybId: extractedKybId, amlStatus, hadExistingStatus },
+            "[AML Fetcher] ✓ Fetched/refreshed business shareholder KYB AML status"
           );
         } catch (error) {
           logger.warn(
@@ -659,6 +633,7 @@ export class AMLFetcherService {
       }
 
       // Step 9: Update organization with corporate_entities
+      // We always push to amlStatuses after processing, so this will be > 0 if we processed any shareholders
       if (amlStatuses.length > 0) {
         if (portalType === "investor") {
           await prisma.investorOrganization.update({

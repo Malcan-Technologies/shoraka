@@ -376,11 +376,15 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
             const storedKybId = (shareholder as any).kybId;
             
             // Match by COD requestId (onboardingId) OR by stored kybId
-            if ((onboardingId && codRequestId === onboardingId) || (requestId && storedKybId === requestId)) {
+            // onboardingId from webhook is the COD requestId for the business shareholder
+            const matchesByCodRequestId = onboardingId && codRequestId === onboardingId;
+            const matchesByKybId = requestId && storedKybId === requestId;
+            
+            if (matchesByCodRequestId || matchesByKybId) {
               foundShareholder = true;
               
               // This KYB webhook is for this business shareholder
-              // Update the KYB AML status
+              // Always update the KYB AML status (even if one already exists) to ensure it's current
               const kybStatus = status?.toUpperCase() || "";
               let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
               
@@ -390,14 +394,17 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 amlStatus = "Rejected";
               } else if (kybStatus === "UNRESOLVED") {
                 amlStatus = "Unresolved";
+              } else if (kybStatus === "NO_MATCH") {
+                amlStatus = "Pending";
               }
 
               const amlMessageStatus = (messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
               const amlRiskScore = riskScore ? parseFloat(String(riskScore)) : null;
               const amlRiskLevel = riskLevel || null;
 
-              // Update shareholder with KYB ID and AML status
+              // Update shareholder with KYB ID and AML status (always update, even if status exists)
               (shareholder as any).kybId = requestId; // KYB requestId is the kybId
+              const previousStatus = (shareholder as any).kybAmlStatus?.status;
               (shareholder as any).kybAmlStatus = {
                 status: amlStatus,
                 messageStatus: amlMessageStatus,
@@ -430,9 +437,10 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   shareholderName: (shareholder as any).name || (shareholder as any).businessName,
                   organizationId: orgId,
                   amlStatus,
-                  matchedBy: onboardingId && codRequestId === onboardingId ? "codRequestId" : "kybId",
+                  previousStatus,
+                  matchedBy: matchesByCodRequestId ? "codRequestId" : "kybId",
                 },
-                "[KYB Webhook] Updated business shareholder KYB AML status from KYB webhook"
+                "[KYB Webhook] ✓ Updated business shareholder KYB AML status from KYB webhook"
               );
               break;
             }
