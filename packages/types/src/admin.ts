@@ -704,6 +704,29 @@ export interface DownloadUrlResponse {
   fileSize: number;
 }
 
+// Product Image Types
+export interface RequestProductImageUploadUrlInput {
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  financingTypeName: string; // Financing type name for folder structure (e.g., "personal-loan", "business-financing")
+}
+
+export interface RequestProductImageUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface RequestProductImageDownloadUrlInput {
+  s3Key: string;
+}
+
+export interface ProductImageDownloadUrlResponse {
+  downloadUrl: string;
+  expiresIn: number;
+}
+
 // Document Log Types
 export interface DocumentLogUser {
   user_id: string;

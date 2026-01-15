@@ -64,6 +64,27 @@ export const exportProductLogsQuerySchema = z.object({
 
 export type ExportProductLogsQuery = z.infer<typeof exportProductLogsQuerySchema>;
 
+// Product image upload URL request schema
+export const requestProductImageUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.string().min(1),
+  fileSize: z.number().int().positive(),
+  financingTypeName: z.string().min(1), // Financing type name for folder structure
+});
+
+export type RequestProductImageUploadUrlInput = z.infer<
+  typeof requestProductImageUploadUrlSchema
+>;
+
+// Product image download URL request schema
+export const requestProductImageDownloadUrlSchema = z.object({
+  s3Key: z.string().min(1),
+});
+
+export type RequestProductImageDownloadUrlInput = z.infer<
+  typeof requestProductImageDownloadUrlSchema
+>;
+
 // Type exports
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
