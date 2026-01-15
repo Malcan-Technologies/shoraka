@@ -6,13 +6,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { useImageViewUrl } from "@/hooks/use-image-upload";
+import { toast } from "sonner";
+
+const pendingFiles = new Map<string, { file: File; financingTypeName: string }>();
+
+export function getPendingFiles() {
+  return pendingFiles;
+}
+
+export function clearPendingFile(fileId: string) {
+  pendingFiles.delete(fileId);
+}
 
 interface FinancingTypeConfig {
   type?: {
     name: string;
     description: string;
     category?: string;
-    image_url?: string;
+    s3_key?: string;
+    _pendingFileId?: string;
   };
 }
 
@@ -28,30 +41,41 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const [newName, setNewName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
-  const [newImageUrl, setNewImageUrl] = React.useState("");
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+
+  const imageUrl = useImageViewUrl(currentType?.s3_key);
+  const editImageUrl = useImageViewUrl(isEditing ? currentType?.s3_key : null);
 
   React.useEffect(() => {
     if (currentType && isEditing) {
       setNewName(currentType.name);
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
-      setNewImageUrl(currentType.image_url || "");
+      setSelectedFile(null);
     }
   }, [currentType, isEditing]);
 
-  const saveFinancingType = () => {
+  const saveFinancingType = async () => {
     if (!newName.trim() || !newCategory.trim()) return;
 
-    const newType = {
-      name: newName.trim(),
-      description: newDescription.trim() || "",
-      category: newCategory.trim(),
-      image_url: newImageUrl.trim() || "",
-    };
+    let pendingFileId: string | undefined;
+    if (selectedFile) {
+      pendingFileId = `pending_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      pendingFiles.set(pendingFileId, {
+        file: selectedFile,
+        financingTypeName: newName.trim(),
+      });
+    }
 
     onChange({
       ...config,
-      type: newType,
+      type: {
+        name: newName.trim(),
+        description: newDescription.trim() || "",
+        category: newCategory.trim(),
+        s3_key: currentType?.s3_key || "",
+        _pendingFileId: pendingFileId,
+      },
     });
 
     setIsEditing(false);
@@ -62,16 +86,10 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     setNewName("");
     setNewDescription("");
     setNewCategory("");
-    setNewImageUrl("");
+    setSelectedFile(null);
   };
 
   const startEdit = () => {
-    if (currentType) {
-      setNewName(currentType.name);
-      setNewDescription(currentType.description || "");
-      setNewCategory(currentType.category || "");
-      setNewImageUrl(currentType.image_url || "");
-    }
     setIsEditing(true);
   };
 
@@ -94,13 +112,17 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       {!isEditing && currentType ? (
         <div className="relative p-3 sm:p-4 rounded-lg border bg-card">
           <div className="flex items-start gap-4">
-            {(currentType.image_url || "/logo.svg") && (
+            {currentType.s3_key && (
               <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
-                <img
-                  src={currentType.image_url || "/logo.svg"}
-                  alt={currentType.name}
-                  className="h-10 w-10 object-contain"
-                />
+                {imageUrl.isLoading ? (
+                  <div className="h-10 w-10 animate-pulse bg-muted rounded" />
+                ) : imageUrl.data ? (
+                  <img
+                    src={imageUrl.data}
+                    alt={currentType.name}
+                    className="h-10 w-10 object-contain"
+                  />
+                ) : null}
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -189,16 +211,52 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newImageUrl" className="text-sm font-medium">
-                Product Image URL <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+              <Label className="text-sm font-medium">
+                Product Image <span className="text-muted-foreground text-xs font-normal">(optional)</span>
               </Label>
+              {currentType?.s3_key && !selectedFile && (
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                  <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+                    {editImageUrl.isLoading ? (
+                      <div className="h-10 w-10 animate-pulse bg-muted rounded" />
+                    ) : editImageUrl.data ? (
+                      <img
+                        src={editImageUrl.data}
+                        alt={currentType.name}
+                        className="h-10 w-10 object-contain"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Current image</p>
+                    <p className="text-xs text-muted-foreground">Upload a new picture to replace it</p>
+                  </div>
+                </div>
+              )}
               <Input
-                id="newImageUrl"
-                placeholder="https://example.com/product-image.jpg"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                className="h-10 !text-sm"
+                type="file"
+                accept="image/*"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0];
+                  if (!file) {
+                    setSelectedFile(null);
+                    return;
+                  }
+                  if (file.size > 5 * 1024 * 1024) {
+                    toast.error("File too large", {
+                      description: "Maximum file size is 5MB",
+                    });
+                    e.target.value = "";
+                    return;
+                  }
+                  setSelectedFile(file);
+                }}
               />
+              {selectedFile && (
+                <p className="text-sm text-muted-foreground">
+                  New file: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
