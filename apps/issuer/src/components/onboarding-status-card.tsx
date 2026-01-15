@@ -188,6 +188,7 @@ export function OnboardingStatusCard({
               {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
                 <CorporateShareholdersList
                   corporateShareholders={organization.corporateEntities.corporateShareholders}
+                  businessShareholdersAml={organization.directorAmlStatus?.businessShareholders}
                   status={organization.onboardingStatus}
                 />
               )}
@@ -214,6 +215,7 @@ export function OnboardingStatusCard({
               {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
                 <CorporateShareholdersList
                   corporateShareholders={organization.corporateEntities.corporateShareholders}
+                  businessShareholdersAml={organization.directorAmlStatus?.businessShareholders}
                   status={organization.onboardingStatus}
                 />
               )}

@@ -21,6 +21,7 @@ interface BusinessShareholderAMLStatus {
   codRequestId: string;
   kybId: string;
   businessName: string;
+  sharePercentage?: number | null;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;
@@ -480,15 +481,15 @@ export class AMLFetcherService {
         return amlStatuses;
       }
 
-      // Step 2: Get organization to update corporate_entities
+      // Step 2: Get organization to read corporate_entities and update director_aml_status
       const org = portalType === "investor"
         ? await prisma.investorOrganization.findUnique({
             where: { id: organizationId },
-            select: { corporate_entities: true },
+            select: { corporate_entities: true, director_aml_status: true },
           })
         : await prisma.issuerOrganization.findUnique({
             where: { id: organizationId },
-            select: { corporate_entities: true },
+            select: { corporate_entities: true, director_aml_status: true },
           });
 
       if (!org || !org.corporate_entities) {
@@ -506,6 +507,12 @@ export class AMLFetcherService {
           "[AML Fetcher] No corporate shareholders in corporate_entities"
         );
         return amlStatuses;
+      }
+
+      // Get existing director_aml_status to update businessShareholders array
+      let directorAmlStatus = (org.director_aml_status as any) || { directors: [], businessShareholders: [], lastSyncedAt: new Date().toISOString() };
+      if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
+        directorAmlStatus.businessShareholders = [];
       }
 
       // Step 3: Process each business shareholder
@@ -595,29 +602,47 @@ export class AMLFetcherService {
           const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
           const amlRiskLevel = kybStatusResponse.riskLevel || null;
 
-          // Step 8: Update shareholder with fresh AML status (always update, even if status exists)
-          const hadExistingStatus = !!(shareholder as any).kybAmlStatus;
-          (shareholder as any).kybAmlStatus = {
-            status: amlStatus,
-            messageStatus: amlMessageStatus,
-            riskScore: amlRiskScore,
-            riskLevel: amlRiskLevel,
-            lastUpdated: new Date().toISOString(),
-          };
+          // Extract share percentage from corporate_entities for reference
+          const sharePercentage = (shareholder as any).sharePercentage || 
+            (shareholder as any).share_percentage || 
+            (shareholder as any).formContent?.displayAreas?.[0]?.content?.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
 
-          amlStatuses.push({
+          // Step 8: Create business shareholder AML status object
+          const businessShareholderAmlStatus: BusinessShareholderAMLStatus = {
             codRequestId: shareholderCodRequestId,
             kybId: extractedKybId,
             businessName: (shareholder as any).businessName || (shareholder as any).name || "Unknown",
+            sharePercentage: sharePercentage ? parseFloat(String(sharePercentage)) : null,
             amlStatus,
             amlMessageStatus,
             amlRiskScore,
             amlRiskLevel,
             lastUpdated: new Date().toISOString(),
-          });
+          };
+
+          // Step 9: Update or add to director_aml_status.businessShareholders[]
+          const existingBusinessIndex = directorAmlStatus.businessShareholders.findIndex(
+            (b: any) => (b.codRequestId === shareholderCodRequestId) || (b.kybId === extractedKybId)
+          );
+
+          if (existingBusinessIndex !== -1) {
+            // Update existing entry
+            directorAmlStatus.businessShareholders[existingBusinessIndex] = businessShareholderAmlStatus;
+          } else {
+            // Add new entry
+            directorAmlStatus.businessShareholders.push(businessShareholderAmlStatus);
+          }
+
+          // Still keep kybId and kybRequestDto in corporate_entities for reference (but not kybAmlStatus)
+          (shareholder as any).kybId = extractedKybId;
+          if (kybRequestDto) {
+            (shareholder as any).kybRequestDto = kybRequestDto;
+          }
+
+          amlStatuses.push(businessShareholderAmlStatus);
 
           logger.debug(
-            { shareholderCodRequestId, kybId: extractedKybId, amlStatus, hadExistingStatus },
+            { shareholderCodRequestId, kybId: extractedKybId, amlStatus, hadExistingStatus: existingBusinessIndex !== -1 },
             "[AML Fetcher] ✓ Fetched/refreshed business shareholder KYB AML status"
           );
         } catch (error) {
@@ -632,28 +657,42 @@ export class AMLFetcherService {
         }
       }
 
-      // Step 9: Update organization with corporate_entities
-      // We always push to amlStatuses after processing, so this will be > 0 if we processed any shareholders
+      // Step 10: Update organization with both corporate_entities (for kybId/kybRequestDto) and director_aml_status (for AML status)
       if (amlStatuses.length > 0) {
+        // Update director_aml_status with business shareholders
+        directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+        const updateData: {
+          corporate_entities?: Prisma.InputJsonValue;
+          director_aml_status?: Prisma.InputJsonValue;
+        } = {};
+
+        // Only update corporate_entities if we added/updated kybId or kybRequestDto
+        const hasKybUpdates = corporateEntities.corporateShareholders.some((s: any) => 
+          (s as any).kybId || (s as any).kybRequestDto
+        );
+        if (hasKybUpdates) {
+          updateData.corporate_entities = corporateEntities as Prisma.InputJsonValue;
+        }
+
+        // Always update director_aml_status with business shareholders
+        updateData.director_aml_status = directorAmlStatus as Prisma.InputJsonValue;
+
         if (portalType === "investor") {
           await prisma.investorOrganization.update({
             where: { id: organizationId },
-            data: {
-              corporate_entities: corporateEntities as Prisma.InputJsonValue,
-            },
+            data: updateData,
           });
         } else {
           await prisma.issuerOrganization.update({
             where: { id: organizationId },
-            data: {
-              corporate_entities: corporateEntities as Prisma.InputJsonValue,
-            },
+            data: updateData,
           });
         }
 
         logger.info(
           { codRequestId, count: amlStatuses.length },
-          "[AML Fetcher] ✓ Updated business shareholders with KYB AML statuses"
+          "[AML Fetcher] ✓ Updated business shareholders AML statuses in director_aml_status"
         );
       }
 
@@ -720,9 +759,32 @@ export class AMLFetcherService {
       }
 
       // Merge new AML statuses with existing ones
-      let existingDirectorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+      let existingDirectorAmlStatus = (org.director_aml_status as any) || { 
+        directors: [], 
+        businessShareholders: [],
+        lastSyncedAt: new Date().toISOString() 
+      };
       if (!existingDirectorAmlStatus.directors || !Array.isArray(existingDirectorAmlStatus.directors)) {
         existingDirectorAmlStatus.directors = [];
+      }
+      if (!existingDirectorAmlStatus.businessShareholders || !Array.isArray(existingDirectorAmlStatus.businessShareholders)) {
+        existingDirectorAmlStatus.businessShareholders = [];
+      }
+
+      // Merge business shareholders AML statuses (already updated in fetchBusinessShareholderAMLStatuses)
+      // But we need to merge any new ones that were fetched
+      for (const newBusinessAmlStatus of businessAmlStatuses) {
+        const existingBusinessIndex = existingDirectorAmlStatus.businessShareholders.findIndex(
+          (b: any) => (b.codRequestId === newBusinessAmlStatus.codRequestId) || (b.kybId === newBusinessAmlStatus.kybId)
+        );
+
+        if (existingBusinessIndex !== -1) {
+          // Update existing entry
+          existingDirectorAmlStatus.businessShareholders[existingBusinessIndex] = newBusinessAmlStatus;
+        } else {
+          // Add new entry
+          existingDirectorAmlStatus.businessShareholders.push(newBusinessAmlStatus);
+        }
       }
 
       // Create a map of existing AML statuses by kycId and eodRequestId
@@ -752,8 +814,8 @@ export class AMLFetcherService {
       // Update lastSyncedAt
       existingDirectorAmlStatus.lastSyncedAt = new Date().toISOString();
 
-      // Update organization with merged director_aml_status
-      if (allIndividualAmlStatuses.length > 0) {
+      // Update organization with merged director_aml_status (includes both individuals and business shareholders)
+      if (allIndividualAmlStatuses.length > 0 || businessAmlStatuses.length > 0) {
         if (portalType === "investor") {
           await prisma.investorOrganization.update({
             where: { id: organizationId },
@@ -777,8 +839,9 @@ export class AMLFetcherService {
             directorCount: directorAmlStatuses.length,
             shareholderCount: shareholderAmlStatuses.length,
             businessCount: businessAmlStatuses.length,
+            totalBusinessShareholders: existingDirectorAmlStatus.businessShareholders.length,
           },
-          "[AML Fetcher] ✓ Completed fetching and merging all AML statuses"
+          "[AML Fetcher] ✓ Completed fetching and merging all AML statuses (individuals and business shareholders)"
         );
       } else {
         logger.info(

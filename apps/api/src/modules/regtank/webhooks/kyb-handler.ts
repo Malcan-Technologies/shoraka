@@ -343,6 +343,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               select: {
                 id: true,
                 corporate_entities: true,
+                director_aml_status: true,
                 onboarding_status: true,
               },
             },
@@ -350,6 +351,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               select: {
                 id: true,
                 corporate_entities: true,
+                director_aml_status: true,
                 onboarding_status: true,
               },
             },
@@ -366,6 +368,16 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           const corporateEntities = org.corporate_entities as any;
           if (!corporateEntities.corporateShareholders || !Array.isArray(corporateEntities.corporateShareholders)) {
             continue;
+          }
+
+          // Get existing director_aml_status to update businessShareholders array
+          let directorAmlStatus = (org.director_aml_status as any) || { 
+            directors: [], 
+            businessShareholders: [], 
+            lastSyncedAt: new Date().toISOString() 
+          };
+          if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
+            directorAmlStatus.businessShareholders = [];
           }
 
           // Check if this onboardingId matches any business shareholder's COD requestId
@@ -402,31 +414,65 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               const amlRiskScore = riskScore ? parseFloat(String(riskScore)) : null;
               const amlRiskLevel = riskLevel || null;
 
-              // Update shareholder with KYB ID and AML status (always update, even if status exists)
-              (shareholder as any).kybId = requestId; // KYB requestId is the kybId
-              const previousStatus = (shareholder as any).kybAmlStatus?.status;
-              (shareholder as any).kybAmlStatus = {
-                status: amlStatus,
-                messageStatus: amlMessageStatus,
-                riskScore: amlRiskScore,
-                riskLevel: amlRiskLevel,
+              // Extract share percentage from corporate_entities for reference
+              const sharePercentage = (shareholder as any).sharePercentage || 
+                (shareholder as any).share_percentage || 
+                (shareholder as any).formContent?.displayAreas?.[0]?.content?.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
+
+              // Create business shareholder AML status object
+              const businessShareholderAmlStatus = {
+                codRequestId: onboardingId || codRequestId,
+                kybId: requestId, // KYB requestId is the kybId
+                businessName: (shareholder as any).businessName || (shareholder as any).name || "Unknown",
+                sharePercentage: sharePercentage ? parseFloat(String(sharePercentage)) : null,
+                amlStatus,
+                amlMessageStatus,
+                amlRiskScore,
+                amlRiskLevel,
                 lastUpdated: new Date().toISOString(),
               };
 
-              // Update the organization
+              // Update or add to director_aml_status.businessShareholders[]
+              const existingBusinessIndex = directorAmlStatus.businessShareholders.findIndex(
+                (b: any) => (b.codRequestId === businessShareholderAmlStatus.codRequestId) || (b.kybId === requestId)
+              );
+
+              const previousStatus = existingBusinessIndex !== -1 
+                ? directorAmlStatus.businessShareholders[existingBusinessIndex].amlStatus 
+                : null;
+
+              if (existingBusinessIndex !== -1) {
+                // Update existing entry
+                directorAmlStatus.businessShareholders[existingBusinessIndex] = businessShareholderAmlStatus;
+              } else {
+                // Add new entry
+                directorAmlStatus.businessShareholders.push(businessShareholderAmlStatus);
+              }
+
+              // Still keep kybId in corporate_entities for reference (but not kybAmlStatus)
+              (shareholder as any).kybId = requestId;
+
+              // Update lastSyncedAt
+              directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+              // Update the organization with both corporate_entities (for kybId) and director_aml_status (for AML status)
+              const updateData: {
+                corporate_entities?: Prisma.InputJsonValue;
+                director_aml_status?: Prisma.InputJsonValue;
+              } = {
+                corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+              };
+
               if (portalType === "investor") {
                 await prisma.investorOrganization.update({
                   where: { id: orgId },
-                  data: {
-                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                  },
+                  data: updateData,
                 });
               } else {
                 await prisma.issuerOrganization.update({
                   where: { id: orgId },
-                  data: {
-                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                  },
+                  data: updateData,
                 });
               }
 
@@ -440,7 +486,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   previousStatus,
                   matchedBy: matchesByCodRequestId ? "codRequestId" : "kybId",
                 },
-                "[KYB Webhook] ✓ Updated business shareholder KYB AML status from KYB webhook"
+                "[KYB Webhook] ✓ Updated business shareholder KYB AML status in director_aml_status from KYB webhook"
               );
               break;
             }

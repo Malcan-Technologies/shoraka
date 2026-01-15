@@ -1921,6 +1921,17 @@ export class AdminService {
             amlRiskLevel: string | null;
             lastUpdated: string;
           }>;
+          businessShareholders?: Array<{
+            codRequestId: string;
+            kybId: string;
+            businessName: string;
+            sharePercentage?: number | null;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
           lastSyncedAt: string;
         }
       | undefined = directorAmlStatusRaw
@@ -1931,6 +1942,17 @@ export class AdminService {
               name: string;
               email: string;
               role: string;
+              amlStatus: string;
+              amlMessageStatus: string;
+              amlRiskScore: number | null;
+              amlRiskLevel: string | null;
+              lastUpdated: string;
+            }>;
+            businessShareholders?: Array<{
+              codRequestId: string;
+              kybId: string;
+              businessName: string;
+              sharePercentage?: number | null;
               amlStatus: string;
               amlMessageStatus: string;
               amlRiskScore: number | null;
@@ -1959,6 +1981,27 @@ export class AdminService {
             ...d,
             amlStatus: d.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
             amlMessageStatus: d.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
+          })),
+          businessShareholders: (
+            (
+              directorAmlStatusRaw as {
+                businessShareholders?: Array<{
+                  codRequestId: string;
+                  kybId: string;
+                  businessName: string;
+                  sharePercentage?: number | null;
+                  amlStatus: string;
+                  amlMessageStatus: string;
+                  amlRiskScore: number | null;
+                  amlRiskLevel: string | null;
+                  lastUpdated: string;
+                }>;
+              }
+            ).businessShareholders || []
+          ).map((b) => ({
+            ...b,
+            amlStatus: b.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
+            amlMessageStatus: b.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
           })),
         }
       : undefined;
