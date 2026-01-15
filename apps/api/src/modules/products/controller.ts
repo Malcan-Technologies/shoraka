@@ -8,7 +8,6 @@ import {
 } from "./schemas";
 import { requireAuth, requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
-import { productImageRouter } from "./image-controller";
 
 const productService = new ProductService();
 
@@ -163,9 +162,6 @@ export function createProductRouter(): Router {
   router.post("/", requireAuth, requireRole(UserRole.ADMIN), createProduct);
   router.patch("/:id", requireAuth, requireRole(UserRole.ADMIN), updateProduct);
   router.delete("/:id", requireAuth, requireRole(UserRole.ADMIN), deleteProduct);
-
-  // Image upload routes
-  router.use("/images", productImageRouter);
 
   return router;
 }
