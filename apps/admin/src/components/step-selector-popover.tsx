@@ -38,7 +38,7 @@ const AVAILABLE_STEPS: StepType[] = [
     name: "Financing Terms",
     description: "Configure loan terms and profit rates",
     icon: BanknotesIcon,
-    defaultConfig: { invoiceAmount: 12000, loanTerm: "60 days", profitRate: 8 },
+    defaultConfig: {},
   },
   {
     id: "invoice_details",
