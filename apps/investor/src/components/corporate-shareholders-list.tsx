@@ -10,11 +10,23 @@ interface CorporateShareholder {
 
 interface CorporateShareholdersListProps {
   corporateShareholders: CorporateShareholder[];
+  businessShareholdersAml?: Array<{
+    codRequestId: string;
+    kybId: string;
+    businessName: string;
+    sharePercentage?: number | null;
+    amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+    amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+    amlRiskScore: number | null;
+    amlRiskLevel: string | null;
+    lastUpdated: string;
+  }>;
   status?: "PENDING_APPROVAL" | "PENDING_AML" | string; // Current onboarding status
 }
 
 export function CorporateShareholdersList({
   corporateShareholders,
+  businessShareholdersAml,
   status,
 }: CorporateShareholdersListProps) {
   if (!corporateShareholders || corporateShareholders.length === 0) {
@@ -22,8 +34,8 @@ export function CorporateShareholdersList({
   }
 
   // Get KYB AML status badge (for PENDING_AML stage)
-  const getKybAmlStatusBadge = (kybAmlStatus: any) => {
-    if (!kybAmlStatus || !kybAmlStatus.status) {
+  const getKybAmlStatusBadge = (amlStatusObj: { amlStatus: string } | null | undefined) => {
+    if (!amlStatusObj || !amlStatusObj.amlStatus) {
       return (
         <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
           <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
@@ -32,7 +44,7 @@ export function CorporateShareholdersList({
       );
     }
 
-    const amlStatus = String(kybAmlStatus.status);
+    const amlStatus = String(amlStatusObj.amlStatus);
     
     switch (amlStatus) {
       case "Approved":
@@ -116,89 +128,65 @@ export function CorporateShareholdersList({
   };
 
   const renderCorporateShareholderCard = (shareholder: CorporateShareholder, index: number) => {
-    // Extract available fields from the corporate shareholder object
     const name = (shareholder as any).name || (shareholder as any).businessName || "Unknown Company";
-    const email = (shareholder as any).email || (shareholder as any).contactEmail || null;
     const sharePercentage = (shareholder as any).sharePercentage || (shareholder as any).share_percentage || (shareholder as any).percentage || null;
     const codStatus = (shareholder as any).status || (shareholder as any).corporateOnboardingRequest?.status || null;
-    const kybId = (shareholder as any).kybId || (shareholder as any).corporateOnboardingRequest?.kybId || null;
     const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
-    const kybAmlStatus = (shareholder as any).kybAmlStatus || null;
     
-    // Build role string with share percentage
-    const role = sharePercentage ? `Shareholder (${sharePercentage}%)` : "Shareholder";
-
-    // In PENDING_AML stage, show KYB AML status instead of COD status
+    // Find matching AML status from directorAmlStatus.businessShareholders[]
+    const matchingAmlStatus = businessShareholdersAml?.find(
+      (b) => b.codRequestId === codRequestId || 
+             (shareholder as any).kybId && b.kybId === (shareholder as any).kybId
+    );
+    
+    const kybId = matchingAmlStatus?.kybId || (shareholder as any).kybId || null;
+    const finalSharePercentage = matchingAmlStatus?.sharePercentage || sharePercentage;
+    
+    const role = finalSharePercentage ? `Shareholder (${finalSharePercentage}%)` : "Shareholder";
     const isPendingAml = status === "PENDING_AML";
-    const statusBadge = isPendingAml && kybAmlStatus 
-      ? getKybAmlStatusBadge(kybAmlStatus)
+    const statusBadge = isPendingAml && matchingAmlStatus
+      ? getKybAmlStatusBadge(matchingAmlStatus)
       : getStatusBadge(codStatus);
 
     return (
       <div
         key={codRequestId || index}
-        className="flex items-center justify-between p-3 rounded-lg border bg-card"
+        className="p-3 rounded-lg border bg-muted/30"
       >
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <BuildingOffice2Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-sm">{name}</span>
-            {statusBadge}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <BuildingOffice2Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{name}</span>
+          {statusBadge}
+        </div>
+        <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+          <div>
+            <span className="font-medium">Role:</span> {role}
           </div>
-          <div className="text-xs text-muted-foreground space-y-1">
-            {email && (
-              <div>
-                <span className="font-medium">Email:</span> {email}
-              </div>
-            )}
+          {kybId && (
             <div>
-              <span className="font-medium">Role:</span> {role}
+              <span className="font-medium">KYB ID:</span> {kybId}
             </div>
-            {isPendingAml && kybAmlStatus ? (
-              <>
-                {kybId && (
-                  <div>
-                    <span className="font-medium">KYB ID:</span> {kybId}
-                  </div>
-                )}
-                {kybAmlStatus.riskScore !== null && kybAmlStatus.riskScore !== undefined && (
-                  <div>
-                    <span className="font-medium">Risk Score:</span> {kybAmlStatus.riskScore}
-                  </div>
-                )}
-                {kybAmlStatus.riskLevel && (
-                  <div>
-                    <span className="font-medium">Risk Level:</span> {kybAmlStatus.riskLevel}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {kybId && (
-                  <div>
-                    <span className="font-medium">KYB ID:</span> {kybId}
-                  </div>
-                )}
-                {codRequestId && !kybId && (
-                  <div>
-                    <span className="font-medium">COD:</span> {codRequestId}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          )}
+          {isPendingAml && matchingAmlStatus && matchingAmlStatus.amlRiskScore !== null && matchingAmlStatus.amlRiskScore !== undefined && (
+            <div>
+              <span className="font-medium">Risk Score:</span> {matchingAmlStatus.amlRiskScore}
+              {matchingAmlStatus.amlRiskLevel && ` (${matchingAmlStatus.amlRiskLevel})`}
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-4 mt-4">
-      <h4 className="text-sm font-medium">Business Shareholders / Beneficiaries</h4>
-      <div className="space-y-3">
+    <div className="space-y-2">
+      <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Business Shareholders / Beneficiaries
+      </h5>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {corporateShareholders.map(renderCorporateShareholderCard)}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground mt-2">
         Corporate shareholders/beneficiaries associated with your organization.
       </p>
     </div>

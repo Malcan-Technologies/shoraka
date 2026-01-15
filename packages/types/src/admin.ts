@@ -524,8 +524,21 @@ export interface DirectorAmlStatus {
   lastUpdated: string; // ISO timestamp
 }
 
+export interface BusinessShareholderAmlStatus {
+  codRequestId: string;
+  kybId: string;
+  businessName: string;
+  sharePercentage?: number | null;
+  amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  lastUpdated: string; // ISO timestamp
+}
+
 export interface CorporateAmlData {
   directors: DirectorAmlStatus[];
+  businessShareholders?: BusinessShareholderAmlStatus[];
   lastSyncedAt: string; // ISO timestamp
 }
 

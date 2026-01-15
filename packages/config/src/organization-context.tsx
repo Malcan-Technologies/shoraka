@@ -113,6 +113,17 @@ export interface Organization {
       amlRiskLevel: string | null;
       lastUpdated: string;
     }>;
+    businessShareholders?: Array<{
+      codRequestId: string;
+      kybId: string;
+      businessName: string;
+      sharePercentage?: number | null;
+      amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+      amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+      amlRiskScore: number | null;
+      amlRiskLevel: string | null;
+      lastUpdated: string;
+    }>;
     lastSyncedAt: string;
   };
   // Corporate entities (directors, shareholders, corporate shareholders) - only for COMPANY type

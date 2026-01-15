@@ -10,6 +10,7 @@ import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
+import { AMLFetcherService } from "../aml-fetcher";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -1544,226 +1545,32 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           }
         }
 
-        // When status changes from WAIT_FOR_APPROVAL to PENDING_AML, fetch business shareholder KYB status
-        // Flow: wait 3s -> get COD -> find business shareholder codRequestId -> get COD for shareholder -> extract kybRequestDto -> store kybId -> fetch KYB status
+        // When status changes from WAIT_FOR_APPROVAL to PENDING_AML, fetch all AML statuses
+        // Flow: wait 3s -> fetch individual directors, shareholders, and business shareholders AML statuses
         if (statusChangedToPendingAml && finalKybId) {
-          // Use setTimeout to wait 3 seconds (non-blocking)
+          // Use setTimeout to wait 3 seconds for RegTank to process (non-blocking)
           setTimeout(async () => {
             try {
               logger.info(
                 { requestId, organizationId, portalType },
-                "[COD Webhook] Fetching business shareholder KYB status after status change to PENDING_AML (3s delay)"
+                "[COD Webhook] Fetching AML statuses after 3-second delay for PENDING_AML transition"
               );
 
-              // Step 1: Get current COD details to find business shareholders
-              const currentCodDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
+              const amlFetcher = new AMLFetcherService();
+              await amlFetcher.fetchAllAMLStatuses(requestId, organizationId, portalType);
               
-              if (!currentCodDetails?.corpBizShareholders || !Array.isArray(currentCodDetails.corpBizShareholders)) {
-                logger.debug(
-                  { requestId, organizationId },
-                  "[COD Webhook] No business shareholders found in COD details"
-                );
-                return;
-              }
-
-              // Step 2: Get organization to update
-              const org = portalType === "investor"
-                ? await prisma.investorOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { corporate_entities: true },
-                  })
-                : await prisma.issuerOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { corporate_entities: true },
-                  });
-
-              if (!org || !org.corporate_entities) {
-                logger.warn(
-                  { requestId, organizationId },
-                  "[COD Webhook] Organization or corporate_entities not found"
-                );
-                return;
-              }
-
-              const corporateEntities = org.corporate_entities as any;
-              if (!corporateEntities.corporateShareholders || !Array.isArray(corporateEntities.corporateShareholders)) {
-                logger.debug(
-                  { requestId, organizationId },
-                  "[COD Webhook] No corporate shareholders in corporate_entities"
-                );
-                return;
-              }
-
-              let kybAmlUpdated = false;
-
-              // Step 3: For each business shareholder, fetch their COD details and extract KYB info
-              for (const codShareholder of currentCodDetails.corpBizShareholders) {
-                const codRequestId = codShareholder.corporateOnboardingRequest?.requestId || codShareholder.requestId || null;
-                if (!codRequestId) continue;
-
-                // Find matching shareholder in corporate_entities
-                const shareholderIndex = corporateEntities.corporateShareholders.findIndex(
-                  (s: any) => (s.corporateOnboardingRequest?.requestId || s.requestId) === codRequestId
-                );
-
-                if (shareholderIndex === -1) {
-                  logger.debug(
-                    { codRequestId, requestId },
-                    "[COD Webhook] Business shareholder not found in corporate_entities"
-                  );
-                  continue;
-                }
-
-                const shareholder = corporateEntities.corporateShareholders[shareholderIndex];
-
-                // Skip if already has kybAmlStatus (webhook may have already updated it)
-                if ((shareholder as any).kybAmlStatus) {
-                  logger.debug(
-                    { codRequestId, requestId },
-                    "[COD Webhook] Business shareholder already has KYB AML status (webhook updated), skipping"
-                  );
-                  continue;
-                }
-
-                try {
-                  // Step 4: Get COD details for this business shareholder
-                  const shareholderCodDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
-                  
-                  // Step 5: Extract kybId from kybRequestDto
-                  let extractedKybId: string | null = null;
-                  let initialStatus: string | null = null;
-                  
-                  if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
-                    const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
-                    
-                    // Try kybRequestDto first
-                    if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
-                      const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
-                      if (kybDto.kybId && typeof kybDto.kybId === "string") {
-                        extractedKybId = kybDto.kybId;
-                      }
-                      // Get initial status from kybRequestDto if available
-                      if (kybDto.status && typeof kybDto.status === "string") {
-                        initialStatus = kybDto.status;
-                      }
-                    }
-                    
-                    // Fallback: try direct kybId field
-                    if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
-                      extractedKybId = codDetailsObj.kybId;
-                    }
-                  }
-
-                  if (!extractedKybId) {
-                    logger.warn(
-                      { codRequestId, requestId },
-                      "[COD Webhook] KYB ID not found in business shareholder COD details"
-                    );
-                    continue;
-                  }
-
-                  // Step 6: Store kybId and fetch KYB status
-                  (shareholder as any).kybId = extractedKybId;
-
-                  // Use initial status from kybRequestDto if available, otherwise fetch from KYB API
-                  if (initialStatus) {
-                    const kybStatus = initialStatus.toUpperCase();
-                    let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                    if (kybStatus === "APPROVED") {
-                      amlStatus = "Approved";
-                    } else if (kybStatus === "REJECTED") {
-                      amlStatus = "Rejected";
-                    } else if (kybStatus === "UNRESOLVED") {
-                      amlStatus = "Unresolved";
-                    }
-
-                    (shareholder as any).kybAmlStatus = {
-                      status: amlStatus,
-                      messageStatus: "PENDING" as "DONE" | "PENDING" | "ERROR",
-                      riskScore: null,
-                      riskLevel: null,
-                      lastUpdated: new Date().toISOString(),
-                    };
-                  } else {
-                    // Fetch from KYB API for full status
-                    const kybStatusResponse = await this.apiClient.queryKYBStatus(extractedKybId);
-                    
-                    const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
-                    let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                    if (kybStatus === "APPROVED") {
-                      amlStatus = "Approved";
-                    } else if (kybStatus === "REJECTED") {
-                      amlStatus = "Rejected";
-                    } else if (kybStatus === "UNRESOLVED") {
-                      amlStatus = "Unresolved";
-                    }
-
-                    const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-                    const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
-                    const amlRiskLevel = kybStatusResponse.riskLevel || null;
-
-                    (shareholder as any).kybAmlStatus = {
-                      status: amlStatus,
-                      messageStatus: amlMessageStatus,
-                      riskScore: amlRiskScore,
-                      riskLevel: amlRiskLevel,
-                      lastUpdated: new Date().toISOString(),
-                    };
-                  }
-
-                  kybAmlUpdated = true;
-                  logger.info(
-                    {
-                      codRequestId,
-                      kybId: extractedKybId,
-                      requestId,
-                      amlStatus: (shareholder as any).kybAmlStatus.status,
-                    },
-                    "[COD Webhook] ✓ Fetched and stored business shareholder KYB AML status"
-                  );
-                } catch (kybError) {
-                  logger.warn(
-                    {
-                      error: kybError instanceof Error ? kybError.message : String(kybError),
-                      codRequestId,
-                      requestId,
-                    },
-                    "[COD Webhook] Failed to fetch business shareholder KYB status (non-blocking)"
-                  );
-                }
-              }
-
-              // Step 7: Update organization if any KYB AML statuses were fetched
-              if (kybAmlUpdated) {
-                if (portalType === "investor") {
-                  await prisma.investorOrganization.update({
-                    where: { id: organizationId },
-                    data: {
-                      corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                    },
-                  });
-                } else {
-                  await prisma.issuerOrganization.update({
-                    where: { id: organizationId },
-                    data: {
-                      corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                    },
-                  });
-                }
-
-                logger.info(
-                  { requestId, organizationId },
-                  "[COD Webhook] ✓ Updated business shareholders with KYB AML statuses"
-                );
-              }
+              logger.info(
+                { requestId, organizationId, portalType },
+                "[COD Webhook] ✓ Fetched all AML statuses after transition to PENDING_AML"
+              );
             } catch (error) {
               logger.error(
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                  requestId,
-                  organizationId,
+                { 
+                  error: error instanceof Error ? error.message : String(error), 
+                  requestId, 
+                  organizationId 
                 },
-                "[COD Webhook] Failed to fetch business shareholder KYB status after delay (non-blocking)"
+                "[COD Webhook] Failed to fetch AML statuses (non-blocking, webhooks will update)"
               );
             }
           }, 3000); // Wait 3 seconds

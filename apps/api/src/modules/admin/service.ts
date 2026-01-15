@@ -37,6 +37,8 @@ import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repos
 import { RegTankAPIClient } from "../regtank/api-client";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
+import { AMLFetcherService } from "../regtank/aml-fetcher";
+import type { PortalType } from "../regtank/types";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -1919,6 +1921,17 @@ export class AdminService {
             amlRiskLevel: string | null;
             lastUpdated: string;
           }>;
+          businessShareholders?: Array<{
+            codRequestId: string;
+            kybId: string;
+            businessName: string;
+            sharePercentage?: number | null;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
           lastSyncedAt: string;
         }
       | undefined = directorAmlStatusRaw
@@ -1929,6 +1942,17 @@ export class AdminService {
               name: string;
               email: string;
               role: string;
+              amlStatus: string;
+              amlMessageStatus: string;
+              amlRiskScore: number | null;
+              amlRiskLevel: string | null;
+              lastUpdated: string;
+            }>;
+            businessShareholders?: Array<{
+              codRequestId: string;
+              kybId: string;
+              businessName: string;
+              sharePercentage?: number | null;
               amlStatus: string;
               amlMessageStatus: string;
               amlRiskScore: number | null;
@@ -1957,6 +1981,27 @@ export class AdminService {
             ...d,
             amlStatus: d.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
             amlMessageStatus: d.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
+          })),
+          businessShareholders: (
+            (
+              directorAmlStatusRaw as {
+                businessShareholders?: Array<{
+                  codRequestId: string;
+                  kybId: string;
+                  businessName: string;
+                  sharePercentage?: number | null;
+                  amlStatus: string;
+                  amlMessageStatus: string;
+                  amlRiskScore: number | null;
+                  amlRiskLevel: string | null;
+                  lastUpdated: string;
+                }>;
+              }
+            ).businessShareholders || []
+          ).map((b) => ({
+            ...b,
+            amlStatus: b.amlStatus as "Unresolved" | "Approved" | "Rejected" | "Pending",
+            amlMessageStatus: b.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
           })),
         }
       : undefined;
@@ -3172,180 +3217,30 @@ export class AdminService {
           updatedCorporateEntities = corporateEntities;
         }
 
-        // If organization is in PENDING_AML stage, fetch/refresh KYB AML status for corporate shareholders
-        // Use stored kybId if available, otherwise fetch from COD
-        if (org.onboarding_status === "PENDING_AML" && corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
-          let kybAmlUpdated = false;
-          
-          for (const shareholder of corporateEntities.corporateShareholders) {
-            const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
-            const existingKybId = (shareholder as any).kybId;
-            
-            // Skip if webhook already updated (has kybAmlStatus with recent timestamp)
-            if ((shareholder as any).kybAmlStatus) {
-              logger.debug(
-                { codRequestId, kybId: existingKybId },
-                "[Admin Refresh] Business shareholder already has KYB AML status, refreshing from KYB API"
-              );
-              
-              // Refresh from KYB API using stored kybId
-              if (existingKybId) {
-                try {
-                  const kybStatusResponse = await this.regTankApiClient.queryKYBStatus(existingKybId);
-                  
-                  const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
-                  let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                  if (kybStatus === "APPROVED") {
-                    amlStatus = "Approved";
-                  } else if (kybStatus === "REJECTED") {
-                    amlStatus = "Rejected";
-                  } else if (kybStatus === "UNRESOLVED") {
-                    amlStatus = "Unresolved";
-                  }
+        // If organization is in PENDING_AML stage, fetch/refresh all AML statuses using AMLFetcherService
+        if (org.onboarding_status === "PENDING_AML") {
+          try {
+            logger.info(
+              { codRequestId, organizationId: org.id },
+              "[Admin Refresh] Fetching all AML statuses using AMLFetcherService"
+            );
 
-                  const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-                  const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
-                  const amlRiskLevel = kybStatusResponse.riskLevel || null;
+            const amlFetcher = new AMLFetcherService();
+            await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, onboarding.portal_type as PortalType);
 
-                  (shareholder as any).kybAmlStatus = {
-                    status: amlStatus,
-                    messageStatus: amlMessageStatus,
-                    riskScore: amlRiskScore,
-                    riskLevel: amlRiskLevel,
-                    lastUpdated: new Date().toISOString(),
-                  };
-
-                  kybAmlUpdated = true;
-                } catch (kybError) {
-                  logger.warn(
-                    {
-                      error: kybError instanceof Error ? kybError.message : String(kybError),
-                      kybId: existingKybId,
-                      codRequestId,
-                    },
-                    "[Admin Refresh] Failed to refresh KYB AML status from KYB API (non-blocking)"
-                  );
-                }
-              }
-              continue;
-            }
-            
-            // If no kybId stored, fetch from COD
-            if (codRequestId && !existingKybId) {
-              try {
-                logger.debug(
-                  { codRequestId, shareholderName: (shareholder as any).name || (shareholder as any).businessName },
-                  "[Admin Refresh] Fetching COD details for business shareholder to get KYB ID"
-                );
-
-                // Get COD details for this business shareholder
-                const shareholderCodDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
-                
-                // Extract kybId from kybRequestDto
-                let extractedKybId: string | null = null;
-                let initialStatus: string | null = null;
-                
-                if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
-                  const codDetailsObj = shareholderCodDetails as Record<string, unknown>;
-                  
-                  // Try kybRequestDto first
-                  if (codDetailsObj.kybRequestDto && typeof codDetailsObj.kybRequestDto === "object" && !Array.isArray(codDetailsObj.kybRequestDto)) {
-                    const kybDto = codDetailsObj.kybRequestDto as Record<string, unknown>;
-                    if (kybDto.kybId && typeof kybDto.kybId === "string") {
-                      extractedKybId = kybDto.kybId;
-                    }
-                    if (kybDto.status && typeof kybDto.status === "string") {
-                      initialStatus = kybDto.status;
-                    }
-                  }
-                  
-                  // Fallback: try direct kybId field
-                  if (!extractedKybId && codDetailsObj.kybId && typeof codDetailsObj.kybId === "string") {
-                    extractedKybId = codDetailsObj.kybId;
-                  }
-                }
-
-                if (!extractedKybId) {
-                  logger.warn(
-                    { codRequestId },
-                    "[Admin Refresh] KYB ID not found in business shareholder COD details"
-                  );
-                  continue;
-                }
-
-                // Store kybId
-                (shareholder as any).kybId = extractedKybId;
-
-                // Use initial status from kybRequestDto if available, otherwise fetch from KYB API
-                if (initialStatus) {
-                  const kybStatus = initialStatus.toUpperCase();
-                  let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                  if (kybStatus === "APPROVED") {
-                    amlStatus = "Approved";
-                  } else if (kybStatus === "REJECTED") {
-                    amlStatus = "Rejected";
-                  } else if (kybStatus === "UNRESOLVED") {
-                    amlStatus = "Unresolved";
-                  }
-
-                  (shareholder as any).kybAmlStatus = {
-                    status: amlStatus,
-                    messageStatus: "PENDING" as "DONE" | "PENDING" | "ERROR",
-                    riskScore: null,
-                    riskLevel: null,
-                    lastUpdated: new Date().toISOString(),
-                  };
-                } else {
-                  // Fetch from KYB API
-                  const kybStatusResponse = await this.regTankApiClient.queryKYBStatus(extractedKybId);
-                  
-                  const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
-                  let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                  if (kybStatus === "APPROVED") {
-                    amlStatus = "Approved";
-                  } else if (kybStatus === "REJECTED") {
-                    amlStatus = "Rejected";
-                  } else if (kybStatus === "UNRESOLVED") {
-                    amlStatus = "Unresolved";
-                  }
-
-                  const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-                  const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
-                  const amlRiskLevel = kybStatusResponse.riskLevel || null;
-
-                  (shareholder as any).kybAmlStatus = {
-                    status: amlStatus,
-                    messageStatus: amlMessageStatus,
-                    riskScore: amlRiskScore,
-                    riskLevel: amlRiskLevel,
-                    lastUpdated: new Date().toISOString(),
-                  };
-                }
-
-                kybAmlUpdated = true;
-                logger.info(
-                  {
-                    codRequestId,
-                    kybId: extractedKybId,
-                    amlStatus: (shareholder as any).kybAmlStatus.status,
-                  },
-                  "[Admin Refresh] ✓ Fetched and stored business shareholder KYB AML status"
-                );
-              } catch (kybError) {
-                logger.warn(
-                  {
-                    error: kybError instanceof Error ? kybError.message : String(kybError),
-                    codRequestId,
-                  },
-                  "[Admin Refresh] Failed to fetch business shareholder KYB status (non-blocking)"
-                );
-              }
-            }
-          }
-
-          if (kybAmlUpdated) {
-            corporateEntitiesUpdated = true;
-            updatedCorporateEntities = corporateEntities;
+            logger.info(
+              { codRequestId, organizationId: org.id },
+              "[Admin Refresh] ✓ Completed fetching all AML statuses"
+            );
+          } catch (amlError) {
+            logger.warn(
+              {
+                error: amlError instanceof Error ? amlError.message : String(amlError),
+                codRequestId,
+                organizationId: org.id,
+              },
+              "[Admin Refresh] Failed to fetch AML statuses (non-blocking)"
+            );
           }
         }
       }
@@ -3411,8 +3306,8 @@ export class AdminService {
   }
 
   /**
-   * Refresh corporate AML status for all directors
-   * Fetches latest AML status from RegTank KYC query API for each director with a kycId
+   * Refresh corporate AML status for all directors, shareholders, and business shareholders
+   * Uses AMLFetcherService to fetch latest AML statuses from RegTank
    */
   async refreshCorporateAmlStatus(
     _req: Request,
@@ -3456,143 +3351,47 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
-    // Get director_kyc_status to extract kycIds
-    const directorKycStatus = org.director_kyc_status as any;
-    if (!directorKycStatus || !directorKycStatus.directors || !Array.isArray(directorKycStatus.directors)) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Director KYC status not found. Please refresh corporate onboarding status first."
-      );
-    }
+      const codRequestId = onboarding.request_id;
+      const portalType = onboarding.portal_type as PortalType;
 
     try {
       logger.info(
-        { onboardingId, organizationId: org.id, adminUserId },
-        "Fetching AML status for all directors"
+        { onboardingId, organizationId: org.id, adminUserId, codRequestId },
+        "Refreshing corporate AML statuses using AMLFetcherService"
       );
 
-      const directorsAmlStatus: Array<{
-        kycId: string;
-        name: string;
-        email: string;
-        role: string;
-        amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-        amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-        amlRiskScore: number | null;
-        amlRiskLevel: string | null;
-        lastUpdated: string;
-      }> = [];
+      // Use AMLFetcherService to fetch all AML statuses
+      const amlFetcher = new AMLFetcherService();
+      await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, portalType);
 
-      // Fetch AML status for each director with a kycId
-      for (const director of directorKycStatus.directors) {
-        if (!director.kycId) {
-          logger.debug(
-            { directorName: director.name, eodRequestId: director.eodRequestId },
-            "Skipping director without kycId"
-          );
-          continue;
-        }
-
-        try {
-          const kycStatusResponse = await this.regTankApiClient.queryKYCStatus(director.kycId);
-          
-          // RegTank returns an array with one object
-          const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
-          
-          // Map RegTank status to our AML status
-          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
-          if (regTankStatus === "APPROVED") {
-            amlStatus = "Approved";
-          } else if (regTankStatus === "REJECTED") {
-            amlStatus = "Rejected";
-          } else if (regTankStatus === "UNRESOLVED") {
-            amlStatus = "Unresolved";
-          }
-
-          // Extract risk score and level
-          const individualRiskScore = kycStatusData?.individualRiskScore;
-          const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
-            ? parseFloat(String(individualRiskScore.score))
-            : null;
-          const amlRiskLevel = individualRiskScore?.level || null;
-
-          // Extract message status
-          const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-
-          directorsAmlStatus.push({
-            kycId: director.kycId,
-            name: director.name,
-            email: director.email,
-            role: director.role,
-            amlStatus,
-            amlMessageStatus,
-            amlRiskScore,
-            amlRiskLevel,
-            lastUpdated: new Date().toISOString(),
+      // Get updated director_aml_status to count directors
+      const updatedOrg = isInvestor
+        ? await prisma.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { director_aml_status: true },
+          })
+        : await prisma.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { director_aml_status: true },
           });
 
-          logger.debug(
-            {
-              kycId: director.kycId,
-              directorName: director.name,
-              amlStatus,
-              amlMessageStatus,
-              amlRiskScore,
-              amlRiskLevel,
-            },
-            "Fetched AML status for director"
-          );
-        } catch (kycError) {
-          logger.warn(
-            {
-              error: kycError instanceof Error ? kycError.message : String(kycError),
-              kycId: director.kycId,
-              directorName: director.name,
-            },
-            "Failed to fetch AML status for director (non-blocking)"
-          );
-          // Continue with other directors even if one fails
-        }
-      }
-
-      // Update organization with refreshed director AML statuses
-      const directorAmlStatus = {
-        directors: directorsAmlStatus,
-        lastSyncedAt: new Date().toISOString(),
-      };
-
-      if (isInvestor) {
-        await prisma.investorOrganization.update({
-          where: { id: org.id },
-          data: {
-            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
-          },
-        });
-      } else {
-        await prisma.issuerOrganization.update({
-          where: { id: org.id },
-          data: {
-            director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
-          },
-        });
-      }
+      const directorAmlStatus = (updatedOrg?.director_aml_status as any) || { directors: [] };
+      const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
 
       logger.info(
         {
           onboardingId,
           organizationId: org.id,
           adminUserId,
-          directorsUpdated: directorsAmlStatus.length,
+          directorsUpdated: directorsCount,
         },
         "Refreshed corporate AML statuses"
       );
 
       return {
         success: true,
-        message: `Successfully refreshed ${directorsAmlStatus.length} director AML status${directorsAmlStatus.length !== 1 ? "es" : ""}.`,
-        directorsUpdated: directorsAmlStatus.length,
+        message: `Successfully refreshed ${directorsCount} director AML status${directorsCount !== 1 ? "es" : ""}.`,
+        directorsUpdated: directorsCount,
       };
     } catch (error) {
       logger.error(
