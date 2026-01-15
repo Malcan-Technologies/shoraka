@@ -116,19 +116,14 @@ export function CorporateShareholdersList({
   };
 
   const renderCorporateShareholderCard = (shareholder: CorporateShareholder, index: number) => {
-    // Extract available fields from the corporate shareholder object
     const name = (shareholder as any).name || (shareholder as any).businessName || "Unknown Company";
-    const email = (shareholder as any).email || (shareholder as any).contactEmail || null;
     const sharePercentage = (shareholder as any).sharePercentage || (shareholder as any).share_percentage || (shareholder as any).percentage || null;
     const codStatus = (shareholder as any).status || (shareholder as any).corporateOnboardingRequest?.status || null;
     const kybId = (shareholder as any).kybId || (shareholder as any).corporateOnboardingRequest?.kybId || null;
     const codRequestId = (shareholder as any).corporateOnboardingRequest?.requestId || (shareholder as any).requestId || null;
     const kybAmlStatus = (shareholder as any).kybAmlStatus || null;
     
-    // Build role string with share percentage
     const role = sharePercentage ? `Shareholder (${sharePercentage}%)` : "Shareholder";
-
-    // In PENDING_AML stage, show KYB AML status instead of COD status
     const isPendingAml = status === "PENDING_AML";
     const statusBadge = isPendingAml && kybAmlStatus 
       ? getKybAmlStatusBadge(kybAmlStatus)
@@ -137,68 +132,42 @@ export function CorporateShareholdersList({
     return (
       <div
         key={codRequestId || index}
-        className="flex items-center justify-between p-3 rounded-lg border bg-card"
+        className="p-3 rounded-lg border bg-muted/30"
       >
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <BuildingOffice2Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-sm">{name}</span>
-            {statusBadge}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <BuildingOffice2Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{name}</span>
+          {statusBadge}
+        </div>
+        <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+          <div>
+            <span className="font-medium">Role:</span> {role}
           </div>
-          <div className="text-xs text-muted-foreground space-y-1">
-            {email && (
-              <div>
-                <span className="font-medium">Email:</span> {email}
-              </div>
-            )}
+          {kybId && (
             <div>
-              <span className="font-medium">Role:</span> {role}
+              <span className="font-medium">KYB ID:</span> {kybId}
             </div>
-            {isPendingAml && kybAmlStatus ? (
-              <>
-                {kybId && (
-                  <div>
-                    <span className="font-medium">KYB ID:</span> {kybId}
-                  </div>
-                )}
-                {kybAmlStatus.riskScore !== null && kybAmlStatus.riskScore !== undefined && (
-                  <div>
-                    <span className="font-medium">Risk Score:</span> {kybAmlStatus.riskScore}
-                  </div>
-                )}
-                {kybAmlStatus.riskLevel && (
-              <div>
-                    <span className="font-medium">Risk Level:</span> {kybAmlStatus.riskLevel}
-              </div>
-            )}
-              </>
-            ) : (
-              <>
-                {kybId && (
-              <div>
-                    <span className="font-medium">KYB ID:</span> {kybId}
-              </div>
-            )}
-                {codRequestId && !kybId && (
-              <div>
-                    <span className="font-medium">COD:</span> {codRequestId}
-              </div>
-                )}
-              </>
-            )}
-          </div>
+          )}
+          {isPendingAml && kybAmlStatus && kybAmlStatus.riskScore !== null && kybAmlStatus.riskScore !== undefined && (
+            <div>
+              <span className="font-medium">Risk Score:</span> {kybAmlStatus.riskScore}
+              {kybAmlStatus.riskLevel && ` (${kybAmlStatus.riskLevel})`}
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-4 mt-4">
-      <h4 className="text-sm font-medium">Business Shareholders / Beneficiaries</h4>
-      <div className="space-y-3">
+    <div className="space-y-2">
+      <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Business Shareholders / Beneficiaries
+      </h5>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {corporateShareholders.map(renderCorporateShareholderCard)}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground mt-2">
         Corporate shareholders/beneficiaries associated with your organization.
       </p>
     </div>

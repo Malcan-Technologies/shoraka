@@ -21,7 +21,6 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
         );
       case "WAIT_FOR_APPROVAL":
       case "LIVENESS_PASSED":
-        // LIVENESS_PASSED means liveness check is complete and waiting for approval
         return (
           <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
@@ -36,7 +35,6 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
           </Badge>
         );
       case "EMAIL_SENT":
-        // EMAIL_SENT means onboarding link has been sent, user is in progress
         return (
           <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
@@ -61,7 +59,6 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
     }
   };
 
-  // Filter directors and shareholders based on role
   const directorRoles = [
     "Director",
     "Managing",
@@ -84,20 +81,18 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
   const renderPersonCard = (person: DirectorKycStatus) => (
     <div
       key={person.eodRequestId}
-      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+      className="p-3 rounded-lg border bg-muted/30"
     >
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-sm">{person.name}</span>
-          {getStatusBadge(person.kycStatus)}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="font-medium text-sm">{person.name}</span>
+        {getStatusBadge(person.kycStatus)}
+      </div>
+      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+        <div className="truncate">
+          <span className="font-medium">Email:</span> {person.email}
         </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div>
-            <span className="font-medium">Email:</span> {person.email}
-          </div>
-          <div>
-            <span className="font-medium">Role:</span> {person.role}
-          </div>
+        <div>
+          <span className="font-medium">Role:</span> {person.role}
         </div>
       </div>
     </div>
@@ -108,32 +103,30 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
   }
 
   return (
-    <div className="space-y-4 mt-4">
-      <h4 className="text-sm font-medium">Director KYC Verification</h4>
-      
+    <div className="space-y-4">
       {/* Directors / Controllers / Authorised Personnel Section */}
       {directorsList.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Directors / Controllers / Authorised Personnel
           </h5>
-          {directorsList.map(renderPersonCard)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {directorsList.map(renderPersonCard)}
+          </div>
         </div>
       )}
 
       {/* Individual Shareholders / Ultimate Beneficiaries Section */}
       {shareholdersList.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Individual Shareholders / Ultimate Beneficiaries
           </h5>
-          {shareholdersList.map(renderPersonCard)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {shareholdersList.map(renderPersonCard)}
+          </div>
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        Your directors/shareholders are completing their KYC verification.
-      </p>
     </div>
   );
 }

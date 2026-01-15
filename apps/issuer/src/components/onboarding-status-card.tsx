@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import type { Organization } from "@cashsouk/config";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
 import { CorporateShareholdersList } from "./corporate-shareholders-list";
@@ -168,50 +169,56 @@ export function OnboardingStatusCard({
         </div>
       </div>
       
-      {/* Director KYC Status Section (for corporate onboarding) - Only show in PENDING_APPROVAL */}
+      {/* Corporate Onboarding Details Card - Show in PENDING_APPROVAL */}
       {organization.type === "COMPANY" &&
         organization.onboardingStatus === "PENDING_APPROVAL" &&
-        organization.directorKycStatus &&
-        organization.directorKycStatus.directors.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <DirectorKycList directors={organization.directorKycStatus.directors} />
-          </div>
+        ((organization.directorKycStatus && organization.directorKycStatus.directors.length > 0) ||
+          (organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0)) && (
+          <Card className="mt-6">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">KYC Verification Status</CardTitle>
+              <CardDescription>
+                Your directors/shareholders are completing their KYC verification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {organization.directorKycStatus && organization.directorKycStatus.directors.length > 0 && (
+                <DirectorKycList directors={organization.directorKycStatus.directors} />
+              )}
+              {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
+                <CorporateShareholdersList
+                  corporateShareholders={organization.corporateEntities.corporateShareholders}
+                  status={organization.onboardingStatus}
+                />
+              )}
+            </CardContent>
+          </Card>
         )}
 
-      {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) - Show in PENDING_APPROVAL */}
-      {organization.type === "COMPANY" &&
-        organization.onboardingStatus === "PENDING_APPROVAL" &&
-        organization.corporateEntities?.corporateShareholders &&
-        organization.corporateEntities.corporateShareholders.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <CorporateShareholdersList
-              corporateShareholders={organization.corporateEntities.corporateShareholders}
-              status={organization.onboardingStatus}
-            />
-          </div>
-        )}
-      
-      {/* Individual AML Screening Status Section (for corporate onboarding) - Only show in PENDING_AML */}
+      {/* Corporate Onboarding Details Card - Show in PENDING_AML */}
       {organization.type === "COMPANY" &&
         organization.onboardingStatus === "PENDING_AML" &&
-        organization.directorAmlStatus &&
-        organization.directorAmlStatus.directors.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <DirectorAmlList directors={organization.directorAmlStatus.directors} />
-          </div>
-        )}
-
-      {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) - Show in PENDING_AML */}
-      {organization.type === "COMPANY" &&
-        organization.onboardingStatus === "PENDING_AML" &&
-        organization.corporateEntities?.corporateShareholders &&
-        organization.corporateEntities.corporateShareholders.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <CorporateShareholdersList
-              corporateShareholders={organization.corporateEntities.corporateShareholders}
-              status={organization.onboardingStatus}
-            />
-          </div>
+        ((organization.directorAmlStatus && organization.directorAmlStatus.directors.length > 0) ||
+          (organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0)) && (
+          <Card className="mt-6">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">AML Screening Status</CardTitle>
+              <CardDescription>
+                Your directors/shareholders are completing their AML screening.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {organization.directorAmlStatus && organization.directorAmlStatus.directors.length > 0 && (
+                <DirectorAmlList directors={organization.directorAmlStatus.directors} />
+              )}
+              {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
+                <CorporateShareholdersList
+                  corporateShareholders={organization.corporateEntities.corporateShareholders}
+                  status={organization.onboardingStatus}
+                />
+              )}
+            </CardContent>
+          </Card>
         )}
     </div>
   );

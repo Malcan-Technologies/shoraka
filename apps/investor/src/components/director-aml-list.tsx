@@ -68,7 +68,6 @@ export function DirectorAmlList({ directors }: DirectorAmlListProps) {
     }
   };
 
-  // Filter directors and shareholders based on role
   const directorRoles = [
     "Director",
     "Managing",
@@ -91,28 +90,26 @@ export function DirectorAmlList({ directors }: DirectorAmlListProps) {
   const renderPersonCard = (person: DirectorAmlStatus) => (
     <div
       key={person.kycId}
-      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+      className="p-3 rounded-lg border bg-muted/30"
     >
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="font-medium text-sm">{person.name}</span>
-          {getAmlStatusBadge(person.amlStatus)}
-          {getMessageStatusBadge(person.amlMessageStatus)}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="font-medium text-sm">{person.name}</span>
+        {getAmlStatusBadge(person.amlStatus)}
+        {getMessageStatusBadge(person.amlMessageStatus)}
+      </div>
+      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+        <div className="truncate">
+          <span className="font-medium">Email:</span> {person.email}
         </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div>
-            <span className="font-medium">Email:</span> {person.email}
-          </div>
-          <div>
-            <span className="font-medium">Role:</span> {person.role}
-          </div>
-          {person.amlRiskScore !== null && (
-            <div>
-              <span className="font-medium">Risk Score:</span> {person.amlRiskScore}
-              {person.amlRiskLevel && ` (${person.amlRiskLevel})`}
-            </div>
-          )}
+        <div>
+          <span className="font-medium">Role:</span> {person.role}
         </div>
+        {person.amlRiskScore !== null && (
+          <div>
+            <span className="font-medium">Risk Score:</span> {person.amlRiskScore}
+            {person.amlRiskLevel && ` (${person.amlRiskLevel})`}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -129,21 +126,25 @@ export function DirectorAmlList({ directors }: DirectorAmlListProps) {
     <div className="space-y-4">
       {/* Directors / Controllers / Authorised Personnel Section */}
       {directorsList.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Directors / Controllers / Authorised Personnel
           </h5>
-          {directorsList.map(renderPersonCard)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {directorsList.map(renderPersonCard)}
+          </div>
         </div>
       )}
 
       {/* Individual Shareholders / Ultimate Beneficiaries Section */}
       {shareholdersList.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Individual Shareholders / Ultimate Beneficiaries
           </h5>
-          {shareholdersList.map(renderPersonCard)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {shareholdersList.map(renderPersonCard)}
+          </div>
         </div>
       )}
     </div>
