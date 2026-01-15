@@ -6,6 +6,7 @@ import {
   OrganizationType,
   OnboardingStatus,
   OrganizationMemberRole,
+  Prisma,
 } from "@prisma/client";
 
 export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization) & {
@@ -754,5 +755,74 @@ export class OrganizationRepository {
         data: { corporate_onboarding_data: mergedData },
       });
     }
+  }
+
+  /**
+   * Update business shareholder AML status
+   */
+  async updateBusinessAmlStatus(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    businessShareholderId: string,
+    statusData: {
+      kybId?: string;
+      status: string;
+      businessName?: string;
+      updatedAt: string;
+    }
+  ) {
+    // Fetch current business_aml_status
+    const existing =
+      portalType === "investor"
+        ? await prisma.investorOrganization.findUnique({
+            where: { id: organizationId },
+            select: { business_aml_status: true },
+          })
+        : await prisma.issuerOrganization.findUnique({
+            where: { id: organizationId },
+            select: { business_aml_status: true },
+          });
+
+    const currentStatuses = (existing?.business_aml_status as Record<string, unknown>) || {};
+
+    // Update or add entry for this businessShareholderId
+    const updatedStatuses = {
+      ...currentStatuses,
+      [businessShareholderId]: statusData,
+    };
+
+    // Save back to database
+    if (portalType === "investor") {
+      return prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: { business_aml_status: updatedStatuses as Prisma.InputJsonValue },
+      });
+    } else {
+      return prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: { business_aml_status: updatedStatuses as Prisma.InputJsonValue },
+      });
+    }
+  }
+
+  /**
+   * Get business AML statuses for an organization
+   */
+  async getBusinessAmlStatuses(
+    organizationId: string,
+    portalType: "investor" | "issuer"
+  ): Promise<Record<string, unknown>> {
+    const organization =
+      portalType === "investor"
+        ? await prisma.investorOrganization.findUnique({
+            where: { id: organizationId },
+            select: { business_aml_status: true },
+          })
+        : await prisma.issuerOrganization.findUnique({
+            where: { id: organizationId },
+            select: { business_aml_status: true },
+          });
+
+    return (organization?.business_aml_status as Record<string, unknown>) || {};
   }
 }

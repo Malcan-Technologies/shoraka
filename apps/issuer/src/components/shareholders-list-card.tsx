@@ -57,39 +57,41 @@ export function ShareholdersListCard({ organizationId }: ShareholdersListCardPro
       </div>
       <div className="p-6 space-y-4">
         {shareholders.map((shareholder: any, index: number) => (
-          <div key={index} className="p-4 rounded-xl border bg-muted/30">
+          <div key={index} className="rounded-lg border bg-card p-4">
             <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-foreground">{shareholder.name || "—"}</h3>
-                {shareholder.shareholdingPercentage !== undefined && (
-                  <Badge variant="outline" className="mt-1">
-                    {shareholder.shareholdingPercentage}% ownership
-                  </Badge>
-                )}
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg text-foreground">{shareholder.name || "—"}</h3>
               </div>
+              {shareholder.shareholdingPercentage !== undefined && (
+                <Badge className="ml-2">{shareholder.shareholdingPercentage}%</Badge>
+              )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
               {shareholder.idNumber && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <IdentificationIcon className="h-4 w-4" />
-                  <span>ID: {shareholder.idNumber}</span>
+                <div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <IdentificationIcon className="h-4 w-4" />
+                    <span className="font-medium">ID/Passport:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{shareholder.idNumber}</p>
                 </div>
               )}
               {shareholder.nationality && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <GlobeAltIcon className="h-4 w-4" />
-                  <span>{shareholder.nationality}</span>
-                </div>
-              )}
-              {shareholder.email && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>Email: {shareholder.email}</span>
+                <div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <GlobeAltIcon className="h-4 w-4" />
+                    <span className="font-medium">Nationality:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{shareholder.nationality}</p>
                 </div>
               )}
               {shareholder.address && (
-                <div className="flex items-center gap-2 text-muted-foreground sm:col-span-2">
-                  <MapPinIcon className="h-4 w-4" />
-                  <span>{shareholder.address}</span>
+                <div className="sm:col-span-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPinIcon className="h-4 w-4" />
+                    <span className="font-medium">Address:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{shareholder.address}</p>
                 </div>
               )}
             </div>

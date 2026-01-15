@@ -57,39 +57,46 @@ export function DirectorsListCard({ organizationId }: DirectorsListCardProps) {
       </div>
       <div className="p-6 space-y-4">
         {directors.map((director: any, index: number) => (
-          <div key={index} className="p-4 rounded-xl border bg-muted/30">
+          <div key={index} className="rounded-lg border bg-card p-4">
             <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-foreground">{director.name || "—"}</h3>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg text-foreground">{director.name || "—"}</h3>
                 {director.position && (
                   <Badge variant="outline" className="mt-1">
                     {director.position}
                   </Badge>
                 )}
               </div>
+              {director.shareholdingPercentage && (
+                <Badge className="ml-2">{director.shareholdingPercentage}%</Badge>
+              )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
               {director.idNumber && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <IdentificationIcon className="h-4 w-4" />
-                  <span>ID: {director.idNumber}</span>
+                <div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <IdentificationIcon className="h-4 w-4" />
+                    <span className="font-medium">ID/Passport:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{director.idNumber}</p>
                 </div>
               )}
               {director.nationality && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <GlobeAltIcon className="h-4 w-4" />
-                  <span>{director.nationality}</span>
-                </div>
-              )}
-              {director.email && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>Email: {director.email}</span>
+                <div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <GlobeAltIcon className="h-4 w-4" />
+                    <span className="font-medium">Nationality:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{director.nationality}</p>
                 </div>
               )}
               {director.address && (
-                <div className="flex items-center gap-2 text-muted-foreground sm:col-span-2">
-                  <MapPinIcon className="h-4 w-4" />
-                  <span>{director.address}</span>
+                <div className="sm:col-span-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPinIcon className="h-4 w-4" />
+                    <span className="font-medium">Address:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{director.address}</p>
                 </div>
               )}
             </div>

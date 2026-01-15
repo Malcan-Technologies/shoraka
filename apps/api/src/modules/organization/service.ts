@@ -621,7 +621,7 @@ export class OrganizationService {
     organizationId: string,
     portalType: PortalType,
     input: InviteMemberInput
-  ): Promise<{ success: boolean; invitationId: string; emailSent: boolean }> {
+  ): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
@@ -719,16 +719,28 @@ export class OrganizationService {
       });
 
       emailSent = true;
-      logger.info({ invitationId: invitation.id, email: input.email }, "Invitation email sent");
+      logger.info({ invitationId: invitation.id, email: input.email, inviteLink }, "Invitation email sent");
     } catch (error) {
       emailError = error instanceof Error ? error.message : String(error);
-      logger.error({ error: emailError, invitationId: invitation.id }, "Failed to send invitation email");
+      logger.error(
+        { 
+          error: emailError, 
+          invitationId: invitation.id, 
+          email: input.email,
+          inviteLink,
+          sesRegion: process.env.SES_REGION || process.env.AWS_REGION,
+          emailFrom: process.env.EMAIL_FROM,
+        }, 
+        "Failed to send invitation email - invitation URL available for manual sharing"
+      );
     }
 
     return {
       success: true,
       invitationId: invitation.id,
       emailSent,
+      invitationUrl: inviteLink,
+      emailError: emailError || undefined,
     };
   }
 
@@ -884,7 +896,7 @@ export class OrganizationService {
     organizationId: string,
     portalType: PortalType,
     invitationId: string
-  ): Promise<{ success: boolean; emailSent: boolean }> {
+  ): Promise<{ success: boolean; emailSent: boolean; emailError?: string; invitationUrl?: string }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
 
@@ -960,10 +972,12 @@ export class OrganizationService {
       emailSent = true;
       logger.info({ invitationId }, "Invitation email resent");
     } catch (error) {
-      logger.error({ error, invitationId }, "Failed to resend invitation email");
+      const emailError = error instanceof Error ? error.message : String(error);
+      logger.error({ error: emailError, invitationId }, "Failed to resend invitation email");
+      return { success: true, emailSent: false, emailError, invitationUrl: inviteLink };
     }
 
-    return { success: true, emailSent };
+    return { success: true, emailSent, invitationUrl: inviteLink };
   }
 
   /**

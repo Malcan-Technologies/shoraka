@@ -476,6 +476,34 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 });
               }
 
+              // Also update the new business_aml_status field using the repository method
+              try {
+                await this.organizationRepository.updateBusinessAmlStatus(
+                  orgId,
+                  portalType,
+                  codRequestId || onboardingId || requestId,
+                  {
+                    kybId: requestId,
+                    status: amlStatus,
+                    businessName: (shareholder as any).businessName || (shareholder as any).name || "Unknown",
+                    updatedAt: new Date().toISOString(),
+                  }
+                );
+                logger.debug(
+                  { organizationId: orgId, codRequestId: codRequestId || onboardingId, kybId: requestId },
+                  "[KYB Webhook] ✓ Also updated business_aml_status field"
+                );
+              } catch (error) {
+                logger.error(
+                  {
+                    error: error instanceof Error ? error.message : String(error),
+                    organizationId: orgId,
+                    codRequestId: codRequestId || onboardingId,
+                  },
+                  "[KYB Webhook] Failed to update business_aml_status field (non-blocking)"
+                );
+              }
+
               logger.info(
                 {
                   kybRequestId: requestId,

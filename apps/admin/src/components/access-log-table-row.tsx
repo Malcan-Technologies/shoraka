@@ -128,6 +128,22 @@ export function AccessLogTableRow({
       <TableCell className="text-sm text-muted-foreground">
         {format(log.created_at, "MMM dd, yyyy HH:mm")}
       </TableCell>
+      {showOrganization && (
+        <>
+          <TableCell className="text-sm text-muted-foreground">
+            {log.organizationName || "—"}
+          </TableCell>
+          <TableCell>
+            {log.organizationType ? (
+              <Badge variant="outline" className="text-xs">
+                {log.organizationType === "COMPANY" ? "Company" : "Personal"}
+              </Badge>
+            ) : (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
+          </TableCell>
+        </>
+      )}
       <TableCell className="min-w-[180px] max-w-[280px]">
         <div className="flex flex-col min-w-0">
           <span
@@ -150,22 +166,6 @@ export function AccessLogTableRow({
             <span className="text-sm text-muted-foreground">—</span>
           )}
         </TableCell>
-      )}
-      {showOrganization && (
-        <>
-          <TableCell className="text-sm text-muted-foreground">
-            {log.organizationName || "—"}
-          </TableCell>
-          <TableCell>
-            {log.organizationType ? (
-              <Badge variant="outline" className="text-xs">
-                {log.organizationType === "COMPANY" ? "Company" : "Personal"}
-              </Badge>
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
-          </TableCell>
-        </>
       )}
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}

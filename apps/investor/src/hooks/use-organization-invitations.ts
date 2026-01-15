@@ -42,9 +42,9 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
     }: {
       email: string;
       role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
-    }): Promise<{ success: boolean; invitationId: string; emailSent: boolean }> => {
+    }): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> => {
       if (!organizationId) throw new Error("No organization selected");
-      const result = await apiClient.post<{ success: boolean; invitationId: string; emailSent: boolean }>(
+      const result = await apiClient.post<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }>(
         `/v1/organizations/investor/${organizationId}/members/invite`,
         { email, role }
       );
@@ -53,12 +53,14 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
       }
       return result.data;
     },
-    onSuccess: (data: { success: boolean; invitationId: string; emailSent: boolean }) => {
+    onSuccess: (data: { success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }) => {
       queryClient.invalidateQueries({ queryKey: ["organization-invitations", organizationId] });
       if (data.emailSent) {
         toast.success("Invitation sent successfully");
       } else {
-        toast.warning("Invitation created but email failed to send");
+        toast.warning("Invitation created but email failed to send", {
+          description: data.emailError || "You can copy the invitation link below",
+        });
       }
     },
     onError: (error: Error) => {
@@ -114,7 +116,7 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
     invitations: data || [],
     isLoading,
     error,
-    invite: inviteMutation.mutate,
+    invite: inviteMutation.mutateAsync,
     resend: resendMutation.mutate,
     revoke: revokeMutation.mutate,
     isInviting: inviteMutation.isPending,

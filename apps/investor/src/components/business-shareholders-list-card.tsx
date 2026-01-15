@@ -57,32 +57,35 @@ export function BusinessShareholdersListCard({ organizationId }: BusinessShareho
       </div>
       <div className="p-6 space-y-4">
         {businessShareholders.map((shareholder: any, index: number) => (
-          <div key={index} className="p-4 rounded-xl border bg-muted/30">
+          <div key={index} className="rounded-lg border bg-card p-4">
             <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-foreground">{shareholder.businessName || "—"}</h3>
-                {shareholder.shareholdingPercentage !== undefined && (
-                  <Badge variant="outline" className="mt-1">
-                    {shareholder.shareholdingPercentage}% ownership
-                  </Badge>
-                )}
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg text-foreground">{shareholder.businessName || "—"}</h3>
               </div>
+              {shareholder.shareholdingPercentage !== undefined && (
+                <Badge className="ml-2">{shareholder.shareholdingPercentage}%</Badge>
+              )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
               {shareholder.registrationNumber && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>Registration: {shareholder.registrationNumber}</span>
+                <div>
+                  <span className="text-muted-foreground font-medium">Registration Number:</span>
+                  <p className="mt-1">{shareholder.registrationNumber}</p>
                 </div>
               )}
               {shareholder.country && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>Country: {shareholder.country}</span>
+                <div>
+                  <span className="text-muted-foreground font-medium">Country:</span>
+                  <p className="mt-1">{shareholder.country}</p>
                 </div>
               )}
               {shareholder.address && (
-                <div className="flex items-center gap-2 text-muted-foreground sm:col-span-2">
-                  <MapPinIcon className="h-4 w-4" />
-                  <span>{shareholder.address}</span>
+                <div className="sm:col-span-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPinIcon className="h-4 w-4" />
+                    <span className="font-medium">Address:</span>
+                  </div>
+                  <p className="mt-1 ml-6">{shareholder.address}</p>
                 </div>
               )}
             </div>

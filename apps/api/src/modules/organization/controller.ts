@@ -129,6 +129,22 @@ async function listOrganizations(
                   corporateShareholders?: Array<Record<string, unknown>>;
                 })
               : undefined,
+            corporateOnboardingData: (org as { corporate_onboarding_data?: unknown }).corporate_onboarding_data
+              ? ((org as { corporate_onboarding_data: unknown }).corporate_onboarding_data as {
+                  basicInfo?: {
+                    tinNumber?: string;
+                    industry?: string;
+                    entityType?: string;
+                    businessName?: string;
+                    numberOfEmployees?: number;
+                    ssmRegisterNumber?: string;
+                  };
+                  addresses?: {
+                    businessAddress?: string;
+                    registeredAddress?: string;
+                  };
+                })
+              : undefined,
           }),
         })),
         hasPersonalOrganization: hasPersonal,
@@ -209,6 +225,8 @@ async function getOrganization(
       ssm_checked?: boolean;
       is_sophisticated_investor?: boolean;
       director_kyc_status?: unknown;
+      corporate_onboarding_data?: unknown;
+      corporate_entities?: unknown;
     };
 
     res.json({
@@ -283,6 +301,29 @@ async function getOrganization(
                   lastUpdated: string;
                 }>;
                 lastSyncedAt: string;
+              })
+            : undefined,
+          corporateOnboardingData: org.corporate_onboarding_data
+            ? (org.corporate_onboarding_data as {
+                basicInfo?: {
+                  tinNumber?: string;
+                  industry?: string;
+                  entityType?: string;
+                  businessName?: string;
+                  numberOfEmployees?: number;
+                  ssmRegisterNumber?: string;
+                };
+                addresses?: {
+                  businessAddress?: string;
+                  registeredAddress?: string;
+                };
+              })
+            : undefined,
+          corporateEntities: org.corporate_entities
+            ? (org.corporate_entities as {
+                directors?: Array<Record<string, unknown>>;
+                shareholders?: Array<Record<string, unknown>>;
+                corporateShareholders?: Array<Record<string, unknown>>;
               })
             : undefined,
         }),

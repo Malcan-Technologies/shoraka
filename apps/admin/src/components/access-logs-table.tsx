@@ -110,11 +110,11 @@ export function AccessLogsTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+                {showOrganization && <TableHead className="text-sm font-semibold">Organization</TableHead>}
+                {showOrganization && <TableHead className="text-sm font-semibold">Type</TableHead>}
                 <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
                 <TableHead className="text-sm font-semibold">Event</TableHead>
                 {showRole && <TableHead className="text-sm font-semibold">Role</TableHead>}
-                {showOrganization && <TableHead className="text-sm font-semibold">Organization</TableHead>}
-                {showOrganization && <TableHead className="text-sm font-semibold">Type</TableHead>}
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>
                 <TableHead className="text-sm font-semibold">Device</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
