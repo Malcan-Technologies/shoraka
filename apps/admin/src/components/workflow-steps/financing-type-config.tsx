@@ -14,12 +14,10 @@ import {
 import { toast } from "sonner";
 
 interface FinancingTypeConfig {
-  type?: {
-    name: string;
-    description: string;
-    category?: string;
-    s3_key?: string;
-  };
+  name?: string;
+  description?: string;
+  category?: string;
+  s3_key?: string;
 }
 
 interface FinancingTypeConfigProps {
@@ -28,9 +26,9 @@ interface FinancingTypeConfigProps {
 }
 
 export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigProps) {
-  const currentType = config.type || null;
+  const currentType = config.name ? config : null;
 
-  const [isEditing, setIsEditing] = React.useState(!currentType);
+  const [isEditing, setIsEditing] = React.useState(!config.name);
   const [newName, setNewName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
@@ -62,7 +60,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
 
   React.useEffect(() => {
     if (currentType && isEditing) {
-      setNewName(currentType.name);
+      setNewName(currentType.name || "");
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
       setNewS3Key(currentType.s3_key || "");
@@ -146,16 +144,12 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       }
 
       // Save the financing type config with S3 key
-      const newType = {
+      onChange({
+        ...config,
         name: newName.trim(),
         description: newDescription.trim() || "",
         category: newCategory.trim(),
         s3_key: finalS3Key || undefined,
-      };
-
-      onChange({
-        ...config,
-        type: newType,
       });
 
       setIsEditing(false);
@@ -176,7 +170,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
 
   const startEdit = () => {
     if (currentType) {
-      setNewName(currentType.name);
+      setNewName(currentType.name || "");
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
       setNewS3Key(currentType.s3_key || "");
@@ -194,7 +188,10 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
   const removeFinancingType = () => {
     onChange({
       ...config,
-      type: undefined,
+      name: undefined,
+      description: undefined,
+      category: undefined,
+      s3_key: undefined,
     });
     setIsEditing(true);
     resetForm();

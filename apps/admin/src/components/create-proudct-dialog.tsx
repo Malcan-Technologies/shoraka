@@ -51,7 +51,7 @@ function hasConfiguredContent(step: { name: string; config?: Record<string, any>
   
   // Financing Type step: Must have a product name
   if (stepName.includes("financing type")) {
-    const hasName = config.type && typeof config.type === 'object' && config.type.name;
+    const hasName = config.name && typeof config.name === 'string' && config.name.trim().length > 0;
     return hasName;
   }
   

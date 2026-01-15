@@ -84,9 +84,9 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
   
-  // Financing Type: check if type object exists
+  // Financing Type: check if name exists
   if (stepName.includes("financing type")) {
-    return config.type && typeof config.type === 'object' && config.type.name;
+    return config.name && typeof config.name === 'string' && config.name.trim().length > 0;
   }
   
   // Financing Terms: check if any field is set
@@ -103,9 +103,9 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
   
   // Supporting Documents: check if any documents are added
   if (stepName.includes("document")) {
-    if (!config.categories) return false;
-    const hasDocuments = Object.values(config.categories).some(
-      (docs: any) => Array.isArray(docs) && docs.length > 0
+    if (!config.categories || !Array.isArray(config.categories)) return false;
+    const hasDocuments = config.categories.some(
+      (cat: any) => cat.documents && Array.isArray(cat.documents) && cat.documents.length > 0
     );
     return hasDocuments;
   }

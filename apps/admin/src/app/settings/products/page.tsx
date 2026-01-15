@@ -55,13 +55,13 @@ export default function ProductsPage() {
       const financingStep = workflow.find(
         (step: any) => step.name?.toLowerCase().includes("financing type")
       );
-      const type = financingStep?.config?.type || {};
+      const config = financingStep?.config || {};
 
       return {
         id: product.id,
-        name: type.name || null,
-        description: type.description || null,
-        category: type.category || null,
+        name: config.name || null,
+        description: config.description || null,
+        category: config.category || null,
         steps: workflow.length,
         workflow: workflow,
         createdAt: product.createdAt,
