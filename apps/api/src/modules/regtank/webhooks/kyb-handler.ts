@@ -404,10 +404,10 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 amlStatus = "Approved";
               } else if (kybStatus === "REJECTED") {
                 amlStatus = "Rejected";
-              } else if (kybStatus === "UNRESOLVED") {
+              } else if (kybStatus === "UNRESOLVED" || kybStatus === "NO_MATCH") {
+                // "No Match" means screening is complete but no match found - treat similar to "Unresolved"
+                // Both require admin review/action
                 amlStatus = "Unresolved";
-              } else if (kybStatus === "NO_MATCH") {
-                amlStatus = "Pending";
               }
 
               const amlMessageStatus = (messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";

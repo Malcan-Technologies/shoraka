@@ -8,12 +8,15 @@ import type { AccessLogResponse, UserRole } from "@cashsouk/types";
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
   role?: UserRole | null;
+  organizationName?: string | null;
+  organizationType?: "PERSONAL" | "COMPANY" | null;
 }
 
 interface AccessLogTableRowProps {
   log: AccessLog;
   onViewDetails: () => void;
   showRole?: boolean;
+  showOrganization?: boolean;
 }
 
 // Event type configuration with dot color and readable label
@@ -118,6 +121,7 @@ export function AccessLogTableRow({
   log,
   onViewDetails,
   showRole = false,
+  showOrganization = false,
 }: AccessLogTableRowProps) {
   return (
     <TableRow className="hover:bg-muted/50">
@@ -146,6 +150,22 @@ export function AccessLogTableRow({
             <span className="text-sm text-muted-foreground">—</span>
           )}
         </TableCell>
+      )}
+      {showOrganization && (
+        <>
+          <TableCell className="text-sm text-muted-foreground">
+            {log.organizationName || "—"}
+          </TableCell>
+          <TableCell>
+            {log.organizationType ? (
+              <Badge variant="outline" className="text-xs">
+                {log.organizationType === "COMPANY" ? "Company" : "Personal"}
+              </Badge>
+            ) : (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
+          </TableCell>
+        </>
       )}
       <TableCell className="font-mono text-sm text-muted-foreground">
         {log.ip_address || "—"}

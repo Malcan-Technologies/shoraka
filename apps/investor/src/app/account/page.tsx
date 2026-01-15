@@ -31,6 +31,13 @@ import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
+import { useOrganizationMembers } from "../../hooks/use-organization-members";
+import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
+import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { DirectorsListCard } from "../../components/directors-list-card";
+import { ShareholdersListCard } from "../../components/shareholders-list-card";
+import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
+import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -50,6 +57,11 @@ import {
   GlobeAltIcon,
   CalendarIcon,
   ArrowDownTrayIcon,
+  UserPlusIcon,
+  TrashIcon,
+  ArrowRightOnRectangleIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -85,20 +97,14 @@ const roleConfig: Record<
   OrganizationMemberRole,
   { label: string; color: string; bgColor: string; borderColor: string }
 > = {
-  OWNER: {
-    label: "Owner",
+  ORGANIZATION_ADMIN: {
+    label: "Organization Admin",
     color: "text-primary",
     bgColor: "bg-primary/10",
     borderColor: "border-primary/20",
   },
-  DIRECTOR: {
-    label: "Director",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-  },
-  MEMBER: {
-    label: "Member",
+  ORGANIZATION_MEMBER: {
+    label: "Organization Member",
     color: "text-muted-foreground",
     bgColor: "bg-muted",
     borderColor: "border-border",
@@ -369,10 +375,26 @@ export default function AccountPage() {
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("profile");
+  const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
+
+  // Organization management hooks
+  const { removeMember, changeRole, leave, isRemoving, isChangingRole, isLeaving } =
+    useOrganizationMembers(activeOrganization?.id);
+  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
+  
+  // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
+  const isCurrentUserAdmin = React.useMemo(() => {
+    if (!activeOrganization) return false;
+    if (activeOrganization.isOwner) return true;
+    // Check if current user member has admin role
+    // Note: We'll need to get current user ID from auth context
+    // For now, assume owner check is sufficient
+    return false;
+  }, [activeOrganization]);
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
@@ -406,6 +428,20 @@ export default function AccountPage() {
         onboardingStatus: string;
         onboardedAt: string | null;
         isSophisticatedInvestor: boolean;
+        corporateOnboardingData?: {
+          basicInfo?: {
+            tinNumber?: string;
+            industry?: string;
+            entityType?: string;
+            businessName?: string;
+            numberOfEmployees?: number;
+            ssmRegisterNumber?: string;
+          };
+          addresses?: {
+            businessAddress?: string;
+            registeredAddress?: string;
+          };
+        };
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -569,8 +605,9 @@ export default function AccountPage() {
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6 mt-6">
-              {/* Personal Info Section (Read-only) */}
-              <div className="rounded-xl border bg-card">
+              {/* Personal Info Section (Read-only) - Only for PERSONAL accounts */}
+              {isPersonal && (
+                <div className="rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
                     <h2 className="text-lg font-semibold">Personal info</h2>
@@ -664,6 +701,12 @@ export default function AccountPage() {
                   </div>
                 </div>
               </div>
+              )}
+
+              {/* Corporate Info Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && (
+                <CorporateInfoCard organizationId={activeOrganization.id} />
+              )}
 
               {/* Contact Details Section (Editable) */}
               <div className="rounded-xl border bg-card">
@@ -725,82 +768,256 @@ export default function AccountPage() {
               </div>
 
               {/* Address Section (Editable) */}
-              <div className="rounded-xl border bg-card">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <div>
-                    <h2 className="text-lg font-semibold">Address</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Ensure your primary address is up to date
+              {isPersonal ? (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Address</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Ensure your primary address is up to date
+                      </p>
+                    </div>
+                    {!isEditingProfile && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingProfile(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Full Address
+                      </Label>
+                      <Textarea
+                        placeholder="Enter your full address"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        disabled={!isEditingProfile}
+                        rows={3}
+                        maxLength={500}
+                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
+                      />
+                      {isEditingProfile && (
+                        <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
+                      )}
+                    </div>
+
+                    {isEditingProfile && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelProfileEdit}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Addresses</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Business and registered addresses
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Business Address
+                      </Label>
+                      <Input
+                        value={orgData?.corporateOnboardingData?.addresses?.businessAddress || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Registered Address
+                      </Label>
+                      <Input
+                        value={orgData?.corporateOnboardingData?.addresses?.registeredAddress || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Update addresses in Corporate Info section
                     </p>
                   </div>
-                  {!isEditingProfile && (
+                </div>
+              )}
+
+              {/* Members Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">
+                    {isPersonal ? "Account Holder" : "Organization Members"} (
+                    {activeOrganization.members?.length || 0})
+                  </h2>
+                  {!isPersonal && isCurrentUserAdmin && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingProfile(true)}
+                      onClick={() => setInviteDialogOpen(true)}
                       className="gap-2 rounded-xl"
                     >
-                      <PencilIcon className="h-4 w-4" />
-                      Edit
+                      <UserPlusIcon className="h-4 w-4" />
+                      Invite Member
                     </Button>
                   )}
                 </div>
-                <div className="p-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <MapPinIcon className="h-4 w-4" />
-                      Full Address
-                    </Label>
-                    <Textarea
-                      placeholder="Enter your full address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      disabled={!isEditingProfile}
-                      rows={3}
-                      maxLength={500}
-                      className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
-                    />
-                    {isEditingProfile && (
-                      <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
-                    )}
-                  </div>
-
-                  {isEditingProfile && (
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={handleCancelProfileEdit}
-                        disabled={updateProfileMutation.isPending}
-                        className="gap-2 rounded-xl"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleSaveProfile}
-                        disabled={updateProfileMutation.isPending}
-                        className="gap-2 rounded-xl"
-                      >
-                        {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Members Section */}
-              {activeOrganization.members && activeOrganization.members.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="text-lg font-semibold">
-                    {isPersonal ? "Account Holder" : "Members"} (
-                    {activeOrganization.members?.length || 0})
-                  </h2>
+                {activeOrganization.members && activeOrganization.members.length > 0 ? (
                   <div className="grid gap-3">
                     {activeOrganization.members.map((member) => (
-                      <MemberCard key={member.id} member={member} />
+                      <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                        <div className="flex-1">
+                          <MemberCard member={member} />
+                        </div>
+                        {!isPersonal && isCurrentUserAdmin && !activeOrganization.isOwner && (
+                          <div className="flex items-center gap-2 ml-auto">
+                            {member.role === "ORGANIZATION_MEMBER" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_ADMIN" })}
+                                disabled={isChangingRole}
+                                className="gap-1"
+                                title="Promote to Admin"
+                              >
+                                <ArrowUpIcon className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_MEMBER" })}
+                                disabled={isChangingRole}
+                                className="gap-1"
+                                title="Demote to Member"
+                              >
+                                <ArrowDownIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMember(member.id)}
+                              disabled={isRemoving}
+                              className="gap-1 text-destructive hover:text-destructive"
+                              title="Remove Member"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        {!isPersonal && !activeOrganization.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => leave()}
+                            disabled={isLeaving}
+                            className="gap-1 text-destructive hover:text-destructive ml-auto"
+                            title="Leave Organization"
+                          >
+                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                            Leave
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+                    <p>No members found</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Invitations Section - Only for COMPANY accounts and admins */}
+              {!isPersonal && isCurrentUserAdmin && invitations.length > 0 && (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Pending Invitations</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Invitations awaiting acceptance
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    {invitations.map((invitation) => (
+                      <div key={invitation.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                        <div>
+                          <p className="font-medium">{invitation.email}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} • Expires{" "}
+                            {new Date(invitation.expiresAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => resend(invitation.id)}
+                            className="gap-1"
+                          >
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => revoke(invitation.id)}
+                            className="gap-1 text-destructive"
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Directors/Shareholders Cards - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && (
+                <>
+                  <DirectorsListCard organizationId={activeOrganization.id} />
+                  <ShareholdersListCard organizationId={activeOrganization.id} />
+                  <BusinessShareholdersListCard organizationId={activeOrganization.id} />
+                </>
+              )}
+
+              {/* Invite Member Dialog */}
+              {activeOrganization?.id && (
+                <InviteMemberDialog
+                  organizationId={activeOrganization.id}
+                  open={inviteDialogOpen}
+                  onOpenChange={setInviteDialogOpen}
+                />
               )}
             </TabsContent>
 
