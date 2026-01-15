@@ -28,9 +28,10 @@ interface AccessLogsTableProps {
   totalLogs: number;
   onPageChange: (page: number) => void;
   showRole?: boolean;
+  showOrganization?: boolean;
 }
 
-function TableSkeleton({ showRole = false }: { showRole?: boolean }) {
+function TableSkeleton({ showRole = false, showOrganization = false }: { showRole?: boolean; showOrganization?: boolean }) {
   return (
     <>
       {Array.from({ length: 7 }).map((_, i) => (
@@ -48,6 +49,16 @@ function TableSkeleton({ showRole = false }: { showRole?: boolean }) {
             <TableCell>
               <Skeleton className="h-5 w-20" />
             </TableCell>
+          )}
+          {showOrganization && (
+            <>
+              <TableCell>
+                <Skeleton className="h-5 w-32" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-20" />
+              </TableCell>
+            </>
           )}
           <TableCell>
             <Skeleton className="h-5 w-28" />
@@ -75,6 +86,7 @@ export function AccessLogsTable({
   totalLogs,
   onPageChange,
   showRole = false,
+  showOrganization = false,
 }: AccessLogsTableProps) {
   const [selectedLog, setSelectedLog] = React.useState<AccessLog | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -88,7 +100,7 @@ export function AccessLogsTable({
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalLogs);
 
-  const columnCount = showRole ? 8 : 7;
+  const columnCount = 7 + (showRole ? 1 : 0) + (showOrganization ? 2 : 0);
 
   return (
     <>
@@ -101,6 +113,8 @@ export function AccessLogsTable({
                 <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
                 <TableHead className="text-sm font-semibold">Event</TableHead>
                 {showRole && <TableHead className="text-sm font-semibold">Role</TableHead>}
+                {showOrganization && <TableHead className="text-sm font-semibold">Organization</TableHead>}
+                {showOrganization && <TableHead className="text-sm font-semibold">Type</TableHead>}
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>
                 <TableHead className="text-sm font-semibold">Device</TableHead>
                 <TableHead className="text-sm font-semibold">Status</TableHead>
@@ -109,7 +123,7 @@ export function AccessLogsTable({
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeleton showRole={showRole} />
+                <TableSkeleton showRole={showRole} showOrganization={showOrganization} />
               ) : logs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
@@ -123,6 +137,7 @@ export function AccessLogsTable({
                     log={log}
                     onViewDetails={() => handleViewDetails(log)}
                     showRole={showRole}
+                    showOrganization={showOrganization}
                   />
                 ))
               )}

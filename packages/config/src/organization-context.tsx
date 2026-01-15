@@ -22,7 +22,7 @@ export type OnboardingStatus =
   | "PENDING_FINAL_APPROVAL"
   | "COMPLETED"
   | "REJECTED";
-export type OrganizationMemberRole = "OWNER" | "DIRECTOR" | "MEMBER";
+export type OrganizationMemberRole = "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
 export type PortalType = "investor" | "issuer";
 
 export interface OrganizationMember {

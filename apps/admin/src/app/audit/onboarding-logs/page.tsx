@@ -136,7 +136,7 @@ export default function OnboardingLogsPage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Onboarding Logs</h1>
+        <h1 className="text-lg font-semibold">Organization Logs</h1>
         <div className="ml-auto">
           <SystemHealthIndicator />
         </div>
@@ -294,6 +294,8 @@ export default function OnboardingLogsPage() {
               success: true,
               metadata: log.metadata,
               created_at: new Date(log.created_at),
+              organizationName: (log as any).organizationName || null,
+              organizationType: (log as any).organizationType || null,
             }))}
             loading={loading}
             currentPage={currentPage}
@@ -301,6 +303,7 @@ export default function OnboardingLogsPage() {
             totalLogs={totalLogs}
             onPageChange={setCurrentPage}
             showRole
+            showOrganization
           />
         </div>
       </div>

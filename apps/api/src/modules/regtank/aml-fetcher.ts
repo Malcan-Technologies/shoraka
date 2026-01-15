@@ -51,6 +51,68 @@ export class AMLFetcherService {
   }
 
   /**
+   * Helper function to retry querying KYB status with exponential backoff
+   * RegTank may need time to process KYB requests, especially for business shareholders
+   * When first entering AML stage, status is often "No Match" or "Unresolved"
+   */
+  private async queryKYBStatusWithRetry(
+    kybId: string,
+    maxRetries: number = 3,
+    initialDelayMs: number = 3000
+  ): Promise<any> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Exponential backoff: 3s, 6s, 12s
+          const delayMs = initialDelayMs * Math.pow(2, attempt - 1);
+          logger.debug(
+            { kybId, attempt: attempt + 1, maxRetries: maxRetries + 1, delayMs },
+            "[AML Fetcher] Retrying KYB status query after delay"
+          );
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
+        const response = await this.apiClient.queryKYBStatus(kybId);
+        
+        // Check if response has valid status (not empty or undefined)
+        if (response && (response.status || response.messageStatus)) {
+          logger.debug(
+            { kybId, attempt: attempt + 1, status: response.status, messageStatus: response.messageStatus },
+            "[AML Fetcher] Successfully queried KYB status"
+          );
+          return response;
+        }
+        
+        // If response exists but status is not ready, log and retry
+        if (attempt < maxRetries) {
+          logger.debug(
+            { kybId, attempt: attempt + 1, response },
+            "[AML Fetcher] KYB status not ready yet, will retry"
+          );
+          lastError = new Error("KYB status not ready");
+          continue;
+        }
+        
+        return response;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.warn(
+          { kybId, attempt: attempt + 1, error: lastError.message },
+          "[AML Fetcher] Error querying KYB status, will retry"
+        );
+        
+        if (attempt === maxRetries) {
+          throw lastError;
+        }
+      }
+    }
+    
+    throw lastError || new Error("Failed to query KYB status after retries");
+  }
+
+  /**
    * Fetch AML statuses for individual directors
    * Flow: GET COD → extract corpIndvDirectors → GET EOD → extract kycRequestInfo → GET KYC status
    */
@@ -585,8 +647,9 @@ export class AMLFetcherService {
             }
           }
 
-          // Step 7: Always fetch fresh AML status from KYB API
-          const kybStatusResponse = await this.apiClient.queryKYBStatus(extractedKybId);
+          // Step 7: Always fetch fresh AML status from KYB API with retry logic
+          // RegTank may need time to process KYB requests, especially when first entering AML stage
+          const kybStatusResponse = await this.queryKYBStatusWithRetry(extractedKybId);
           
           let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
           const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
@@ -594,13 +657,28 @@ export class AMLFetcherService {
             amlStatus = "Approved";
           } else if (kybStatus === "REJECTED") {
             amlStatus = "Rejected";
-          } else if (kybStatus === "UNRESOLVED") {
+          } else if (kybStatus === "UNRESOLVED" || kybStatus === "NO_MATCH") {
+            // "No Match" means screening is complete but no match found - treat similar to "Unresolved"
+            // Both require admin review/action
             amlStatus = "Unresolved";
           }
 
           const amlMessageStatus = (kybStatusResponse.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-          const amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
-          const amlRiskLevel = kybStatusResponse.riskLevel || null;
+          
+          // Extract risk score and level from corporateRiskScore object if available
+          let amlRiskScore: number | null = null;
+          let amlRiskLevel: string | null = null;
+          
+          if (kybStatusResponse.corporateRiskScore) {
+            amlRiskScore = kybStatusResponse.corporateRiskScore.score 
+              ? parseFloat(String(kybStatusResponse.corporateRiskScore.score)) 
+              : null;
+            amlRiskLevel = kybStatusResponse.corporateRiskScore.level || null;
+          } else {
+            // Fallback to direct fields if corporateRiskScore object doesn't exist
+            amlRiskScore = kybStatusResponse.riskScore ? parseFloat(String(kybStatusResponse.riskScore)) : null;
+            amlRiskLevel = kybStatusResponse.riskLevel || null;
+          }
 
           // Extract share percentage from corporate_entities for reference
           const sharePercentage = (shareholder as any).sharePercentage || 

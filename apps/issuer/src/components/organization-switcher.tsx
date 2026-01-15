@@ -266,7 +266,7 @@ export function OrganizationSwitcher() {
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
           getAccessToken
         );
-        const role = portalType === "investor" ? "INVESTOR" : "ISSUER";
+        const role = portalType === "issuer" ? "INVESTOR" : "ISSUER";
         await apiClient.post("/v1/auth/cancel-onboarding", {
           role,
           reason: "User switched to a different organization during onboarding",

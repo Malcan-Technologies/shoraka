@@ -6,6 +6,10 @@ import {
   organizationIdParamSchema,
   memberIdParamSchema,
   updateOrganizationProfileSchema,
+  inviteMemberSchema,
+  acceptOrganizationInvitationSchema,
+  changeMemberRoleSchema,
+  updateCorporateInfoSchema,
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -421,6 +425,239 @@ async function acceptTnc(req: Request, res: Response, next: NextFunction, portal
 }
 
 /**
+ * Invite a member to an organization
+ * POST /v1/organizations/investor/:id/members/invite
+ * POST /v1/organizations/issuer/:id/members/invite
+ */
+async function inviteMember(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = inviteMemberSchema.parse(req.body);
+
+    const result = await organizationService.inviteMember(userId, id, portalType, input);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Accept an organization invitation
+ * POST /v1/organizations/invitations/accept
+ */
+async function acceptInvitation(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = getUserId(req);
+    const input = acceptOrganizationInvitationSchema.parse(req.body);
+
+    const result = await organizationService.acceptInvitation(userId, input);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get pending invitations for an organization
+ * GET /v1/organizations/investor/:id/invitations
+ * GET /v1/organizations/issuer/:id/invitations
+ */
+async function getPendingInvitations(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+
+    const invitations = await organizationService.getPendingInvitations(userId, id, portalType);
+
+    res.json({
+      success: true,
+      data: { invitations },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Resend invitation email
+ * POST /v1/organizations/investor/:id/invitations/:invitationId/resend
+ * POST /v1/organizations/issuer/:id/invitations/:invitationId/resend
+ */
+async function resendInvitation(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const { invitationId } = req.params;
+
+    const result = await organizationService.resendInvitation(userId, id, portalType, invitationId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Revoke an invitation
+ * DELETE /v1/organizations/investor/:id/invitations/:invitationId
+ * DELETE /v1/organizations/issuer/:id/invitations/:invitationId
+ */
+async function revokeInvitation(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const { invitationId } = req.params;
+
+    const result = await organizationService.revokeInvitation(userId, id, portalType, invitationId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Leave an organization
+ * POST /v1/organizations/investor/:id/leave
+ * POST /v1/organizations/issuer/:id/leave
+ */
+async function leaveOrganization(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+
+    const result = await organizationService.leaveOrganization(userId, id, portalType);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Change member role (promote/demote)
+ * PATCH /v1/organizations/investor/:id/members/:userId/role
+ * PATCH /v1/organizations/issuer/:id/members/:userId/role
+ */
+async function changeMemberRole(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id, userId: targetUserId } = memberIdParamSchema.parse(req.params);
+    const input = changeMemberRoleSchema.parse({ ...req.body, userId: targetUserId });
+
+    const result = await organizationService.changeMemberRole(userId, id, portalType, input);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get corporate entities (directors, shareholders)
+ * GET /v1/organizations/investor/:id/corporate-entities
+ * GET /v1/organizations/issuer/:id/corporate-entities
+ */
+async function getCorporateEntities(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+
+    const entities = await organizationService.getCorporateEntities(userId, id, portalType);
+
+    res.json({
+      success: true,
+      data: entities,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Update corporate info
+ * PATCH /v1/organizations/investor/:id/corporate-info
+ * PATCH /v1/organizations/issuer/:id/corporate-info
+ */
+async function updateCorporateInfo(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = updateCorporateInfoSchema.parse(req.body);
+
+    const result = await organizationService.updateCorporateInfo(userId, id, portalType, input);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create router for organization routes
  */
 export function createOrganizationRouter(): Router {
@@ -448,8 +685,32 @@ export function createOrganizationRouter(): Router {
   router.post("/investor/:id/members", requireAuth, (req, res, next) =>
     addMember(req, res, next, "investor")
   );
+  router.post("/investor/:id/members/invite", requireAuth, (req, res, next) =>
+    inviteMember(req, res, next, "investor")
+  );
   router.delete("/investor/:id/members/:userId", requireAuth, (req, res, next) =>
     removeMember(req, res, next, "investor")
+  );
+  router.post("/investor/:id/leave", requireAuth, (req, res, next) =>
+    leaveOrganization(req, res, next, "investor")
+  );
+  router.patch("/investor/:id/members/:userId/role", requireAuth, (req, res, next) =>
+    changeMemberRole(req, res, next, "investor")
+  );
+  router.get("/investor/:id/invitations", requireAuth, (req, res, next) =>
+    getPendingInvitations(req, res, next, "investor")
+  );
+  router.post("/investor/:id/invitations/:invitationId/resend", requireAuth, (req, res, next) =>
+    resendInvitation(req, res, next, "investor")
+  );
+  router.delete("/investor/:id/invitations/:invitationId", requireAuth, (req, res, next) =>
+    revokeInvitation(req, res, next, "investor")
+  );
+  router.get("/investor/:id/corporate-entities", requireAuth, (req, res, next) =>
+    getCorporateEntities(req, res, next, "investor")
+  );
+  router.patch("/investor/:id/corporate-info", requireAuth, (req, res, next) =>
+    updateCorporateInfo(req, res, next, "investor")
   );
 
   // Issuer organization routes
@@ -474,9 +735,36 @@ export function createOrganizationRouter(): Router {
   router.post("/issuer/:id/members", requireAuth, (req, res, next) =>
     addMember(req, res, next, "issuer")
   );
+  router.post("/issuer/:id/members/invite", requireAuth, (req, res, next) =>
+    inviteMember(req, res, next, "issuer")
+  );
   router.delete("/issuer/:id/members/:userId", requireAuth, (req, res, next) =>
     removeMember(req, res, next, "issuer")
   );
+  router.post("/issuer/:id/leave", requireAuth, (req, res, next) =>
+    leaveOrganization(req, res, next, "issuer")
+  );
+  router.patch("/issuer/:id/members/:userId/role", requireAuth, (req, res, next) =>
+    changeMemberRole(req, res, next, "issuer")
+  );
+  router.get("/issuer/:id/invitations", requireAuth, (req, res, next) =>
+    getPendingInvitations(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/invitations/:invitationId/resend", requireAuth, (req, res, next) =>
+    resendInvitation(req, res, next, "issuer")
+  );
+  router.delete("/issuer/:id/invitations/:invitationId", requireAuth, (req, res, next) =>
+    revokeInvitation(req, res, next, "issuer")
+  );
+  router.get("/issuer/:id/corporate-entities", requireAuth, (req, res, next) =>
+    getCorporateEntities(req, res, next, "issuer")
+  );
+  router.patch("/issuer/:id/corporate-info", requireAuth, (req, res, next) =>
+    updateCorporateInfo(req, res, next, "issuer")
+  );
+
+  // Shared invitation acceptance route
+  router.post("/invitations/accept", requireAuth, acceptInvitation);
 
   return router;
 }

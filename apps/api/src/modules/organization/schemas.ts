@@ -14,7 +14,7 @@ export const completeOnboardingSchema = z.object({
 
 export const addMemberSchema = z.object({
   email: z.string().email(),
-  role: z.enum(["DIRECTOR", "MEMBER"]),
+  role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
 });
 
 export const organizationIdParamSchema = z.object({
@@ -55,9 +55,54 @@ export const updateOrganizationProfileSchema = z.object({
   bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
 });
 
+// Invite member schema
+export const inviteMemberSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
+});
+
+// Accept invitation schema
+export const acceptOrganizationInvitationSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+// Remove member schema
+export const removeMemberSchema = z.object({
+  userId: z.string().cuid(),
+});
+
+// Leave organization schema
+export const leaveOrganizationSchema = z.object({
+  organizationId: z.string().cuid(),
+});
+
+// Promote/Demote member schema
+export const changeMemberRoleSchema = z.object({
+  userId: z.string().cuid(),
+  role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
+});
+
+// Corporate info update schema
+export const updateCorporateInfoSchema = z.object({
+  tinNumber: z.string().optional().nullable(),
+  industry: z.string().optional().nullable(),
+  entityType: z.string().optional().nullable(),
+  businessName: z.string().optional().nullable(),
+  numberOfEmployees: z.number().int().positive().optional().nullable(),
+  ssmRegisterNumber: z.string().optional().nullable(),
+  businessAddress: z.string().max(500).optional().nullable(),
+  registeredAddress: z.string().max(500).optional().nullable(),
+});
+
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingSchema>;
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+export type AcceptOrganizationInvitationInput = z.infer<typeof acceptOrganizationInvitationSchema>;
+export type RemoveMemberInput = z.infer<typeof removeMemberSchema>;
+export type LeaveOrganizationInput = z.infer<typeof leaveOrganizationSchema>;
+export type ChangeMemberRoleInput = z.infer<typeof changeMemberRoleSchema>;
+export type UpdateCorporateInfoInput = z.infer<typeof updateCorporateInfoSchema>;
 export type PortalType = z.infer<typeof portalTypeSchema>;
 export type UpdateOrganizationProfileInput = z.infer<typeof updateOrganizationProfileSchema>;
 export type BankAccountDetails = z.infer<typeof bankAccountDetailsSchema>;
