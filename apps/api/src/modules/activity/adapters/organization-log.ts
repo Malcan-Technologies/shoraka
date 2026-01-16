@@ -9,9 +9,9 @@ import {
   buildDateFilter,
 } from "./base";
 
-export class OnboardingLogAdapter implements AuditLogAdapter<OnboardingLog> {
-  public readonly name = "OnboardingLogAdapter";
-  public readonly category: ActivityCategory = "onboarding";
+export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
+  public readonly name = "OrganizationLogAdapter";
+  public readonly category: ActivityCategory = "organization";
 
   async query(
     userId: string,

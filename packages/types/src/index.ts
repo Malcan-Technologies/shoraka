@@ -63,7 +63,7 @@ export interface Investment {
   updatedAt: string;
 }
 
-export type ActivityCategory = "security" | "onboarding" | "document" | "access";
+export type ActivityCategory = "organization";
 
 export interface Activity {
   id: string;

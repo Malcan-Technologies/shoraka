@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 /**
  * Activity category - maps to audit log source
  */
-export type ActivityCategory = "security" | "onboarding" | "document" | "access";
+export type ActivityCategory = "organization";
 
 /**
  * Unified activity structure returned to frontend

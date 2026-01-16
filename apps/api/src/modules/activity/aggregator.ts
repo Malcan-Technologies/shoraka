@@ -3,16 +3,14 @@ import {
   UnifiedActivity,
   ActivityFilters,
 } from "./adapters/base";
-import { OnboardingLogAdapter } from "./adapters/onboarding-log";
-import { AccessLogAdapter } from "./adapters/access-log";
+import { OrganizationLogAdapter } from "./adapters/organization-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
 
   constructor() {
     // Register default adapters
-    this.registerAdapter(new OnboardingLogAdapter());
-    this.registerAdapter(new AccessLogAdapter());
+    this.registerAdapter(new OrganizationLogAdapter());
   }
 
   /**

@@ -13,6 +13,10 @@ class MockAdapter implements AuditLogAdapter<any> {
     return this.mockData;
   }
 
+  async count(userId: string, filters: ActivityFilters): Promise<number> {
+    return this.mockData.length;
+  }
+
   transform(record: any): UnifiedActivity {
     return {
       id: record.id,
@@ -41,13 +45,13 @@ describe("AuditLogAggregator", () => {
     const date2 = new Date("2026-01-01T11:00:00Z");
     const date3 = new Date("2026-01-01T09:00:00Z");
 
-    const adapterA = new MockAdapter("A", "security", [
-      { id: "1", user_id: userId, text: "Later Security", created_at: date2 },
-      { id: "2", user_id: userId, text: "Earlier Security", created_at: date3 },
+    const adapterA = new MockAdapter("A", "organization", [
+      { id: "1", user_id: userId, text: "Later Org", created_at: date2 },
+      { id: "2", user_id: userId, text: "Earlier Org", created_at: date3 },
     ]);
 
-    const adapterB = new MockAdapter("B", "onboarding", [
-      { id: "3", user_id: userId, text: "Middle Onboarding", created_at: date1 },
+    const adapterB = new MockAdapter("B", "organization", [
+      { id: "3", user_id: userId, text: "Middle Org", created_at: date1 },
     ]);
 
     aggregator.registerAdapter(adapterA);
@@ -72,7 +76,7 @@ describe("AuditLogAggregator", () => {
       created_at: new Date(2026, 0, i + 1),
     }));
 
-    aggregator.registerAdapter(new MockAdapter("A", "security", data));
+    aggregator.registerAdapter(new MockAdapter("A", "organization", data));
 
     // Page 1 (limit 10)
     const result1 = await aggregator.aggregate(userId, { limit: 10, offset: 0 });
@@ -88,16 +92,15 @@ describe("AuditLogAggregator", () => {
     const aggregator = new AuditLogAggregator();
     (aggregator as any).adapters = [];
 
-    aggregator.registerAdapter(new MockAdapter("A", "security", [{ id: "1", created_at: new Date() }]));
-    aggregator.registerAdapter(new MockAdapter("B", "onboarding", [{ id: "2", created_at: new Date() }]));
+    aggregator.registerAdapter(new MockAdapter("A", "organization", [{ id: "1", created_at: new Date() }]));
 
     const result = await aggregator.aggregate(userId, {
       limit: 10,
       offset: 0,
-      categories: ["security"]
+      categories: ["organization"]
     });
 
     expect(result.activities).toHaveLength(1);
-    expect(result.activities[0].category).toBe("security");
+    expect(result.activities[0].category).toBe("organization");
   });
 });

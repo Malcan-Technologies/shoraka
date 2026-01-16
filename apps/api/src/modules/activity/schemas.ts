@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Activity categories
  */
-export const activityCategorySchema = z.enum(["security", "onboarding", "document"]);
+export const activityCategorySchema = z.enum(["organization"]);
 export type ActivityCategory = z.infer<typeof activityCategorySchema>;
 
 /**
