@@ -11,6 +11,12 @@ import {
 } from "../../hooks/use-product-images";
 import { toast } from "sonner";
 
+// Product image validation constants (must match backend)
+const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_PRODUCT_IMAGE_TYPES = [
+  "image/png",
+] as const;
+
 interface FinancingTypeConfig {
   name?: string;
   description?: string;
@@ -78,19 +84,20 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (!validTypes.includes(file.type)) {
+    // Validate file type (must match backend validation)
+    const contentType = file.type.toLowerCase();
+    if (!ALLOWED_PRODUCT_IMAGE_TYPES.includes(contentType as any)) {
       toast.error("Invalid file type", {
-        description: "Please select an image file (JPEG, PNG, WebP, or GIF)",
+        description: "Please select a PNG image file",
       });
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (must match backend validation: 5MB max)
+    if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
+      const maxSizeMB = MAX_PRODUCT_IMAGE_SIZE / 1024 / 1024;
       toast.error("File too large", {
-        description: "Please select an image smaller than 5MB",
+        description: `File size exceeds the maximum allowed size of ${maxSizeMB}MB`,
       });
       return;
     }
@@ -113,6 +120,14 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
   // Save financing type - image will be uploaded when product is saved
   const saveFinancingType = () => {
     if (!newName.trim() || !newCategory.trim()) return;
+    
+    // Image is required - check if file is selected or already exists
+    if (!selectedFile && !config.s3_key) {
+      toast.error("Product image is required", {
+        description: "Please select a PNG image file",
+      });
+      return;
+    }
 
     // Save the financing type config WITHOUT S3 key
     // S3 key and file_name will be added when product is saved (after image upload)
@@ -280,22 +295,27 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="productImage" className="text-sm font-medium">
-                Product Image <span className="text-muted-foreground text-xs font-normal">(optional)</span>
-              </Label>
+              <div>
+                <Label htmlFor="productImage" className="text-sm font-medium">
+                  Product Image <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PNG format only. Maximum file size: {MAX_PRODUCT_IMAGE_SIZE / 1024 / 1024}MB
+                </p>
+              </div>
               
               {/* File Input */}
               <Input
                 id="productImage"
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                accept={ALLOWED_PRODUCT_IMAGE_TYPES.join(",")}
                 onChange={handleFileSelect}
                 className="h-10 !text-sm"
               />
               
               {/* Preview - Image will be uploaded when you save the product */}
               {selectedFile && (
-                <div className="space-y-2">
+                <div className="mt-3">
                   <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
                     {uploadPreview && (
                       <div className="h-16 w-16 rounded-lg bg-background border flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -309,7 +329,14 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{selectedFile.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {(selectedFile.size / 1024).toFixed(1)} KB
+                        {selectedFile.size < 1024 * 1024
+                          ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                          : `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`}
+                        {selectedFile.size > MAX_PRODUCT_IMAGE_SIZE * 0.9 && (
+                          <span className="ml-2 text-amber-600 dark:text-amber-500">
+                            (Close to limit)
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -341,7 +368,7 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
               <Button
                 type="button"
                 onClick={saveFinancingType}
-                disabled={!newName.trim() || !newCategory.trim()}
+                disabled={!newName.trim() || !newCategory.trim() || (!selectedFile && !config.s3_key)}
                 className="flex-1"
               >
                 {currentType ? (

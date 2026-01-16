@@ -273,25 +273,20 @@ export function validateSiteDocument(params: {
 }
 
 /**
- * Validate file type and size for product images
+ * Validate file type and size for product images (financing type)
+ * Only PNG images are allowed for financing type product images
  */
 export function validateProductImage(params: {
   contentType: string;
   fileSize: number;
 }): { valid: boolean; error?: string } {
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const ALLOWED_CONTENT_TYPES = [
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-  ];
+  const ALLOWED_CONTENT_TYPES = ["image/png"];
 
   if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
     return {
       valid: false,
-      error: `Invalid content type. Allowed types: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
+      error: `Invalid content type. Only PNG images are allowed for product images.`,
     };
   }
 
