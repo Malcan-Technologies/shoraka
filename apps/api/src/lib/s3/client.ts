@@ -4,7 +4,6 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
-  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "../logger";
@@ -174,55 +173,6 @@ export async function deleteS3Object(key: string): Promise<void> {
   logger.info({ key }, "Deleted S3 object");
 }
 
-/**
- * Check if an S3 "folder" (prefix) is empty
- */
-export async function isS3FolderEmpty(prefix: string): Promise<boolean> {
-  const client = getS3Client();
-  const command = new ListObjectsV2Command({
-    Bucket: S3_BUCKET,
-    Prefix: prefix,
-    MaxKeys: 1, // Only need to know if there's at least one object
-  });
-
-  const { Contents } = await client.send(command);
-  return !Contents || Contents.length === 0;
-}
-
-/**
- * Delete an S3 object and check if its parent folder is empty
- * If the folder is empty, logs it (folders in S3 are just prefixes, they don't need explicit deletion)
- * @returns Object with folderEmpty status and folderPrefix
- */
-export async function deleteS3ObjectAndFolderIfEmpty(
-  key: string
-): Promise<{ folderEmpty: boolean; folderPrefix: string | null }> {
-  const client = getS3Client();
-
-  // Delete the object
-  const deleteCommand = new DeleteObjectCommand({
-    Bucket: S3_BUCKET,
-    Key: key,
-  });
-
-  await client.send(deleteCommand);
-  logger.info({ key }, "Deleted S3 object");
-
-  // Extract folder prefix (everything before the last slash)
-  const lastSlashIndex = key.lastIndexOf("/");
-  if (lastSlashIndex > 0) {
-    const folderPrefix = key.substring(0, lastSlashIndex + 1); // Include trailing slash for prefix
-    const folderEmpty = await isS3FolderEmpty(folderPrefix);
-    
-    if (folderEmpty) {
-      logger.info({ folderPrefix }, "S3 folder is now empty");
-    }
-    
-    return { folderEmpty, folderPrefix };
-  }
-
-  return { folderEmpty: true, folderPrefix: null };
-}
 
 /**
  * Check if an object exists in S3

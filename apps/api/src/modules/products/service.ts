@@ -12,7 +12,7 @@ import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-utils";
-import { deleteS3ObjectAndFolderIfEmpty } from "../../lib/s3/client";
+import { deleteS3Object } from "../../lib/s3/client";
 
 export class ProductService {
   private repository: ProductRepository;
@@ -228,11 +228,8 @@ export class ProductService {
     if (s3Key) {
       try {
         logger.info({ s3Key, productId: id }, "Deleting product image from S3");
-        const result = await deleteS3ObjectAndFolderIfEmpty(s3Key);
-        logger.info(
-          { s3Key, folderPrefix: result.folderPrefix, folderEmpty: result.folderEmpty, productId: id },
-          "Successfully deleted product image from S3"
-        );
+        await deleteS3Object(s3Key);
+        logger.info({ s3Key, productId: id }, "Successfully deleted product image from S3");
       } catch (error) {
         logger.warn(
           { s3Key, productId: id, error },
