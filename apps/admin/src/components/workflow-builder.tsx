@@ -63,6 +63,7 @@ export interface WorkflowStep {
 
 interface WorkflowBuilderProps {
   form: UseFormReturn<any>; // React Hook Form instance
+  onFileSelected?: (stepId: string, file: File | null) => void; // Track pending files by step ID
 }
 
 interface SortableStepProps {
@@ -73,6 +74,7 @@ interface SortableStepProps {
   onDelete: (id: string) => void;    // Delete the step
   onExpand: (id: string) => void;    // Expand/collapse the config panel
   onConfigure: (id: string, config: any) => void; // Save config changes
+  onFileSelected?: (stepId: string, file: File | null) => void; // Track pending files by step ID
 }
 
 // ============================================
@@ -128,12 +130,20 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
 // CONFIGURATION PANEL
 // Displays the right config UI based on step type
 // ============================================
-function StepConfigContent({ step, onConfigure }: { step: WorkflowStep; onConfigure: (config: any) => void }) {
+function StepConfigContent({ 
+  step, 
+  onConfigure,
+  onFileSelected 
+}: { 
+  step: WorkflowStep; 
+  onConfigure: (config: any) => void;
+  onFileSelected?: (file: File | null) => void;
+}) {
   const stepName = step.name.toLowerCase();
   
   // Match step name to the correct configuration component
   if (stepName.includes("financing type")) {
-    return <FinancingTypeConfig config={step.config || {}} onChange={onConfigure} />;
+    return <FinancingTypeConfig config={step.config || {}} onChange={onConfigure} onFileSelected={onFileSelected} />;
   }
   if (stepName.includes("financing terms")) {
     return <FinancingTermsConfig config={step.config || {}} onChange={onConfigure} />;
@@ -166,7 +176,7 @@ function StepConfigContent({ step, onConfigure }: { step: WorkflowStep; onConfig
 // INDIVIDUAL STEP CARD
 // Shows one workflow step with drag handle, checkbox, and config panel
 // ============================================
-function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpand, onConfigure }: SortableStepProps) {
+function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpand, onConfigure, onFileSelected }: SortableStepProps) {
   // Setup drag and drop for this step
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
     id: step.id,
@@ -257,7 +267,11 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
       {/* Configuration panel (shown when expanded) */}
       {isExpanded && hasConfig && (
         <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3 sm:pb-4">
-          <StepConfigContent step={step} onConfigure={(config) => onConfigure(step.id, config)} />
+          <StepConfigContent 
+            step={step} 
+            onConfigure={(config) => onConfigure(step.id, config)} 
+            onFileSelected={onFileSelected ? (file) => onFileSelected(step.id, file) : undefined}
+          />
         </div>
       )}
     </div>
@@ -268,7 +282,7 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
 // MAIN WORKFLOW BUILDER
 // Manages the list of workflow steps with drag-drop reordering
 // ============================================
-export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) {
   // Track which steps are expanded (showing config)
   const [expandedSteps, setExpandedSteps] = React.useState<Set<string>>(new Set());
   
@@ -502,6 +516,7 @@ export function WorkflowBuilder({ form }: WorkflowBuilderProps) {
                     onDelete={initiateDelete}
                     onExpand={toggleExpand}
                     onConfigure={updateStepConfig}
+                    onFileSelected={onFileSelected}
                   />
                 );
               })

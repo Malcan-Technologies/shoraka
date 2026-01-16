@@ -5,11 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { PlusIcon, TrashIcon, PencilIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { 
   useRequestProductImageDownloadUrl,
-  useRequestProductImageUploadUrl,
-  uploadImageToS3,
 } from "../../hooks/use-product-images";
 import { toast } from "sonner";
 
@@ -23,22 +21,20 @@ interface FinancingTypeConfig {
 interface FinancingTypeConfigProps {
   config: FinancingTypeConfig;
   onChange: (config: FinancingTypeConfig) => void;
+  onFileSelected?: (file: File | null) => void; // Callback to pass selected file to parent
 }
 
-export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigProps) {
+export function FinancingTypeConfig({ config, onChange, onFileSelected }: FinancingTypeConfigProps) {
   const currentType = config.name ? config : null;
 
   const [isEditing, setIsEditing] = React.useState(!config.name);
   const [newName, setNewName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
-  const [newS3Key, setNewS3Key] = React.useState("");
   const [imageUrl, setImageUrl] = React.useState<string | null>(null);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
-  const [uploading, setUploading] = React.useState(false);
   const [uploadPreview, setUploadPreview] = React.useState<string | null>(null);
 
-  const requestUploadUrl = useRequestProductImageUploadUrl();
   const requestDownloadUrl = useRequestProductImageDownloadUrl();
 
   // Load image preview using presigned URL when viewing (not editing)
@@ -63,11 +59,18 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       setNewName(currentType.name || "");
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
-      setNewS3Key(currentType.s3_key || "");
-      setSelectedFile(null);
-      setUploadPreview(null);
+      // Don't clear selectedFile here - it might be a pending file waiting for upload
+      // Only clear if we're starting fresh (no pending file notification from parent)
+      // The file will be cleared when product is saved or dialog is cancelled
     }
   }, [currentType, isEditing]);
+
+  // Notify parent when file is selected/deselected
+  React.useEffect(() => {
+    if (onFileSelected) {
+      onFileSelected(selectedFile);
+    }
+  }, [selectedFile, onFileSelected]);
 
   // Handle file selection and create preview using FileReader
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,7 +95,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     }
 
     setSelectedFile(file);
-    setNewS3Key(""); // Clear existing S3 key when new file is selected
+    // Clear existing S3 key when new file is selected (file will be uploaded later)
 
     // Create preview using FileReader (data URL) instead of blob URL for CSP compatibility
     const reader = new FileReader();
@@ -106,66 +109,40 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     reader.readAsDataURL(file);
   };
 
-  // Save financing type - auto-uploads image if selected
-  const saveFinancingType = async () => {
+  // Save financing type - image will be uploaded when product is saved
+  const saveFinancingType = () => {
     if (!newName.trim() || !newCategory.trim()) return;
 
-    setUploading(true);
-    let finalS3Key = newS3Key.trim();
+    // Save the financing type config WITHOUT S3 key
+    // S3 key will be added when product is saved (after image upload)
+    onChange({
+      ...config,
+      name: newName.trim(),
+      description: newDescription.trim() || "",
+      category: newCategory.trim(),
+      // Keep existing s3_key if no new file selected, otherwise it will be set after upload
+      s3_key: selectedFile ? undefined : config.s3_key,
+    });
 
-    try {
-      // Auto-upload image if a file is selected
-      if (selectedFile) {
-        try {
-          // 1. Request presigned upload URL
-          const uploadData = await requestUploadUrl.mutateAsync({
-            fileName: selectedFile.name,
-            contentType: selectedFile.type,
-            fileSize: selectedFile.size,
-            financingTypeName: newName.trim(), // Use product name as financing type name
-          });
-
-          // 2. Upload file directly to S3
-          await uploadImageToS3(uploadData.uploadUrl, selectedFile);
-
-          // 3. Save the S3 key
-          finalS3Key = uploadData.s3Key;
-
-          toast.success("Image uploaded successfully", {
-            description: "The image has been uploaded to S3",
-          });
-        } catch (error) {
-          toast.error("Image upload failed", {
-            description: error instanceof Error ? error.message : "An error occurred",
-          });
-          // Don't proceed with saving if upload fails
-          return;
-        }
-      }
-
-      // Save the financing type config with S3 key
-      onChange({
-        ...config,
-        name: newName.trim(),
-        description: newDescription.trim() || "",
-        category: newCategory.trim(),
-        s3_key: finalS3Key || undefined,
-      });
-
-      setIsEditing(false);
-      resetForm();
-    } finally {
-      setUploading(false);
-    }
+    setIsEditing(false);
+    // Only reset form fields, but KEEP the selected file (it will be uploaded when product is saved)
+    setNewName("");
+    setNewDescription("");
+    setNewCategory("");
+    // DO NOT clear selectedFile or uploadPreview - keep them for upload on product save
+    // DO NOT call onFileSelected(null) - keep the file in pendingFilesRef
   };
 
   const resetForm = () => {
     setNewName("");
     setNewDescription("");
     setNewCategory("");
-    setNewS3Key("");
     setSelectedFile(null);
-    setUploadPreview(null); 
+    setUploadPreview(null);
+    // Notify parent that file is cleared (only when explicitly resetting, not on save)
+    if (onFileSelected) {
+      onFileSelected(null);
+    }
   };
 
   const startEdit = () => {
@@ -173,7 +150,6 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       setNewName(currentType.name || "");
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
-      setNewS3Key(currentType.s3_key || "");
       setSelectedFile(null);
       setUploadPreview(null);
     }
@@ -311,11 +287,10 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
                 onChange={handleFileSelect}
-                disabled={uploading}
                 className="h-10 !text-sm"
               />
               
-              {/* Preview - Image will auto-upload when saving */}
+              {/* Preview - Image will be uploaded when you save the product */}
               {selectedFile && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
@@ -363,15 +338,10 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
               <Button
                 type="button"
                 onClick={saveFinancingType}
-                disabled={!newName.trim() || !newCategory.trim() || uploading}
+                disabled={!newName.trim() || !newCategory.trim()}
                 className="flex-1"
               >
-                {uploading ? (
-                  <>
-                    <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
-                    {selectedFile ? "Uploading image..." : "Saving..."}
-                  </>
-                ) : currentType ? (
+                {currentType ? (
                   <>
                     <PencilIcon className="h-4 w-4 mr-2" />
                     Save Changes
