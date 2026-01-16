@@ -44,22 +44,30 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
 
   const requestDownloadUrl = useRequestProductImageDownloadUrl();
 
-  // Load image preview using presigned URL when viewing (not editing)
+  // Load image preview when viewing (not editing)
+  // Priority: 1) New file preview (uploadPreview), 2) Existing S3 image
   React.useEffect(() => {
-    if (currentType?.s3_key && !isEditing) {
-      // Fetch presigned download URL for display
-      requestDownloadUrl.mutateAsync({ s3Key: currentType.s3_key })
-        .then(result => {
-          setImageUrl(result.downloadUrl);
-        })
-        .catch(error => {
-          console.error("Failed to load image:", error);
-          setImageUrl(null);
-        });
+    if (!isEditing) {
+      // If a new file is selected (pending upload), show its preview
+      if (selectedFile && uploadPreview) {
+        setImageUrl(uploadPreview);
+      } else if (currentType?.s3_key) {
+        // Otherwise, fetch presigned download URL for existing S3 image
+        requestDownloadUrl.mutateAsync({ s3Key: currentType.s3_key })
+          .then(result => {
+            setImageUrl(result.downloadUrl);
+          })
+          .catch(error => {
+            console.error("Failed to load image:", error);
+            setImageUrl(null);
+          });
+      } else {
+        setImageUrl(null);
+      }
     } else {
       setImageUrl(null);
     }
-  }, [currentType?.s3_key, isEditing]);
+  }, [currentType?.s3_key, isEditing, selectedFile, uploadPreview]);
 
   React.useEffect(() => {
     if (currentType && isEditing) {
@@ -149,6 +157,7 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
     setNewCategory("");
     // DO NOT clear selectedFile or uploadPreview - keep them for upload on product save
     // DO NOT call onFileSelected(null) - keep the file in pendingFilesRef
+    // Note: uploadPreview will be shown in view mode if a new file is selected
   };
 
   const resetForm = () => {
