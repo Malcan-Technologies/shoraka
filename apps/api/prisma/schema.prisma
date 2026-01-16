@@ -239,7 +239,6 @@ model InvestorOrganization {
   // Corporate director/shareholder KYC tracking
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
-  business_aml_status Json? // Stores business shareholder AML statuses
 
   // Corporate onboarding data extracted from COD
   corporate_onboarding_data Json? // Basic info, criteria, addresses
@@ -300,7 +299,6 @@ model IssuerOrganization {
   // Corporate director/shareholder KYC tracking
   director_kyc_status Json? // Stores director KYC statuses for corporate onboarding
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
-  business_aml_status Json? // Stores business shareholder AML statuses
 
   // Corporate onboarding data extracted from COD
   corporate_onboarding_data Json? // Basic info, criteria, addresses

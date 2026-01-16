@@ -34,9 +34,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsListCard } from "../../components/directors-list-card";
-import { ShareholdersListCard } from "../../components/shareholders-list-card";
-import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
+import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
@@ -62,6 +60,7 @@ import {
   ArrowRightOnRectangleIcon,
   ArrowUpIcon,
   ArrowDownIcon,
+  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -442,6 +441,11 @@ export default function AccountPage() {
             registeredAddress?: string;
           };
         };
+        corporateEntities?: {
+          directors?: Array<Record<string, unknown>>;
+          shareholders?: Array<Record<string, unknown>>;
+          corporateShareholders?: Array<Record<string, unknown>>;
+        };
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -550,7 +554,9 @@ export default function AccountPage() {
     : activeOrganization.name || "Company Account";
   const accountIcon = isPersonal ? UserIcon : BuildingOffice2Icon;
   const AccountIcon = accountIcon;
-  const displayName = [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—";
+  const displayName = isPersonal
+    ? [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—"
+    : orgData?.corporateOnboardingData?.basicInfo?.businessName || accountName;
 
   return (
     <>
@@ -571,7 +577,7 @@ export default function AccountPage() {
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{displayName}</h1>
                 <p className="text-muted-foreground mt-1">
-                  {isPersonal ? "Investor (Individual)" : accountName}
+                  {isPersonal ? "Investor (Individual)" : "Investor (Corporate)"}
                 </p>
               </div>
             </div>
@@ -706,6 +712,11 @@ export default function AccountPage() {
               {/* Corporate Info Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard organizationId={activeOrganization.id} />
+              )}
+
+              {/* Directors/Shareholders Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
+                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
               )}
 
               {/* Contact Details Section (Editable) */}
@@ -864,9 +875,6 @@ export default function AccountPage() {
                         className="bg-muted h-11 rounded-xl"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Update addresses in Corporate Info section
-                    </p>
                   </div>
                 </div>
               )}
@@ -982,6 +990,20 @@ export default function AccountPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => {
+                              const portalUrl = process.env.NEXT_PUBLIC_INVESTOR_PORTAL_URL || "http://localhost:3001";
+                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+                              navigator.clipboard.writeText(inviteLink);
+                              toast.success("Invitation link copied to clipboard");
+                            }}
+                            className="gap-1"
+                          >
+                            <ClipboardIcon className="h-4 w-4" />
+                            Copy Link
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => resend(invitation.id)}
                             className="gap-1"
                           >
@@ -1002,14 +1024,6 @@ export default function AccountPage() {
                 </div>
               )}
 
-              {/* Directors/Shareholders Cards - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <>
-                  <DirectorsListCard organizationId={activeOrganization.id} />
-                  <ShareholdersListCard organizationId={activeOrganization.id} />
-                  <BusinessShareholdersListCard organizationId={activeOrganization.id} />
-                </>
-              )}
 
               {/* Invite Member Dialog */}
               {activeOrganization?.id && (

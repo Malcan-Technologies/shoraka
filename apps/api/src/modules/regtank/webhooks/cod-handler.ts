@@ -10,7 +10,6 @@ import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
-import { AMLFetcherService } from "../aml-fetcher";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -131,14 +130,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             (area: any) => area.displayArea === "Operational Information"
           );
           
-          if (!operationalInfo) return null;
-          
-          const content = operationalInfo.content || [];
-          return {
-            bank: content.find((f: any) => f.fieldName === "Bank")?.fieldValue || null,
-            accountNumber: content.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || null,
-            accountType: content.find((f: any) => f.fieldName === "Account type")?.fieldValue || null,
-          };
+          // Return the entire operationalInfo object (RegTank format)
+          // This has the structure: { content: [...], displayArea: "..." }
+          // This ensures banking details are stored in the same RegTank format used by individual onboarding
+          return operationalInfo || null;
         };
 
         // Extract Transaction Information
@@ -998,172 +993,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow status update to proceed even if kycId refresh fails
         }
 
-        // After refreshing kycId values, fetch AML statuses for all directors with kycId
-        // This is a fallback if EOD webhook didn't successfully fetch AML status
-        try {
-          logger.info(
-            { requestId, organizationId, portalType },
-            "[COD Webhook] Fetching AML statuses for all directors after COD approval (fallback)"
-          );
-
-          // Wait 3 seconds for RegTank to process all KYC checks
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-
-          // Get updated organization with refreshed director_kyc_status
-          const org = portalType === "investor"
-            ? await prisma.investorOrganization.findUnique({
-                where: { id: organizationId },
-                select: { director_kyc_status: true, director_aml_status: true },
-              })
-            : await prisma.issuerOrganization.findUnique({
-                where: { id: organizationId },
-                select: { director_kyc_status: true, director_aml_status: true },
-              });
-
-          if (org && org.director_kyc_status) {
-            const directorKycStatus = org.director_kyc_status as any;
-            const directorsAmlStatus: Array<{
-              kycId: string;
-              name: string;
-              email: string;
-              role: string;
-              amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-              amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-              amlRiskScore: number | null;
-              amlRiskLevel: string | null;
-              lastUpdated: string;
-            }> = [];
-
-            // Fetch AML status for each director with a kycId
-            for (const director of directorKycStatus.directors || []) {
-              if (!director.kycId) {
-                logger.debug(
-                  { directorName: director.name, eodRequestId: director.eodRequestId },
-                  "[COD Webhook] Skipping director without kycId for AML status fetch"
-                );
-                continue;
-              }
-
-              try {
-                const kycStatusResponse = await this.apiClient.queryKYCStatus(director.kycId);
-                const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
-
-                // Map RegTank status to our AML status
-                let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-                const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
-                if (regTankStatus === "APPROVED") {
-                  amlStatus = "Approved";
-                } else if (regTankStatus === "REJECTED") {
-                  amlStatus = "Rejected";
-                } else if (regTankStatus === "UNRESOLVED") {
-                  amlStatus = "Unresolved";
-                }
-
-                // Extract risk score and level
-                const individualRiskScore = kycStatusData?.individualRiskScore;
-                const amlRiskScore = individualRiskScore?.score !== null && individualRiskScore?.score !== undefined
-                  ? parseFloat(String(individualRiskScore.score))
-                  : null;
-                const amlRiskLevel = individualRiskScore?.level || null;
-
-                // Extract message status
-                const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
-
-                directorsAmlStatus.push({
-                  kycId: director.kycId,
-                  name: director.name,
-                  email: director.email,
-                  role: director.role,
-                  amlStatus,
-                  amlMessageStatus,
-                  amlRiskScore,
-                  amlRiskLevel,
-                  lastUpdated: new Date().toISOString(),
-                });
-
-                logger.debug(
-                  {
-                    kycId: director.kycId,
-                    directorName: director.name,
-                    amlStatus,
-                    amlMessageStatus,
-                  },
-                  "[COD Webhook] Fetched AML status for director"
-                );
-              } catch (kycError) {
-                logger.warn(
-                  {
-                    error: kycError instanceof Error ? kycError.message : String(kycError),
-                    kycId: director.kycId,
-                    directorName: director.name,
-                  },
-                  "[COD Webhook] Failed to fetch AML status for director (non-blocking)"
-                );
-                // Continue with other directors even if one fails
-              }
-            }
-
-            // Update organization with AML statuses (merge with existing if any)
-            if (directorsAmlStatus.length > 0) {
-              let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
-              if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
-                directorAmlStatus.directors = [];
-              }
-
-              // Merge new AML statuses with existing ones
-              for (const newAmlStatus of directorsAmlStatus) {
-                const existingIndex = directorAmlStatus.directors.findIndex(
-                  (d: any) => d.kycId === newAmlStatus.kycId
-                );
-
-                if (existingIndex === -1) {
-                  directorAmlStatus.directors.push(newAmlStatus);
-                } else {
-                  // Update existing entry with latest data
-                  directorAmlStatus.directors[existingIndex] = newAmlStatus;
-                }
-              }
-
-              directorAmlStatus.lastSyncedAt = new Date().toISOString();
-
-              if (portalType === "investor") {
-                await prisma.investorOrganization.update({
-                  where: { id: organizationId },
-                  data: {
-                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
-                  },
-                });
-              } else {
-                await prisma.issuerOrganization.update({
-                  where: { id: organizationId },
-                  data: {
-                    director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
-                  },
-                });
-              }
-
-              logger.info(
-                {
-                  requestId,
-                  organizationId,
-                  directorsUpdated: directorsAmlStatus.length,
-                },
-                "[COD Webhook] ✓ Updated director AML statuses after delayed fetch (fallback)"
-              );
-            }
-          }
-        } catch (amlFetchError) {
-          logger.error(
-            {
-              error: amlFetchError instanceof Error ? amlFetchError.message : String(amlFetchError),
-              requestId,
-              organizationId,
-            },
-            "[COD Webhook] Failed to fetch AML statuses after delay (non-blocking)"
-          );
-          // Don't throw - allow webhook to complete
-        }
-
         // Refresh document URLs in corporate_entities by fetching EOD details
         // Documents should be fully processed by the time COD is APPROVED
         try {
@@ -1545,35 +1374,143 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           }
         }
 
-        // When status changes from WAIT_FOR_APPROVAL to PENDING_AML, fetch all AML statuses
-        // Flow: wait 3s -> fetch individual directors, shareholders, and business shareholders AML statuses
-        if (statusChangedToPendingAml && finalKybId) {
-          // Use setTimeout to wait 3 seconds for RegTank to process (non-blocking)
+        // When status transitions to PENDING_AML, fetch business shareholder KYB data
+        if (statusChangedToPendingAml) {
           setTimeout(async () => {
             try {
               logger.info(
                 { requestId, organizationId, portalType },
-                "[COD Webhook] Fetching AML statuses after 3-second delay for PENDING_AML transition"
+                "[COD Webhook] Fetching business shareholder KYB data for PENDING_AML transition"
               );
 
-              const amlFetcher = new AMLFetcherService();
-              await amlFetcher.fetchAllAMLStatuses(requestId, organizationId, portalType);
-              
-              logger.info(
-                { requestId, organizationId, portalType },
-                "[COD Webhook] ✓ Fetched all AML statuses after transition to PENDING_AML"
-              );
+              // Get organization with corporate_entities
+              const org = portalType === "investor"
+                ? await prisma.investorOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { corporate_entities: true, director_aml_status: true },
+                  })
+                : await prisma.issuerOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { corporate_entities: true, director_aml_status: true },
+                  });
+
+              if (!org || !org.corporate_entities) {
+                logger.warn({ requestId, organizationId }, "[COD Webhook] No corporate_entities found");
+                return;
+              }
+
+              const corporateEntities = org.corporate_entities as any;
+              const corporateShareholders = corporateEntities.corporateShareholders || [];
+
+              if (corporateShareholders.length === 0) {
+                logger.info({ requestId, organizationId }, "[COD Webhook] No corporate shareholders to process");
+                return;
+              }
+
+              // Fetch KYB data for each business shareholder
+              const businessShareholdersAml: Array<{
+                codRequestId: string;
+                kybId: string | null;
+                businessName: string;
+                sharePercentage: number | null;
+                amlStatus: "Pending";
+                amlMessageStatus: "PENDING";
+                amlRiskScore: number | null;
+                amlRiskLevel: string | null;
+                lastUpdated: string;
+              }> = [];
+
+              for (const shareholder of corporateShareholders) {
+                const codRequestId = shareholder.corporateOnboardingRequest?.requestId || shareholder.requestId;
+                if (!codRequestId) continue;
+
+                try {
+                  // Fetch COD details for this business shareholder
+                  const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
+                  
+                  // Extract kybRequestDto
+                  const kybRequestDto = codDetails.kybRequestDto;
+                  const kybId = kybRequestDto?.kybId || null;
+                  
+                  // Extract business info from formContent
+                  const formContent = codDetails.formContent?.displayAreas?.find(
+                    (area: any) => area.displayArea === "Basic Information Setting"
+                  )?.content || [];
+                  
+                  const businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || shareholder.name || "Unknown";
+                  const sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
+
+                  businessShareholdersAml.push({
+                    codRequestId,
+                    kybId,
+                    businessName,
+                    sharePercentage: sharePercentage ? parseFloat(sharePercentage) : null,
+                    amlStatus: "Pending",
+                    amlMessageStatus: "PENDING",
+                    amlRiskScore: null,
+                    amlRiskLevel: null,
+                    lastUpdated: new Date().toISOString(),
+                  });
+
+                  logger.debug(
+                    { codRequestId, kybId, businessName },
+                    "[COD Webhook] Fetched KYB data for business shareholder"
+                  );
+                } catch (error) {
+                  logger.warn(
+                    {
+                      error: error instanceof Error ? error.message : String(error),
+                      codRequestId,
+                    },
+                    "[COD Webhook] Failed to fetch COD details for business shareholder (non-blocking)"
+                  );
+                }
+              }
+
+              // Store in director_aml_status.businessShareholders
+              if (businessShareholdersAml.length > 0) {
+                // Preserve existing directors array when updating businessShareholders
+                const directorAmlStatus = (org.director_aml_status as any) || { 
+                  directors: [], 
+                  businessShareholders: [], 
+                  lastSyncedAt: new Date().toISOString() 
+                };
+                // Ensure directors array exists (preserve existing data)
+                if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+                  directorAmlStatus.directors = [];
+                }
+                // Update businessShareholders
+                directorAmlStatus.businessShareholders = businessShareholdersAml;
+                directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+                if (portalType === "investor") {
+                  await prisma.investorOrganization.update({
+                    where: { id: organizationId },
+                    data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+                  });
+                } else {
+                  await prisma.issuerOrganization.update({
+                    where: { id: organizationId },
+                    data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+                  });
+                }
+
+                logger.info(
+                  { requestId, organizationId, count: businessShareholdersAml.length },
+                  "[COD Webhook] ✓ Stored business shareholder KYB data"
+                );
+              }
             } catch (error) {
               logger.error(
-                { 
-                  error: error instanceof Error ? error.message : String(error), 
-                  requestId, 
-                  organizationId 
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                  requestId,
+                  organizationId,
                 },
-                "[COD Webhook] Failed to fetch AML statuses (non-blocking, webhooks will update)"
+                "[COD Webhook] Failed to fetch business shareholder KYB data (non-blocking)"
               );
             }
-          }, 3000); // Wait 3 seconds
+          }, 3000); // Wait 3 seconds for RegTank to process
         }
       } catch (error) {
         logger.error(

@@ -53,6 +53,7 @@ import {
   ArrowRightOnRectangleIcon,
   ArrowUpIcon,
   ArrowDownIcon,
+  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -909,6 +910,20 @@ export default function AccountPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const portalUrl = process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL || "http://localhost:3002";
+                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+                              navigator.clipboard.writeText(inviteLink);
+                              toast.success("Invitation link copied to clipboard");
+                            }}
+                            className="gap-1"
+                          >
+                            <ClipboardIcon className="h-4 w-4" />
+                            Copy Link
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

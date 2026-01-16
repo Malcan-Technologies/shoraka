@@ -697,8 +697,6 @@ export class OrganizationRepository {
       businessName?: string | null;
       numberOfEmployees?: number | null;
       ssmRegisterNumber?: string | null;
-      businessAddress?: string | null;
-      registeredAddress?: string | null;
     }
   ) {
     const corporateData = {
@@ -714,12 +712,6 @@ export class OrganizationRepository {
           ssmRegisterNumber: data.ssmRegisterNumber,
         }),
       },
-      addresses: {
-        ...(data.businessAddress !== undefined && { businessAddress: data.businessAddress }),
-        ...(data.registeredAddress !== undefined && {
-          registeredAddress: data.registeredAddress,
-        }),
-      },
     };
 
     if (portalType === "investor") {
@@ -731,7 +723,8 @@ export class OrganizationRepository {
       const existingData = (existing?.corporate_onboarding_data as any) || {};
       const mergedData = {
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
-        addresses: { ...existingData.addresses, ...corporateData.addresses },
+        // Preserve existing addresses from COD webhook (read-only)
+        addresses: existingData.addresses || {},
       };
 
       return prisma.investorOrganization.update({
@@ -747,7 +740,8 @@ export class OrganizationRepository {
       const existingData = (existing?.corporate_onboarding_data as any) || {};
       const mergedData = {
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
-        addresses: { ...existingData.addresses, ...corporateData.addresses },
+        // Preserve existing addresses from COD webhook (read-only)
+        addresses: existingData.addresses || {},
       };
 
       return prisma.issuerOrganization.update({
@@ -757,72 +751,4 @@ export class OrganizationRepository {
     }
   }
 
-  /**
-   * Update business shareholder AML status
-   */
-  async updateBusinessAmlStatus(
-    organizationId: string,
-    portalType: "investor" | "issuer",
-    businessShareholderId: string,
-    statusData: {
-      kybId?: string;
-      status: string;
-      businessName?: string;
-      updatedAt: string;
-    }
-  ) {
-    // Fetch current business_aml_status
-    const existing =
-      portalType === "investor"
-        ? await prisma.investorOrganization.findUnique({
-            where: { id: organizationId },
-            select: { business_aml_status: true },
-          })
-        : await prisma.issuerOrganization.findUnique({
-            where: { id: organizationId },
-            select: { business_aml_status: true },
-          });
-
-    const currentStatuses = (existing?.business_aml_status as Record<string, unknown>) || {};
-
-    // Update or add entry for this businessShareholderId
-    const updatedStatuses = {
-      ...currentStatuses,
-      [businessShareholderId]: statusData,
-    };
-
-    // Save back to database
-    if (portalType === "investor") {
-      return prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: { business_aml_status: updatedStatuses as Prisma.InputJsonValue },
-      });
-    } else {
-      return prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: { business_aml_status: updatedStatuses as Prisma.InputJsonValue },
-      });
-    }
-  }
-
-  /**
-   * Get business AML statuses for an organization
-   */
-  async getBusinessAmlStatuses(
-    organizationId: string,
-    portalType: "investor" | "issuer"
-  ): Promise<Record<string, unknown>> {
-    const organization =
-      portalType === "investor"
-        ? await prisma.investorOrganization.findUnique({
-            where: { id: organizationId },
-            select: { business_aml_status: true },
-          })
-        : await prisma.issuerOrganization.findUnique({
-            where: { id: organizationId },
-            select: { business_aml_status: true },
-          });
-
-    return (organization?.business_aml_status as Record<string, unknown>) || {};
-  }
 }

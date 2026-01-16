@@ -55,9 +55,15 @@ export const updateOrganizationProfileSchema = z.object({
   bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
 });
 
-// Invite member schema
+// Invite member schema (email is optional for link-based invitations)
 export const inviteMemberSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional(),
+  role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
+});
+
+// Generate invitation link schema (same as invite, but explicitly for link generation)
+export const generateMemberInviteLinkSchema = z.object({
+  email: z.string().email().optional(),
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
 });
 
@@ -90,8 +96,6 @@ export const updateCorporateInfoSchema = z.object({
   businessName: z.string().optional().nullable(),
   numberOfEmployees: z.number().int().positive().optional().nullable(),
   ssmRegisterNumber: z.string().optional().nullable(),
-  businessAddress: z.string().max(500).optional().nullable(),
-  registeredAddress: z.string().max(500).optional().nullable(),
 });
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;

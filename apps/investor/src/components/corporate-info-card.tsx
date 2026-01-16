@@ -23,8 +23,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
   const [businessName, setBusinessName] = React.useState("");
   const [numberOfEmployees, setNumberOfEmployees] = React.useState("");
   const [ssmRegisterNumber, setSsmRegisterNumber] = React.useState("");
-  const [businessAddress, setBusinessAddress] = React.useState("");
-  const [registeredAddress, setRegisteredAddress] = React.useState("");
 
   // Initialize form values
   React.useEffect(() => {
@@ -35,8 +33,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
-      setBusinessAddress(corporateInfo.addresses?.businessAddress || "");
-      setRegisteredAddress(corporateInfo.addresses?.registeredAddress || "");
     }
   }, [corporateInfo]);
 
@@ -48,8 +44,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       businessName: businessName || null,
       numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees, 10) : null,
       ssmRegisterNumber: ssmRegisterNumber || null,
-      businessAddress: businessAddress || null,
-      registeredAddress: registeredAddress || null,
     });
     setIsEditing(false);
   };
@@ -62,8 +56,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
-      setBusinessAddress(corporateInfo.addresses?.businessAddress || "");
-      setRegisteredAddress(corporateInfo.addresses?.registeredAddress || "");
     }
     setIsEditing(false);
   };
@@ -152,26 +144,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             <Input
               value={ssmRegisterNumber}
               onChange={(e) => setSsmRegisterNumber(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
-            />
-          </div>
-        </div>
-        <div className="space-y-4 pt-4 border-t">
-          <div className="space-y-2">
-            <Label>Business Address</Label>
-            <Input
-              value={businessAddress}
-              onChange={(e) => setBusinessAddress(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Registered Address</Label>
-            <Input
-              value={registeredAddress}
-              onChange={(e) => setRegisteredAddress(e.target.value)}
               disabled={!isEditing}
               className={!isEditing ? "bg-muted" : ""}
             />

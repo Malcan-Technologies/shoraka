@@ -18,6 +18,7 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
           id: string;
           email: string;
           role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+          token: string;
           expiresAt: string;
           createdAt: string;
           invitedBy: {
@@ -40,7 +41,7 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
       email,
       role,
     }: {
-      email: string;
+      email?: string;
       role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
     }): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> => {
       if (!organizationId) throw new Error("No organization selected");
@@ -112,6 +113,29 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
     },
   });
 
+  const generateLinkMutation = useMutation({
+    mutationFn: async ({
+      email,
+      role,
+    }: {
+      email?: string;
+      role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+    }): Promise<{ invitationUrl: string }> => {
+      if (!organizationId) throw new Error("No organization selected");
+      const result = await apiClient.post<{ success: boolean; data: { invitationUrl: string; token: string } }>(
+        `/v1/organizations/issuer/${organizationId}/members/generate-link`,
+        { email, role }
+      );
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return { invitationUrl: result.data.data.invitationUrl };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organization-invitations", organizationId] });
+    },
+  });
+
   return {
     invitations: data || [],
     isLoading,
@@ -119,8 +143,10 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
     invite: inviteMutation.mutateAsync,
     resend: resendMutation.mutate,
     revoke: revokeMutation.mutate,
+    generateLink: generateLinkMutation.mutateAsync,
     isInviting: inviteMutation.isPending,
     isResending: resendMutation.isPending,
     isRevoking: revokeMutation.isPending,
+    isGeneratingLink: generateLinkMutation.isPending,
   };
 }

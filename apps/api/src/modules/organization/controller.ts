@@ -7,6 +7,7 @@ import {
   memberIdParamSchema,
   updateOrganizationProfileSchema,
   inviteMemberSchema,
+  generateMemberInviteLinkSchema,
   acceptOrganizationInvitationSchema,
   changeMemberRoleSchema,
   updateCorporateInfoSchema,
@@ -303,22 +304,97 @@ async function getOrganization(
                 lastSyncedAt: string;
               })
             : undefined,
-          corporateOnboardingData: org.corporate_onboarding_data
-            ? (org.corporate_onboarding_data as {
-                basicInfo?: {
-                  tinNumber?: string;
-                  industry?: string;
-                  entityType?: string;
-                  businessName?: string;
-                  numberOfEmployees?: number;
-                  ssmRegisterNumber?: string;
+          corporateOnboardingData: (() => {
+            if (!org.corporate_onboarding_data) return undefined;
+            const data = org.corporate_onboarding_data as {
+              basicInfo?: {
+                tin?: string;
+                tinNumber?: string;
+                industry?: string;
+                entityType?: string;
+                businessName?: string;
+                numberOfEmployees?: number | string;
+                ssmRegistrationNumber?: string;
+                ssmRegisterNumber?: string;
+              };
+              addresses?: {
+                business?: {
+                  line1?: string | null;
+                  line2?: string | null;
+                  city?: string | null;
+                  postalCode?: string | null;
+                  state?: string | null;
+                  country?: string | null;
                 };
-                addresses?: {
-                  businessAddress?: string;
-                  registeredAddress?: string;
+                registered?: {
+                  line1?: string | null;
+                  line2?: string | null;
+                  city?: string | null;
+                  postalCode?: string | null;
+                  state?: string | null;
+                  country?: string | null;
                 };
-              })
-            : undefined,
+                businessAddress?: string;
+                registeredAddress?: string;
+              };
+            };
+
+            // Helper function to format address from nested object to single line
+            const formatAddress = (addr: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            }): string => {
+              const parts = [
+                addr.line1,
+                addr.line2,
+                addr.city,
+                addr.postalCode,
+                addr.state,
+                addr.country,
+              ].filter((part) => part != null && part !== "");
+              return parts.join(" ") || "";
+            };
+
+            return {
+              basicInfo: data.basicInfo
+                ? {
+                    // Map tin → tinNumber for backwards compatibility
+                    tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
+                    industry: data.basicInfo.industry,
+                    entityType: data.basicInfo.entityType,
+                    businessName: data.basicInfo.businessName,
+                    numberOfEmployees:
+                      typeof data.basicInfo.numberOfEmployees === "string"
+                        ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
+                        : data.basicInfo.numberOfEmployees,
+                    // Map ssmRegistrationNumber → ssmRegisterNumber for backwards compatibility
+                    ssmRegisterNumber:
+                      data.basicInfo.ssmRegisterNumber ||
+                      data.basicInfo.ssmRegistrationNumber ||
+                      undefined,
+                  }
+                : undefined,
+              addresses: data.addresses
+                ? {
+                    // Transform nested address objects to single-line strings
+                    businessAddress: data.addresses.businessAddress
+                      ? data.addresses.businessAddress
+                      : data.addresses.business
+                        ? formatAddress(data.addresses.business)
+                        : undefined,
+                    registeredAddress: data.addresses.registeredAddress
+                      ? data.addresses.registeredAddress
+                      : data.addresses.registered
+                        ? formatAddress(data.addresses.registered)
+                        : undefined,
+                  }
+                : undefined,
+            };
+          })(),
           corporateEntities: org.corporate_entities
             ? (org.corporate_entities as {
                 directors?: Array<Record<string, unknown>>;
@@ -484,6 +560,33 @@ async function inviteMember(
     const result = await organizationService.inviteMember(userId, id, portalType, input);
 
     res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Generate invitation link without sending email
+ * POST /v1/organizations/investor/:id/members/generate-link
+ * POST /v1/organizations/issuer/:id/members/generate-link
+ */
+async function generateMemberInvitationLink(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = generateMemberInviteLinkSchema.parse(req.body);
+
+    const result = await organizationService.generateMemberInvitationUrl(userId, id, portalType, input);
+
+    res.json({
       success: true,
       data: result,
     });
@@ -729,6 +832,9 @@ export function createOrganizationRouter(): Router {
   router.post("/investor/:id/members/invite", requireAuth, (req, res, next) =>
     inviteMember(req, res, next, "investor")
   );
+  router.post("/investor/:id/members/generate-link", requireAuth, (req, res, next) =>
+    generateMemberInvitationLink(req, res, next, "investor")
+  );
   router.delete("/investor/:id/members/:userId", requireAuth, (req, res, next) =>
     removeMember(req, res, next, "investor")
   );
@@ -778,6 +884,9 @@ export function createOrganizationRouter(): Router {
   );
   router.post("/issuer/:id/members/invite", requireAuth, (req, res, next) =>
     inviteMember(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/members/generate-link", requireAuth, (req, res, next) =>
+    generateMemberInvitationLink(req, res, next, "issuer")
   );
   router.delete("/issuer/:id/members/:userId", requireAuth, (req, res, next) =>
     removeMember(req, res, next, "issuer")

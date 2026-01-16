@@ -637,19 +637,24 @@ export class OrganizationService {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to invite members");
     }
 
-    // Check if user already exists
-    const targetUser = await this.repository.findUserByEmail(input.email);
-    if (targetUser) {
-      // Check if already a member
-      const isMember =
-        portalType === "investor"
-          ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.user_id)
-          : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.user_id);
+    // Check if user already exists (only if email is provided)
+    if (input.email) {
+      const targetUser = await this.repository.findUserByEmail(input.email);
+      if (targetUser) {
+        // Check if already a member
+        const isMember =
+          portalType === "investor"
+            ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.user_id)
+            : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.user_id);
 
-      if (isMember) {
-        throw new AppError(400, "ALREADY_MEMBER", "User is already a member of this organization");
+        if (isMember) {
+          throw new AppError(400, "ALREADY_MEMBER", "User is already a member of this organization");
+        }
       }
     }
+
+    // Use placeholder email if not provided (for link-based invitations)
+    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
 
     // Generate invitation token
     const token = randomBytes(32).toString("hex");
@@ -660,7 +665,7 @@ export class OrganizationService {
     let invitation;
     if (portalType === "investor") {
       invitation = await this.repository.createInvestorOrganizationInvitation({
-        email: input.email,
+        email,
         role: input.role === "ORGANIZATION_ADMIN" 
           ? OrganizationMemberRole.ORGANIZATION_ADMIN 
           : OrganizationMemberRole.ORGANIZATION_MEMBER,
@@ -671,7 +676,7 @@ export class OrganizationService {
       });
     } else {
       invitation = await this.repository.createIssuerOrganizationInvitation({
-        email: input.email,
+        email,
         role: input.role === "ORGANIZATION_ADMIN" 
           ? OrganizationMemberRole.ORGANIZATION_ADMIN 
           : OrganizationMemberRole.ORGANIZATION_MEMBER,
@@ -702,37 +707,40 @@ export class OrganizationService {
     let emailSent = false;
     let emailError: string | undefined;
 
-    try {
-      const template = organizationInvitationTemplate(
-        inviteLink,
-        input.role as OrganizationMemberRole,
-        orgName,
-        portalType,
-        inviterName
-      );
-
-      await sendEmail({
-        to: input.email,
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
-      });
-
-      emailSent = true;
-      logger.info({ invitationId: invitation.id, email: input.email, inviteLink }, "Invitation email sent");
-    } catch (error) {
-      emailError = error instanceof Error ? error.message : String(error);
-      logger.error(
-        { 
-          error: emailError, 
-          invitationId: invitation.id, 
-          email: input.email,
+    // Only send email if email was provided
+    if (input.email) {
+      try {
+        const template = organizationInvitationTemplate(
           inviteLink,
-          sesRegion: process.env.SES_REGION || process.env.AWS_REGION,
-          emailFrom: process.env.EMAIL_FROM,
-        }, 
-        "Failed to send invitation email - invitation URL available for manual sharing"
-      );
+          input.role as OrganizationMemberRole,
+          orgName,
+          portalType,
+          inviterName
+        );
+
+        await sendEmail({
+          to: input.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+        });
+
+        emailSent = true;
+        logger.info({ invitationId: invitation.id, email: input.email, inviteLink }, "Invitation email sent");
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : String(error);
+        logger.error(
+          { 
+            error: emailError, 
+            invitationId: invitation.id, 
+            email: input.email,
+            inviteLink,
+            sesRegion: process.env.SES_REGION || process.env.AWS_REGION,
+            emailFrom: process.env.EMAIL_FROM,
+          }, 
+          "Failed to send invitation email - invitation URL available for manual sharing"
+        );
+      }
     }
 
     return {
@@ -742,6 +750,108 @@ export class OrganizationService {
       invitationUrl: inviteLink,
       emailError: emailError || undefined,
     };
+  }
+
+  /**
+   * Generate invitation URL without sending email
+   */
+  async generateMemberInvitationUrl(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }
+  ): Promise<{ invitationUrl: string; token: string }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can generate invites
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to generate invitation links");
+    }
+
+    // Use placeholder email if not provided (for link-based invitations)
+    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+
+    // Check if invitation already exists for this email and role
+    const existingInvitation =
+      portalType === "investor"
+        ? await prisma.investorOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: input.role === "ORGANIZATION_ADMIN" 
+                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+                : OrganizationMemberRole.ORGANIZATION_MEMBER,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              investor_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          })
+        : await prisma.issuerOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: input.role === "ORGANIZATION_ADMIN" 
+                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+                : OrganizationMemberRole.ORGANIZATION_MEMBER,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              issuer_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          });
+
+    let token: string;
+    if (existingInvitation) {
+      // Reuse existing invitation token
+      token = existingInvitation.token;
+    } else {
+      // Generate secure token
+      token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+      // Create invitation record
+      if (portalType === "investor") {
+        await this.repository.createInvestorOrganizationInvitation({
+          email,
+          role: input.role === "ORGANIZATION_ADMIN" 
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          investorOrganizationId: organizationId,
+          token,
+          expiresAt,
+          invitedByUserId: userId,
+        });
+      } else {
+        await this.repository.createIssuerOrganizationInvitation({
+          email,
+          role: input.role === "ORGANIZATION_ADMIN" 
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          issuerOrganizationId: organizationId,
+          token,
+          expiresAt,
+          invitedByUserId: userId,
+        });
+      }
+    }
+
+    // Generate invitation URL
+    const portalUrl =
+      portalType === "investor"
+        ? process.env.INVESTOR_PORTAL_URL || "http://localhost:3001"
+        : process.env.ISSUER_PORTAL_URL || "http://localhost:3002";
+
+    const inviteUrl = `${portalUrl}/accept-invitation?token=${token}`;
+
+    return { invitationUrl: inviteUrl, token };
   }
 
   /**
@@ -878,6 +988,7 @@ export class OrganizationService {
       id: inv.id,
       email: inv.email,
       role: inv.role,
+      token: inv.token,
       expiresAt: inv.expires_at,
       createdAt: inv.created_at,
       invitedBy: {

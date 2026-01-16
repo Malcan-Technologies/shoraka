@@ -46,8 +46,6 @@ export function useCorporateInfo(organizationId: string | undefined) {
       businessName?: string | null;
       numberOfEmployees?: number | null;
       ssmRegisterNumber?: string | null;
-      businessAddress?: string | null;
-      registeredAddress?: string | null;
     }) => {
       if (!organizationId) throw new Error("No organization selected");
       const result = await apiClient.patch(
