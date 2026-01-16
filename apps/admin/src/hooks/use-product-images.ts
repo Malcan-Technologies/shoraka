@@ -3,6 +3,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
   RequestProductImageDownloadUrlInput,
   RequestProductImageUploadUrlInput,
+  RequestProductImageReplaceUrlInput,
 } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -37,6 +38,25 @@ export function useRequestProductImageDownloadUrl() {
   return useMutation({
     mutationFn: async (data: RequestProductImageDownloadUrlInput) => {
       const response = await apiClient.requestProductImageDownloadUrl(data);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+  });
+}
+
+/**
+ * Hook to request presigned replace URL for product images
+ * Use this to replace an existing image at the same S3 key
+ */
+export function useRequestProductImageReplaceUrl() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (data: RequestProductImageReplaceUrlInput) => {
+      const response = await apiClient.requestProductImageReplaceUrl(data);
       if (!response.success) {
         throw new Error(response.error.message);
       }

@@ -727,6 +727,19 @@ export interface ProductImageDownloadUrlResponse {
   expiresIn: number;
 }
 
+export interface RequestProductImageReplaceUrlInput {
+  s3Key: string; // Existing S3 key to replace
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+}
+
+export interface RequestProductImageReplaceUrlResponse {
+  uploadUrl: string;
+  s3Key: string; // Same S3 key (replacing existing)
+  expiresIn: number;
+}
+
 // Document Log Types
 export interface DocumentLogUser {
   user_id: string;

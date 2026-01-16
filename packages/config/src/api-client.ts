@@ -54,6 +54,8 @@ import type {
   RequestProductImageUploadUrlResponse,
   RequestProductImageDownloadUrlInput,
   ProductImageDownloadUrlResponse,
+  RequestProductImageReplaceUrlInput,
+  RequestProductImageReplaceUrlResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -902,6 +904,15 @@ export class ApiClient {
   ): Promise<ApiResponse<ProductImageDownloadUrlResponse> | ApiError> {
     return this.post<ProductImageDownloadUrlResponse>(
       `/v1/products/images/download-url`,
+      data
+    );
+  }
+
+  async requestProductImageReplaceUrl(
+    data: RequestProductImageReplaceUrlInput
+  ): Promise<ApiResponse<RequestProductImageReplaceUrlResponse> | ApiError> {
+    return this.post<RequestProductImageReplaceUrlResponse>(
+      `/v1/products/images/replace-url`,
       data
     );
   }

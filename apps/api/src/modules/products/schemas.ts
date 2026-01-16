@@ -85,6 +85,18 @@ export type RequestProductImageDownloadUrlInput = z.infer<
   typeof requestProductImageDownloadUrlSchema
 >;
 
+// Product image replace URL request schema (uses existing S3 key)
+export const requestProductImageReplaceUrlSchema = z.object({
+  s3Key: z.string().min(1), // Existing S3 key to replace
+  fileName: z.string().min(1),
+  contentType: z.string().min(1),
+  fileSize: z.number().int().positive(),
+});
+
+export type RequestProductImageReplaceUrlInput = z.infer<
+  typeof requestProductImageReplaceUrlSchema
+>;
+
 // Type exports
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;

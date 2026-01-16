@@ -177,11 +177,30 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: id, input }, "Updating product");
 
+    // Extract old S3 key before updating (to delete old version if replaced)
+    const oldS3Key = this.extractS3Key(existing.workflow);
+    const newS3Key = input.workflow ? this.extractS3Key(input.workflow as Prisma.JsonValue) : null;
+
     const product = await this.repository.update(id, {
       workflow: input.workflow ? (input.workflow as Prisma.InputJsonValue) : undefined,
     });
 
     logger.info({ ...metadata, productId: product.id }, "Product updated");
+
+    // Delete old S3 key if it was replaced with a new version
+    if (oldS3Key && newS3Key && oldS3Key !== newS3Key) {
+      try {
+        logger.info({ oldS3Key, newS3Key, productId: id }, "Deleting old product image version from S3");
+        await deleteS3Object(oldS3Key);
+        logger.info({ oldS3Key, productId: id }, "Successfully deleted old product image version from S3");
+      } catch (error) {
+        logger.warn(
+          { oldS3Key, newS3Key, productId: id, error },
+          "Failed to delete old product image version from S3 (product update will continue)"
+        );
+        // Don't throw - product is already updated, S3 cleanup failure shouldn't block
+      }
+    }
 
     // Log the product update
     if (req.user?.user_id) {

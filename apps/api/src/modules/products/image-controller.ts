@@ -2,6 +2,7 @@ import { Request, Response, NextFunction, Router } from "express";
 import {
   requestProductImageUploadUrlSchema,
   requestProductImageDownloadUrlSchema,
+  requestProductImageReplaceUrlSchema,
 } from "./schemas";
 import { requireAuth, requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
@@ -9,6 +10,7 @@ import {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
   generateProductImageKey,
+  generateProductImageKeyWithVersion,
   getFileExtension,
   validateProductImage,
 } from "../../lib/s3/client";
@@ -125,6 +127,69 @@ async function requestProductImageDownloadUrl(
 }
 
 /**
+ * Request presigned URL for replacing existing product image
+ * POST /v1/products/images/replace-url
+ */
+async function requestProductImageReplaceUrl(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const validated = requestProductImageReplaceUrlSchema.parse(req.body);
+
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    // Validate file
+    const validation = validateProductImage({
+      contentType: validated.contentType,
+      fileSize: validated.fileSize,
+    });
+
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    // Generate new S3 key with incremented version (reuses same cuid)
+    const extension = getFileExtension(validated.fileName);
+    const newS3Key = generateProductImageKeyWithVersion({
+      existingS3Key: validated.s3Key,
+      extension,
+    });
+
+    if (!newS3Key) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key format. Cannot parse existing key.");
+    }
+
+    // Generate presigned upload URL for the new S3 key (with incremented version)
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: newS3Key,
+      contentType: validated.contentType,
+      contentLength: validated.fileSize,
+    });
+
+    logger.info(
+      { oldS3Key: validated.s3Key, newS3Key, adminUserId: req.user.user_id },
+      "Generated presigned replace URL for product image (version incremented)"
+    );
+
+    res.json({
+      success: true,
+      data: {
+        uploadUrl,
+        s3Key: newS3Key, // New S3 key with incremented version
+        expiresIn,
+      },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create router for product image routes
  * Returns a router with all product image endpoints
  */
@@ -137,6 +202,14 @@ export function createProductImageRouter(): Router {
     requireAuth,
     requireRole(UserRole.ADMIN),
     requestProductImageUploadUrl
+  );
+
+  // Request presigned replace URL (admin only) - replaces existing image
+  router.post(
+    "/replace-url",
+    requireAuth,
+    requireRole(UserRole.ADMIN),
+    requestProductImageReplaceUrl
   );
 
   // Request presigned download URL (authenticated users)

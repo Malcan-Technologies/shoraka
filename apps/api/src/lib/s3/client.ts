@@ -247,6 +247,58 @@ export function generateProductImageKey(params: {
 }
 
 /**
+ * Parse product image S3 key to extract version, date, cuid, extension, and financing type name
+ * Format: products/{type}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if format doesn't match
+ */
+export function parseProductImageKey(s3Key: string): {
+  financingTypeName: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  // Match: products/{type}/v{version}-{date}-{cuid}.{ext}
+  const match = s3Key.match(/^products\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
+  
+  if (!match) {
+    return null;
+  }
+
+  return {
+    financingTypeName: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5],
+  };
+}
+
+/**
+ * Generate product image S3 key with incremented version (for replacements)
+ * Reuses the same cuid and financing type name, increments version, updates date
+ */
+export function generateProductImageKeyWithVersion(params: {
+  existingS3Key: string;
+  extension: string;
+}): string | null {
+  const parsed = parseProductImageKey(params.existingS3Key);
+  
+  if (!parsed) {
+    return null;
+  }
+
+  // Increment version
+  const newVersion = parsed.version + 1;
+  
+  // Generate new date
+  const date = new Date().toISOString().split("T")[0];
+  
+  // Reuse same cuid and financing type name
+  return `products/${parsed.financingTypeName}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
+}
+
+/**
  * Validate file type and size for site documents
  */
 export function validateSiteDocument(params: {

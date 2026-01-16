@@ -19,7 +19,11 @@ import {
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { useUpdateProduct } from "../hooks/use-products";
-import { useRequestProductImageUploadUrl, uploadImageToS3 } from "../hooks/use-product-images";
+import { 
+  useRequestProductImageUploadUrl, 
+  useRequestProductImageReplaceUrl,
+  uploadImageToS3 
+} from "../hooks/use-product-images";
 import { WorkflowBuilder } from "./workflow-builder";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -138,6 +142,7 @@ interface EditProductDialogProps {
 export function EditProductDialog({ product, open, onOpenChange }: EditProductDialogProps) {
   const updateProduct = useUpdateProduct();
   const requestUploadUrl = useRequestProductImageUploadUrl();
+  const requestReplaceUrl = useRequestProductImageReplaceUrl();
 
   // Track pending image files by step ID (new files selected but not yet uploaded)
   const pendingFilesRef = React.useRef<Map<string, File>>(new Map());
@@ -225,23 +230,37 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         }
 
         try {
-          // Request presigned upload URL
-          const uploadData = await requestUploadUrl.mutateAsync({
-            fileName: file.name,
-            contentType: file.type,
-            fileSize: file.size,
-            financingTypeName: step.config.name, // Use configured product name
-          });
+          // Check if there's an existing S3 key (replace) or need to create new one (upload)
+          const existingS3Key = step.config?.s3_key;
+          
+          let uploadData;
+          if (existingS3Key) {
+            // Replace existing image at same S3 key
+            uploadData = await requestReplaceUrl.mutateAsync({
+              s3Key: existingS3Key,
+              fileName: file.name,
+              contentType: file.type,
+              fileSize: file.size,
+            });
+          } else {
+            // Upload new image (create new S3 key)
+            uploadData = await requestUploadUrl.mutateAsync({
+              fileName: file.name,
+              contentType: file.type,
+              fileSize: file.size,
+              financingTypeName: step.config.name, // Use configured product name
+            });
+          }
 
-          // Upload file directly to S3
+          // Upload file directly to S3 (replaces if same key, creates if new key)
           await uploadImageToS3(uploadData.uploadUrl, file);
 
-            // Update workflow step with new S3 key and original file name (old one will be deleted by backend)
-            step.config = {
-              ...step.config,
-              s3_key: uploadData.s3Key,
-              file_name: file.name, // Store original file name
-            };
+          // Update workflow step with S3 key and original file name
+          step.config = {
+            ...step.config,
+            s3_key: uploadData.s3Key, // Same key if replacing, new key if uploading
+            file_name: file.name, // Store original file name
+          };
 
           // Remove from pending files
           pendingFilesRef.current.delete(stepId);
