@@ -303,6 +303,8 @@ export interface OnboardingLogResponse {
   device_type: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  organizationName?: string | null;
+  organizationType?: "PERSONAL" | "COMPANY" | null;
 }
 
 export interface GetOnboardingLogsParams extends PaginationParams {
@@ -407,8 +409,73 @@ export interface OrganizationMemberDetail {
   firstName: string;
   lastName: string;
   email: string;
-  role: "OWNER" | "DIRECTOR" | "MEMBER";
+  role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
   createdAt: string;
+}
+
+// Organization invitation types
+export interface OrganizationInvitation {
+  id: string;
+  email: string;
+  role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+  organizationId: string;
+  token: string;
+  expiresAt: string;
+  createdAt: string;
+  invitedBy: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+// Corporate entities types (from corporate_entities JSON)
+export interface Director {
+  name: string;
+  idNumber: string;
+  nationality: string;
+  position: string;
+  email?: string;
+  phoneNumber?: string;
+  address?: string;
+  dateOfBirth?: string;
+  idIssuingCountry?: string;
+}
+
+export interface IndividualShareholder {
+  name: string;
+  idNumber: string;
+  nationality: string;
+  shareholdingPercentage: number;
+  email?: string;
+  phoneNumber?: string;
+  address?: string;
+}
+
+export interface BusinessShareholder {
+  businessName: string;
+  registrationNumber: string;
+  country: string;
+  shareholdingPercentage: number;
+  address?: string;
+}
+
+export interface CorporateEntitiesResponse {
+  directors: Director[];
+  shareholders: IndividualShareholder[];
+  corporateShareholders: BusinessShareholder[];
+}
+
+// Corporate info (from corporate_onboarding_data JSON)
+export interface CorporateInfo {
+  tinNumber?: string;
+  industry?: string;
+  entityType?: string;
+  businessName?: string;
+  numberOfEmployees?: number;
+  ssmRegisterNumber?: string;
+  businessAddress?: string;
+  registeredAddress?: string;
 }
 
 // KYC Response from RegTank AML screening

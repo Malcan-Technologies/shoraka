@@ -9,7 +9,7 @@ import { useAuth } from "../lib/auth";
  * Note: This guard only checks authentication status. Organization-based
  * onboarding is handled by the OrganizationProvider and individual pages.
  * User roles (INVESTOR/ISSUER) are NOT used for portal access - any authenticated
- * user can access investor/issuer portals. Roles are only used for admin portal access.
+ * user can access issuer/issuer portals. Roles are only used for admin portal access.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

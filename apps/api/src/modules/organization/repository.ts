@@ -437,4 +437,317 @@ export class OrganizationRepository {
       },
     });
   }
+
+  /**
+   * Count organization admins
+   */
+  async countOrganizationAdmins(
+    organizationId: string,
+    portalType: "investor" | "issuer"
+  ): Promise<number> {
+    const where =
+      portalType === "investor"
+        ? {
+            investor_organization_id: organizationId,
+            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+          }
+        : {
+            issuer_organization_id: organizationId,
+            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+          };
+
+    return prisma.organizationMember.count({ where });
+  }
+
+  /**
+   * Update member role
+   */
+  async updateMemberRole(
+    organizationId: string,
+    userId: string,
+    role: OrganizationMemberRole,
+    portalType: "investor" | "issuer"
+  ): Promise<OrganizationMember> {
+    if (portalType === "investor") {
+      const member = await prisma.organizationMember.findFirstOrThrow({
+        where: {
+          investor_organization_id: organizationId,
+          user_id: userId,
+        },
+      });
+      return prisma.organizationMember.update({
+        where: { id: member.id },
+        data: { role },
+      });
+    } else {
+      const member = await prisma.organizationMember.findFirstOrThrow({
+        where: {
+          issuer_organization_id: organizationId,
+          user_id: userId,
+        },
+      });
+      return prisma.organizationMember.update({
+        where: { id: member.id },
+        data: { role },
+      });
+    }
+  }
+
+  /**
+   * Create investor organization invitation
+   */
+  async createInvestorOrganizationInvitation(data: {
+    email: string;
+    role: OrganizationMemberRole;
+    investorOrganizationId: string;
+    token: string;
+    expiresAt: Date;
+    invitedByUserId: string;
+  }) {
+    return prisma.investorOrganizationInvitation.create({
+      data: {
+        email: data.email,
+        role: data.role,
+        investor_organization_id: data.investorOrganizationId,
+        token: data.token,
+        expires_at: data.expiresAt,
+        invited_by_user_id: data.invitedByUserId,
+      },
+    });
+  }
+
+  /**
+   * Create issuer organization invitation
+   */
+  async createIssuerOrganizationInvitation(data: {
+    email: string;
+    role: OrganizationMemberRole;
+    issuerOrganizationId: string;
+    token: string;
+    expiresAt: Date;
+    invitedByUserId: string;
+  }) {
+    return prisma.issuerOrganizationInvitation.create({
+      data: {
+        email: data.email,
+        role: data.role,
+        issuer_organization_id: data.issuerOrganizationId,
+        token: data.token,
+        expires_at: data.expiresAt,
+        invited_by_user_id: data.invitedByUserId,
+      },
+    });
+  }
+
+  /**
+   * Find invitation by token
+   */
+  async findInvitationByToken(token: string): Promise<{
+    id: string;
+    email: string;
+    role: OrganizationMemberRole;
+    investor_organization_id: string | null;
+    issuer_organization_id: string | null;
+    expires_at: Date;
+    accepted: boolean;
+  } | null> {
+    const investorInv = await prisma.investorOrganizationInvitation.findUnique({
+      where: { token },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        investor_organization_id: true,
+        expires_at: true,
+        accepted: true,
+      },
+    });
+
+    if (investorInv) {
+      return {
+        ...investorInv,
+        issuer_organization_id: null,
+      };
+    }
+
+    const issuerInv = await prisma.issuerOrganizationInvitation.findUnique({
+      where: { token },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        issuer_organization_id: true,
+        expires_at: true,
+        accepted: true,
+      },
+    });
+
+    if (issuerInv) {
+      return {
+        ...issuerInv,
+        investor_organization_id: null,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Mark invitation as accepted
+   */
+  async acceptInvitation(token: string): Promise<void> {
+    const investorInv = await prisma.investorOrganizationInvitation.findUnique({
+      where: { token },
+    });
+
+    if (investorInv) {
+      await prisma.investorOrganizationInvitation.update({
+        where: { token },
+        data: { accepted: true, accepted_at: new Date() },
+      });
+      return;
+    }
+
+    const issuerInv = await prisma.issuerOrganizationInvitation.findUnique({
+      where: { token },
+    });
+
+    if (issuerInv) {
+      await prisma.issuerOrganizationInvitation.update({
+        where: { token },
+        data: { accepted: true, accepted_at: new Date() },
+      });
+    }
+  }
+
+  /**
+   * Get pending invitations for investor organization
+   */
+  async getInvestorOrganizationInvitations(organizationId: string) {
+    return prisma.investorOrganizationInvitation.findMany({
+      where: {
+        investor_organization_id: organizationId,
+        accepted: false,
+        expires_at: { gt: new Date() },
+      },
+      include: {
+        invited_by: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  /**
+   * Get pending invitations for issuer organization
+   */
+  async getIssuerOrganizationInvitations(organizationId: string) {
+    return prisma.issuerOrganizationInvitation.findMany({
+      where: {
+        issuer_organization_id: organizationId,
+        accepted: false,
+        expires_at: { gt: new Date() },
+      },
+      include: {
+        invited_by: {
+          select: {
+            user_id: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  /**
+   * Revoke invitation
+   */
+  async revokeInvitation(invitationId: string, portalType: "investor" | "issuer"): Promise<void> {
+    if (portalType === "investor") {
+      await prisma.investorOrganizationInvitation.delete({
+        where: { id: invitationId },
+      });
+    } else {
+      await prisma.issuerOrganizationInvitation.delete({
+        where: { id: invitationId },
+      });
+    }
+  }
+
+  /**
+   * Update corporate info
+   */
+  async updateCorporateInfo(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    data: {
+      tinNumber?: string | null;
+      industry?: string | null;
+      entityType?: string | null;
+      businessName?: string | null;
+      numberOfEmployees?: number | null;
+      ssmRegisterNumber?: string | null;
+    }
+  ) {
+    const corporateData = {
+      basicInfo: {
+        ...(data.tinNumber !== undefined && { tinNumber: data.tinNumber }),
+        ...(data.industry !== undefined && { industry: data.industry }),
+        ...(data.entityType !== undefined && { entityType: data.entityType }),
+        ...(data.businessName !== undefined && { businessName: data.businessName }),
+        ...(data.numberOfEmployees !== undefined && {
+          numberOfEmployees: data.numberOfEmployees,
+        }),
+        ...(data.ssmRegisterNumber !== undefined && {
+          ssmRegisterNumber: data.ssmRegisterNumber,
+        }),
+      },
+    };
+
+    if (portalType === "investor") {
+      const existing = await prisma.investorOrganization.findUnique({
+        where: { id: organizationId },
+        select: { corporate_onboarding_data: true },
+      });
+
+      const existingData = (existing?.corporate_onboarding_data as any) || {};
+      const mergedData = {
+        basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
+        // Preserve existing addresses from COD webhook (read-only)
+        addresses: existingData.addresses || {},
+      };
+
+      return prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_onboarding_data: mergedData },
+      });
+    } else {
+      const existing = await prisma.issuerOrganization.findUnique({
+        where: { id: organizationId },
+        select: { corporate_onboarding_data: true },
+      });
+
+      const existingData = (existing?.corporate_onboarding_data as any) || {};
+      const mergedData = {
+        basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
+        // Preserve existing addresses from COD webhook (read-only)
+        addresses: existingData.addresses || {},
+      };
+
+      return prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_onboarding_data: mergedData },
+      });
+    }
+  }
+
 }

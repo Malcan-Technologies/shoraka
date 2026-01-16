@@ -4,6 +4,10 @@ import {
   AddMemberInput,
   PortalType,
   UpdateOrganizationProfileInput,
+  InviteMemberInput,
+  AcceptOrganizationInvitationInput,
+  ChangeMemberRoleInput,
+  UpdateCorporateInfoInput,
 } from "./schemas";
 import {
   OrganizationType,
@@ -25,6 +29,9 @@ import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { getPortalFromRole } from "../../lib/role-detector";
 import { AuthRepository } from "../auth/repository";
+import { sendEmail } from "../../lib/email/ses-client";
+import { organizationInvitationTemplate } from "../../lib/email/templates";
+import { randomBytes } from "crypto";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
@@ -85,11 +92,11 @@ export class OrganizationService {
         registrationNumber: input.registrationNumber,
       });
 
-      // Add owner as member with OWNER role
+      // Add owner as member with ORGANIZATION_ADMIN role
       await this.repository.addOrganizationMember({
         userId,
         investorOrganizationId: organization.id,
-        role: OrganizationMemberRole.OWNER,
+        role: OrganizationMemberRole.ORGANIZATION_ADMIN,
       });
     } else {
       organization = await this.repository.createIssuerOrganization({
@@ -99,11 +106,11 @@ export class OrganizationService {
         registrationNumber: input.registrationNumber,
       });
 
-      // Add owner as member with OWNER role
+      // Add owner as member with ORGANIZATION_ADMIN role
       await this.repository.addOrganizationMember({
         userId,
         issuerOrganizationId: organization.id,
-        role: OrganizationMemberRole.OWNER,
+        role: OrganizationMemberRole.ORGANIZATION_ADMIN,
       });
     }
 
@@ -336,8 +343,7 @@ export class OrganizationService {
     );
     const canManage =
       organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.OWNER ||
-      userMember?.role === OrganizationMemberRole.DIRECTOR;
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
 
     if (!canManage) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to add members");
@@ -360,7 +366,9 @@ export class OrganizationService {
     }
 
     const role =
-      input.role === "DIRECTOR" ? OrganizationMemberRole.DIRECTOR : OrganizationMemberRole.MEMBER;
+      input.role === "ORGANIZATION_ADMIN" 
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
     logger.info(
       { organizationId, targetUserId: targetUser.user_id, role },
@@ -410,8 +418,7 @@ export class OrganizationService {
     );
     const canManage =
       organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.OWNER ||
-      userMember?.role === OrganizationMemberRole.DIRECTOR;
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
 
     if (!canManage) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to remove members");
@@ -424,10 +431,22 @@ export class OrganizationService {
 
     // Check if target is a member
     const targetMember = organization.members.find(
-      (m: { user_id: string }) => m.user_id === targetUserId
+      (m: { user_id: string; role: string }) => m.user_id === targetUserId
     );
     if (!targetMember) {
       throw new AppError(404, "NOT_FOUND", "Member not found in organization");
+    }
+
+    // Check if removing last admin
+    if (targetMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN) {
+      const adminCount = await this.repository.countOrganizationAdmins(organizationId, portalType);
+      if (adminCount === 1) {
+        throw new AppError(
+          400,
+          "LAST_ADMIN",
+          "Cannot remove - at least one organization admin must remain"
+        );
+      }
     }
 
     logger.info({ organizationId, targetUserId }, "Removing member from organization");
@@ -592,5 +611,687 @@ export class OrganizationService {
     }
 
     return { success: true, tncAccepted: true };
+  }
+
+  /**
+   * Invite a member to an organization
+   */
+  async inviteMember(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: InviteMemberInput
+  ): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can invite members
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to invite members");
+    }
+
+    // Check if user already exists (only if email is provided)
+    if (input.email) {
+      const targetUser = await this.repository.findUserByEmail(input.email);
+      if (targetUser) {
+        // Check if already a member
+        const isMember =
+          portalType === "investor"
+            ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.user_id)
+            : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.user_id);
+
+        if (isMember) {
+          throw new AppError(400, "ALREADY_MEMBER", "User is already a member of this organization");
+        }
+      }
+    }
+
+    // Use placeholder email if not provided (for link-based invitations)
+    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+
+    // Generate invitation token
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+    // Create invitation
+    let invitation;
+    if (portalType === "investor") {
+      invitation = await this.repository.createInvestorOrganizationInvitation({
+        email,
+        role: input.role === "ORGANIZATION_ADMIN" 
+          ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+          : OrganizationMemberRole.ORGANIZATION_MEMBER,
+        investorOrganizationId: organizationId,
+        token,
+        expiresAt,
+        invitedByUserId: userId,
+      });
+    } else {
+      invitation = await this.repository.createIssuerOrganizationInvitation({
+        email,
+        role: input.role === "ORGANIZATION_ADMIN" 
+          ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+          : OrganizationMemberRole.ORGANIZATION_MEMBER,
+        issuerOrganizationId: organizationId,
+        token,
+        expiresAt,
+        invitedByUserId: userId,
+      });
+    }
+
+    // Send invitation email
+    const inviter = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { first_name: true, last_name: true },
+    });
+    const inviterName = inviter
+      ? `${inviter.first_name} ${inviter.last_name}`
+      : undefined;
+
+    const portalUrl =
+      portalType === "investor"
+        ? process.env.INVESTOR_PORTAL_URL || "http://localhost:3001"
+        : process.env.ISSUER_PORTAL_URL || "http://localhost:3002";
+
+    const inviteLink = `${portalUrl}/accept-invitation?token=${token}`;
+    const orgName = organization.name || "the organization";
+
+    let emailSent = false;
+    let emailError: string | undefined;
+
+    // Only send email if email was provided
+    if (input.email) {
+      try {
+        const template = organizationInvitationTemplate(
+          inviteLink,
+          input.role as OrganizationMemberRole,
+          orgName,
+          portalType,
+          inviterName
+        );
+
+        await sendEmail({
+          to: input.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+        });
+
+        emailSent = true;
+        logger.info({ invitationId: invitation.id, email: input.email, inviteLink }, "Invitation email sent");
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : String(error);
+        logger.error(
+          { 
+            error: emailError, 
+            invitationId: invitation.id, 
+            email: input.email,
+            inviteLink,
+            sesRegion: process.env.SES_REGION || process.env.AWS_REGION,
+            emailFrom: process.env.EMAIL_FROM,
+          }, 
+          "Failed to send invitation email - invitation URL available for manual sharing"
+        );
+      }
+    }
+
+    return {
+      success: true,
+      invitationId: invitation.id,
+      emailSent,
+      invitationUrl: inviteLink,
+      emailError: emailError || undefined,
+    };
+  }
+
+  /**
+   * Generate invitation URL without sending email
+   */
+  async generateMemberInvitationUrl(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }
+  ): Promise<{ invitationUrl: string; token: string }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can generate invites
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to generate invitation links");
+    }
+
+    // Use placeholder email if not provided (for link-based invitations)
+    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+
+    // Check if invitation already exists for this email and role
+    const existingInvitation =
+      portalType === "investor"
+        ? await prisma.investorOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: input.role === "ORGANIZATION_ADMIN" 
+                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+                : OrganizationMemberRole.ORGANIZATION_MEMBER,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              investor_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          })
+        : await prisma.issuerOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: input.role === "ORGANIZATION_ADMIN" 
+                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+                : OrganizationMemberRole.ORGANIZATION_MEMBER,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              issuer_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          });
+
+    let token: string;
+    if (existingInvitation) {
+      // Reuse existing invitation token
+      token = existingInvitation.token;
+    } else {
+      // Generate secure token
+      token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+      // Create invitation record
+      if (portalType === "investor") {
+        await this.repository.createInvestorOrganizationInvitation({
+          email,
+          role: input.role === "ORGANIZATION_ADMIN" 
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          investorOrganizationId: organizationId,
+          token,
+          expiresAt,
+          invitedByUserId: userId,
+        });
+      } else {
+        await this.repository.createIssuerOrganizationInvitation({
+          email,
+          role: input.role === "ORGANIZATION_ADMIN" 
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          issuerOrganizationId: organizationId,
+          token,
+          expiresAt,
+          invitedByUserId: userId,
+        });
+      }
+    }
+
+    // Generate invitation URL
+    const portalUrl =
+      portalType === "investor"
+        ? process.env.INVESTOR_PORTAL_URL || "http://localhost:3001"
+        : process.env.ISSUER_PORTAL_URL || "http://localhost:3002";
+
+    const inviteUrl = `${portalUrl}/accept-invitation?token=${token}`;
+
+    return { invitationUrl: inviteUrl, token };
+  }
+
+  /**
+   * Accept an organization invitation
+   */
+  async acceptInvitation(
+    userId: string,
+    input: AcceptOrganizationInvitationInput
+  ): Promise<{ success: boolean; organizationId: string; portalType: PortalType }> {
+    // Find invitation by token
+    const invitation = await this.repository.findInvitationByToken(input.token);
+
+    if (!invitation) {
+      throw new AppError(404, "INVITATION_NOT_FOUND", "Invalid or expired invitation token");
+    }
+
+    if (invitation.accepted) {
+      throw new AppError(400, "ALREADY_ACCEPTED", "This invitation has already been accepted");
+    }
+
+    if (invitation.expires_at < new Date()) {
+      throw new AppError(400, "EXPIRED", "This invitation has expired");
+    }
+
+    // Verify email matches
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { email: true },
+    });
+
+    if (!user || user.email !== invitation.email) {
+      throw new AppError(
+        403,
+        "EMAIL_MISMATCH",
+        "This invitation was sent to a different email address"
+      );
+    }
+
+    // Check if already a member
+    if (invitation.investor_organization_id) {
+      const isMember = await this.repository.isInvestorOrganizationMember(
+        invitation.investor_organization_id,
+        userId
+      );
+      if (isMember) {
+        throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
+      }
+    } else if (invitation.issuer_organization_id) {
+      const isMember = await this.repository.isIssuerOrganizationMember(
+        invitation.issuer_organization_id!,
+        userId
+      );
+      if (isMember) {
+        throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
+      }
+    }
+
+    // Add member to organization
+    if (invitation.investor_organization_id) {
+      await this.repository.addOrganizationMember({
+        userId,
+        investorOrganizationId: invitation.investor_organization_id,
+        role: invitation.role,
+      });
+    } else {
+      await this.repository.addOrganizationMember({
+        userId,
+        issuerOrganizationId: invitation.issuer_organization_id!,
+        role: invitation.role,
+      });
+    }
+
+    // Mark invitation as accepted
+    await this.repository.acceptInvitation(input.token);
+
+    logger.info(
+      {
+        userId,
+        invitationId: invitation.id,
+        organizationId: invitation.investor_organization_id || invitation.issuer_organization_id,
+      },
+      "Invitation accepted"
+    );
+
+    return {
+      success: true,
+      organizationId: invitation.investor_organization_id || invitation.issuer_organization_id!,
+      portalType: invitation.investor_organization_id ? "investor" : "issuer",
+    };
+  }
+
+  /**
+   * Get pending invitations for an organization
+   */
+  async getPendingInvitations(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<Array<{
+    id: string;
+    email: string;
+    role: OrganizationMemberRole;
+    expiresAt: Date;
+    createdAt: Date;
+    invitedBy: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  }>> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can view invitations
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to view invitations");
+    }
+
+    let invitations;
+    if (portalType === "investor") {
+      invitations = await this.repository.getInvestorOrganizationInvitations(organizationId);
+    } else {
+      invitations = await this.repository.getIssuerOrganizationInvitations(organizationId);
+    }
+
+    return invitations.map((inv) => ({
+      id: inv.id,
+      email: inv.email,
+      role: inv.role,
+      token: inv.token,
+      expiresAt: inv.expires_at,
+      createdAt: inv.created_at,
+      invitedBy: {
+        firstName: inv.invited_by.first_name,
+        lastName: inv.invited_by.last_name,
+        email: inv.invited_by.email,
+      },
+    }));
+  }
+
+  /**
+   * Resend invitation email
+   */
+  async resendInvitation(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    invitationId: string
+  ): Promise<{ success: boolean; emailSent: boolean; emailError?: string; invitationUrl?: string }> {
+    // Verify access
+    await this.getOrganization(userId, organizationId, portalType);
+
+    // Find invitation
+    let invitation;
+    if (portalType === "investor") {
+      invitation = await prisma.investorOrganizationInvitation.findUnique({
+        where: { id: invitationId },
+        include: {
+          investor_organization: {
+            select: { name: true },
+          },
+          invited_by: {
+            select: { first_name: true, last_name: true },
+          },
+        },
+      });
+    } else {
+      invitation = await prisma.issuerOrganizationInvitation.findUnique({
+        where: { id: invitationId },
+        include: {
+          issuer_organization: {
+            select: { name: true },
+          },
+          invited_by: {
+            select: { first_name: true, last_name: true },
+          },
+        },
+      });
+    }
+
+    if (!invitation) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
+
+    if (invitation.accepted) {
+      throw new AppError(400, "ALREADY_ACCEPTED", "This invitation has already been accepted");
+    }
+
+    // Send email
+    const inviterName = invitation.invited_by
+      ? `${invitation.invited_by.first_name} ${invitation.invited_by.last_name}`
+      : undefined;
+
+    const portalUrl =
+      portalType === "investor"
+        ? process.env.INVESTOR_PORTAL_URL || "http://localhost:3001"
+        : process.env.ISSUER_PORTAL_URL || "http://localhost:3002";
+
+    const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+    const orgName =
+      (invitation as any).investor_organization?.name ||
+      (invitation as any).issuer_organization?.name ||
+      "the organization";
+
+    let emailSent = false;
+    try {
+      const template = organizationInvitationTemplate(
+        inviteLink,
+        invitation.role,
+        orgName,
+        portalType,
+        inviterName
+      );
+
+      await sendEmail({
+        to: invitation.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      });
+
+      emailSent = true;
+      logger.info({ invitationId }, "Invitation email resent");
+    } catch (error) {
+      const emailError = error instanceof Error ? error.message : String(error);
+      logger.error({ error: emailError, invitationId }, "Failed to resend invitation email");
+      return { success: true, emailSent: false, emailError, invitationUrl: inviteLink };
+    }
+
+    return { success: true, emailSent, invitationUrl: inviteLink };
+  }
+
+  /**
+   * Revoke an invitation
+   */
+  async revokeInvitation(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    invitationId: string
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    await this.getOrganization(userId, organizationId, portalType);
+
+    await this.repository.revokeInvitation(invitationId, portalType);
+
+    logger.info({ invitationId, organizationId }, "Invitation revoked");
+
+    return { success: true };
+  }
+
+  /**
+   * Leave an organization
+   */
+  async leaveOrganization(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Cannot leave if you're the owner
+    if (organization.owner_user_id === userId) {
+      throw new AppError(400, "CANNOT_LEAVE_AS_OWNER", "Organization owner cannot leave. Transfer ownership first.");
+    }
+
+    // Check if user is a member
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+
+    if (!userMember) {
+      throw new AppError(404, "NOT_MEMBER", "You are not a member of this organization");
+    }
+
+    // Check if user is the last admin
+    if (userMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN) {
+      const adminCount = await this.repository.countOrganizationAdmins(organizationId, portalType);
+      if (adminCount === 1) {
+        throw new AppError(
+          400,
+          "LAST_ADMIN",
+          "Cannot leave - at least one organization admin must remain"
+        );
+      }
+    }
+
+    // Remove member
+    if (portalType === "investor") {
+      await this.repository.removeInvestorOrganizationMember(organizationId, userId);
+    } else {
+      await this.repository.removeIssuerOrganizationMember(organizationId, userId);
+    }
+
+    logger.info({ userId, organizationId, portalType }, "Member left organization");
+
+    return { success: true };
+  }
+
+  /**
+   * Change member role (promote/demote)
+   */
+  async changeMemberRole(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: ChangeMemberRoleInput
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can change roles
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to change member roles");
+    }
+
+    // Cannot change owner's role
+    if (input.userId === organization.owner_user_id) {
+      throw new AppError(400, "CANNOT_CHANGE_OWNER", "Cannot change organization owner's role");
+    }
+
+    // Check if target is a member
+    const targetMember = organization.members.find(
+      (m: { user_id: string }) => m.user_id === input.userId
+    );
+    if (!targetMember) {
+      throw new AppError(404, "NOT_FOUND", "Member not found in organization");
+    }
+
+    // If demoting from admin, check if it's the last admin
+    if (
+      targetMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN &&
+      input.role === "ORGANIZATION_MEMBER"
+    ) {
+      const adminCount = await this.repository.countOrganizationAdmins(organizationId, portalType);
+      if (adminCount === 1) {
+        throw new AppError(
+          400,
+          "LAST_ADMIN",
+          "Cannot demote - at least one organization admin must remain"
+        );
+      }
+    }
+
+    // Update role
+    const newRole =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
+
+    await this.repository.updateMemberRole(organizationId, input.userId, newRole, portalType);
+
+    logger.info(
+      { organizationId, targetUserId: input.userId, newRole },
+      "Member role changed"
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Get corporate entities (directors, shareholders)
+   */
+  async getCorporateEntities(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<{
+    directors: Array<Record<string, unknown>>;
+    shareholders: Array<Record<string, unknown>>;
+    corporateShareholders: Array<Record<string, unknown>>;
+  }> {
+    // Verify access
+    await this.getOrganization(userId, organizationId, portalType);
+
+    let organization;
+    if (portalType === "investor") {
+      organization = await prisma.investorOrganization.findUnique({
+        where: { id: organizationId },
+        select: { corporate_entities: true },
+      });
+    } else {
+      organization = await prisma.issuerOrganization.findUnique({
+        where: { id: organizationId },
+        select: { corporate_entities: true },
+      });
+    }
+
+    const entities = (organization?.corporate_entities as any) || {};
+
+    return {
+      directors: entities.directors || [],
+      shareholders: entities.shareholders || [],
+      corporateShareholders: entities.corporateShareholders || [],
+    };
+  }
+
+  /**
+   * Update corporate info
+   */
+  async updateCorporateInfo(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: UpdateCorporateInfoInput
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only admins can update corporate info
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to update corporate info");
+    }
+
+    await this.repository.updateCorporateInfo(organizationId, portalType, input);
+
+    logger.info({ organizationId, portalType, userId }, "Corporate info updated");
+
+    return { success: true };
   }
 }

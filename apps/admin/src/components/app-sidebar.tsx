@@ -102,7 +102,7 @@ const navPlatform = [
 const navAudit = [
   { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
   { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
-  { title: "Onboarding Logs", url: "/audit/onboarding-logs", icon: UserCircleIcon },
+  { title: "Organization Logs", url: "/audit/organization-logs", icon: UserCircleIcon },
   { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
   { title: "Product Logs", url: "/audit/product-logs", icon: CubeIcon },
 ];

@@ -62,6 +62,46 @@ if echo "$LOCK_ACQUIRED" | grep -q "^t$"; then
   
   cd /app/apps/api
   
+  # Check for and resolve any failed migrations before running new ones
+  echo "🔍 Checking for failed migrations..."
+  FAILED_MIGRATIONS=$(psql "$PSQL_URL" -tAc "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND started_at IS NOT NULL;" 2>/dev/null || echo "")
+  
+  if [ -n "$FAILED_MIGRATIONS" ]; then
+    echo "⚠️ Found failed migrations, attempting to resolve..."
+    for MIGRATION in $FAILED_MIGRATIONS; do
+      MIGRATION_NAME=$(echo "$MIGRATION" | xargs)
+      echo "  - Resolving failed migration: $MIGRATION_NAME"
+      
+      # For the specific organization invitations migration, check if tables exist
+      if [ "$MIGRATION_NAME" = "20260115174209_add_organization_invitations" ]; then
+        echo "    Checking if invitation tables exist..."
+        TABLES_EXIST=$(psql "$PSQL_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('investor_organization_invitations', 'issuer_organization_invitations');" 2>/dev/null || echo "0")
+        
+        if [ "$TABLES_EXIST" = "2" ]; then
+          echo "    ⚠️ Tables already exist - they may have been partially created"
+          echo "    Dropping tables to allow clean re-run..."
+          psql "$PSQL_URL" -c "DROP TABLE IF EXISTS issuer_organization_invitations CASCADE;" > /dev/null 2>&1
+          psql "$PSQL_URL" -c "DROP TABLE IF EXISTS investor_organization_invitations CASCADE;" > /dev/null 2>&1
+        fi
+        
+        # Check if enum values were added
+        ENUM_VALUES=$(psql "$PSQL_URL" -tAc "SELECT COUNT(*) FROM pg_enum WHERE enumlabel IN ('ORGANIZATION_ADMIN', 'ORGANIZATION_MEMBER') AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'OrganizationMemberRole');" 2>/dev/null || echo "0")
+        if [ "$ENUM_VALUES" != "2" ]; then
+          echo "    Enum values not fully added, will be added in migration"
+        fi
+      fi
+      
+      # Mark migration as rolled back in database
+      psql "$PSQL_URL" -c "UPDATE _prisma_migrations SET finished_at = NULL, applied_steps_count = 0 WHERE migration_name = '$MIGRATION_NAME' AND finished_at IS NULL;" > /dev/null 2>&1
+      
+      # Also try using Prisma's resolve command
+      pnpm prisma migrate resolve --rolled-back "$MIGRATION_NAME" > /dev/null 2>&1 || true
+    done
+    echo "✅ Failed migrations resolved"
+  else
+    echo "✅ No failed migrations found"
+  fi
+  
   # Run migrations (Prisma uses the full DATABASE_URL with schema param)
   pnpm prisma migrate deploy
   

@@ -1105,7 +1105,44 @@ export class AdminRepository {
       prisma.onboardingLog.count({ where }),
     ]);
 
-    return { logs, total };
+    // Fetch organization info for each log
+    const logsWithOrgInfo = await Promise.all(
+      logs.map(async (log) => {
+        let organizationName: string | null = null;
+        let organizationType: OrganizationType | null = null;
+
+        // Try to get organization info based on portal and user_id
+        if (log.portal === "investor") {
+          const org = await prisma.investorOrganization.findFirst({
+            where: { owner_user_id: log.user_id },
+            select: { name: true, type: true },
+            orderBy: { created_at: "desc" },
+          });
+          if (org) {
+            organizationName = org.name;
+            organizationType = org.type;
+          }
+        } else if (log.portal === "issuer") {
+          const org = await prisma.issuerOrganization.findFirst({
+            where: { owner_user_id: log.user_id },
+            select: { name: true, type: true },
+            orderBy: { created_at: "desc" },
+          });
+          if (org) {
+            organizationName = org.name;
+            organizationType = org.type;
+          }
+        }
+
+        return {
+          ...log,
+          organizationName,
+          organizationType,
+        };
+      })
+    );
+
+    return { logs: logsWithOrgInfo, total };
   }
 
   /**
@@ -1128,6 +1165,8 @@ export class AdminRepository {
   ): Promise<
     (OnboardingLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+      organizationName?: string | null;
+      organizationType?: OrganizationType | null;
     })[]
   > {
     const { search, eventType, eventTypes, role, dateRange, userId } = params;
@@ -1180,7 +1219,7 @@ export class AdminRepository {
       };
     }
 
-    return prisma.onboardingLog.findMany({
+    const logs = await prisma.onboardingLog.findMany({
       where,
       orderBy: { created_at: "desc" },
       include: {
@@ -1194,6 +1233,45 @@ export class AdminRepository {
         },
       },
     });
+
+    // Fetch organization info for each log
+    const logsWithOrgInfo = await Promise.all(
+      logs.map(async (log) => {
+        let organizationName: string | null = null;
+        let organizationType: OrganizationType | null = null;
+
+        // Try to get organization info based on portal and user_id
+        if (log.portal === "investor") {
+          const org = await prisma.investorOrganization.findFirst({
+            where: { owner_user_id: log.user_id },
+            select: { name: true, type: true },
+            orderBy: { created_at: "desc" },
+          });
+          if (org) {
+            organizationName = org.name;
+            organizationType = org.type;
+          }
+        } else if (log.portal === "issuer") {
+          const org = await prisma.issuerOrganization.findFirst({
+            where: { owner_user_id: log.user_id },
+            select: { name: true, type: true },
+            orderBy: { created_at: "desc" },
+          });
+          if (org) {
+            organizationName = org.name;
+            organizationType = org.type;
+          }
+        }
+
+        return {
+          ...log,
+          organizationName,
+          organizationType,
+        };
+      })
+    );
+
+    return logsWithOrgInfo;
   }
 
   /**

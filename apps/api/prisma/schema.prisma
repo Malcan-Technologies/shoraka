@@ -9,34 +9,36 @@ datasource db {
 }
 
 model User {
-  user_id                  String                 @id @unique @db.VarChar(5)
-  first_name               String
-  last_name                String
-  phone                    String?
-  email                    String                 @unique
-  cognito_sub              String                 @unique @db.VarChar(255)
-  cognito_username         String                 @db.VarChar(255)
-  investor_account         String[]               @default([])
-  issuer_account           String[]               @default([])
-  password_changed_at      DateTime?
-  created_at               DateTime               @default(now())
-  updated_at               DateTime               @updatedAt
-  email_verified           Boolean                @default(false)
-  roles                    UserRole[]
-  access_logs              AccessLog[]
-  sent_admin_invitations   AdminInvitation[]
-  admin                    Admin?
-  document_logs            DocumentLog[]
-  investments              Investment[]
-  investor_organizations   InvestorOrganization[]
-  issuer_organizations     IssuerOrganization[]
-  loans                    Loan[]
-  onboarding_logs          OnboardingLog[]
-  organization_memberships OrganizationMember[]
-  product_logs             ProductLog[]
-  regtank_onboarding       RegTankOnboarding[]
-  security_logs            SecurityLog[]
-  sessions                 UserSession[]
+  user_id                       String                           @id @unique @db.VarChar(5)
+  first_name                    String
+  last_name                     String
+  phone                         String?
+  email                         String                           @unique
+  cognito_sub                   String                           @unique @db.VarChar(255)
+  cognito_username              String                           @db.VarChar(255)
+  investor_account              String[]                         @default([])
+  issuer_account                String[]                         @default([])
+  password_changed_at           DateTime?
+  created_at                    DateTime                         @default(now())
+  updated_at                    DateTime                         @updatedAt
+  email_verified                Boolean                          @default(false)
+  roles                         UserRole[]
+  access_logs                   AccessLog[]
+  sent_admin_invitations        AdminInvitation[]                @relation("SentAdminInvitations")
+  sent_investor_org_invitations InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
+  sent_issuer_org_invitations   IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
+  admin                         Admin?
+  document_logs                 DocumentLog[]
+  investments                   Investment[]
+  investor_organizations        InvestorOrganization[]
+  issuer_organizations          IssuerOrganization[]
+  loans                         Loan[]
+  onboarding_logs               OnboardingLog[]
+  organization_memberships      OrganizationMember[]
+  product_logs                  ProductLog[]
+  regtank_onboarding            RegTankOnboarding[]
+  security_logs                 SecurityLog[]
+  sessions                      UserSession[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -142,7 +144,7 @@ model AdminInvitation {
   accepted_at        DateTime?
   invited_by_user_id String
   created_at         DateTime  @default(now())
-  invited_by         User      @relation(fields: [invited_by_user_id], references: [user_id])
+  invited_by         User      @relation("SentAdminInvitations", fields: [invited_by_user_id], references: [user_id])
 
   @@index([email])
   @@index([token])
@@ -180,7 +182,7 @@ model OnboardingLog {
   metadata    Json?
   created_at  DateTime @default(now())
   user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([role])
   @@index([event_type])
@@ -202,36 +204,36 @@ model InvestorOrganization {
   updated_at          DateTime         @updatedAt
 
   // RegTank extracted data
-  first_name          String?
-  last_name           String?
-  middle_name         String?
-  nationality         String?
-  country             String?
-  id_issuing_country String?
-  gender              String?
-  address             String?
-  date_of_birth       DateTime?
-  document_type       String?
-  document_number     String?
-  phone_number        String?
-  kyc_id              String?
-  bank_account_details Json? // From formContent displayAreas
-  wealth_declaration Json? // From formContent displayAreas
+  first_name             String?
+  last_name              String?
+  middle_name            String?
+  nationality            String?
+  country                String?
+  id_issuing_country     String?
+  gender                 String?
+  address                String?
+  date_of_birth          DateTime?
+  document_type          String?
+  document_number        String?
+  phone_number           String?
+  kyc_id                 String?
+  bank_account_details   Json? // From formContent displayAreas
+  wealth_declaration     Json? // From formContent displayAreas
   compliance_declaration Json? // From formContent displayAreas
-  document_info       Json? // From documentInfo
-  liveness_check_info Json? // From livenessCheckInfo
-  kyc_response        Json? // Full KYC webhook payload when status is APPROVED
+  document_info          Json? // From documentInfo
+  liveness_check_info    Json? // From livenessCheckInfo
+  kyc_response           Json? // Full KYC webhook payload when status is APPROVED
 
   // Sophisticated investor classification (auto-computed from RegTank data)
-  is_sophisticated_investor Boolean @default(false)
+  is_sophisticated_investor     Boolean @default(false)
   sophisticated_investor_reason String? // Reason for sophisticated investor status
 
   // Approval workflow flags
-  onboarding_approved Boolean @default(false)
-  aml_approved        Boolean @default(false)
-  tnc_accepted        Boolean @default(false)
-  deposit_received    Boolean @default(false)
-  ssm_approved        Boolean @default(false)
+  onboarding_approved Boolean   @default(false)
+  aml_approved        Boolean   @default(false)
+  tnc_accepted        Boolean   @default(false)
+  deposit_received    Boolean   @default(false)
+  ssm_approved        Boolean   @default(false)
   admin_approved_at   DateTime?
 
   // Corporate director/shareholder KYC tracking
@@ -239,13 +241,14 @@ model InvestorOrganization {
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
 
   // Corporate onboarding data extracted from COD
-  corporate_onboarding_data Json? // Basic info, criteria, addresses
+  corporate_onboarding_data    Json? // Basic info, criteria, addresses
   corporate_required_documents Json? // Required documents uploaded during onboarding
-  corporate_entities Json? // Full director/shareholder/corporate shareholder details
+  corporate_entities           Json? // Full director/shareholder/corporate shareholder details
 
-  owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
-  members OrganizationMember[]
-  regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToInvestorOrg")
+  owner              User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
+  members            OrganizationMember[]
+  invitations        InvestorOrganizationInvitation[]
+  regtank_onboarding RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
   @@index([owner_user_id])
@@ -266,31 +269,31 @@ model IssuerOrganization {
   updated_at          DateTime         @updatedAt
 
   // RegTank extracted data
-  first_name          String?
-  last_name           String?
-  middle_name         String?
-  nationality         String?
-  country             String?
-  id_issuing_country String?
-  gender              String?
-  address             String?
-  date_of_birth       DateTime?
-  document_type       String?
-  document_number     String?
-  phone_number        String?
-  kyc_id              String?
-  bank_account_details Json? // From formContent displayAreas
-  wealth_declaration Json? // From formContent displayAreas
+  first_name             String?
+  last_name              String?
+  middle_name            String?
+  nationality            String?
+  country                String?
+  id_issuing_country     String?
+  gender                 String?
+  address                String?
+  date_of_birth          DateTime?
+  document_type          String?
+  document_number        String?
+  phone_number           String?
+  kyc_id                 String?
+  bank_account_details   Json? // From formContent displayAreas
+  wealth_declaration     Json? // From formContent displayAreas
   compliance_declaration Json? // From formContent displayAreas
-  document_info       Json? // From documentInfo
-  liveness_check_info Json? // From livenessCheckInfo
-  kyc_response        Json? // Full KYC webhook payload when status is APPROVED
+  document_info          Json? // From documentInfo
+  liveness_check_info    Json? // From livenessCheckInfo
+  kyc_response           Json? // Full KYC webhook payload when status is APPROVED
 
   // Approval workflow flags
-  onboarding_approved Boolean @default(false)
-  aml_approved        Boolean @default(false)
-  tnc_accepted        Boolean @default(false)
-  ssm_checked         Boolean @default(false)
+  onboarding_approved Boolean   @default(false)
+  aml_approved        Boolean   @default(false)
+  tnc_accepted        Boolean   @default(false)
+  ssm_checked         Boolean   @default(false)
   admin_approved_at   DateTime?
 
   // Corporate director/shareholder KYC tracking
@@ -298,13 +301,14 @@ model IssuerOrganization {
   director_aml_status Json? // Stores director AML statuses for corporate onboarding
 
   // Corporate onboarding data extracted from COD
-  corporate_onboarding_data Json? // Basic info, criteria, addresses
+  corporate_onboarding_data    Json? // Basic info, criteria, addresses
   corporate_required_documents Json? // Required documents uploaded during onboarding
-  corporate_entities Json? // Full director/shareholder/corporate shareholder details
+  corporate_entities           Json? // Full director/shareholder/corporate shareholder details
 
-  owner   User                 @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
-  members OrganizationMember[]
-  regtank_onboarding RegTankOnboarding[] @relation("RegTankOnboardingToIssuerOrg")
+  owner              User                           @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
+  members            OrganizationMember[]
+  invitations        IssuerOrganizationInvitation[]
+  regtank_onboarding RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
   @@index([owner_user_id])
@@ -332,6 +336,48 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
+model InvestorOrganizationInvitation {
+  id                       String                 @id @default(cuid())
+  email                    String
+  role                     OrganizationMemberRole
+  investor_organization_id String
+  token                    String                 @unique
+  expires_at               DateTime
+  accepted                 Boolean                @default(false)
+  accepted_at              DateTime?
+  invited_by_user_id       String
+  created_at               DateTime               @default(now())
+  investor_organization    InvestorOrganization   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  invited_by               User                   @relation("SentInvestorOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([token])
+  @@index([expires_at])
+  @@index([investor_organization_id])
+  @@map("investor_organization_invitations")
+}
+
+model IssuerOrganizationInvitation {
+  id                     String                 @id @default(cuid())
+  email                  String
+  role                   OrganizationMemberRole
+  issuer_organization_id String
+  token                  String                 @unique
+  expires_at             DateTime
+  accepted               Boolean                @default(false)
+  accepted_at            DateTime?
+  invited_by_user_id     String
+  created_at             DateTime               @default(now())
+  issuer_organization    IssuerOrganization     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  invited_by             User                   @relation("SentIssuerOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([token])
+  @@index([expires_at])
+  @@index([issuer_organization_id])
+  @@map("issuer_organization_invitations")
+}
+
 model RegTankOnboarding {
   id                       String                @id @default(cuid())
   user_id                  String
@@ -355,7 +401,7 @@ model RegTankOnboarding {
   investor_organization    InvestorOrganization? @relation("RegTankOnboardingToInvestorOrg", fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization      IssuerOrganization?   @relation("RegTankOnboardingToIssuerOrg", fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  
+
   @@index([user_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
@@ -478,9 +524,8 @@ enum OnboardingStatus {
 }
 
 enum OrganizationMemberRole {
-  OWNER
-  DIRECTOR
-  MEMBER
+  ORGANIZATION_ADMIN
+  ORGANIZATION_MEMBER
 }
 
 enum SiteDocumentType {

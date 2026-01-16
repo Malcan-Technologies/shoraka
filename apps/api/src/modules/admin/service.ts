@@ -1204,10 +1204,13 @@ export class AdminService {
   async listOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
     logs: (OnboardingLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+      organizationName?: string | null;
+      organizationType?: OrganizationType | null;
     })[];
     total: number;
   }> {
-    return this.repository.getOnboardingLogs(params);
+    const { logs, total } = await this.repository.getOnboardingLogs(params);
+    return { logs, total };
   }
 
   /**
@@ -1223,6 +1226,8 @@ export class AdminService {
   async exportOnboardingLogs(params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">): Promise<
     (OnboardingLog & {
       user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
+      organizationName?: string | null;
+      organizationType?: OrganizationType | null;
     })[]
   > {
     return this.repository.getAllOnboardingLogsForExport(params);

@@ -4,6 +4,7 @@ import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
+import { getRegTankAPIClient } from "../api-client";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
@@ -20,6 +21,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
   private authRepository: AuthRepository;
+  private apiClient: ReturnType<typeof getRegTankAPIClient>;
   private provider: "ACURIS" | "DOWJONES";
 
   constructor(provider: "ACURIS" | "DOWJONES" = "ACURIS") {
@@ -27,6 +29,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
     this.authRepository = new AuthRepository();
+    this.apiClient = getRegTankAPIClient();
     this.provider = provider;
   }
 
@@ -404,10 +407,10 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 amlStatus = "Approved";
               } else if (kybStatus === "REJECTED") {
                 amlStatus = "Rejected";
-              } else if (kybStatus === "UNRESOLVED") {
+              } else if (kybStatus === "UNRESOLVED" || kybStatus === "NO_MATCH") {
+                // "No Match" means screening is complete but no match found - treat similar to "Unresolved"
+                // Both require admin review/action
                 amlStatus = "Unresolved";
-              } else if (kybStatus === "NO_MATCH") {
-                amlStatus = "Pending";
               }
 
               const amlMessageStatus = (messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
@@ -476,6 +479,21 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 });
               }
 
+              // Note: business_aml_status field was removed in migration 20260116144043
+              // Business AML status tracking is no longer needed
+              try {
+                // Removed updateBusinessAmlStatus call - field no longer exists
+              } catch (error) {
+                logger.error(
+                  {
+                    error: error instanceof Error ? error.message : String(error),
+                    organizationId: orgId,
+                    codRequestId: codRequestId || onboardingId,
+                  },
+                  "[KYB Webhook] Failed to update business_aml_status field (non-blocking)"
+                );
+              }
+
               logger.info(
                 {
                   kybRequestId: requestId,
@@ -506,6 +524,166 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           "[KYB Webhook] Failed to update business shareholder KYB AML status (non-blocking)"
         );
         // Don't throw - allow webhook to complete even if business shareholder update fails
+      }
+    }
+
+    // At the end, check if this is a business shareholder KYB and handle it
+    await this.handleBusinessShareholderKYB(payload);
+  }
+
+  /**
+   * Handle KYB webhook for business shareholders
+   * Search all organizations for matching COD requestId in corporate_entities
+   */
+  private async handleBusinessShareholderKYB(payload: RegTankKYBWebhook): Promise<void> {
+    const { requestId: kybId, onboardingId, status, riskScore, riskLevel, messageStatus } = payload;
+    
+    if (!onboardingId || !onboardingId.startsWith("COD")) {
+      // Not a business shareholder KYB
+      return;
+    }
+
+    logger.info(
+      { kybId, onboardingId },
+      "[KYB Webhook] Processing business shareholder KYB webhook"
+    );
+
+    // Search all organizations for this COD requestId
+    // Note: Prisma doesn't support nested JSON queries directly, so we'll search all orgs and filter in code
+    const [investorOrgs, issuerOrgs] = await Promise.all([
+      prisma.investorOrganization.findMany({
+        select: { id: true, corporate_entities: true, director_aml_status: true },
+      }),
+      prisma.issuerOrganization.findMany({
+        select: { id: true, corporate_entities: true, director_aml_status: true },
+      }),
+    ]);
+
+    // Filter organizations that have this COD requestId in their corporateShareholders
+    // Only include orgs that have corporate_entities with corporateShareholders
+    const matchingInvestorOrgs = investorOrgs.filter(org => {
+      if (!org.corporate_entities) return false;
+      const corporateEntities = org.corporate_entities as any;
+      const corporateShareholders = corporateEntities?.corporateShareholders || [];
+      return corporateShareholders.some((s: any) => 
+        (s.corporateOnboardingRequest?.requestId || s.requestId) === onboardingId
+      );
+    });
+
+    const matchingIssuerOrgs = issuerOrgs.filter(org => {
+      if (!org.corporate_entities) return false;
+      const corporateEntities = org.corporate_entities as any;
+      const corporateShareholders = corporateEntities?.corporateShareholders || [];
+      return corporateShareholders.some((s: any) => 
+        (s.corporateOnboardingRequest?.requestId || s.requestId) === onboardingId
+      );
+    });
+
+    const allOrgs = [
+      ...matchingInvestorOrgs.map(org => ({ ...org, portalType: "investor" as const })),
+      ...matchingIssuerOrgs.map(org => ({ ...org, portalType: "issuer" as const })),
+    ];
+
+    if (allOrgs.length === 0) {
+      logger.warn(
+        { kybId, onboardingId },
+        "[KYB Webhook] No organization found with matching business shareholder COD"
+      );
+      return;
+    }
+
+    // Update each organization
+    for (const org of allOrgs) {
+      try {
+        // Fetch updated COD details
+        const codDetails = await this.apiClient.getCorporateOnboardingDetails(onboardingId);
+        
+        // Extract business info
+        const formContent = codDetails.formContent?.displayAreas?.find(
+          (area: any) => area.displayArea === "Basic Information Setting"
+        )?.content || [];
+        
+        const businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || "Unknown";
+        const sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
+
+        // Map status
+        let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
+        const statusUpper = status.toUpperCase();
+        if (statusUpper === "RISK ASSESSED" || statusUpper === "APPROVED") {
+          amlStatus = "Approved";
+        } else if (statusUpper === "REJECTED") {
+          amlStatus = "Rejected";
+        } else if (statusUpper === "UNRESOLVED") {
+          amlStatus = "Unresolved";
+        }
+
+        // Update director_aml_status.businessShareholders
+        // Preserve existing directors array when updating businessShareholders
+        const directorAmlStatus = (org.director_aml_status as any) || { 
+          directors: [], 
+          businessShareholders: [], 
+          lastSyncedAt: new Date().toISOString() 
+        };
+        // Ensure directors array exists (preserve existing data)
+        if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+          directorAmlStatus.directors = [];
+        }
+        // Ensure businessShareholders array exists
+        if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
+          directorAmlStatus.businessShareholders = [];
+        }
+
+        const existingIndex = directorAmlStatus.businessShareholders.findIndex(
+          (bs: any) => bs.codRequestId === onboardingId || bs.kybId === kybId
+        );
+
+        const updatedShareholder = {
+          codRequestId: onboardingId,
+          kybId,
+          businessName,
+          sharePercentage: sharePercentage ? parseFloat(sharePercentage) : null,
+          amlStatus,
+          amlMessageStatus: messageStatus || "PENDING",
+          amlRiskScore: riskScore ? parseFloat(String(riskScore)) : null,
+          amlRiskLevel: riskLevel || null,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        if (existingIndex !== -1) {
+          directorAmlStatus.businessShareholders[existingIndex] = updatedShareholder;
+        } else {
+          directorAmlStatus.businessShareholders.push(updatedShareholder);
+        }
+
+        directorAmlStatus.lastSyncedAt = new Date().toISOString();
+
+        // Update database
+        if (org.portalType === "investor") {
+          await prisma.investorOrganization.update({
+            where: { id: org.id },
+            data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+          });
+        } else {
+          await prisma.issuerOrganization.update({
+            where: { id: org.id },
+            data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+          });
+        }
+
+        logger.info(
+          { kybId, onboardingId, organizationId: org.id, amlStatus },
+          "[KYB Webhook] ✓ Updated business shareholder AML status"
+        );
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            kybId,
+            onboardingId,
+            organizationId: org.id,
+          },
+          "[KYB Webhook] Failed to update business shareholder AML status"
+        );
       }
     }
   }

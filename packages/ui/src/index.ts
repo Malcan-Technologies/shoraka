@@ -79,3 +79,5 @@ export { InfoTooltip } from "./info-tooltip";
 export { CopyableField } from "./copyable-field";
 export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
+export { InviteMemberDialog } from "./invite-member-dialog";
+export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-member-dialog";

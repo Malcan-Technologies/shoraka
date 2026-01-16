@@ -6,34 +6,70 @@ import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
-import { useOrganization, type OrganizationMember, type OrganizationMemberRole } from "@cashsouk/config";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Badge } from "../../components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  useOrganization,
+  useAuthToken,
+  createApiClient,
+  type OrganizationMember,
+  type OrganizationMemberRole,
+  type BankAccountDetails,
+  type UpdateOrganizationProfileInput,
+} from "@cashsouk/config";
 import { useAuth } from "../../lib/auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAccountDocuments } from "../../hooks/use-account-documents";
+import { useOrganizationMembers } from "../../hooks/use-organization-members";
+import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
+import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { DirectorsListCard } from "../../components/directors-list-card";
+import { ShareholdersListCard } from "../../components/shareholders-list-card";
+import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
+import { InviteMemberDialog } from "../../components/invite-member-dialog";
+import { toast } from "sonner";
+import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 import {
   UserIcon,
   BuildingOffice2Icon,
   ShieldCheckIcon,
-  UserGroupIcon,
   EnvelopeIcon,
   ArrowPathIcon,
-  CheckCircleIcon,
-  ClockIcon,
+  PencilIcon,
+  XMarkIcon,
+  IdentificationIcon,
+  BanknotesIcon,
+  DocumentTextIcon,
+  MapPinIcon,
+  PhoneIcon,
+  GlobeAltIcon,
+  CalendarIcon,
+  ArrowDownTrayIcon,
+  UserPlusIcon,
+  TrashIcon,
+  ArrowRightOnRectangleIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
-const roleConfig: Record<OrganizationMemberRole, { label: string; color: string; bgColor: string; borderColor: string }> = {
-  OWNER: {
-    label: "Owner",
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+const roleConfig: Record<
+  OrganizationMemberRole,
+  { label: string; color: string; bgColor: string; borderColor: string }
+> = {
+  ORGANIZATION_ADMIN: {
+    label: "Organization Admin",
     color: "text-primary",
     bgColor: "bg-primary/10",
     borderColor: "border-primary/20",
   },
-  DIRECTOR: {
-    label: "Director",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-  },
-  MEMBER: {
-    label: "Member",
+  ORGANIZATION_MEMBER: {
+    label: "Organization Member",
     color: "text-muted-foreground",
     bgColor: "bg-muted",
     borderColor: "border-border",
@@ -54,7 +90,8 @@ function RoleBadge({ role }: { role: OrganizationMemberRole }) {
 
 function MemberCard({ member }: { member: OrganizationMember }) {
   const fullName = [member.firstName, member.lastName].filter(Boolean).join(" ") || "Unknown";
-  const initials = [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+  const initials =
+    [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
@@ -71,22 +108,6 @@ function MemberCard({ member }: { member: OrganizationMember }) {
           <p className="text-xs truncate">{member.email}</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function EmptyMembersState() {
-  return (
-    <div className="rounded-xl border bg-card p-8 text-center">
-      <div className="flex justify-center mb-4">
-        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-          <UserGroupIcon className="h-6 w-6 text-muted-foreground" />
-        </div>
-      </div>
-      <p className="text-muted-foreground">No members found for this account.</p>
-      <p className="text-sm text-muted-foreground mt-2">
-        Members will appear here once they are added to your organization.
-      </p>
     </div>
   );
 }
@@ -147,15 +168,324 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
   );
 }
 
+// Helper to format document type for display
+function formatDocumentType(type: string | null | undefined): string {
+  if (!type) return "—";
+  const typeMap: Record<string, string> = {
+    NATIONAL_ID: "National ID (NRIC)",
+    PASSPORT: "Passport",
+    DRIVING_LICENSE: "Driving License",
+  };
+  return typeMap[type] || type.replace(/_/g, " ");
+}
+
+// Helper to extract field value from RegTank bank account details
+function getBankField(
+  bankDetails: BankAccountDetails | null | undefined,
+  fieldName: string
+): string {
+  if (!bankDetails?.content) return "";
+  const field = bankDetails.content.find((f) => f.fieldName === fieldName);
+  return field?.fieldValue || "";
+}
+
+// Helper to build RegTank format bank account details
+function buildBankAccountDetails(
+  bankName: string,
+  accountNumber: string,
+  accountType: string
+): BankAccountDetails {
+  return {
+    content: [
+      { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: bankName },
+      {
+        cn: false,
+        fieldName: "Bank account number",
+        fieldType: "number",
+        fieldValue: accountNumber,
+      },
+      { cn: false, fieldName: "Account type", fieldType: "picklist", fieldValue: accountType },
+    ],
+    displayArea: "Bank Account Details",
+  };
+}
+
+// Helper to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Documents Tab Content Component
+function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof createApiClient> }) {
+  const { data: documents, isLoading, error } = useAccountDocuments();
+  const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
+
+  const handleDownload = async (documentId: string) => {
+    setDownloadingId(documentId);
+    try {
+      const response = await apiClient.getDocumentDownloadUrl(documentId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      window.open(response.data.downloadUrl, "_blank");
+    } catch {
+      toast.error("Failed to download document");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card">
+      <div className="flex items-center justify-between p-6 border-b">
+        <div>
+          <h2 className="text-lg font-semibold">Documents</h2>
+          <p className="text-sm text-muted-foreground">View and download your account documents</p>
+        </div>
+      </div>
+      <div className="p-6 space-y-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
+              >
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-10 w-32" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Failed to load documents</p>
+            <p className="text-sm mt-1">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+          </div>
+        ) : !documents || documents.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <DocumentTextIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No documents available yet</p>
+            <p className="text-sm mt-1">Documents will appear here once available.</p>
+          </div>
+        ) : (
+          <>
+            {documents.map((doc: { id: string; title: string; file_name: string; file_size: number }) => (
+              <div
+                key={doc.id}
+                className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <DocumentTextIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{doc.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(doc.file_size)} • {doc.file_name}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="default"
+                  className="gap-2 rounded-xl"
+                  onClick={() => handleDownload(doc.id)}
+                  disabled={downloadingId === doc.id}
+                >
+                  {downloadingId === doc.id ? (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      Download
+                      <ArrowDownTrayIcon className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const { isAuthenticated } = useAuth();
-  const { activeOrganization, isLoading, refreshOrganizations, organizations } = useOrganization();
+  const { getAccessToken } = useAuthToken();
+  const {
+    activeOrganization,
+    isLoading,
+    refreshOrganizations,
+    organizations,
+    updateOrganizationProfile,
+  } = useOrganization();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("profile");
+  const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
+
+  // Editing states
+  const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+  const [isEditingBanking, setIsEditingBanking] = React.useState(false);
+
+  // Organization management hooks
+  const { removeMember, changeRole, leave, isRemoving, isChangingRole, isLeaving } =
+    useOrganizationMembers(activeOrganization?.id);
+  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
+  
+  // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
+  const isCurrentUserAdmin = React.useMemo(() => {
+    if (!activeOrganization) return false;
+    if (activeOrganization.isOwner) return true;
+    return false;
+  }, [activeOrganization]);
+
+  // Form states for profile (phone + address)
+  const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
+  const [address, setAddress] = React.useState("");
+
+  // Form states for banking (matches RegTank format values)
+  const [bankName, setBankName] = React.useState("");
+  const [accountNumber, setAccountNumber] = React.useState("");
+  const [accountType, setAccountType] = React.useState("Savings");
+
+  // Fetch detailed organization data
+  const { data: orgData } = useQuery({
+    queryKey: ["organization-detail", activeOrganization?.id],
+    queryFn: async () => {
+      if (!activeOrganization?.id) return null;
+      const result = await apiClient.get<{
+        id: string;
+        firstName: string | null;
+        lastName: string | null;
+        middleName: string | null;
+        nationality: string | null;
+        country: string | null;
+        idIssuingCountry: string | null;
+        gender: string | null;
+        dateOfBirth: string | null;
+        documentType: string | null;
+        documentNumber: string | null;
+        phoneNumber: string | null;
+        address: string | null;
+        bankAccountDetails: BankAccountDetails | null;
+        onboardingStatus: string;
+        onboardedAt: string | null;
+        corporateOnboardingData?: {
+          basicInfo?: {
+            tinNumber?: string;
+            industry?: string;
+            entityType?: string;
+            businessName?: string;
+            numberOfEmployees?: number;
+            ssmRegisterNumber?: string;
+          };
+          addresses?: {
+            businessAddress?: string;
+            registeredAddress?: string;
+          };
+        };
+      }>(`/v1/organizations/issuer/${activeOrganization.id}`);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    enabled: !!activeOrganization?.id,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Initialize form values when orgData loads
+  React.useEffect(() => {
+    if (orgData) {
+      setPhoneNumber(orgData.phoneNumber || undefined);
+      setAddress(orgData.address || "");
+
+      // Extract values from RegTank format
+      setBankName(getBankField(orgData.bankAccountDetails, "Bank"));
+      setAccountNumber(getBankField(orgData.bankAccountDetails, "Bank account number"));
+      setAccountType(getBankField(orgData.bankAccountDetails, "Account type") || "Savings");
+    }
+  }, [orgData]);
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (input: UpdateOrganizationProfileInput) => {
+      if (!activeOrganization?.id) throw new Error("No organization selected");
+      return updateOrganizationProfile(activeOrganization.id, input);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      toast.success("Profile updated successfully");
+      setIsEditingProfile(false);
+      setIsEditingBanking(false);
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update profile", { description: error.message });
+    },
+  });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshOrganizations();
+    queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
     setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleSaveProfile = () => {
+    if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+      toast.error("Invalid phone number format");
+      return;
+    }
+
+    updateProfileMutation.mutate({
+      phoneNumber: phoneNumber || null,
+      address: address.trim() || null,
+    });
+  };
+
+  const handleSaveBanking = () => {
+    if (accountNumber && !/^\d{10,18}$/.test(accountNumber)) {
+      toast.error("Bank account number must be 10-18 digits");
+      return;
+    }
+
+    const hasData = bankName || accountNumber || accountType;
+    const bankAccountDetails = hasData
+      ? buildBankAccountDetails(bankName, accountNumber, accountType)
+      : null;
+
+    updateProfileMutation.mutate({ bankAccountDetails });
+  };
+
+  const handleCancelProfileEdit = () => {
+    if (orgData) {
+      setPhoneNumber(orgData.phoneNumber || undefined);
+      setAddress(orgData.address || "");
+    }
+    setIsEditingProfile(false);
+  };
+
+  const handleCancelBankingEdit = () => {
+    setBankName(getBankField(orgData?.bankAccountDetails, "Bank"));
+    setAccountNumber(getBankField(orgData?.bankAccountDetails, "Bank account number"));
+    setAccountType(getBankField(orgData?.bankAccountDetails, "Account type") || "Savings");
+    setIsEditingBanking(false);
   };
 
   // Show loading state
@@ -168,8 +498,13 @@ export default function AccountPage() {
     return <NoOrganizationState />;
   }
 
-  const accountName = activeOrganization.name || "Company Account";
-  const AccountIcon = BuildingOffice2Icon;
+  const isPersonal = activeOrganization.type === "PERSONAL";
+  const accountName = isPersonal
+    ? "Personal Account"
+    : activeOrganization.name || "Company Account";
+  const accountIcon = isPersonal ? UserIcon : BuildingOffice2Icon;
+  const AccountIcon = accountIcon;
+  const displayName = [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—";
 
   return (
     <>
@@ -188,23 +523,10 @@ export default function AccountPage() {
                 <AccountIcon className="h-7 w-7" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{accountName}</h1>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-sm text-muted-foreground">
-                    Business Account
-                  </span>
-                  {activeOrganization.onboardingStatus === "COMPLETED" ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-                      <CheckCircleIcon className="h-3.5 w-3.5" />
-                      Verified
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-                      <ClockIcon className="h-3.5 w-3.5" />
-                      Pending Verification
-                    </span>
-                  )}
-                </div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{displayName}</h1>
+                <p className="text-muted-foreground mt-1">
+                  {isPersonal ? "Issuer (Individual)" : accountName}
+                </p>
               </div>
             </div>
             <Button
@@ -218,77 +540,530 @@ export default function AccountPage() {
             </Button>
           </div>
 
-          {/* Account Details Card */}
-          <div className="rounded-xl border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Account Details</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Account Type</p>
-                <p className="text-sm font-medium">Company</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
-                <p className="text-sm font-medium">
-                  {activeOrganization.onboardingStatus === "COMPLETED" ? "Active" : "Pending Verification"}
-                </p>
-              </div>
-              {activeOrganization.registrationNumber && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Registration Number</p>
-                  <p className="text-sm font-medium">{activeOrganization.registrationNumber}</p>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
+              <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="banking" className="rounded-lg data-[state=active]:bg-background">
+                Banking
+              </TabsTrigger>
+              <TabsTrigger
+                value="documents"
+                className="rounded-lg data-[state=active]:bg-background"
+              >
+                Documents
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Profile Tab */}
+            <TabsContent value="profile" className="space-y-6 mt-6">
+              {/* Personal Info Section (Read-only) - Only for PERSONAL accounts */}
+              {isPersonal && (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Personal info</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Your KYC-verified personal details
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                    >
+                      <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
+                      Verified
+                    </Badge>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Name</Label>
+                        <Input value={displayName} disabled className="bg-muted h-11 rounded-xl" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Document Type</Label>
+                        <Input
+                          value={formatDocumentType(orgData?.documentType)}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground flex items-center gap-2">
+                          <IdentificationIcon className="h-4 w-4" />
+                          Document Number
+                        </Label>
+                        <Input
+                          value={orgData?.documentNumber || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground flex items-center gap-2">
+                          <GlobeAltIcon className="h-4 w-4" />
+                          Issuing Country
+                        </Label>
+                        <Input
+                          value={orgData?.idIssuingCountry || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      </div>
+                      {orgData?.onboardedAt && (
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Member Since
+                          </Label>
+                          <Input
+                            value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                            disabled
+                            className="bg-muted h-11 rounded-xl"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Created</p>
-                <p className="text-sm font-medium">
-                  {new Date(activeOrganization.createdAt).toLocaleDateString("en-MY", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-              </div>
-            </div>
-          </div>
 
-          {/* Members Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                Members ({activeOrganization.members?.length || 0})
-              </h2>
-            </div>
+              {/* Corporate Info Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && (
+                <CorporateInfoCard organizationId={activeOrganization.id} />
+              )}
 
-            {activeOrganization.members && activeOrganization.members.length > 0 ? (
-              <div className="grid gap-3">
-                {activeOrganization.members.map((member) => (
-                  <MemberCard key={member.id} member={member} />
-                ))}
-              </div>
-            ) : (
-              <EmptyMembersState />
-            )}
-          </div>
-
-          {/* Role Definitions for Company Accounts */}
-          <div className="px-4 py-3 bg-muted/20 rounded-lg border border-border">
-            <p className="text-xs text-muted-foreground mb-3">Role Definitions</p>
-            <div className="flex flex-wrap gap-4">
-              {Object.entries(roleConfig).map(([role, config]) => (
-                <div key={role} className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bgColor} border ${config.borderColor}`}
-                  >
-                    <ShieldCheckIcon className="h-3 w-3" />
-                    {config.label}
-                  </span>
+              {/* Contact Details Section (Editable) */}
+              <div className="rounded-xl border bg-card">
+                <div className="flex items-center justify-between p-6 border-b">
+                  <div>
+                    <h2 className="text-lg font-semibold">Contact details</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Manage your phone number and email address
+                    </p>
+                  </div>
+                  {!isEditingProfile && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="gap-2 rounded-xl"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                      Edit
+                    </Button>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <PhoneIcon className="h-4 w-4" />
+                        Phone number
+                      </Label>
+                      {isEditingProfile ? (
+                        <PhoneInput
+                          international
+                          defaultCountry="MY"
+                          value={phoneNumber}
+                          onChange={setPhoneNumber}
+                          className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                        />
+                      ) : (
+                        <Input
+                          value={phoneNumber || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <EnvelopeIcon className="h-4 w-4" />
+                        Email
+                      </Label>
+                      <Input
+                        value={activeOrganization.members?.[0]?.email || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Section (Editable) */}
+              {isPersonal ? (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Address</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Ensure your primary address is up to date
+                      </p>
+                    </div>
+                    {!isEditingProfile && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingProfile(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Full Address
+                      </Label>
+                      <Input
+                        placeholder="Enter your full address"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        disabled={!isEditingProfile}
+                        maxLength={500}
+                        className={`h-11 rounded-xl ${!isEditingProfile ? "bg-muted" : ""}`}
+                      />
+                      {isEditingProfile && (
+                        <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
+                      )}
+                    </div>
+
+                    {isEditingProfile && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelProfileEdit}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Addresses</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Business and registered addresses
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Business Address
+                      </Label>
+                      <Input
+                        value={orgData?.corporateOnboardingData?.addresses?.businessAddress || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Registered Address
+                      </Label>
+                      <Input
+                        value={orgData?.corporateOnboardingData?.addresses?.registeredAddress || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Update addresses in Corporate Info section
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Members Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">
+                    {isPersonal ? "Account Holder" : "Organization Members"} (
+                    {activeOrganization.members?.length || 0})
+                  </h2>
+                  {!isPersonal && isCurrentUserAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInviteDialogOpen(true)}
+                      className="gap-2 rounded-xl"
+                    >
+                      <UserPlusIcon className="h-4 w-4" />
+                      Invite Member
+                    </Button>
+                  )}
+                </div>
+                {activeOrganization.members && activeOrganization.members.length > 0 ? (
+                  <div className="grid gap-3">
+                    {activeOrganization.members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                        <div className="flex-1">
+                          <MemberCard member={member} />
+                        </div>
+                        {!isPersonal && isCurrentUserAdmin && !activeOrganization.isOwner && (
+                          <div className="flex items-center gap-2 ml-auto">
+                            {member.role === "ORGANIZATION_MEMBER" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_ADMIN" })}
+                                disabled={isChangingRole}
+                                className="gap-1"
+                                title="Promote to Admin"
+                              >
+                                <ArrowUpIcon className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_MEMBER" })}
+                                disabled={isChangingRole}
+                                className="gap-1"
+                                title="Demote to Member"
+                              >
+                                <ArrowDownIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMember(member.id)}
+                              disabled={isRemoving}
+                              className="gap-1 text-destructive hover:text-destructive"
+                              title="Remove Member"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        {!isPersonal && !activeOrganization.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => leave()}
+                            disabled={isLeaving}
+                            className="gap-1 text-destructive hover:text-destructive ml-auto"
+                            title="Leave Organization"
+                          >
+                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                            Leave
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+                    <p>No members found</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Invitations Section - Only for COMPANY accounts and admins */}
+              {!isPersonal && isCurrentUserAdmin && invitations.length > 0 && (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Pending Invitations</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Invitations awaiting acceptance
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    {invitations.map((invitation) => (
+                      <div key={invitation.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                        <div>
+                          <p className="font-medium">{invitation.email}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} • Expires{" "}
+                            {new Date(invitation.expiresAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const portalUrl = process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL || "http://localhost:3002";
+                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+                              navigator.clipboard.writeText(inviteLink);
+                              toast.success("Invitation link copied to clipboard");
+                            }}
+                            className="gap-1"
+                          >
+                            <ClipboardIcon className="h-4 w-4" />
+                            Copy Link
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => resend(invitation.id)}
+                            className="gap-1"
+                          >
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => revoke(invitation.id)}
+                            className="gap-1 text-destructive"
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Directors/Shareholders Cards - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && (
+                <>
+                  <DirectorsListCard organizationId={activeOrganization.id} />
+                  <ShareholdersListCard organizationId={activeOrganization.id} />
+                  <BusinessShareholdersListCard organizationId={activeOrganization.id} />
+                </>
+              )}
+
+              {/* Invite Member Dialog */}
+              {activeOrganization?.id && (
+                <InviteMemberDialog
+                  organizationId={activeOrganization.id}
+                  open={inviteDialogOpen}
+                  onOpenChange={setInviteDialogOpen}
+                />
+              )}
+            </TabsContent>
+
+            {/* Banking Tab */}
+            <TabsContent value="banking" className="space-y-6 mt-6">
+              <div className="rounded-xl border bg-card">
+                <div className="flex items-center justify-between p-6 border-b">
+                  <div>
+                    <h2 className="text-lg font-semibold">Banking details</h2>
+                    <p className="text-sm text-muted-foreground">
+                      View or update your bank account information
+                    </p>
+                  </div>
+                  {!isEditingBanking && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingBanking(true)}
+                      className="gap-2 rounded-xl"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <BanknotesIcon className="h-4 w-4" />
+                        Bank name
+                      </Label>
+                      <Input
+                        value={bankName || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <DocumentTextIcon className="h-4 w-4" />
+                        Account type
+                      </Label>
+                      <Input
+                        value={accountType || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="flex items-center gap-2">
+                        <IdentificationIcon className="h-4 w-4" />
+                        Bank account number
+                      </Label>
+                      <Input
+                        placeholder="Enter your bank account number"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                        disabled={!isEditingBanking}
+                        maxLength={18}
+                        className={`h-11 rounded-xl font-mono ${!isEditingBanking ? "bg-muted" : ""}`}
+                      />
+                      {isEditingBanking && (
+                        <p className="text-xs text-muted-foreground">
+                          Enter 10-18 digit account number
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditingBanking && (
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelBankingEdit}
+                        disabled={updateProfileMutation.isPending}
+                        className="gap-2 rounded-xl"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleSaveBanking}
+                        disabled={updateProfileMutation.isPending}
+                        className="gap-2 rounded-xl"
+                      >
+                        {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Documents Tab */}
+            <TabsContent value="documents" className="space-y-6 mt-6">
+              <DocumentsTabContent apiClient={apiClient} />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </>
   );
 }
-

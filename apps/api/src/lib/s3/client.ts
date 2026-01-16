@@ -132,6 +132,7 @@ export async function generatePresignedUploadUrl(
 
 /**
  * Generate a presigned URL for downloading a file from S3
+ * For images, use ResponseContentDisposition: inline to display in browser
  */
 export async function generatePresignedDownloadUrl(
   params: PresignedDownloadUrlParams
@@ -154,6 +155,32 @@ export async function generatePresignedDownloadUrl(
 
   return {
     downloadUrl,
+    expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
+  };
+}
+
+/**
+ * Generate a presigned URL for viewing an image (inline display)
+ */
+export async function generatePresignedViewUrl(
+  params: { key: string }
+): Promise<{ viewUrl: string; expiresIn: number }> {
+  const client = getS3Client();
+
+  const command = new GetObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: params.key,
+    ResponseContentDisposition: "inline", // Display in browser instead of download
+  });
+
+  const viewUrl = await getSignedUrl(client, command, {
+    expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
+  });
+
+  logger.debug({ key: params.key }, "Generated presigned view URL for image");
+
+  return {
+    viewUrl,
     expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS,
   };
 }
