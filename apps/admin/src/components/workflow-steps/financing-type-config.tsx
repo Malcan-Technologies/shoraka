@@ -186,6 +186,8 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
   const cancelEdit = () => {
     setIsEditing(false);
     resetForm();
+    // Clear preview state when canceling to avoid showing old preview
+    setImageUrl(null);
   };
 
   const removeFinancingType = () => {
