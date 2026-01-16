@@ -31,10 +31,59 @@ export function getS3Client(): S3Client {
 export { S3_BUCKET, S3_REGION };
 
 /**
- * Get public S3 URL from S3 key
+ * Generate direct S3 object URL (standardized AWS format)
+ * 
+ * AWS S3 has standardized URL formats. This function uses the virtual-hosted style:
+ * Format: https://{bucket}.s3.{region}.amazonaws.com/{key}
+ * 
+ * Other standardized formats AWS supports:
+ * 1. Virtual-hosted style (what we use):
+ *    https://bucket-name.s3.region.amazonaws.com/key
+ * 
+ * 2. Path-style (legacy, still supported):
+ *    https://s3.region.amazonaws.com/bucket-name/key
+ * 
+ * 3. Virtual-hosted style without region (older, works for us-east-1):
+ *    https://bucket-name.s3.amazonaws.com/key
+ * 
+ * 4. S3 website endpoint (if bucket is configured as static website):
+ *    https://bucket-name.s3-website.region.amazonaws.com/key
+ * 
+ * Note: Only works if the bucket/object is publicly accessible
+ * For private buckets, use generatePresignedDownloadUrl instead
+ * 
+ * @param key - S3 object key (e.g., "product-images/2025-01-15-abc123.jpg")
+ * @returns Direct S3 URL (only works if object is public)
  */
-export function getS3PublicUrl(key: string): string {
-  return `https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${key}`;
+export function generateDirectS3Url(key: string): string {
+  // URL-encode the key to handle special characters in file paths
+  // But preserve forward slashes (/) as they're part of the path structure
+  const encodedKey = encodeURIComponent(key).replace(/%2F/g, "/");
+  
+  // Standardized virtual-hosted style URL format
+  return `https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${encodedKey}`;
+}
+
+/**
+ * Test if an S3 object is publicly accessible
+ * Returns true if the object can be accessed without authentication
+ */
+export async function testS3ObjectPublicAccess(key: string): Promise<boolean> {
+  const directUrl = generateDirectS3Url(key);
+  
+  try {
+    // Try to fetch the object without any authentication
+    const response = await fetch(directUrl, {
+      method: "HEAD", // Just check if it exists, don't download
+      // No Authorization header = public access test
+    });
+    
+    // If we get 200 OK, the object is publicly accessible
+    return response.ok;
+  } catch (error) {
+    // If fetch fails or returns 403/404, it's not publicly accessible
+    return false;
+  }
 }
 
 // Presigned URL expiration times
@@ -151,6 +200,7 @@ export async function deleteS3Object(key: string): Promise<void> {
   logger.info({ key }, "Deleted S3 object");
 }
 
+
 /**
  * Check if an object exists in S3
  */
@@ -196,6 +246,86 @@ export function getFileExtension(fileName: string): string {
 }
 
 /**
+ * Generate S3 key for product images
+ * Format: products/{financing-type-name}/v1-{date}-{cuid}.{ext}
+ * Matches the site documents naming convention: v1_date_id.ext
+ * 
+ * @param params - Parameters for generating the S3 key
+ * @param params.financingTypeName - Name of the financing type (used as folder name)
+ * @param params.cuid - Unique identifier for the file
+ * @param params.extension - File extension (e.g., "jpg", "png")
+ */
+export function generateProductImageKey(params: {
+  financingTypeName: string;
+  cuid: string;
+  extension: string;
+}): string {
+  // Sanitize financing type name: convert to lowercase, replace spaces/special chars with hyphens
+  const sanitizedTypeName = params.financingTypeName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
+  
+  // Generate date in YYYY-MM-DD format (same as site documents)
+  const date = new Date().toISOString().split("T")[0];
+  
+  // Format: products/{type}/v1-{date}-{cuid}.{ext}
+  return `products/${sanitizedTypeName}/v1-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
+ * Parse product image S3 key to extract version, date, cuid, extension, and financing type name
+ * Format: products/{type}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if format doesn't match
+ */
+export function parseProductImageKey(s3Key: string): {
+  financingTypeName: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  // Match: products/{type}/v{version}-{date}-{cuid}.{ext}
+  const match = s3Key.match(/^products\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
+  
+  if (!match) {
+    return null;
+  }
+
+  return {
+    financingTypeName: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5],
+  };
+}
+
+/**
+ * Generate product image S3 key with incremented version (for replacements)
+ * Reuses the same cuid and financing type name, increments version, updates date
+ */
+export function generateProductImageKeyWithVersion(params: {
+  existingS3Key: string;
+  extension: string;
+}): string | null {
+  const parsed = parseProductImageKey(params.existingS3Key);
+  
+  if (!parsed) {
+    return null;
+  }
+
+  // Increment version
+  const newVersion = parsed.version + 1;
+  
+  // Generate new date
+  const date = new Date().toISOString().split("T")[0];
+  
+  // Reuse same cuid and financing type name
+  return `products/${parsed.financingTypeName}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
+}
+
+/**
  * Validate file type and size for site documents
  */
 export function validateSiteDocument(params: {
@@ -209,6 +339,34 @@ export function validateSiteDocument(params: {
     return {
       valid: false,
       error: `Invalid content type. Allowed types: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
+    };
+  }
+
+  if (params.fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate file type and size for product images (financing type)
+ * Only PNG images are allowed for financing type product images
+ */
+export function validateProductImage(params: {
+  contentType: string;
+  fileSize: number;
+}): { valid: boolean; error?: string } {
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_CONTENT_TYPES = ["image/png"];
+
+  if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
+    return {
+      valid: false,
+      error: `Invalid content type. Only PNG images are allowed for product images.`,
     };
   }
 

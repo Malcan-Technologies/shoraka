@@ -6,80 +6,158 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
-import { useImageViewUrl } from "@/hooks/use-image-upload";
+import { 
+  useRequestProductImageDownloadUrl,
+} from "../../hooks/use-product-images";
 import { toast } from "sonner";
 
-const pendingFiles = new Map<string, { file: File; financingTypeName: string }>();
-
-export function getPendingFiles() {
-  return pendingFiles;
-}
-
-export function clearPendingFile(fileId: string) {
-  pendingFiles.delete(fileId);
-}
+// Product image validation constants (must match backend)
+const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_PRODUCT_IMAGE_TYPES = [
+  "image/png",
+] as const;
 
 interface FinancingTypeConfig {
-  type?: {
-    name: string;
-    description: string;
-    category?: string;
-    s3_key?: string;
-    _pendingFileId?: string;
-  };
+  name?: string;
+  description?: string;
+  category?: string;
+  s3_key?: string;
+  file_name?: string; // Original file name before S3 conversion
 }
 
 interface FinancingTypeConfigProps {
   config: FinancingTypeConfig;
   onChange: (config: FinancingTypeConfig) => void;
+  onFileSelected?: (file: File | null) => void; // Callback to pass selected file to parent
 }
 
-export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigProps) {
-  const currentType = config.type || null;
+export function FinancingTypeConfig({ config, onChange, onFileSelected }: FinancingTypeConfigProps) {
+  const currentType = config.name ? config : null;
 
-  const [isEditing, setIsEditing] = React.useState(!currentType);
+  const [isEditing, setIsEditing] = React.useState(!config.name);
   const [newName, setNewName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newCategory, setNewCategory] = React.useState("");
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = React.useState<string | null>(null);
 
-  const imageUrl = useImageViewUrl(currentType?.s3_key);
-  const editImageUrl = useImageViewUrl(isEditing ? currentType?.s3_key : null);
+  const requestDownloadUrl = useRequestProductImageDownloadUrl();
+
+  // Load image preview when viewing (not editing)
+  // Priority: 1) New file preview (uploadPreview), 2) Existing S3 image
+  React.useEffect(() => {
+    if (!isEditing) {
+      // If a new file is selected (pending upload), show its preview
+      if (selectedFile && uploadPreview) {
+        setImageUrl(uploadPreview);
+      } else if (currentType?.s3_key) {
+        // Otherwise, fetch presigned download URL for existing S3 image
+        requestDownloadUrl.mutateAsync({ s3Key: currentType.s3_key })
+          .then(result => {
+            setImageUrl(result.downloadUrl);
+          })
+          .catch(error => {
+            console.error("Failed to load image:", error);
+            setImageUrl(null);
+          });
+      } else {
+        setImageUrl(null);
+      }
+    } else {
+      setImageUrl(null);
+    }
+  }, [currentType?.s3_key, isEditing, selectedFile, uploadPreview]);
 
   React.useEffect(() => {
     if (currentType && isEditing) {
-      setNewName(currentType.name);
+      setNewName(currentType.name || "");
       setNewDescription(currentType.description || "");
       setNewCategory(currentType.category || "");
-      setSelectedFile(null);
+      // Don't clear selectedFile here - it might be a pending file waiting for upload
+      // Only clear if we're starting fresh (no pending file notification from parent)
+      // The file will be cleared when product is saved or dialog is cancelled
     }
   }, [currentType, isEditing]);
 
-  const saveFinancingType = async () => {
-    if (!newName.trim() || !newCategory.trim()) return;
+  // Notify parent when file is selected/deselected
+  React.useEffect(() => {
+    if (onFileSelected) {
+      onFileSelected(selectedFile);
+    }
+  }, [selectedFile, onFileSelected]);
 
-    let pendingFileId: string | undefined;
-    if (selectedFile) {
-      pendingFileId = `pending_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      pendingFiles.set(pendingFileId, {
-        file: selectedFile,
-        financingTypeName: newName.trim(),
+  // Handle file selection and create preview using FileReader
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type (must match backend validation)
+    const contentType = file.type.toLowerCase();
+    if (!ALLOWED_PRODUCT_IMAGE_TYPES.includes(contentType as any)) {
+      toast.error("Invalid file type", {
+        description: "Please select a PNG image file",
       });
+      return;
     }
 
+    // Validate file size (must match backend validation: 5MB max)
+    if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
+      const maxSizeMB = MAX_PRODUCT_IMAGE_SIZE / 1024 / 1024;
+      toast.error("File too large", {
+        description: `File size exceeds the maximum allowed size of ${maxSizeMB}MB`,
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+    // Clear existing S3 key when new file is selected (file will be uploaded later)
+
+    // Create preview using FileReader (data URL) instead of blob URL for CSP compatibility
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadPreview(reader.result as string);
+    };
+    reader.onerror = () => {
+      toast.error("Failed to load image preview");
+      setUploadPreview(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save financing type - image will be uploaded when product is saved
+  const saveFinancingType = () => {
+    if (!newName.trim() || !newCategory.trim()) return;
+    
+    // Image is required - check if file is selected or already exists
+    if (!selectedFile && !config.s3_key) {
+      toast.error("Product image is required", {
+        description: "Please select a PNG image file",
+      });
+      return;
+    }
+
+    // Save the financing type config
+    // Note: If a new file is selected, keep the existing s3_key temporarily for preview
+    // The new s3_key will be set when product is saved (after image upload)
     onChange({
       ...config,
-      type: {
-        name: newName.trim(),
-        description: newDescription.trim() || "",
-        category: newCategory.trim(),
-        s3_key: currentType?.s3_key || "",
-        _pendingFileId: pendingFileId,
-      },
+      name: newName.trim(),
+      description: newDescription.trim() || "",
+      category: newCategory.trim(),
+      // Keep existing s3_key for preview (will be replaced when product is saved with new upload)
+      s3_key: config.s3_key, // Keep existing for preview until new one is uploaded
+      file_name: selectedFile ? undefined : config.file_name, // Clear file_name if new file selected (will be set after upload)
     });
 
     setIsEditing(false);
-    resetForm();
+    // Only reset form fields, but KEEP the selected file (it will be uploaded when product is saved)
+    setNewName("");
+    setNewDescription("");
+    setNewCategory("");
+    // DO NOT clear selectedFile or uploadPreview - keep them for upload on product save
+    // DO NOT call onFileSelected(null) - keep the file in pendingFilesRef
+    // Note: uploadPreview will be shown in view mode if a new file is selected
   };
 
   const resetForm = () => {
@@ -87,21 +165,39 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
     setNewDescription("");
     setNewCategory("");
     setSelectedFile(null);
+    setUploadPreview(null);
+    // Notify parent that file is cleared (only when explicitly resetting, not on save)
+    if (onFileSelected) {
+      onFileSelected(null);
+    }
   };
 
   const startEdit = () => {
+    if (currentType) {
+      setNewName(currentType.name || "");
+      setNewDescription(currentType.description || "");
+      setNewCategory(currentType.category || "");
+      setSelectedFile(null);
+      setUploadPreview(null);
+    }
     setIsEditing(true);
   };
 
   const cancelEdit = () => {
     setIsEditing(false);
     resetForm();
+    // Clear preview state when canceling to avoid showing old preview
+    setImageUrl(null);
   };
 
   const removeFinancingType = () => {
     onChange({
       ...config,
-      type: undefined,
+      name: undefined,
+      description: undefined,
+      category: undefined,
+      s3_key: undefined,
+      file_name: undefined, // Clear file name when removing
     });
     setIsEditing(true);
     resetForm();
@@ -112,19 +208,19 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
       {!isEditing && currentType ? (
         <div className="relative p-3 sm:p-4 rounded-lg border bg-card">
           <div className="flex items-start gap-4">
-            {currentType.s3_key && (
-              <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
-                {imageUrl.isLoading ? (
-                  <div className="h-10 w-10 animate-pulse bg-muted rounded" />
-                ) : imageUrl.data ? (
-                  <img
-                    src={imageUrl.data}
-                    alt={currentType.name}
-                    className="h-10 w-10 object-contain"
-                  />
-                ) : null}
+            {imageUrl ? (
+              <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <img
+                  src={imageUrl}
+                  alt={currentType.name}
+                  className="h-full w-full object-contain"
+                />
               </div>
-            )}
+            ) : currentType.s3_key ? (
+              <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+                <span className="text-xs text-muted-foreground">Loading...</span>
+              </div>
+            ) : null}
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm sm:text-base mb-1.5 flex items-center gap-2 flex-wrap">
                 {currentType.name}
@@ -211,52 +307,60 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Product Image <span className="text-muted-foreground text-xs font-normal">(optional)</span>
-              </Label>
-              {currentType?.s3_key && !selectedFile && (
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
-                  <div className="h-14 w-14 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
-                    {editImageUrl.isLoading ? (
-                      <div className="h-10 w-10 animate-pulse bg-muted rounded" />
-                    ) : editImageUrl.data ? (
-                      <img
-                        src={editImageUrl.data}
-                        alt={currentType.name}
-                        className="h-10 w-10 object-contain"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Current image</p>
-                    <p className="text-xs text-muted-foreground">Upload a new picture to replace it</p>
+              <div>
+                <Label htmlFor="productImage" className="text-sm font-medium">
+                  Product Image <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PNG format only. Maximum file size: {MAX_PRODUCT_IMAGE_SIZE / 1024 / 1024}MB
+                </p>
+              </div>
+              
+              {/* File Input */}
+              <Input
+                id="productImage"
+                type="file"
+                accept={ALLOWED_PRODUCT_IMAGE_TYPES.join(",")}
+                onChange={handleFileSelect}
+                className="h-10 !text-sm"
+              />
+              
+              {/* Preview - Image will be uploaded when you save the product */}
+              {selectedFile && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+                    {uploadPreview && (
+                      <div className="h-16 w-16 rounded-lg bg-background border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <img
+                          src={uploadPreview}
+                          alt="Preview"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedFile.size < 1024 * 1024
+                          ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                          : `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`}
+                        {selectedFile.size > MAX_PRODUCT_IMAGE_SIZE * 0.9 && (
+                          <span className="ml-2 text-amber-600 dark:text-amber-500">
+                            (Close to limit)
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  const file = e.target.files?.[0];
-                  if (!file) {
-                    setSelectedFile(null);
-                    return;
-                  }
-                  if (file.size > 5 * 1024 * 1024) {
-                    toast.error("File too large", {
-                      description: "Maximum file size is 5MB",
-                    });
-                    e.target.value = "";
-                    return;
-                  }
-                  setSelectedFile(file);
-                }}
-              />
-              {selectedFile && (
-                <p className="text-sm text-muted-foreground">
-                  New file: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+              
+              {/*// Show existing S3 key if editing
+              {currentType?.s3_key && !selectedFile && (
+                <p className="text-xs text-muted-foreground">
+                  Current image: <code className="bg-muted px-1 rounded">{currentType.s3_key}</code>
                 </p>
-              )}
+              )} */}
             </div>
             
             <div className="space-y-2">
@@ -276,7 +380,7 @@ export function FinancingTypeConfig({ config, onChange }: FinancingTypeConfigPro
               <Button
                 type="button"
                 onClick={saveFinancingType}
-                disabled={!newName.trim() || !newCategory.trim()}
+                disabled={!newName.trim() || !newCategory.trim() || (!selectedFile && !config.s3_key)}
                 className="flex-1"
               >
                 {currentType ? (

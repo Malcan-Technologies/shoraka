@@ -12,6 +12,7 @@ import { Product, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-utils";
+import { deleteS3Object } from "../../lib/s3/client";
 
 export class ProductService {
   private repository: ProductRepository;
@@ -28,6 +29,30 @@ export class ProductService {
       const firstStep = workflow[0] as { config?: { type?: { name?: string } } };
       return firstStep?.config?.type?.name || null;
     } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Extract S3 key from workflow JSON (from financing type step)
+   */
+  private extractS3Key(workflow: Prisma.JsonValue): string | null {
+    try {
+      if (!workflow || !Array.isArray(workflow)) {
+        return null;
+      }
+
+      for (const step of workflow) {
+        const stepObj = step as { name?: string; config?: { s3_key?: string; type?: { s3_key?: string } } };
+        if (stepObj.name?.toLowerCase().includes("financing type")) {
+          // Prioritize direct s3_key, fallback to type.s3_key for legacy/different structures
+          const s3Key = stepObj.config?.s3_key || stepObj.config?.type?.s3_key;
+          return typeof s3Key === 'string' && s3Key.trim().length > 0 ? s3Key : null;
+        }
+      }
+      return null;
+    } catch (error) {
+      logger.error({ error }, "Error extracting S3 key from workflow");
       return null;
     }
   }
@@ -152,11 +177,30 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: id, input }, "Updating product");
 
+    // Extract old S3 key before updating (to delete old version if replaced)
+    const oldS3Key = this.extractS3Key(existing.workflow);
+    const newS3Key = input.workflow ? this.extractS3Key(input.workflow as Prisma.JsonValue) : null;
+
     const product = await this.repository.update(id, {
       workflow: input.workflow ? (input.workflow as Prisma.InputJsonValue) : undefined,
     });
 
     logger.info({ ...metadata, productId: product.id }, "Product updated");
+
+    // Delete old S3 key if it was replaced with a new version
+    if (oldS3Key && newS3Key && oldS3Key !== newS3Key) {
+      try {
+        logger.info({ oldS3Key, newS3Key, productId: id }, "Deleting old product image version from S3");
+        await deleteS3Object(oldS3Key);
+        logger.info({ oldS3Key, productId: id }, "Successfully deleted old product image version from S3");
+      } catch (error) {
+        logger.warn(
+          { oldS3Key, newS3Key, productId: id, error },
+          "Failed to delete old product image version from S3 (product update will continue)"
+        );
+        // Don't throw - product is already updated, S3 cleanup failure shouldn't block
+      }
+    }
 
     // Log the product update
     if (req.user?.user_id) {
@@ -190,12 +234,29 @@ export class ProductService {
 
     logger.info({ ...metadata, productId: id }, "Deleting product");
 
-    // Extract product name before deletion
+    // Extract product name and S3 key before deletion
     const productName = this.extractProductName(existing.workflow);
+    const s3Key = this.extractS3Key(existing.workflow);
 
+    // Delete the product from database
     await this.repository.delete(id);
 
     logger.info({ ...metadata, productId: id }, "Product deleted");
+
+    // Delete S3 image if it exists
+    if (s3Key) {
+      try {
+        logger.info({ s3Key, productId: id }, "Deleting product image from S3");
+        await deleteS3Object(s3Key);
+        logger.info({ s3Key, productId: id }, "Successfully deleted product image from S3");
+      } catch (error) {
+        logger.warn(
+          { s3Key, productId: id, error },
+          "Failed to delete product image from S3 (product deletion will continue)"
+        );
+        // Don't throw - product is already deleted, S3 cleanup failure shouldn't block
+      }
+    }
 
     // Log the product deletion
     if (req.user?.user_id) {

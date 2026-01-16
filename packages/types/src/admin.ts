@@ -771,6 +771,42 @@ export interface DownloadUrlResponse {
   fileSize: number;
 }
 
+// Product Image Types
+export interface RequestProductImageUploadUrlInput {
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  financingTypeName: string; // Financing type name for folder structure (e.g., "personal-loan", "business-financing")
+}
+
+export interface RequestProductImageUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface RequestProductImageDownloadUrlInput {
+  s3Key: string;
+}
+
+export interface ProductImageDownloadUrlResponse {
+  downloadUrl: string;
+  expiresIn: number;
+}
+
+export interface RequestProductImageReplaceUrlInput {
+  s3Key: string; // Existing S3 key to replace
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+}
+
+export interface RequestProductImageReplaceUrlResponse {
+  uploadUrl: string;
+  s3Key: string; // Same S3 key (replacing existing)
+  expiresIn: number;
+}
+
 // Document Log Types
 export interface DocumentLogUser {
   user_id: string;

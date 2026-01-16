@@ -31,14 +31,19 @@ const AVAILABLE_STEPS: StepType[] = [
     name: "Financing Type",
     description: "Select the type of financing product",
     icon: CurrencyDollarIcon,
-    defaultConfig: {},
+    defaultConfig: {
+      name: undefined,
+      description: undefined,
+      category: undefined,
+      s3_key: undefined,
+    },
   },
   {
     id: "financing_terms",
     name: "Financing Terms",
     description: "Configure loan terms and profit rates",
     icon: BanknotesIcon,
-    defaultConfig: { invoiceAmount: 12000, loanTerm: "60 days", profitRate: 8 },
+    defaultConfig: {},
   },
   {
     id: "invoice_details",
@@ -52,21 +57,27 @@ const AVAILABLE_STEPS: StepType[] = [
     name: "Company Info",
     description: "Business verification and details",
     icon: BuildingOfficeIcon,
-    defaultConfig: {},
+    defaultConfig: {
+      requiredFields: [],
+    },
   },
   {
     id: "supporting_documents",
     name: "Supporting Documents",
     description: "Required document uploads",
     icon: ClipboardDocumentCheckIcon,
-    defaultConfig: {},
+    defaultConfig: {
+      categories: [],
+    },
   },
   {
     id: "declaration",
     name: "Declaration",
     description: "Terms and conditions agreement",
     icon: CheckCircleIcon,
-    defaultConfig: {},
+    defaultConfig: {
+      declarations: [],
+    },
   },
   {
     id: "review_submit",

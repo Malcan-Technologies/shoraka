@@ -20,9 +20,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { WorkflowBuilder } from "./workflow-builder";
 import { useCreateProduct } from "../hooks/use-products";
+import { useRequestProductImageUploadUrl, uploadImageToS3 } from "../hooks/use-product-images";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { useImageUpload } from "../hooks/use-image-upload";
-import { getPendingFiles, clearPendingFile } from "./workflow-steps/financing-type-config";
+import { toast } from "sonner";
 
 // Schema with validation rules
 const createProductSchema = z.object({
@@ -53,7 +53,7 @@ function hasConfiguredContent(step: { name: string; config?: Record<string, any>
   
   // Financing Type step: Must have a product name
   if (stepName.includes("financing type")) {
-    const hasName = config.type && typeof config.type === 'object' && config.type.name;
+    const hasName = config.name && typeof config.name === 'string' && config.name.trim().length > 0;
     return hasName;
   }
   
@@ -131,7 +131,10 @@ const DEFAULT_WORKFLOW = [
 export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogProps) {
   // Hook to create product via API
   const createProduct = useCreateProduct();
-  const uploadImage = useImageUpload();
+  const requestUploadUrl = useRequestProductImageUploadUrl();
+
+  // Track pending image files by step ID (files selected but not yet uploaded)
+  const pendingFilesRef = React.useRef<Map<string, File>>(new Map());
 
   // Set up form with default workflow steps
   const form = useForm<CreateProductFormValues>({
@@ -142,9 +145,10 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
     },
   });
 
-  // Reset form when dialog closes
+  // Reset form and clear pending files when dialog closes
   React.useEffect(() => {
     if (!open) {
+      pendingFilesRef.current.clear();
       form.reset();
     }
   }, [open, form]);
@@ -171,45 +175,76 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
     });
   };
 
-  // Handle form submission - send to API
+  // Handle file selection from financing type config
+  // Only financing type has images, so we only store one file
+  const handleFileSelected = React.useCallback((stepId: string, file: File | null) => {
+    if (file) {
+      pendingFilesRef.current.set(stepId, file); // Store file for this step
+    } else {
+      pendingFilesRef.current.delete(stepId); // Remove file if user clears selection
+    }
+  }, []);
+
+  // Handle form submission - upload images first, then save product
   const onSubmit = async (values: CreateProductFormValues) => {
     try {
       // Clean up workflow before saving (remove empty categories)
       let cleanedWorkflow = cleanWorkflow(values.workflow);
 
-      // Upload pending images and update s3_key in config
-      const pendingFilesMap = getPendingFiles();
-      cleanedWorkflow = await Promise.all(
-        cleanedWorkflow.map(async (step: any) => {
-          if (step.config?.type?._pendingFileId) {
-            const fileId = step.config.type._pendingFileId;
-            const pendingFile = pendingFilesMap.get(fileId);
-            
-            if (pendingFile) {
-              try {
-                const s3Key = await uploadImage.mutateAsync({
-                  file: pendingFile.file,
-                  financingTypeName: pendingFile.financingTypeName,
-                });
-                
-                // Update config with s3_key and remove pending file ID
-                step.config.type.s3_key = s3Key;
-                delete step.config.type._pendingFileId;
-                clearPendingFile(fileId);
-              } catch (error) {
-                console.error("Failed to upload image:", error);
-                throw error;
-              }
-            }
-          }
-          return step;
-        })
-      );
+      // Step 1: Upload image if pending (only financing type has images)
+      const pendingFiles = Array.from(pendingFilesRef.current.entries());
+      
+      if (pendingFiles.length > 0) {
+        // There should only be one file (financing type step)
+        const [stepId, file] = pendingFiles[0];
+        
+        // Find the financing type step
+        const step = cleanedWorkflow.find((s: any) => s.id === stepId);
+        
+        if (!step || !step.config?.name) {
+          toast.error("Cannot upload image", {
+            description: "Please configure the financing type name before saving",
+          });
+          return;
+        }
 
-      // Send workflow to API
+        try {
+          // Request presigned upload URL
+          const uploadData = await requestUploadUrl.mutateAsync({
+            fileName: file.name,
+            contentType: file.type,
+            fileSize: file.size,
+            financingTypeName: step.config.name, // Use configured product name
+          });
+
+          // Upload file directly to S3
+          await uploadImageToS3(uploadData.uploadUrl, file);
+
+          // Update workflow step with S3 key and original file name
+          step.config = {
+            ...step.config,
+            s3_key: uploadData.s3Key,
+            file_name: file.name, // Store original file name
+          };
+
+          // Remove from pending files
+          pendingFilesRef.current.delete(stepId);
+        } catch (error) {
+          toast.error("Image upload failed", {
+            description: error instanceof Error ? error.message : "Failed to upload image",
+          });
+          // Don't proceed with saving if upload fails
+          return;
+        }
+      }
+
+      // Step 2: Send workflow to API (now includes S3 keys)
       await createProduct.mutateAsync({
         workflow: cleanedWorkflow,
       });
+      
+      // Clear pending files after successful save
+      pendingFilesRef.current.clear();
       
       // Close dialog on success
       onOpenChange(false);
@@ -239,7 +274,7 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
               name="workflow"
               render={() => (
                 <FormItem>
-                  <WorkflowBuilder form={form} />
+                  <WorkflowBuilder form={form} onFileSelected={handleFileSelected} />
                 </FormItem>
               )}
             />

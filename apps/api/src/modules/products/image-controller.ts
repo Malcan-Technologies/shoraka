@@ -1,147 +1,223 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { z } from "zod";
+import { Request, Response, NextFunction, Router } from "express";
+import {
+  requestProductImageUploadUrlSchema,
+  requestProductImageDownloadUrlSchema,
+  requestProductImageReplaceUrlSchema,
+} from "./schemas";
 import { requireAuth, requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
+import {
+  generatePresignedUploadUrl,
+  generatePresignedDownloadUrl,
+  generateProductImageKey,
+  generateProductImageKeyWithVersion,
+  getFileExtension,
+  validateProductImage,
+} from "../../lib/s3/client";
 import { AppError } from "../../lib/http/error-handler";
-import { generatePresignedUploadUrl, generatePresignedViewUrl, getFileExtension, s3ObjectExists } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 
-const router = Router();
-
-const requestImageUploadUrlSchema = z.object({
-  fileName: z.string().min(1).max(255),
-  contentType: z.string().min(1),
-  fileSize: z.number().positive().max(10 * 1024 * 1024), // 10MB max
-  financingTypeName: z.string().min(1).max(255),
-});
-
-const ALLOWED_IMAGE_TYPES = ["image/png"];
-
-function sanitizeFinancingTypeName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .substring(0, 50);
+/**
+ * Generate a simple cuid-like string for S3 keys
+ */
+function generateCuid(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${timestamp}${random}`;
 }
-
-function generateImageKey(fileName: string, financingTypeName: string): string {
-  const uuid = crypto.randomUUID();
-  const extension = getFileExtension(fileName);
-  const uniqueFilename = `${uuid}.${extension}`;
-  const sanitized = sanitizeFinancingTypeName(financingTypeName);
-  return `products/${sanitized}/${uniqueFilename}`;
-}
-
-router.post(
-  "/upload-url",
-  requireAuth,
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const validated = requestImageUploadUrlSchema.parse(req.body);
-
-      if (!ALLOWED_IMAGE_TYPES.includes(validated.contentType)) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Invalid content type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(", ")}`
-        );
-      }
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const s3Key = generateImageKey(validated.fileName, validated.financingTypeName);
-
-      const result = await generatePresignedUploadUrl({
-        key: s3Key,
-        contentType: validated.contentType,
-        contentLength: validated.fileSize,
-      });
-
-      logger.info(
-        { s3Key, financingTypeName: validated.financingTypeName, adminUserId: req.user.user_id },
-        "Generated presigned upload URL for image"
-      );
-
-      res.json({
-        success: true,
-        data: {
-          uploadUrl: result.uploadUrl,
-          s3Key: result.key,
-          expiresIn: result.expiresIn,
-        },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : error instanceof z.ZodError
-            ? new AppError(400, "VALIDATION_ERROR", error.errors[0]?.message || "Invalid input")
-            : error instanceof Error
-              ? new AppError(400, "VALIDATION_ERROR", error.message)
-              : error
-      );
-    }
-  }
-);
 
 /**
- * GET /v1/products/images/view-url
- * Get presigned URL for viewing an image
+ * Request presigned URL for uploading product image
+ * POST /v1/products/images/upload-url
  */
-router.get(
-  "/view-url",
-  requireAuth,
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { s3Key } = req.query;
-      
-      if (!s3Key || typeof s3Key !== "string") {
-        throw new AppError(400, "VALIDATION_ERROR", "s3Key query parameter is required");
-      }
+async function requestProductImageUploadUrl(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const validated = requestProductImageUploadUrlSchema.parse(req.body);
 
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      // Verify file exists in S3 before generating presigned URL
-      const exists = await s3ObjectExists(s3Key);
-      if (!exists) {
-        throw new AppError(404, "NOT_FOUND", `Image not found at key: ${s3Key}`);
-      }
-
-      const { viewUrl, expiresIn } = await generatePresignedViewUrl({
-        key: s3Key,
-      });
-
-      logger.debug({ s3Key, adminUserId: req.user.user_id }, "Generated presigned view URL for image");
-
-      res.json({
-        success: true,
-        data: {
-          viewUrl,
-          expiresIn,
-        },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : error instanceof z.ZodError
-            ? new AppError(400, "VALIDATION_ERROR", error.errors[0]?.message || "Invalid input")
-            : error instanceof Error
-              ? new AppError(400, "VALIDATION_ERROR", error.message)
-              : error
-      );
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
     }
-  }
-);
 
-export { router as productImageRouter };
+    // Validate file
+    const validation = validateProductImage({
+      contentType: validated.contentType,
+      fileSize: validated.fileSize,
+    });
+
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    // Generate unique S3 key with financing type name folder structure
+    const extension = getFileExtension(validated.fileName);
+    const cuid = generateCuid();
+    const s3Key = generateProductImageKey({
+      financingTypeName: validated.financingTypeName,
+      cuid,
+      extension,
+    });
+
+    // Generate presigned upload URL
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: s3Key,
+      contentType: validated.contentType,
+      contentLength: validated.fileSize,
+    });
+
+    logger.info(
+      { s3Key, adminUserId: req.user.user_id },
+      "Generated presigned upload URL for product image"
+    );
+
+    res.json({
+      success: true,
+      data: {
+        uploadUrl,
+        s3Key,
+        expiresIn,
+      },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Request presigned URL for downloading product image
+ * POST /v1/products/images/download-url
+ */
+async function requestProductImageDownloadUrl(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const validated = requestProductImageDownloadUrlSchema.parse(req.body);
+
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    // Generate presigned download URL
+    const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
+      key: validated.s3Key,
+    });
+
+    logger.debug(
+      { s3Key: validated.s3Key },
+      "Generated presigned download URL for product image"
+    );
+
+    res.json({
+      success: true,
+      data: {
+        downloadUrl,
+        expiresIn,
+      },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Request presigned URL for replacing existing product image
+ * POST /v1/products/images/replace-url
+ */
+async function requestProductImageReplaceUrl(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const validated = requestProductImageReplaceUrlSchema.parse(req.body);
+
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    // Validate file
+    const validation = validateProductImage({
+      contentType: validated.contentType,
+      fileSize: validated.fileSize,
+    });
+
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    // Generate new S3 key with incremented version (reuses same cuid)
+    const extension = getFileExtension(validated.fileName);
+    const newS3Key = generateProductImageKeyWithVersion({
+      existingS3Key: validated.s3Key,
+      extension,
+    });
+
+    if (!newS3Key) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key format. Cannot parse existing key.");
+    }
+
+    // Generate presigned upload URL for the new S3 key (with incremented version)
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: newS3Key,
+      contentType: validated.contentType,
+      contentLength: validated.fileSize,
+    });
+
+    logger.info(
+      { oldS3Key: validated.s3Key, newS3Key, adminUserId: req.user.user_id },
+      "Generated presigned replace URL for product image (version incremented)"
+    );
+
+    res.json({
+      success: true,
+      data: {
+        uploadUrl,
+        s3Key: newS3Key, // New S3 key with incremented version
+        expiresIn,
+      },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Create router for product image routes
+ * Returns a router with all product image endpoints
+ */
+export function createProductImageRouter(): Router {
+  const router = Router();
+
+  // Request presigned upload URL (admin only)
+  router.post(
+    "/upload-url",
+    requireAuth,
+    requireRole(UserRole.ADMIN),
+    requestProductImageUploadUrl
+  );
+
+  // Request presigned replace URL (admin only) - replaces existing image
+  router.post(
+    "/replace-url",
+    requireAuth,
+    requireRole(UserRole.ADMIN),
+    requestProductImageReplaceUrl
+  );
+
+  // Request presigned download URL (authenticated users)
+  router.post(
+    "/download-url",
+    requireAuth,
+    requestProductImageDownloadUrl
+  );
+
+  return router;
+}
