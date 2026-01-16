@@ -8,20 +8,29 @@
 -- Execute entire migration in a single DO block to handle partial failures
 DO $$
 DECLARE
-    migration_complete BOOLEAN := FALSE;
+    has_new_values BOOLEAN := FALSE;
+    has_old_values BOOLEAN := FALSE;
     old_type_exists BOOLEAN := FALSE;
     new_type_exists BOOLEAN := FALSE;
 BEGIN
-    -- Check if migration is already complete (new enum values exist)
+    -- Check if new enum values exist
     SELECT EXISTS (
         SELECT 1 FROM pg_enum e
         JOIN pg_type t ON e.enumtypid = t.oid
         WHERE t.typname = 'OrganizationMemberRole'
-        AND e.enumlabel = 'ORGANIZATION_ADMIN'
-    ) INTO migration_complete;
+        AND e.enumlabel IN ('ORGANIZATION_ADMIN', 'ORGANIZATION_MEMBER')
+    ) INTO has_new_values;
     
-    -- If migration already complete, skip everything
-    IF migration_complete THEN
+    -- Check if old enum values still exist
+    SELECT EXISTS (
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'OrganizationMemberRole'
+        AND e.enumlabel IN ('OWNER', 'DIRECTOR', 'MEMBER')
+    ) INTO has_old_values;
+    
+    -- If migration already complete (has new values and no old values), skip
+    IF has_new_values AND NOT has_old_values THEN
         RAISE NOTICE 'Migration already complete, skipping';
         RETURN;
     END IF;
