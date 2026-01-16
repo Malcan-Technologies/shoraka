@@ -236,11 +236,12 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
           // Upload file directly to S3
           await uploadImageToS3(uploadData.uploadUrl, file);
 
-          // Update workflow step with new S3 key (old one will be deleted by backend)
-          step.config = {
-            ...step.config,
-            s3_key: uploadData.s3Key,
-          };
+            // Update workflow step with new S3 key and original file name (old one will be deleted by backend)
+            step.config = {
+              ...step.config,
+              s3_key: uploadData.s3Key,
+              file_name: file.name, // Store original file name
+            };
 
           // Remove from pending files
           pendingFilesRef.current.delete(stepId);

@@ -16,6 +16,7 @@ interface FinancingTypeConfig {
   description?: string;
   category?: string;
   s3_key?: string;
+  file_name?: string; // Original file name before S3 conversion
 }
 
 interface FinancingTypeConfigProps {
@@ -114,14 +115,15 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
     if (!newName.trim() || !newCategory.trim()) return;
 
     // Save the financing type config WITHOUT S3 key
-    // S3 key will be added when product is saved (after image upload)
+    // S3 key and file_name will be added when product is saved (after image upload)
     onChange({
       ...config,
       name: newName.trim(),
       description: newDescription.trim() || "",
       category: newCategory.trim(),
-      // Keep existing s3_key if no new file selected, otherwise it will be set after upload
+      // Keep existing s3_key and file_name if no new file selected, otherwise clear them (will be set after upload)
       s3_key: selectedFile ? undefined : config.s3_key,
+      file_name: selectedFile ? undefined : config.file_name,
     });
 
     setIsEditing(false);
@@ -168,6 +170,7 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
       description: undefined,
       category: undefined,
       s3_key: undefined,
+      file_name: undefined, // Clear file name when removing
     });
     setIsEditing(true);
     resetForm();

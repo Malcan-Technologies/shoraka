@@ -220,10 +220,11 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
           // Upload file directly to S3
           await uploadImageToS3(uploadData.uploadUrl, file);
 
-          // Update workflow step with S3 key (create new object to avoid mutation issues)
+          // Update workflow step with S3 key and original file name
           step.config = {
             ...step.config,
             s3_key: uploadData.s3Key,
+            file_name: file.name, // Store original file name
           };
 
           // Remove from pending files
