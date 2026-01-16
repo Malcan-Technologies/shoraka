@@ -46,6 +46,8 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "TNC_APPROVED",
   "SSM_APPROVED",
   "TNC_ACCEPTED",
+  "KYC_APPROVED",
+  "KYB_APPROVED",
 ];
 
 const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
@@ -62,6 +64,8 @@ const EVENT_TYPE_OPTIONS: { value: OnboardingEventType; label: string }[] = [
   { value: "TNC_APPROVED", label: "T&C Approved" },
   { value: "SSM_APPROVED", label: "SSM Approved" },
   { value: "TNC_ACCEPTED", label: "T&C Accepted" },
+  { value: "KYC_APPROVED", label: "KYC Approved" },
+  { value: "KYB_APPROVED", label: "KYB Approved" },
 ];
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [

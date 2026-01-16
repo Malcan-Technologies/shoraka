@@ -1,23 +1,31 @@
 import { AuditLogAggregator } from "./aggregator";
-import { AuditLogAdapter, UnifiedActivity, ActivityFilters } from "./adapters/base";
+import { AuditLogAdapter, UnifiedActivity, ActivityFilters, ActivityCategory } from "./adapters/base";
 
-// Mock adapter
-class MockAdapter implements AuditLogAdapter<any> {
+// Mock data record type
+interface MockRecord {
+  id: string;
+  user_id: string;
+  text: string;
+  created_at: Date;
+}
+
+// Mock adapter to test aggregator logic without real database calls
+class MockAdapter implements AuditLogAdapter<MockRecord> {
   constructor(
     public readonly name: string,
-    public readonly category: any,
-    private mockData: any[]
+    public readonly category: ActivityCategory,
+    private mockData: MockRecord[]
   ) {}
 
-  async query(userId: string, filters: ActivityFilters): Promise<any[]> {
+  async query(_userId: string, _filters: ActivityFilters): Promise<MockRecord[]> {
     return this.mockData;
   }
 
-  async count(userId: string, filters: ActivityFilters): Promise<number> {
+  async count(_userId: string, _filters: ActivityFilters): Promise<number> {
     return this.mockData.length;
   }
 
-  transform(record: any): UnifiedActivity {
+  transform(record: MockRecord): UnifiedActivity {
     return {
       id: record.id,
       user_id: record.user_id,
@@ -92,7 +100,7 @@ describe("AuditLogAggregator", () => {
     const aggregator = new AuditLogAggregator();
     (aggregator as any).adapters = [];
 
-    aggregator.registerAdapter(new MockAdapter("A", "organization", [{ id: "1", created_at: new Date() }]));
+    aggregator.registerAdapter(new MockAdapter("A", "organization", [{ id: "1", created_at: new Date(), user_id: userId, text: "Test Activity" }]));
 
     const result = await aggregator.aggregate(userId, {
       limit: 10,

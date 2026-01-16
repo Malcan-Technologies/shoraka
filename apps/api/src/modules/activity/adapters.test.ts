@@ -1,5 +1,4 @@
 import { OrganizationLogAdapter } from "./adapters/organization-log";
-import { prisma } from "../../lib/prisma";
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {

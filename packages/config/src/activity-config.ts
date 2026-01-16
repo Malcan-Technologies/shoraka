@@ -22,6 +22,8 @@ export const ACTIVITY_EVENT_CONFIG: Record<string, EventConfig> = {
   SSM_APPROVED: { label: "SSM Approved", dotColor: "bg-teal-500" },
   FINAL_APPROVAL_COMPLETED: { label: "Final Approval", dotColor: "bg-green-500" },
   SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", dotColor: "bg-violet-500" },
+  KYC_APPROVED: { label: "KYC Approved", dotColor: "bg-yellow-500" },
+  KYB_APPROVED: { label: "KYB Approved", dotColor: "bg-yellow-500" },
 };
 
 /**

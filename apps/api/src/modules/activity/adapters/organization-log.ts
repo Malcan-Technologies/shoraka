@@ -191,6 +191,10 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
         return "Accepted the Terms & Conditions";
       case "USER_COMPLETED":
         return "Successfully completed the onboarding process";
+      case "KYC_APPROVED":
+        return "KYC verification was approved";
+      case "KYB_APPROVED":
+        return "KYB verification was approved";
       default:
         return eventType
           .split("_")
@@ -217,6 +221,8 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
       "SSM_APPROVED",
       "TNC_ACCEPTED",
       "USER_COMPLETED",
+      "KYC_APPROVED",
+      "KYB_APPROVED"
     ];
   }
 }
