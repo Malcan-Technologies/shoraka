@@ -6,7 +6,6 @@ import {
   OrganizationType,
   OnboardingStatus,
   OrganizationMemberRole,
-  Prisma,
 } from "@prisma/client";
 
 export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization) & {
