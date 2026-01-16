@@ -219,7 +219,8 @@ export function getFileExtension(fileName: string): string {
 
 /**
  * Generate S3 key for product images
- * Format: products/{financing-type-name}/{cuid}.{ext}
+ * Format: products/{financing-type-name}/v1-{date}-{cuid}.{ext}
+ * Matches the site documents naming convention: v1_date_id.ext
  * 
  * @param params - Parameters for generating the S3 key
  * @param params.financingTypeName - Name of the financing type (used as folder name)
@@ -237,7 +238,11 @@ export function generateProductImageKey(params: {
     .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
     .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
   
-  return `products/${sanitizedTypeName}/${params.cuid}.${params.extension}`;
+  // Generate date in YYYY-MM-DD format (same as site documents)
+  const date = new Date().toISOString().split("T")[0];
+  
+  // Format: products/{type}/v1-{date}-{cuid}.{ext}
+  return `products/${sanitizedTypeName}/v1-${date}-${params.cuid}.${params.extension}`;
 }
 
 /**
