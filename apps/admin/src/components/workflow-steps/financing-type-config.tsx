@@ -129,16 +129,17 @@ export function FinancingTypeConfig({ config, onChange, onFileSelected }: Financ
       return;
     }
 
-    // Save the financing type config WITHOUT S3 key
-    // S3 key and file_name will be added when product is saved (after image upload)
+    // Save the financing type config
+    // Note: If a new file is selected, keep the existing s3_key temporarily for preview
+    // The new s3_key will be set when product is saved (after image upload)
     onChange({
       ...config,
       name: newName.trim(),
       description: newDescription.trim() || "",
       category: newCategory.trim(),
-      // Keep existing s3_key and file_name if no new file selected, otherwise clear them (will be set after upload)
-      s3_key: selectedFile ? undefined : config.s3_key,
-      file_name: selectedFile ? undefined : config.file_name,
+      // Keep existing s3_key for preview (will be replaced when product is saved with new upload)
+      s3_key: config.s3_key, // Keep existing for preview until new one is uploaded
+      file_name: selectedFile ? undefined : config.file_name, // Clear file_name if new file selected (will be set after upload)
     });
 
     setIsEditing(false);
