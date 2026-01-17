@@ -1,77 +1,88 @@
 import * as React from "react";
 
+/**
+ * Props that every step component receives
+ * Think of this as a "contract" - every step component must accept these props
+ */
 export interface StepComponentProps {
-  stepId: string;
-  stepName: string;
-  stepConfig: Record<string, unknown> | undefined;
-  applicationId: string | null;
-  selectedProductId: string | null;
-  onDataChange?: (data: Record<string, unknown>) => void;
+  stepId: string;                    // The step ID like "financing-type-1"
+  stepName: string;                  // The step name like "Financing Type"
+  stepConfig: Record<string, unknown> | undefined;  // Step configuration data
+  applicationId: string | null;      // The application ID (null if not created yet)
+  selectedProductId: string | null;  // Which product/financing type is selected
+  onDataChange?: (data: Record<string, unknown>) => void;  // Callback to send data to parent
 }
 
-/**
- * Step component mapping
- * 
- * Simple rule: Step ID = File name
- * - Step ID: "financing-type-1" → File: "./steps/financing-type-1"
- * - Step ID: "financing-terms-2" → File: "./steps/financing-terms-2"
- * 
- * To add a new step:
- * 1. Create file: steps/{step-id}.tsx (e.g., steps/financing-terms-2.tsx)
- * 2. Export default component
- * 3. Import here and add to STEP_COMPONENTS map
- */
-
-// Import step components - file name must match step ID
+// ============================================================================
+// STEP 1: Import the step components
+// ============================================================================
+// When you create a new step file, import it here
 import FinancingType1 from "./steps/financing-type-1";
-// Add more imports as you create step files:
+// Example for future steps:
 // import FinancingTerms2 from "./steps/financing-terms-2";
-// import InvoiceDetails3 from "./steps/invoice-details-3";
 
-/**
- * Map of step ID → Component
- * Step ID must match the file name (without .tsx extension)
- * 
- * Note: Supports both formats:
- * - "financing-type-1" (hyphens) - preferred format
- * - "financing_type_1" (underscores) - legacy format from admin
- */
+// ============================================================================
+// STEP 2: Create a lookup table (like a phone book)
+// ============================================================================
+// This is like a phone book: step ID → Component
+// Example: "financing-type-1" → FinancingType1 component
+//
+// TypeScript explanation:
+// - Record<string, ...> = "An object with string keys"
+// - React.ComponentType<StepComponentProps> = "A React component that accepts StepComponentProps"
+// - Together = "An object where each value is a component that accepts StepComponentProps"
 const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> = {
+  // Hyphen format (preferred)
   "financing-type-1": FinancingType1,
-  "financing_type_1": FinancingType1, // Legacy format support
-  // Add more mappings here (step ID = file name):
+  
+  // Underscore format (legacy - for old data)
+  "financing_type_1": FinancingType1,
+  
+  // Add more steps here as you create them:
   // "financing-terms-2": FinancingTerms2,
-  // "financing_terms_2": FinancingTerms2, // Legacy format
-  // "invoice-details-3": InvoiceDetails3,
-  // "invoice_details_3": InvoiceDetails3, // Legacy format
+  // "financing_terms_2": FinancingTerms2,
 };
 
-/**
- * Normalize step ID: converts underscores to hyphens for consistency
- * This allows both "financing_type_1" and "financing-type-1" to work
- */
-function normalizeStepId(stepId: string): string {
+// ============================================================================
+// STEP 3: Helper function to convert underscores to hyphens
+// ============================================================================
+// This makes "financing_type_1" become "financing-type-1"
+function convertUnderscoresToHyphens(stepId: string): string {
   return stepId.replace(/_/g, "-");
 }
 
+// ============================================================================
+// STEP 4: Main function - Find the component for a step ID
+// ============================================================================
 /**
- * Get the component for a step ID
- * Automatically maps step ID to component (step ID = file name)
- * Supports both hyphen and underscore formats
+ * This function is like looking up a name in a phone book
+ * 
+ * Example:
+ *   getStepComponent("financing-type-1")
+ *   → Looks in STEP_COMPONENTS
+ *   → Finds: FinancingType1
+ *   → Returns: FinancingType1 component
+ */
+/**
+ * Returns a React component that accepts StepComponentProps
+ * 
+ * TypeScript explanation:
+ * - Returns: React.ComponentType<StepComponentProps>
+ * - Which means: "A React component function that accepts StepComponentProps as props"
  */
 export function getStepComponent(stepId: string): React.ComponentType<StepComponentProps> {
-  // Try exact match first
-  if (STEP_COMPONENTS[stepId]) {
+  // Try 1: Look for exact match (like "financing-type-1")
+  if (stepId in STEP_COMPONENTS) {
     return STEP_COMPONENTS[stepId];
   }
   
-  // Try normalized version (underscores → hyphens)
-  const normalized = normalizeStepId(stepId);
-  if (STEP_COMPONENTS[normalized]) {
-    return STEP_COMPONENTS[normalized];
+  // Try 2: Convert underscores to hyphens and try again (like "financing_type_1" → "financing-type-1")
+  const convertedId = convertUnderscoresToHyphens(stepId);
+  if (convertedId in STEP_COMPONENTS) {
+    return STEP_COMPONENTS[convertedId];
   }
   
-  // Fallback to default component
+  // Try 3: If not found, return a placeholder component that shows an error message
   return DefaultStepComponent;
 }
 
