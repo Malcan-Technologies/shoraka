@@ -76,23 +76,18 @@ export default function NewApplicationPage() {
    * 
    * This takes the product's workflow and converts it into a simpler format
    * that we can use to display the progress indicator and step names
+   * 
+   * useMemo prevents recalculating this every render - only recalculates when selectedProduct changes
    */
   const workflowSteps = React.useMemo((): WorkflowStepInfo[] => {
-    // If we don't have a product yet, return empty array
-    if (!selectedProduct) {
-      return [];
-    }
-
-    // Check if the product has a valid workflow
-    if (!hasWorkflow(selectedProduct)) {
+    // If we don't have a product or it doesn't have a workflow, return empty array
+    if (!selectedProduct || !hasWorkflow(selectedProduct)) {
       return [];
     }
 
     // Convert each step to step info
     const product = selectedProduct as Product;
-    return product.workflow.map((step) => {
-      return toWorkflowStepInfo(step);
-    });
+    return product.workflow.map((step) => toWorkflowStepInfo(step));
   }, [selectedProduct]);
 
   const totalSteps = workflowSteps.length;
@@ -121,12 +116,17 @@ export default function NewApplicationPage() {
   // Update URL with new step
   // If we have an applicationId, use /applications/{id}?step=X
   // Otherwise, use /applications/new?step=X
-  const updateStep = React.useCallback((step: number) => {
+  // 
+  // Note: applicationId can be passed directly if we just created it (to avoid stale closure)
+  const updateStep = React.useCallback((step: number, overrideApplicationId?: string) => {
     const params = new URLSearchParams();
     params.set("step", step.toString());
     
-    if (applicationId) {
-      router.push(`/applications/${applicationId}?${params.toString()}`);
+    // Use overrideApplicationId if provided, otherwise use state applicationId
+    const appId = overrideApplicationId || applicationId;
+    
+    if (appId) {
+      router.push(`/applications/${appId}?${params.toString()}`);
     } else {
       router.push(`/applications/new?${params.toString()}`);
     }
@@ -140,11 +140,14 @@ export default function NewApplicationPage() {
 
     try {
       // Step 1: Create draft application if it doesn't exist, then save productId
+      let appIdForNavigation = applicationId; // Track which ID to use for navigation
+      
       if (currentStep === 1) {
         if (!applicationId) {
           // Create draft application first
           const newApplication = await createDraft.mutateAsync({});
           setApplicationId(newApplication.id);
+          appIdForNavigation = newApplication.id; // Use the new ID for navigation
           
           // Then save the productId to financing_type
           await updateApplication.mutateAsync({
@@ -154,14 +157,6 @@ export default function NewApplicationPage() {
             },
           });
           toast.success("Financing type saved");
-          
-          // Redirect to /applications/{id}?step=2 after creating draft
-          if (currentStep < totalSteps) {
-            const params = new URLSearchParams();
-            params.set("step", (currentStep + 1).toString());
-            router.push(`/applications/${newApplication.id}?${params.toString()}`);
-            return; // Exit early to prevent double navigation
-          }
         } else {
           // Update existing application
           await updateApplication.mutateAsync({
@@ -174,9 +169,10 @@ export default function NewApplicationPage() {
         }
       }
 
-      // Move to next step
+      // Move to next step (only if there are more steps)
       if (currentStep < totalSteps) {
-        updateStep(currentStep + 1);
+        // Pass the application ID (either existing or newly created) to updateStep
+        updateStep(currentStep + 1, appIdForNavigation || undefined);
       }
     } catch (error) {
       toast.error("Failed to save", {
