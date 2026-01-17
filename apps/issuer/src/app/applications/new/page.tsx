@@ -1,43 +1,33 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/use-products";
+import { useProduct } from "@/hooks/use-product";
 import { FinancingTypeCard } from "@/components/financing-type-card";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Progress steps for the application workflow
-const WORKFLOW_STEPS = [
-  "Financing Type",
-  "Financing Terms",
-  "Invoice Details",
-  "Verify Company Info",
-  "Supporting Documents",
-  "Declaration",
-  "Review & Submit",
-] as const;
-
 export default function NewApplicationPage() {
   const router = useRouter();
-  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+  const searchParams = useSearchParams();
 
   // Fetch all products (financing types)
-  const { data, isLoading } = useProducts({
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
-    pageSize: 100, // Get all products
+    pageSize: 100,
   });
 
   // Transform products to financing types
   const financingTypes = React.useMemo(() => {
-    if (!data || !(data as any).products) {
+    if (!productsData || !(productsData as any).products) {
       return [];
     }
 
-    return ((data as any).products as any[]).map((product: any) => {
+    return ((productsData as any).products as any[]).map((product: any) => {
       const workflow = product.workflow || [];
       
       // Find Financing Type step to get name, description, category, and image
@@ -55,14 +45,71 @@ export default function NewApplicationPage() {
         fileName: config.file_name || null,
       };
     });
-  }, [data]);
+  }, [productsData]);
+
+  // Get first product ID as default
+  const defaultProductId = React.useMemo(() => {
+    if (financingTypes.length > 0) {
+      return financingTypes[0].id;
+    }
+    return null;
+  }, [financingTypes]);
+
+  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+
+  // Sync selectedProductId with default when products load
+  React.useEffect(() => {
+    if (defaultProductId && !selectedProductId) {
+      setSelectedProductId(defaultProductId);
+    }
+  }, [defaultProductId, selectedProductId]);
+
+  // Use selected product ID or default to first product
+  const activeProductId = selectedProductId || defaultProductId;
+
+  // Fetch the selected product to get its workflow
+  const { data: selectedProduct } = useProduct(activeProductId);
+
+  // Extract workflow steps from selected product
+  const workflowSteps = React.useMemo(() => {
+    if (!selectedProduct || !(selectedProduct as any).workflow || !Array.isArray((selectedProduct as any).workflow)) {
+      return [];
+    }
+    // Extract step names from workflow
+    return ((selectedProduct as any).workflow as any[]).map((step: any) => step.name || "Unknown Step");
+  }, [selectedProduct]);
+
+  const totalSteps = workflowSteps.length;
+
+  // Get current step from URL, default to 1
+  const currentStep = React.useMemo(() => {
+    const stepParam = searchParams.get("step");
+    const step = stepParam ? parseInt(stepParam, 10) : 1;
+    return Math.max(1, Math.min(step, totalSteps || 1)); // Clamp between 1 and total steps
+  }, [searchParams, totalSteps]);
+
+  // Update URL with new step
+  const updateStep = React.useCallback((step: number) => {
+    const params = new URLSearchParams();
+    params.set("step", step.toString());
+    router.push(`/applications/new?${params.toString()}`);
+  }, [router]);
 
   const handleContinue = () => {
-    if (!selectedProductId) {
-      return;
+    if (currentStep === 1 && !selectedProductId) {
+      return; // Step 1 requires product selection
     }
-    // Navigate to next step (financing terms) with selected product ID
-    router.push(`/applications/new/financing-terms?productId=${selectedProductId}`);
+
+    // Move to next step
+    if (currentStep < totalSteps) {
+      updateStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      updateStep(currentStep - 1);
+    }
   };
 
   return (
@@ -83,59 +130,96 @@ export default function NewApplicationPage() {
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Title and Description */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-semibold">Select financing type</h2>
-            <p className="text-muted-foreground">
-              Browse and invest in verified loan opportunities from your dashboard
-            </p>
+            <h2 className="text-2xl font-semibold">
+              {workflowSteps[currentStep - 1] || "Loading..."}
+            </h2>
+            {currentStep === 1 && (
+              <p className="text-muted-foreground">
+                Browse and invest in verified loan opportunities from your dashboard
+              </p>
+            )}
           </div>
 
           {/* Progress Indicator */}
-          <ProgressIndicator steps={WORKFLOW_STEPS} currentStep={0} />
+          {workflowSteps.length > 0 && (
+            <ProgressIndicator steps={workflowSteps} currentStep={currentStep - 1} />
+          )}
 
-          {/* Financing Type Cards */}
-          <div className="space-y-3">
-            {isLoading ? (
-              // Loading skeleton
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-20 rounded-lg" />
-                ))}
-              </div>
-            ) : financingTypes.length === 0 ? (
-              // Empty state
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No financing types available</p>
-              </div>
-            ) : (
-              // Financing type rows
-              <div className="space-y-3">
-                {financingTypes.map((type) => (
-                  <FinancingTypeCard
-                    key={type.id}
-                    id={type.id}
-                    name={type.name}
-                    description={type.description}
-                    s3Key={type.s3Key}
-                    isSelected={selectedProductId === type.id}
-                    onSelect={() => setSelectedProductId(type.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Step Content */}
+          {currentStep === 1 && (
+            <div className="space-y-3">
+              {isLoadingProducts ? (
+                // Loading skeleton
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-20 rounded-lg" />
+                  ))}
+                </div>
+              ) : financingTypes.length === 0 ? (
+                // Empty state
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No financing types available</p>
+                </div>
+              ) : (
+                // Financing type rows
+                <div className="space-y-3">
+                  {financingTypes.map((type) => (
+                    <FinancingTypeCard
+                      key={type.id}
+                      id={type.id}
+                      name={type.name}
+                      description={type.description}
+                      s3Key={type.s3Key}
+                      isSelected={selectedProductId === type.id}
+                      onSelect={() => {
+                        setSelectedProductId(type.id);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2+: Other steps (placeholder) */}
+          {currentStep > 1 && (
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                {workflowSteps[currentStep - 1] || "Unknown"} step - Coming soon
+              </p>
+              {selectedProductId && (
+                <p className="text-sm text-muted-foreground">Selected Product ID: {selectedProductId}</p>
+              )}
+            </div>
+          )}
         </div>
       </main>
 
-      {/* Footer with Continue Button */}
-      <footer className="flex h-16 shrink-0 items-center justify-end gap-4 border-t px-4 sm:px-6">
-        <Button
-          onClick={handleContinue}
-          disabled={!selectedProductId}
-          className="gap-2"
-        >
-          Save and continue
-          <ArrowRightIcon className="h-4 w-4" />
-        </Button>
+      {/* Footer with Navigation Buttons */}
+      <footer className="flex h-16 shrink-0 items-center justify-between gap-4 border-t px-4 sm:px-6">
+        <div>
+          {currentStep > 1 && (
+            <Button variant="outline" onClick={handleBack}>
+              Back
+            </Button>
+          )}
+        </div>
+        <div>
+          {currentStep < totalSteps ? (
+            <Button
+              onClick={handleContinue}
+              disabled={currentStep === 1 && !selectedProductId}
+              className="gap-2"
+            >
+              Save and continue
+              <ArrowRightIcon className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button className="gap-2">
+              Submit Application
+            </Button>
+          )}
+        </div>
       </footer>
     </div>
   );

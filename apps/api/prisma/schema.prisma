@@ -309,6 +309,7 @@ model IssuerOrganization {
   members            OrganizationMember[]
   invitations        IssuerOrganizationInvitation[]
   regtank_onboarding RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
+  note_applications  NoteApplication[]
 
   // Ensure only 1 PERSONAL org per user (enforced at application level)
   @@index([owner_user_id])
@@ -483,6 +484,30 @@ model Product {
   @@map("products")
 }
 
+model NoteApplication {
+  id                      String            @id @default(cuid())
+  issuer_organization_id   String
+  status                  ApplicationStatus @default(DRAFT)
+  last_completed_step     Int               @default(0) // Last step that was completed (0 = none, 1-7 = step number)
+  financing_type          Json?             // Step 1: Financing type selection data (contains productId)
+  financing_terms         Json?             // Step 2: Financing terms data
+  invoice_details         Json?             // Step 3: Invoice details data
+  company_info            Json?             // Step 4: Company info verification data
+  supporting_documents    Json?             // Step 5: Supporting documents data
+  declaration             Json?             // Step 6: Declaration data
+  submitted_at            DateTime?
+  approved_at             DateTime?
+  rejected_at             DateTime?
+  rejection_reason        String?
+  created_at              DateTime          @default(now())
+  updated_at              DateTime          @updatedAt
+  issuer_organization      IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([issuer_organization_id])
+  @@index([status])
+  @@map("note_applications")
+}
+
 enum UserRole {
   INVESTOR
   ISSUER
@@ -536,4 +561,11 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
 }
