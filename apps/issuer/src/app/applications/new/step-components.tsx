@@ -31,20 +31,48 @@ import FinancingType1 from "./steps/financing-type-1";
 /**
  * Map of step ID → Component
  * Step ID must match the file name (without .tsx extension)
+ * 
+ * Note: Supports both formats:
+ * - "financing-type-1" (hyphens) - preferred format
+ * - "financing_type_1" (underscores) - legacy format from admin
  */
 const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> = {
   "financing-type-1": FinancingType1,
+  "financing_type_1": FinancingType1, // Legacy format support
   // Add more mappings here (step ID = file name):
   // "financing-terms-2": FinancingTerms2,
+  // "financing_terms_2": FinancingTerms2, // Legacy format
   // "invoice-details-3": InvoiceDetails3,
+  // "invoice_details_3": InvoiceDetails3, // Legacy format
 };
+
+/**
+ * Normalize step ID: converts underscores to hyphens for consistency
+ * This allows both "financing_type_1" and "financing-type-1" to work
+ */
+function normalizeStepId(stepId: string): string {
+  return stepId.replace(/_/g, "-");
+}
 
 /**
  * Get the component for a step ID
  * Automatically maps step ID to component (step ID = file name)
+ * Supports both hyphen and underscore formats
  */
 export function getStepComponent(stepId: string): React.ComponentType<StepComponentProps> {
-  return STEP_COMPONENTS[stepId] || DefaultStepComponent;
+  // Try exact match first
+  if (STEP_COMPONENTS[stepId]) {
+    return STEP_COMPONENTS[stepId];
+  }
+  
+  // Try normalized version (underscores → hyphens)
+  const normalized = normalizeStepId(stepId);
+  if (STEP_COMPONENTS[normalized]) {
+    return STEP_COMPONENTS[normalized];
+  }
+  
+  // Fallback to default component
+  return DefaultStepComponent;
 }
 
 /**
