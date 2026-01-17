@@ -6,10 +6,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/use-products";
 import { useProduct } from "@/hooks/use-product";
+import { useCreateDraftApplication, useUpdateApplication } from "@/hooks/use-applications";
 import { FinancingTypeCard } from "@/components/financing-type-card";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 export default function NewApplicationPage() {
   const router = useRouter();
@@ -88,6 +90,11 @@ export default function NewApplicationPage() {
     return Math.max(1, Math.min(step, totalSteps || 1)); // Clamp between 1 and total steps
   }, [searchParams, totalSteps]);
 
+  // Application state
+  const [applicationId, setApplicationId] = React.useState<string | null>(null);
+  const createDraft = useCreateDraftApplication();
+  const updateApplication = useUpdateApplication();
+
   // Update URL with new step
   const updateStep = React.useCallback((step: number) => {
     const params = new URLSearchParams();
@@ -95,14 +102,48 @@ export default function NewApplicationPage() {
     router.push(`/applications/new?${params.toString()}`);
   }, [router]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (currentStep === 1 && !selectedProductId) {
-      return; // Step 1 requires product selection
+      toast.error("Please select a financing type");
+      return;
     }
 
-    // Move to next step
-    if (currentStep < totalSteps) {
-      updateStep(currentStep + 1);
+    try {
+      // Step 1: Create draft application if it doesn't exist, then save productId
+      if (currentStep === 1) {
+        if (!applicationId) {
+          // Create draft application first
+          const newApplication = await createDraft.mutateAsync({});
+          setApplicationId(newApplication.id);
+          
+          // Then save the productId to financing_type
+          await updateApplication.mutateAsync({
+            id: newApplication.id,
+            input: {
+              productId: selectedProductId!,
+            },
+          });
+          toast.success("Financing type saved");
+        } else {
+          // Update existing application
+          await updateApplication.mutateAsync({
+            id: applicationId,
+            input: {
+              productId: selectedProductId!,
+            },
+          });
+          toast.success("Financing type updated");
+        }
+      }
+
+      // Move to next step
+      if (currentStep < totalSteps) {
+        updateStep(currentStep + 1);
+      }
+    } catch (error) {
+      toast.error("Failed to save", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   };
 
