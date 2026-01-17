@@ -7,18 +7,17 @@ import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/use-products";
 import { useProduct } from "@/hooks/use-product";
 import { useCreateDraftApplication, useUpdateApplication } from "@/hooks/use-applications";
-import { FinancingTypeCard } from "@/components/financing-type-card";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { getStepComponent } from "./step-components";
 
 export default function NewApplicationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Fetch all products (financing types)
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+  // Fetch all products (financing types) - only needed for step 1, but keeping for now
+  const { data: productsData } = useProducts({
     page: 1,
     pageSize: 100,
   });
@@ -72,13 +71,17 @@ export default function NewApplicationPage() {
   // Fetch the selected product to get its workflow
   const { data: selectedProduct } = useProduct(activeProductId);
 
-  // Extract workflow steps from selected product
+  // Extract workflow steps from selected product (with IDs)
   const workflowSteps = React.useMemo(() => {
     if (!selectedProduct || !(selectedProduct as any).workflow || !Array.isArray((selectedProduct as any).workflow)) {
       return [];
     }
-    // Extract step names from workflow
-    return ((selectedProduct as any).workflow as any[]).map((step: any) => step.name || "Unknown Step");
+    // Extract step info (id, name, config) from workflow
+    return ((selectedProduct as any).workflow as any[]).map((step: any) => ({
+      id: step.id || "",
+      name: step.name || "Unknown Step",
+      config: step.config || {},
+    }));
   }, [selectedProduct]);
 
   const totalSteps = workflowSteps.length;
@@ -90,17 +93,33 @@ export default function NewApplicationPage() {
     return Math.max(1, Math.min(step, totalSteps || 1)); // Clamp between 1 and total steps
   }, [searchParams, totalSteps]);
 
+  // Get current step info
+  const currentStepInfo = workflowSteps[currentStep - 1];
+  const currentStepId = currentStepInfo?.id || "";
+  const currentStepName = currentStepInfo?.name || "Loading...";
+  const currentStepConfig = currentStepInfo?.config || {};
+
+  // Get the component for current step
+  const StepComponent = getStepComponent(currentStepId);
+
   // Application state
   const [applicationId, setApplicationId] = React.useState<string | null>(null);
   const createDraft = useCreateDraftApplication();
   const updateApplication = useUpdateApplication();
 
   // Update URL with new step
+  // If we have an applicationId, use /applications/{id}?step=X
+  // Otherwise, use /applications/new?step=X
   const updateStep = React.useCallback((step: number) => {
     const params = new URLSearchParams();
     params.set("step", step.toString());
-    router.push(`/applications/new?${params.toString()}`);
-  }, [router]);
+    
+    if (applicationId) {
+      router.push(`/applications/${applicationId}?${params.toString()}`);
+    } else {
+      router.push(`/applications/new?${params.toString()}`);
+    }
+  }, [router, applicationId]);
 
   const handleContinue = async () => {
     if (currentStep === 1 && !selectedProductId) {
@@ -124,6 +143,14 @@ export default function NewApplicationPage() {
             },
           });
           toast.success("Financing type saved");
+          
+          // Redirect to /applications/{id}?step=2 after creating draft
+          if (currentStep < totalSteps) {
+            const params = new URLSearchParams();
+            params.set("step", (currentStep + 1).toString());
+            router.push(`/applications/${newApplication.id}?${params.toString()}`);
+            return; // Exit early to prevent double navigation
+          }
         } else {
           // Update existing application
           await updateApplication.mutateAsync({
@@ -171,9 +198,7 @@ export default function NewApplicationPage() {
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Title and Description */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-semibold">
-              {workflowSteps[currentStep - 1] || "Loading..."}
-            </h2>
+            <h2 className="text-2xl font-semibold">{currentStepName}</h2>
             {currentStep === 1 && (
               <p className="text-muted-foreground">
                 Browse and invest in verified loan opportunities from your dashboard
@@ -183,55 +208,25 @@ export default function NewApplicationPage() {
 
           {/* Progress Indicator */}
           {workflowSteps.length > 0 && (
-            <ProgressIndicator steps={workflowSteps} currentStep={currentStep - 1} />
+            <ProgressIndicator 
+              steps={workflowSteps.map(s => s.name)} 
+              currentStep={currentStep - 1} 
+            />
           )}
 
-          {/* Step Content */}
-          {currentStep === 1 && (
-            <div className="space-y-3">
-              {isLoadingProducts ? (
-                // Loading skeleton
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-20 rounded-lg" />
-                  ))}
-                </div>
-              ) : financingTypes.length === 0 ? (
-                // Empty state
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No financing types available</p>
-                </div>
-              ) : (
-                // Financing type rows
-                <div className="space-y-3">
-                  {financingTypes.map((type) => (
-                    <FinancingTypeCard
-                      key={type.id}
-                      id={type.id}
-                      name={type.name}
-                      description={type.description}
-                      s3Key={type.s3Key}
-                      isSelected={selectedProductId === type.id}
-                      onSelect={() => {
-                        setSelectedProductId(type.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 2+: Other steps (placeholder) */}
-          {currentStep > 1 && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                {workflowSteps[currentStep - 1] || "Unknown"} step - Coming soon
-              </p>
-              {selectedProductId && (
-                <p className="text-sm text-muted-foreground">Selected Product ID: {selectedProductId}</p>
-              )}
-            </div>
+          {/* Step Content - Dynamically render based on step ID */}
+          {currentStepInfo && (
+            <StepComponent
+              stepId={currentStepId}
+              stepName={currentStepName}
+              stepConfig={currentStepConfig}
+              applicationId={applicationId}
+              selectedProductId={selectedProductId}
+              onDataChange={(data) => {
+                // Handle step data changes (for future steps)
+                console.log("Step data changed:", data);
+              }}
+            />
           )}
         </div>
       </main>
