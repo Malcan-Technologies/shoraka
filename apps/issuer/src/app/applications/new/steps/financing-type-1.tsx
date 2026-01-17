@@ -3,9 +3,14 @@ import { FinancingTypeCard } from "@/components/financing-type-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProducts } from "@/hooks/use-products";
 import type { StepComponentProps } from "../step-components";
+import type { Product, FinancingType, ProductsResponse } from "../types";
+import { hasProducts, extractFinancingType } from "../helpers";
 
 /**
  * Financing Type Step Component
+ * 
+ * This component shows a list of financing types (products) for the user to choose from.
+ * 
  * Step ID: "financing-type-1"
  * File name must match step ID: financing-type-1.tsx
  */
@@ -13,37 +18,31 @@ export default function FinancingTypeStep({
   selectedProductId,
   onDataChange,
 }: StepComponentProps) {
+  // Keep track of which product the user selected
   const [localSelectedProductId, setLocalSelectedProductId] = React.useState<string | null>(selectedProductId);
 
-  // Fetch all products (financing types)
+  // Step 1: Fetch all products from the API
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
 
-  // Transform products to financing types
-  const financingTypes = React.useMemo(() => {
-    if (!productsData || !(productsData as any).products) {
+  // Step 2: Transform products into financing types for display
+  const financingTypes = React.useMemo((): FinancingType[] => {
+    // If we don't have data yet, return empty array
+    if (!productsData) {
       return [];
     }
 
-    return ((productsData as any).products as any[]).map((product: any) => {
-      const workflow = product.workflow || [];
-      
-      // Find Financing Type step to get name, description, category, and image
-      const financingStep = workflow.find(
-        (step: any) => step.name?.toLowerCase().includes("financing type")
-      );
-      const config = financingStep?.config || {};
+    // Check if the response has products
+    if (!hasProducts(productsData)) {
+      return [];
+    }
 
-      return {
-        id: product.id,
-        name: config.name || "Unknown",
-        description: config.description || "",
-        category: config.category || "",
-        s3Key: config.s3_key || null,
-        fileName: config.file_name || null,
-      };
+    // Convert each product to a financing type
+    const response = productsData as ProductsResponse;
+    return response.products.map((product: Product) => {
+      return extractFinancingType(product);
     });
   }, [productsData]);
 

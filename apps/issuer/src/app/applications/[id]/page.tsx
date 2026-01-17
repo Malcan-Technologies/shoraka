@@ -15,6 +15,8 @@ import {
 } from "@/hooks/use-applications";
 import { toast } from "sonner";
 import { getStepComponent } from "../new/step-components";
+import type { Product, WorkflowStepInfo } from "../new/types";
+import { hasWorkflow, toWorkflowStepInfo } from "../new/helpers";
 
 export default function ApplicationWizardPage() {
   const router = useRouter();
@@ -31,17 +33,28 @@ export default function ApplicationWizardPage() {
   // Fetch the product to get its workflow
   const { data: selectedProduct } = useProduct(selectedProductId);
 
-  // Extract workflow steps from selected product (with IDs)
-  const workflowSteps = React.useMemo(() => {
-    if (!selectedProduct || !(selectedProduct as any).workflow || !Array.isArray((selectedProduct as any).workflow)) {
+  /**
+   * Extract workflow steps from the selected product
+   * 
+   * This takes the product's workflow and converts it into a simpler format
+   * that we can use to display the progress indicator and step names
+   */
+  const workflowSteps = React.useMemo((): WorkflowStepInfo[] => {
+    // If we don't have a product yet, return empty array
+    if (!selectedProduct) {
       return [];
     }
-    // Extract step info (id, name, config) from workflow
-    return ((selectedProduct as any).workflow as any[]).map((step: any) => ({
-      id: step.id || "",
-      name: step.name || "Unknown Step",
-      config: step.config || {},
-    }));
+
+    // Check if the product has a valid workflow
+    if (!hasWorkflow(selectedProduct)) {
+      return [];
+    }
+
+    // Convert each step to step info
+    const product = selectedProduct as Product;
+    return product.workflow.map((step) => {
+      return toWorkflowStepInfo(step);
+    });
   }, [selectedProduct]);
 
   const totalSteps = workflowSteps.length;

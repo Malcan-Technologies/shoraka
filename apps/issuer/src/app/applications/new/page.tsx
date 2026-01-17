@@ -11,40 +11,40 @@ import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { getStepComponent } from "./step-components";
+import type { Product, FinancingType, ProductsResponse, WorkflowStepInfo } from "./types";
+import { hasProducts, hasWorkflow, extractFinancingType, toWorkflowStepInfo } from "./helpers";
 
 export default function NewApplicationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Fetch all products (financing types) - only needed for step 1, but keeping for now
+  // Fetch all products (financing types) from the API
   const { data: productsData } = useProducts({
     page: 1,
     pageSize: 100,
   });
 
-  // Transform products to financing types
-  const financingTypes = React.useMemo(() => {
-    if (!productsData || !(productsData as any).products) {
+  /**
+   * Transform products from API into financing types for display
+   * 
+   * This takes the raw product data and extracts just the information
+   * we need to show the financing type cards (name, description, image)
+   */
+  const financingTypes = React.useMemo((): FinancingType[] => {
+    // If we don't have data yet, return empty array
+    if (!productsData) {
       return [];
     }
 
-    return ((productsData as any).products as any[]).map((product: any) => {
-      const workflow = product.workflow || [];
-      
-      // Find Financing Type step to get name, description, category, and image
-      const financingStep = workflow.find(
-        (step: any) => step.name?.toLowerCase().includes("financing type")
-      );
-      const config = financingStep?.config || {};
+    // Check if the response has products
+    if (!hasProducts(productsData)) {
+      return [];
+    }
 
-      return {
-        id: product.id,
-        name: config.name || "Unknown",
-        description: config.description || "",
-        category: config.category || "",
-        s3Key: config.s3_key || null,
-        fileName: config.file_name || null,
-      };
+    // Convert each product to a financing type
+    const response = productsData as ProductsResponse;
+    return response.products.map((product: Product) => {
+      return extractFinancingType(product);
     });
   }, [productsData]);
 
@@ -71,17 +71,28 @@ export default function NewApplicationPage() {
   // Fetch the selected product to get its workflow
   const { data: selectedProduct } = useProduct(activeProductId);
 
-  // Extract workflow steps from selected product (with IDs)
-  const workflowSteps = React.useMemo(() => {
-    if (!selectedProduct || !(selectedProduct as any).workflow || !Array.isArray((selectedProduct as any).workflow)) {
+  /**
+   * Extract workflow steps from the selected product
+   * 
+   * This takes the product's workflow and converts it into a simpler format
+   * that we can use to display the progress indicator and step names
+   */
+  const workflowSteps = React.useMemo((): WorkflowStepInfo[] => {
+    // If we don't have a product yet, return empty array
+    if (!selectedProduct) {
       return [];
     }
-    // Extract step info (id, name, config) from workflow
-    return ((selectedProduct as any).workflow as any[]).map((step: any) => ({
-      id: step.id || "",
-      name: step.name || "Unknown Step",
-      config: step.config || {},
-    }));
+
+    // Check if the product has a valid workflow
+    if (!hasWorkflow(selectedProduct)) {
+      return [];
+    }
+
+    // Convert each step to step info
+    const product = selectedProduct as Product;
+    return product.workflow.map((step) => {
+      return toWorkflowStepInfo(step);
+    });
   }, [selectedProduct]);
 
   const totalSteps = workflowSteps.length;
