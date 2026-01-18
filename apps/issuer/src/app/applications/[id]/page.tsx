@@ -23,17 +23,28 @@ export default function ApplicationWizardPage() {
   const params = useParams();
   const applicationId = params.id as string;
 
-  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const { data: application, isLoading: isLoadingApp, refetch: refetchApplication } = useApplication(applicationId);
 
   const applicationProductId = application?.financingType?.productId || null;
 
   const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+  const [hasRefetched, setHasRefetched] = React.useState(false);
 
   React.useEffect(() => {
     if (applicationProductId) {
       setSelectedProductId(applicationProductId);
     }
   }, [applicationProductId]);
+
+  React.useEffect(() => {
+    if (application && !applicationProductId && !hasRefetched && !isLoadingApp) {
+      const timeoutId = setTimeout(() => {
+        refetchApplication();
+        setHasRefetched(true);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [application, applicationProductId, hasRefetched, isLoadingApp, refetchApplication]);
 
   const activeProductId = selectedProductId || applicationProductId;
 

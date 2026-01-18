@@ -1,5 +1,5 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -43,6 +43,7 @@ export interface Application {
 export function useCreateDraftApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: CreateDraftApplicationInput) => {
@@ -51,6 +52,9 @@ export function useCreateDraftApplication() {
         throw new Error(response.error.message);
       }
       return response.data as Application;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["application", data.id] });
     },
   });
 }
@@ -105,6 +109,7 @@ export function useValidateStep(applicationId: string | null, step: number) {
 export function useUpdateApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -120,6 +125,9 @@ export function useUpdateApplication() {
       }
       return response.data as Application;
     },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
+    },
   });
 }
 
@@ -129,6 +137,7 @@ export function useUpdateApplication() {
 export function useSubmitApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -137,6 +146,9 @@ export function useSubmitApplication() {
         throw new Error(response.error.message);
       }
       return response.data as Application;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
     },
   });
 }
