@@ -74,16 +74,17 @@ export function getStepComponent(stepId: string): React.ComponentType<StepCompon
 
 function DefaultStepComponent({ stepId, stepName }: StepComponentProps) {
   return (
-    <div className="space-y-4">
-      <p className="text-muted-foreground">
-        {stepName} step - Component not found
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Step ID: {stepId}
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Create file: <code className="text-xs">apps/issuer/src/app/applications/new/steps/{stepId}.tsx</code>
-      </p>
+    <div className="rounded-xl border bg-card p-6 space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold mb-2">{stepName}</h3>
+        <p className="text-muted-foreground">
+          This step component has not been implemented yet.
+        </p>
+      </div>
+      <div className="space-y-2 text-sm text-muted-foreground">
+        <p>Step ID: <code className="text-xs bg-muted px-2 py-1 rounded">{stepId}</code></p>
+        <p>You can continue to the next step using the navigation buttons below.</p>
+      </div>
     </div>
   );
 }

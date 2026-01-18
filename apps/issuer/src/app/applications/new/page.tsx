@@ -117,9 +117,9 @@ export default function NewApplicationPage() {
       return;
     }
 
+    let appIdForNavigation = applicationId;
+
     try {
-      let appIdForNavigation = applicationId;
-      
       if (currentStep === 1) {
         if (!applicationId) {
           const newApplication = await createDraft.mutateAsync({});
@@ -183,7 +183,6 @@ export default function NewApplicationPage() {
             toast.error("Failed to upload files", {
               description: error instanceof Error ? error.message : "Unknown error",
             });
-            return;
           }
         }
 
@@ -200,14 +199,24 @@ export default function NewApplicationPage() {
           toast.success("Data saved successfully");
         }
       }
-
-      if (currentStep < totalSteps) {
-        updateStep(currentStep + 1, appIdForNavigation || undefined);
-      }
     } catch (error) {
       toast.error("Failed to save", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
+    }
+
+    if (currentStep < totalSteps) {
+      const nextStep = currentStep + 1;
+      const params = new URLSearchParams();
+      params.set("step", nextStep.toString());
+      
+      const appId = appIdForNavigation || applicationId;
+      
+      if (appId) {
+        router.push(`/applications/${appId}?${params.toString()}`);
+      } else {
+        router.push(`/applications/new?${params.toString()}`);
+      }
     }
   };
 
@@ -248,11 +257,20 @@ export default function NewApplicationPage() {
               />
             )}
 
-            {currentStepInfo && (
+            {currentStepInfo ? (
               <StepComponent
                 stepId={currentStepId}
                 stepName={currentStepName}
                 stepConfig={currentStepConfig}
+                applicationId={applicationId}
+                selectedProductId={selectedProductId}
+                onDataChange={handleStepDataChange}
+              />
+            ) : (
+              <StepComponent
+                stepId={currentStepId || "unknown"}
+                stepName={currentStepName}
+                stepConfig={{}}
                 applicationId={applicationId}
                 selectedProductId={selectedProductId}
                 onDataChange={handleStepDataChange}

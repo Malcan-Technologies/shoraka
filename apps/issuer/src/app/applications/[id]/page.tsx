@@ -9,7 +9,6 @@ import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import {
   useApplication,
-  useValidateStep,
   useUpdateApplication,
   useSubmitApplication,
 } from "@/hooks/use-applications";
@@ -77,14 +76,6 @@ export default function ApplicationWizardPage() {
   const currentStepConfig = currentStepInfo?.config || {};
 
   const StepComponent = getStepComponent(currentStepId);
-
-  const { data: stepValidation } = useValidateStep(applicationId, currentStep);
-
-  React.useEffect(() => {
-    if (stepValidation && !stepValidation.allowed && stepValidation.lastAllowedStep !== currentStep) {
-      router.replace(`/applications/${applicationId}?step=${stepValidation.lastAllowedStep}`);
-    }
-  }, [stepValidation, currentStep, applicationId, router]);
 
   React.useEffect(() => {
     if (application && application.status !== "DRAFT" && searchParams.get("step")) {
@@ -162,7 +153,6 @@ export default function ApplicationWizardPage() {
             toast.error("Failed to upload files", {
               description: error instanceof Error ? error.message : "Unknown error",
             });
-            return;
           }
         }
 
@@ -179,15 +169,17 @@ export default function ApplicationWizardPage() {
           toast.success("Data saved successfully");
         }
       }
-
-      if (currentStep < totalSteps) {
-        updateStep(currentStep + 1);
-      }
     } catch (error) {
       toast.error("Failed to save", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
-      return;
+    }
+
+    if (currentStep < totalSteps) {
+      const nextStep = currentStep + 1;
+      const params = new URLSearchParams();
+      params.set("step", nextStep.toString());
+      router.push(`/applications/${applicationId}?${params.toString()}`);
     }
   };
 
@@ -297,11 +289,20 @@ export default function ApplicationWizardPage() {
               />
             )}
 
-            {currentStepInfo && (
+            {currentStepInfo ? (
               <StepComponent
                 stepId={currentStepId}
                 stepName={currentStepName}
                 stepConfig={currentStepConfig}
+                applicationId={applicationId}
+                selectedProductId={activeProductId}
+                onDataChange={handleStepDataChange}
+              />
+            ) : (
+              <StepComponent
+                stepId={currentStepId || "unknown"}
+                stepName={currentStepName}
+                stepConfig={{}}
                 applicationId={applicationId}
                 selectedProductId={activeProductId}
                 onDataChange={handleStepDataChange}
