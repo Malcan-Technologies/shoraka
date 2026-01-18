@@ -20,6 +20,7 @@ export interface StepComponentProps {
 import FinancingType1 from "./steps/financing-type-1";
 import VerifyCompanyInfo1 from "./steps/verify-company-info-1";
 import SupportingDocuments1 from "./steps/supporting-documents-1";
+import Declaration1 from "./steps/declaration-1";
 // Example for future steps:
 // import FinancingTerms2 from "./steps/financing-terms-2";
 
@@ -39,12 +40,14 @@ const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> =
   "verify-company-info-1": VerifyCompanyInfo1,
   "company-info-1": VerifyCompanyInfo1,
   "supporting-documents-1": SupportingDocuments1,
+  "declaration-1": Declaration1,
   
   // Underscore format (legacy - for old data)
   "financing_type_1": FinancingType1,
   "verify_company_info_1": VerifyCompanyInfo1,
   "company_info_1": VerifyCompanyInfo1,
   "supporting_documents_1": SupportingDocuments1,
+  "declaration_1": Declaration1,
   
   // Add more steps here as you create them:
   // "financing-terms-2": FinancingTerms2,
@@ -60,6 +63,21 @@ function convertUnderscoresToHyphens(stepId: string): string {
 }
 
 // ============================================================================
+// STEP 3.5: Helper function to extract base step name from dynamic IDs
+// ============================================================================
+// This handles step IDs with timestamp suffixes like "declaration_1768755454350"
+// It extracts the base name by removing the timestamp suffix
+function extractBaseStepName(stepId: string): string {
+  // Remove timestamp suffix (underscore followed by numbers at the end)
+  // Example: "declaration_1768755454350" → "declaration"
+  // Example: "supporting-documents-1_1234567890" → "supporting-documents-1"
+  const withoutTimestamp = stepId.replace(/_\d+$/, "");
+  
+  // Also handle cases like "declaration-1_1234567890" → "declaration-1"
+  return withoutTimestamp;
+}
+
+// ============================================================================
 // STEP 4: Main function - Find the component for a step ID
 // ============================================================================
 /**
@@ -70,6 +88,13 @@ function convertUnderscoresToHyphens(stepId: string): string {
  *   → Looks in STEP_COMPONENTS
  *   → Finds: FinancingType1
  *   → Returns: FinancingType1 component
+ * 
+ * It also handles dynamic step IDs with timestamps:
+ *   getStepComponent("declaration_1768755454350")
+ *   → Extracts base: "declaration"
+ *   → Tries to match: "declaration-1" or "declaration_1"
+ *   → Finds: Declaration1
+ *   → Returns: Declaration1 component
  */
 /**
  * Returns a React component that accepts StepComponentProps
@@ -90,7 +115,41 @@ export function getStepComponent(stepId: string): React.ComponentType<StepCompon
     return STEP_COMPONENTS[convertedId];
   }
   
-  // Try 3: If not found, return a placeholder component that shows an error message
+  // Try 3: Extract base step name (remove timestamp suffix) and try to match
+  // Example: "declaration_1768755454350" → "declaration"
+  const baseName = extractBaseStepName(stepId);
+  
+  // Try matching base name with common suffixes
+  // First try exact base name match (in case it's registered as just "declaration")
+  if (baseName in STEP_COMPONENTS) {
+    return STEP_COMPONENTS[baseName];
+  }
+  
+  // Then try with "-1" suffix (hyphen format)
+  // Example: "declaration" → "declaration-1"
+  const hyphenVariant = `${baseName}-1`;
+  if (hyphenVariant in STEP_COMPONENTS) {
+    return STEP_COMPONENTS[hyphenVariant];
+  }
+  
+  // Then try with "_1" suffix (underscore format)
+  // Example: "declaration" → "declaration_1"
+  const underscoreVariant = `${baseName}_1`;
+  if (underscoreVariant in STEP_COMPONENTS) {
+    return STEP_COMPONENTS[underscoreVariant];
+  }
+  
+  // Try converting base name underscores to hyphens and add "-1"
+  // Example: "supporting_documents" → "supporting-documents-1"
+  const baseNameHyphen = convertUnderscoresToHyphens(baseName);
+  if (baseNameHyphen !== baseName) {
+    const hyphenVariant2 = `${baseNameHyphen}-1`;
+    if (hyphenVariant2 in STEP_COMPONENTS) {
+      return STEP_COMPONENTS[hyphenVariant2];
+    }
+  }
+  
+  // Try 4: If not found, return a placeholder component that shows an error message
   return DefaultStepComponent;
 }
 
