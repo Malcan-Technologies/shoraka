@@ -194,10 +194,20 @@ export default function ApplicationWizardPage() {
         
         // Check if there are files to upload (for supporting documents step)
         // The component exposes _uploadFiles function in stepData
+        let dataToSave = { ...stepData };
+        
         if (stepData._uploadFiles && typeof stepData._uploadFiles === "function") {
           try {
-            // Upload files to S3 first
-            await (stepData._uploadFiles as () => Promise<void>)();
+            // Upload files to S3 first and get back fresh data with s3Keys
+            const uploadResult = await (stepData._uploadFiles as () => Promise<{ supportingDocuments: unknown } | null>)();
+            
+            // If upload returned fresh data, use it (includes s3Keys)
+            if (uploadResult) {
+              dataToSave = {
+                ...dataToSave,
+                ...uploadResult, // This includes supportingDocuments with s3Keys
+              };
+            }
           } catch (error) {
             toast.error("Failed to upload files", {
               description: error instanceof Error ? error.message : "Unknown error",
@@ -207,7 +217,6 @@ export default function ApplicationWizardPage() {
         }
 
         // Remove internal functions from stepData before saving
-        const dataToSave = { ...stepData };
         delete (dataToSave as any)._uploadFiles;
 
         if (Object.keys(dataToSave).length > 0) {

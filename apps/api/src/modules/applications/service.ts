@@ -10,6 +10,7 @@ import type {
 import { AppError } from "../../lib/http/error-handler";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { logger } from "../../lib/logger";
+import { deleteS3Object } from "../../lib/s3/client";
 
 export class NoteApplicationService {
   constructor(private repository: NoteApplicationRepository) {}
@@ -232,8 +233,125 @@ export class NoteApplicationService {
       declaration?: Prisma.InputJsonValue | null;
     } = {};
 
+    // Helper function to delete S3 files from supporting documents
+    const deleteSupportingDocumentsS3Files = async () => {
+      if (!existing.supporting_documents) {
+        logger.debug({ applicationId: id }, "No supporting documents to delete");
+        return;
+      }
+      
+      try {
+        logger.info(
+          { applicationId: id, supportingDocuments: JSON.stringify(existing.supporting_documents) },
+          "Attempting to delete S3 files from supporting documents"
+        );
+
+        // Extract S3 keys from existing supporting documents
+        // Structure: { categories: [{ name, documents: [{ title, file: { file_name, s3_key } }] }] }
+        const existingDocs = existing.supporting_documents as {
+          categories?: Array<{
+            name: string;
+            documents: Array<{
+              title: string;
+              file?: {
+                file_name?: string;
+                s3_key?: string;
+                // Backward compatibility: also check old field names
+                name?: string;
+                s3Key?: string;
+              };
+            }>;
+          }>;
+        } | null;
+
+        if (!existingDocs) {
+          logger.warn({ applicationId: id }, "Supporting documents structure is invalid");
+          return;
+        }
+
+        if (!existingDocs.categories || existingDocs.categories.length === 0) {
+          logger.debug({ applicationId: id }, "No categories found in supporting documents");
+          return;
+        }
+
+        const s3Keys: string[] = [];
+        
+        existingDocs.categories.forEach((category, catIndex) => {
+          if (!category.documents) return;
+          
+          category.documents.forEach((doc, docIndex) => {
+            // Support both s3_key (new) and s3Key (old) for backward compatibility
+            const s3Key = doc.file?.s3_key || doc.file?.s3Key;
+            if (s3Key) {
+              s3Keys.push(s3Key);
+              logger.debug(
+                { applicationId: id, categoryIndex: catIndex, docIndex, s3Key },
+                "Found S3 key to delete"
+              );
+            } else {
+              logger.debug(
+                { applicationId: id, categoryIndex: catIndex, docIndex, hasFile: !!doc.file },
+                "Document has no s3_key"
+              );
+            }
+          });
+        });
+
+        if (s3Keys.length === 0) {
+          logger.warn({ applicationId: id }, "No S3 keys found in supporting documents");
+          return;
+        }
+
+        logger.info(
+          { applicationId: id, s3KeysCount: s3Keys.length, s3Keys },
+          "Deleting application documents from S3"
+        );
+
+        // Delete all S3 files (best effort - don't fail if deletion fails)
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const s3Key of s3Keys) {
+          try {
+            await deleteS3Object(s3Key);
+            successCount++;
+            logger.info({ s3Key, applicationId: id }, "Successfully deleted application document from S3");
+          } catch (error) {
+            failCount++;
+            logger.error(
+              { s3Key, applicationId: id, error: error instanceof Error ? error.message : String(error) },
+              "Failed to delete application document from S3"
+            );
+          }
+        }
+
+        logger.info(
+          { applicationId: id, total: s3Keys.length, successCount, failCount },
+          "Completed deletion of application documents from S3"
+        );
+      } catch (error) {
+        // Log error but don't fail the update
+        logger.error(
+          { applicationId: id, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined },
+          "Error deleting S3 files from supporting documents"
+        );
+      }
+    };
+
     // If productId is provided, it's step 1 - store in financing_type
+    // If product changed, delete all S3 files from supporting documents
     if (input.productId !== undefined) {
+      // Check if product changed by comparing with existing productId
+      const existingProductId = existing.financing_type 
+        ? (existing.financing_type as { productId?: string })?.productId 
+        : null;
+      const productChanged = existingProductId !== null && existingProductId !== input.productId;
+      
+      // If product changed, delete S3 files before clearing data
+      if (productChanged) {
+        await deleteSupportingDocumentsS3Files();
+      }
+      
       stepData.financingType = { productId: input.productId };
       lastCompletedStep = Math.max(lastCompletedStep, 1);
     }
@@ -255,6 +373,24 @@ export class NoteApplicationService {
         lastCompletedStep = Math.max(lastCompletedStep, 4);
       }
       if (data.supportingDocuments !== undefined) {
+        // If clearing supporting documents (setting to null), delete S3 files first
+        // Note: This might be redundant if product changed (already deleted above),
+        // but we check to avoid double deletion - only delete if we haven't already
+        if (data.supportingDocuments === null && existing.supporting_documents) {
+          // Only delete if product didn't change (to avoid double deletion)
+          // If product changed, deletion already happened above
+          const productChanged = input.productId !== undefined && 
+            existing.financing_type &&
+            (existing.financing_type as { productId?: string })?.productId !== input.productId;
+          
+          if (!productChanged) {
+            logger.info({ applicationId: id }, "Clearing supporting documents - deleting S3 files");
+            await deleteSupportingDocumentsS3Files();
+          } else {
+            logger.debug({ applicationId: id }, "Skipping deletion - already deleted due to product change");
+          }
+        }
+        
         stepData.supportingDocuments = data.supportingDocuments as Prisma.InputJsonValue;
         lastCompletedStep = Math.max(lastCompletedStep, 5);
       }

@@ -191,13 +191,30 @@ export async function generatePresignedViewUrl(
 export async function deleteS3Object(key: string): Promise<void> {
   const client = getS3Client();
 
+  if (!key || key.trim().length === 0) {
+    throw new Error(`Invalid S3 key: "${key}"`);
+  }
+
   const command = new DeleteObjectCommand({
     Bucket: S3_BUCKET,
     Key: key,
   });
 
-  await client.send(command);
-  logger.info({ key }, "Deleted S3 object");
+  try {
+    await client.send(command);
+    logger.info({ key, bucket: S3_BUCKET }, "Successfully deleted S3 object");
+  } catch (error) {
+    logger.error(
+      { 
+        key, 
+        bucket: S3_BUCKET, 
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : undefined,
+      },
+      "Failed to delete S3 object"
+    );
+    throw error; // Re-throw so caller can handle it
+  }
 }
 
 
@@ -381,20 +398,35 @@ export function validateProductImage(params: {
 }
 
 /**
+ * Generate a simple unique ID for S3 keys (similar to cuid but shorter)
+ */
+function generateDataId(): string {
+  // Generate unique ID: random alphanumeric string (8 chars)
+  return Math.random().toString(36).substring(2, 10);
+}
+
+/**
  * Generate S3 key for application documents
- * Format: note_applications/{applicationId}/{sanitizedFileName}
+ * Format: note_applications/{applicationId}/v1_{date}_{dataId}.{ext}
+ * Example: note_applications/abc123/v1_2025-01-15_a7b9c2d1.pdf
  */
 export function generateApplicationDocumentKey(params: {
   applicationId: string;
   fileName: string;
 }): string {
-  // Sanitize file name: remove special characters, keep alphanumeric, dots, hyphens, underscores
-  const sanitizedFileName = params.fileName
-    .replace(/[^a-zA-Z0-9._-]/g, "_") // Replace special chars with underscore
-    .replace(/_{2,}/g, "_") // Replace multiple underscores with single
-    .replace(/^_+|_+$/g, ""); // Remove leading/trailing underscores
+  // Get file extension
+  const extension = params.fileName.split(".").pop()?.toLowerCase() || "bin";
   
-  return `note_applications/${params.applicationId}/${sanitizedFileName}`;
+  // Get date in YYYY-MM-DD format
+  const date = new Date().toISOString().split("T")[0];
+  
+  // Generate unique data ID
+  const dataId = generateDataId();
+  
+  // Format: v1_{date}_{dataId}.{ext}
+  const fileName = `v1_${date}_${dataId}.${extension}`;
+  
+  return `note_applications/${params.applicationId}/${fileName}`;
 }
 
 /**

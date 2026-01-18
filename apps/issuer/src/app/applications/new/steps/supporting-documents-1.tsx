@@ -10,7 +10,7 @@ import { DocumentIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/ou
 import { toast } from "sonner";
 import type { StepComponentProps } from "../step-components";
 import { useApplication, useUpdateApplication } from "@/hooks/use-applications";
-import { useRequestApplicationDocumentUploadUrl } from "@/hooks/use-application-documents";
+import { useS3Upload } from "@/hooks/use-s3-upload";
 
 /**
  * Supporting Documents Step Component
@@ -77,11 +77,8 @@ export default function SupportingDocumentsStep({
   // Structure: { "categoryIndex-documentIndex": File }
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
 
-  // Track files being uploaded (for loading states)
-  const [uploadingFiles, setUploadingFiles] = React.useState<Set<string>>(new Set());
-
-  // Hook to request upload URLs
-  const requestUploadUrl = useRequestApplicationDocumentUploadUrl();
+  // Reusable S3 upload hook
+  const { uploadFiles: uploadFilesToS3Hook, uploadingFiles, isUploading } = useS3Upload(applicationId);
 
   // Load existing files when application data loads
   React.useEffect(() => {
@@ -91,13 +88,19 @@ export default function SupportingDocumentsStep({
       existingData.categories.forEach((category, catIndex) => {
         category.documents.forEach((doc, docIndex) => {
           if (doc.file) {
-            const key = `${catIndex}-${docIndex}`;
-            files[key] = {
-              name: doc.file.name,
-              size: doc.file.size,
-              uploadedAt: doc.file.uploadedAt,
-              s3Key: (doc.file as any).s3Key, // S3 key if it exists
-            };
+            // Support both s3_key (new) and s3Key (old) for backward compatibility
+            const s3Key = (doc.file as any).s3_key || (doc.file as any).s3Key;
+            const fileName = (doc.file as any).file_name || (doc.file as any).name;
+            
+            if (s3Key) {
+              const key = `${catIndex}-${docIndex}`;
+              files[key] = {
+                name: fileName,
+                size: (doc.file as any).size || 0, // For display purposes
+                uploadedAt: (doc.file as any).uploadedAt || new Date().toISOString().split("T")[0],
+                s3Key: s3Key,
+              };
+            }
           }
         });
       });
@@ -150,79 +153,77 @@ export default function SupportingDocumentsStep({
   };
 
   // Upload files to S3 (called when user clicks "Save and continue")
-  const uploadFilesToS3 = React.useCallback(async () => {
+  // Returns the fresh data with s3Keys so parent can save it
+  const uploadFilesToS3 = React.useCallback(async (): Promise<{ supportingDocuments: unknown } | null> => {
     if (!applicationId || Object.keys(selectedFiles).length === 0) {
-      return;
+      return null;
     }
 
-    const uploadPromises = Object.entries(selectedFiles).map(async ([key, file]) => {
-      // Set uploading state
-      setUploadingFiles((prev) => new Set(prev).add(key));
+    // Convert selectedFiles to Map format for the hook
+    const filesMap = new Map(Object.entries(selectedFiles));
 
-      try {
-        // Get content type from file
-        const contentType = file.type || "application/octet-stream";
+    // Use the reusable S3 upload hook
+    const uploadResults = await uploadFilesToS3Hook(filesMap);
 
-        // Request presigned upload URL from API
-        const uploadUrlData = await requestUploadUrl.mutateAsync({
-          applicationId,
-          input: {
-            fileName: file.name,
-            contentType,
-            fileSize: file.size,
-          },
-        });
-
-        // Upload file to S3 using presigned URL
-        const uploadResponse = await fetch(uploadUrlData.uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": contentType,
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file to S3");
-        }
-
-        // Update uploadedFiles with S3 key
-        setUploadedFiles((prev) => ({
-          ...prev,
-          [key]: {
-            ...prev[key],
-            s3Key: uploadUrlData.s3Key,
-          },
-        }));
-
-        return { key, success: true };
-      } catch (error) {
-        console.error(`Upload error for ${key}:`, error);
-        return { key, success: false, error };
-      } finally {
-        // Remove uploading state
-        setUploadingFiles((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(key);
-          return newSet;
-        });
-      }
-    });
-
-    const results = await Promise.all(uploadPromises);
-    
-    // Check if all uploads succeeded
-    const failed = results.filter((r) => !r.success);
-    if (failed.length > 0) {
-      toast.error(`${failed.length} file(s) failed to upload`);
-      throw new Error("Some files failed to upload");
+    // Check if uploads succeeded
+    if (uploadResults.size === 0) {
+      throw new Error("Failed to upload files");
     }
 
     // Clear selected files after successful upload
     setSelectedFiles({});
     
-    toast.success("All files uploaded successfully");
-  }, [applicationId, selectedFiles, requestUploadUrl]);
+    // Update uploadedFiles state with s3Keys from upload results
+    const updatedFiles: typeof uploadedFiles = { ...uploadedFiles };
+    uploadResults.forEach((result, key) => {
+      if (updatedFiles[key]) {
+        updatedFiles[key] = {
+          ...updatedFiles[key],
+          s3Key: result.s3_key, // Store in state as s3Key (camelCase for internal use)
+        };
+      }
+    });
+    setUploadedFiles(updatedFiles);
+
+    // Build fresh data structure with s3Keys from upload results
+    const freshData = {
+      categories: categories.map((category, catIndex) => ({
+        name: category.name,
+        documents: category.documents.map((doc, docIndex) => {
+          const fileKey = `${catIndex}-${docIndex}`;
+          const uploadResult = uploadResults.get(fileKey);
+          const existingFile = uploadedFiles[fileKey];
+          
+          // Use s3_key from upload result if available, otherwise from existing file
+          const s3Key = uploadResult?.s3_key || existingFile?.s3Key;
+          const fileName = uploadResult?.file_name || existingFile?.name;
+          
+          if (s3Key && fileName) {
+            return {
+              title: doc.title,
+              file: {
+                file_name: fileName,
+                s3_key: s3Key,
+              },
+            };
+          }
+          
+          return { title: doc.title };
+        }),
+      })),
+    };
+    
+    // Also trigger onDataChange to update parent state
+    if (onDataChange) {
+      onDataChange({
+        supportingDocuments: freshData,
+        _uploadFiles: uploadFilesRef.current,
+      });
+    }
+    
+    // Return the fresh data with s3Keys so parent can save it immediately
+    return { supportingDocuments: freshData };
+  }, [applicationId, selectedFiles, uploadFilesToS3Hook, categories, uploadedFiles, onDataChange]);
 
   // Store upload function in a ref so it doesn't change on every render
   const uploadFilesRef = React.useRef(uploadFilesToS3);
@@ -276,18 +277,16 @@ export default function SupportingDocumentsStep({
           const key = `${catIndex}-${docIndex}`;
           const file = uploadedFiles[key];
           
-          // Only include file if it has an S3 key (uploaded to S3)
-          return {
-            title: doc.title,
-            ...(file?.s3Key && {
-              file: {
-                name: file.name,
-                size: file.size,
-                uploadedAt: file.uploadedAt,
-                s3Key: file.s3Key,
-              },
-            }),
-          };
+            // Only include file if it has an S3 key (uploaded to S3)
+            return {
+              title: doc.title,
+              ...(file?.s3Key && {
+                file: {
+                  file_name: file.name,
+                  s3_key: file.s3Key,
+                },
+              }),
+            };
         }),
       })),
     };
@@ -338,7 +337,7 @@ export default function SupportingDocumentsStep({
                 {category.documents.map((document, documentIndex) => {
                   const key = `${categoryIndex}-${documentIndex}`;
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
-                  const isUploading = uploadingFiles.has(key);
+                  const fileIsUploading = isUploading(key);
                   const file = uploadedFiles[key];
 
                   return (
@@ -353,12 +352,12 @@ export default function SupportingDocumentsStep({
                             >
                               {document.title}
                             </Label>
-                            {isUploading && (
+                            {fileIsUploading && (
                               <Badge variant="outline" className="text-xs">
                                 Uploading...
                               </Badge>
                             )}
-                            {isUploaded && !isUploading && (
+                            {isUploaded && !fileIsUploading && (
                               <Badge
                                 variant="outline"
                                 className={
@@ -378,7 +377,7 @@ export default function SupportingDocumentsStep({
                       </div>
 
                       {/* Uploaded File Display or Upload Input */}
-                      {isUploaded && file && !isUploading ? (
+                      {isUploaded && file && !fileIsUploading ? (
                         <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                           <div className="flex items-center gap-3 flex-1">
                             <DocumentIcon className="h-5 w-5 text-muted-foreground" />
@@ -413,7 +412,7 @@ export default function SupportingDocumentsStep({
                               handleFileChange(categoryIndex, documentIndex, e)
                             }
                             className="cursor-pointer"
-                            disabled={isUploading}
+                            disabled={fileIsUploading}
                           />
                           <p className="text-xs text-muted-foreground">
                             Accepted formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)

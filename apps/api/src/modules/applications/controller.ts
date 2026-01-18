@@ -16,6 +16,7 @@ import {
   generatePresignedUploadUrl,
   generateApplicationDocumentKey,
   validateApplicationDocument,
+  deleteS3Object,
 } from "../../lib/s3/client";
 
 const applicationRepository = new NoteApplicationRepository();
