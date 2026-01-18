@@ -18,6 +18,7 @@ export interface StepComponentProps {
 // ============================================================================
 // When you create a new step file, import it here
 import FinancingType1 from "./steps/financing-type-1";
+import VerifyCompanyInfo1 from "./steps/verify-company-info-1";
 // Example for future steps:
 // import FinancingTerms2 from "./steps/financing-terms-2";
 
@@ -34,9 +35,13 @@ import FinancingType1 from "./steps/financing-type-1";
 const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> = {
   // Hyphen format (preferred)
   "financing-type-1": FinancingType1,
+  "verify-company-info-1": VerifyCompanyInfo1,
+  "company-info-1": VerifyCompanyInfo1,
   
   // Underscore format (legacy - for old data)
   "financing_type_1": FinancingType1,
+  "verify_company_info_1": VerifyCompanyInfo1,
+  "company_info_1": VerifyCompanyInfo1,
   
   // Add more steps here as you create them:
   // "financing-terms-2": FinancingTerms2,
