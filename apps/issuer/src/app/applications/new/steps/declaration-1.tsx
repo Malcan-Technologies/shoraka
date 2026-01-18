@@ -25,17 +25,43 @@ export default function DeclarationStep({
   const { data: application } = useApplication(applicationId);
 
   // Load existing declaration data
-  // Structure: { declarations: [{ id: string, checked: boolean }] }
+  // Structure: Array<{ checked: boolean, ...otherFields }>
+  // Each object in the array corresponds to a declaration by index
+  // Legacy formats supported for backward compatibility
   const existingData = React.useMemo(() => {
     if (!application?.declaration) {
       return null;
     }
-    return application.declaration as {
-      declarations?: Array<{
-        id: string;
-        checked: boolean;
-      }>;
-    } | null;
+    const decl = application.declaration;
+    
+    // New format: array of objects with checked property
+    if (Array.isArray(decl) && decl.length > 0) {
+      // Check if it's array of booleans (old format) or array of objects (new format)
+      if (typeof decl[0] === 'boolean') {
+        // Convert old boolean array to new object array format
+        return (decl as boolean[]).map(checked => ({ checked }));
+      }
+      // Already in object format
+      return decl as Array<{ checked: boolean; [key: string]: unknown }>;
+    }
+    
+    // Legacy format: { declarations: [{ id: string, checked: boolean }] }
+    if (typeof decl === 'object' && decl !== null && 'declarations' in decl) {
+      const legacy = decl as {
+        declarations?: Array<{
+          id: string;
+          checked: boolean;
+        }>;
+      };
+      if (legacy.declarations) {
+        // Convert legacy format to new object array format
+        return legacy.declarations
+          .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10))
+          .map(d => ({ checked: d.checked }));
+      }
+    }
+    
+    return null;
   }, [application]);
 
   // Get declarations from step config
@@ -58,14 +84,13 @@ export default function DeclarationStep({
   React.useEffect(() => {
     const state = new Map<number, boolean>();
 
-    if (existingData?.declarations) {
-      // Load from existing data
-      existingData.declarations.forEach((decl) => {
-        // Find the index of this declaration by matching the id
-        const index = parseInt(decl.id, 10);
-        if (!isNaN(index)) {
-          state.set(index, decl.checked);
-        }
+    if (Array.isArray(existingData)) {
+      // Load from existing data (array of objects with checked property)
+      existingData.forEach((item, index) => {
+        const checked = typeof item === 'object' && item !== null && 'checked' in item
+          ? (item as { checked: boolean }).checked
+          : false;
+        state.set(index, checked);
       });
     } else {
       // Initialize all to false if no existing data
@@ -90,13 +115,21 @@ export default function DeclarationStep({
   React.useEffect(() => {
     if (!applicationId || !onDataChange) return;
 
-    // Build data structure with all declarations and their checked status
-    const dataToSave = {
-      declarations: declarations.map((_, index) => ({
-        id: index.toString(),
-        checked: checkedDeclarations.get(index) || false,
-      })),
-    };
+    // Build data structure - array of objects matching declaration order
+    // Each object has a checked property, and can be extended with more fields in the future
+    // Example: [{ checked: true }, { checked: false, timestamp: "..." }, ...]
+    const dataToSave = declarations.map((_, index) => ({
+      checked: checkedDeclarations.get(index) || false,
+      // Future fields can be added here, e.g.:
+      // timestamp: new Date().toISOString(),
+      // userId: currentUserId,
+    }));
+
+    // Log the data structure for debugging
+    console.log("Declaration data being saved:", dataToSave);
+    console.log("Full declaration object:", {
+      declaration: dataToSave,
+    });
 
     // Send to parent component
     onDataChange({
