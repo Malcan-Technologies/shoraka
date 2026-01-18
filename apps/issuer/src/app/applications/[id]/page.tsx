@@ -139,13 +139,37 @@ export default function ApplicationWizardPage() {
     // Save step 1 data (productId) - this should already be saved, but update if changed
     if (currentStep === 1 && activeProductId) {
       try {
+        // Check if user selected a different product
+        const productHasChanged = activeProductId !== applicationProductId;
+        
+        // Prepare the data to send to the API
+        let inputToSend: any = {
+          productId: activeProductId,
+        };
+        
+        // If product changed, also clear all the old step data
+        if (productHasChanged) {
+          inputToSend.data = {
+            financingTerms: null,
+            invoiceDetails: null,
+            companyInfo: null,
+            supportingDocuments: null,
+            declaration: null,
+          };
+        }
+        
+        // Send the update to the API
         await updateApplication.mutateAsync({
           id: applicationId,
-          input: {
-            productId: activeProductId,
-          },
+          input: inputToSend,
         });
-        toast.success("Financing type updated");
+        
+        // Show a message to the user
+        if (productHasChanged) {
+          toast.success("Financing type updated. All previous data has been cleared.");
+        } else {
+          toast.success("Financing type updated");
+        }
       } catch (error) {
         toast.error("Failed to save", {
           description: error instanceof Error ? error.message : "Unknown error",

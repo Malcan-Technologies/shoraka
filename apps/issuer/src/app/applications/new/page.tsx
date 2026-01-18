@@ -6,7 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/use-products";
 import { useProduct } from "@/hooks/use-product";
-import { useCreateDraftApplication, useUpdateApplication } from "@/hooks/use-applications";
+import { useCreateDraftApplication, useUpdateApplication, useApplication } from "@/hooks/use-applications";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { BellIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -112,6 +112,10 @@ export default function NewApplicationPage() {
   const [applicationId, setApplicationId] = React.useState<string | null>(null);
   const createDraft = useCreateDraftApplication();
   const updateApplication = useUpdateApplication();
+  
+  // Fetch application if it exists (to check if product changed)
+  const { data: existingApplication } = useApplication(applicationId);
+  const existingProductId = existingApplication?.financingType?.productId || null;
 
   // Update URL with new step
   // If we have an applicationId, use /applications/{id}?step=X
@@ -159,13 +163,37 @@ export default function NewApplicationPage() {
           toast.success("Financing type saved");
         } else {
           // Update existing application
+          // Check if user selected a different product
+          const productHasChanged = selectedProductId !== existingProductId;
+          
+          // Prepare the data to send to the API
+          let inputToSend: any = {
+            productId: selectedProductId!,
+          };
+          
+          // If product changed, also clear all the old step data
+          if (productHasChanged) {
+            inputToSend.data = {
+              financingTerms: null,
+              invoiceDetails: null,
+              companyInfo: null,
+              supportingDocuments: null,
+              declaration: null,
+            };
+          }
+          
+          // Send the update to the API
           await updateApplication.mutateAsync({
             id: applicationId,
-            input: {
-              productId: selectedProductId!,
-            },
+            input: inputToSend,
           });
-          toast.success("Financing type updated");
+          
+          // Show a message to the user
+          if (productHasChanged) {
+            toast.success("Financing type updated. All previous data has been cleared.");
+          } else {
+            toast.success("Financing type updated");
+          }
         }
       }
 
