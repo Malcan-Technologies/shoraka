@@ -13,20 +13,10 @@ import { EditAddressDialog } from "./edit-address-dialog";
 import { EditBankingDialog } from "./edit-banking-dialog";
 import { EditContactDialog } from "./edit-contact-dialog";
 
-/**
- * Verify Company Details Step Component
- * 
- * This component displays company information from the active organization.
- * The data comes from RegTank corporate onboarding and is read-only.
- * 
- * Step ID: "verify-company-info-1" or "company-info-1"
- * File name: verify-company-info-1.tsx
- */
 export default function VerifyCompanyInfoStep({
   applicationId,
   onDataChange,
 }: StepComponentProps) {
-  // STATIC DUMMY DATA - Replace with API calls later
   const [companyData] = React.useState({
     companyName: "ABC Sdn Bhd",
     entityType: "Private Limited Company (Sdn. Bhd.)",
@@ -51,7 +41,6 @@ export default function VerifyCompanyInfoStep({
     },
   });
 
-  // Ensure contactPerson always exists with default values
   const contactPerson = companyData.contactPerson || {
     name: "",
     position: "",
@@ -59,12 +48,10 @@ export default function VerifyCompanyInfoStep({
     contact: "",
   };
   
-  // Edit dialog states
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
   const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
   
-  // Save company info to application when component mounts
   React.useEffect(() => {
     if (companyData && applicationId && onDataChange) {
       onDataChange({
@@ -75,7 +62,6 @@ export default function VerifyCompanyInfoStep({
 
   return (
     <div className="space-y-6">
-      {/* Company Info Section - Read-only */}
       <Card>
         <CardHeader>
           <CardTitle>Company info</CardTitle>
@@ -140,11 +126,10 @@ export default function VerifyCompanyInfoStep({
         </CardContent>
       </Card>
 
-      {/* Address Section - Editable */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-              <CardTitle>Address</CardTitle>
+            <CardTitle>Address</CardTitle>
             <Button 
               variant="ghost" 
               size="sm"
@@ -177,7 +162,6 @@ export default function VerifyCompanyInfoStep({
         </CardContent>
       </Card>
 
-      {/* Director & Shareholders Section - Read-only (from onboarding) */}
       <Card>
         <CardHeader>
           <CardTitle>Director & Shareholders</CardTitle>
@@ -206,11 +190,10 @@ export default function VerifyCompanyInfoStep({
         </CardContent>
       </Card>
 
-      {/* Banking Details Section - Editable */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-              <CardTitle>Banking details</CardTitle>
+            <CardTitle>Banking details</CardTitle>
             <Button 
               variant="ghost" 
               size="sm"
@@ -242,7 +225,6 @@ export default function VerifyCompanyInfoStep({
         </CardContent>
       </Card>
 
-      {/* Contact Person Section - Editable */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -296,7 +278,6 @@ export default function VerifyCompanyInfoStep({
         </CardContent>
       </Card>
 
-      {/* Edit Dialogs */}
       <EditAddressDialog
         open={isEditAddressOpen}
         onOpenChange={setIsEditAddressOpen}

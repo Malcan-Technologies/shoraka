@@ -31,7 +31,6 @@ export function EditBankingDialog({
   const [bankName, setBankName] = React.useState(initialBankName);
   const [bankAccountNumber, setBankAccountNumber] = React.useState(initialBankAccountNumber);
 
-  // Update local state when dialog opens with new values
   React.useEffect(() => {
     if (open) {
       setBankName(initialBankName);
@@ -44,7 +43,6 @@ export function EditBankingDialog({
   };
 
   const handleCancel = () => {
-    // Reset to initial values
     setBankName(initialBankName);
     setBankAccountNumber(initialBankAccountNumber);
     onOpenChange(false);
@@ -61,7 +59,6 @@ export function EditBankingDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Bank Name */}
           <div className="space-y-2">
             <Label htmlFor="bank-name">Bank name</Label>
             <Input
@@ -73,7 +70,6 @@ export function EditBankingDialog({
             />
           </div>
 
-          {/* Bank Account Number */}
           <div className="space-y-2">
             <Label htmlFor="bank-account">Bank account number</Label>
             <Input

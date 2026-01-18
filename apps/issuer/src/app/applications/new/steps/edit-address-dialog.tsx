@@ -31,7 +31,6 @@ export function EditAddressDialog({
   const [businessAddress, setBusinessAddress] = React.useState(initialBusinessAddress);
   const [registeredAddress, setRegisteredAddress] = React.useState(initialRegisteredAddress);
 
-  // Update local state when dialog opens with new values
   React.useEffect(() => {
     if (open) {
       setBusinessAddress(initialBusinessAddress);
@@ -44,7 +43,6 @@ export function EditAddressDialog({
   };
 
   const handleCancel = () => {
-    // Reset to initial values
     setBusinessAddress(initialBusinessAddress);
     setRegisteredAddress(initialRegisteredAddress);
     onOpenChange(false);
@@ -61,7 +59,6 @@ export function EditAddressDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Business Address */}
           <div className="space-y-2">
             <Label htmlFor="business-address">Business address</Label>
             <Input
@@ -73,7 +70,6 @@ export function EditAddressDialog({
             />
           </div>
 
-          {/* Registered Address */}
           <div className="space-y-2">
             <Label htmlFor="registered-address">Registered address</Label>
             <Input

@@ -12,21 +12,11 @@ import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
 import { useS3Upload } from "@/hooks/use-s3-upload";
 
-/**
- * Supporting Documents Step Component
- * 
- * This component allows users to upload required supporting documents
- * for their loan application.
- * 
- * Step ID: "supporting-documents-1" or "supporting_documents_1"
- * File name: supporting-documents-1.tsx
- */
 export default function SupportingDocumentsStep({
   stepConfig,
   applicationId,
   onDataChange,
 }: StepComponentProps) {
-  // Get document categories from step config
   const categories = React.useMemo(() => {
     if (!stepConfig || !stepConfig.categories || !Array.isArray(stepConfig.categories)) {
       return [];
@@ -37,10 +27,8 @@ export default function SupportingDocumentsStep({
     }>;
   }, [stepConfig]);
 
-  // Fetch existing application data
   const { data: application } = useApplication(applicationId);
 
-  // Load existing uploaded files from application
   const existingData = React.useMemo(() => {
     if (!application?.supportingDocuments) {
       return null;
@@ -60,18 +48,14 @@ export default function SupportingDocumentsStep({
     } | null;
   }, [application]);
 
-  // Track uploaded files (already uploaded to S3)
   const [uploadedFiles, setUploadedFiles] = React.useState<
     Record<string, { name: string; size: number; uploadedAt: string; s3Key?: string }>
   >({});
 
-  // Track selected files (not yet uploaded - stored as File objects)
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
 
-  // Reusable S3 upload hook
   const { uploadFiles: uploadFilesToS3Hook, isUploading } = useS3Upload(applicationId);
 
-  // Load existing files when application data loads
   React.useEffect(() => {
     if (existingData?.categories) {
       const files: Record<string, { name: string; size: number; uploadedAt: string; s3Key?: string }> = {};
@@ -79,16 +63,16 @@ export default function SupportingDocumentsStep({
       existingData.categories.forEach((category, catIndex) => {
         category.documents.forEach((doc, docIndex) => {
           if (doc.file) {
-            const s3Key = (doc.file as any).s3_key || (doc.file as any).s3Key;
-            const fileName = (doc.file as any).file_name || (doc.file as any).name;
+            const s3Key = (doc.file as Record<string, unknown>).s3_key || (doc.file as Record<string, unknown>).s3Key;
+            const fileName = (doc.file as Record<string, unknown>).file_name || (doc.file as Record<string, unknown>).name;
             
             if (s3Key) {
               const key = `${catIndex}-${docIndex}`;
               files[key] = {
-                name: fileName,
-                size: (doc.file as any).size || 0,
-                uploadedAt: (doc.file as any).uploadedAt || new Date().toISOString().split("T")[0],
-                s3Key: s3Key,
+                name: fileName as string,
+                size: ((doc.file as Record<string, unknown>).size as number) || 0,
+                uploadedAt: ((doc.file as Record<string, unknown>).uploadedAt as string) || new Date().toISOString().split("T")[0],
+                s3Key: s3Key as string,
               };
             }
           }
@@ -99,12 +83,11 @@ export default function SupportingDocumentsStep({
     }
   }, [existingData]);
 
-  // Handle file selection (store file, don't upload yet)
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error("File size must be less than 10MB");
       return;
@@ -136,7 +119,6 @@ export default function SupportingDocumentsStep({
     toast.success("File selected. Click 'Save and continue' to upload.");
   };
 
-  // Upload files to S3 (called when user clicks "Save and continue")
   const uploadFilesToS3 = React.useCallback(async (): Promise<{ supportingDocuments: unknown } | null> => {
     if (!applicationId || Object.keys(selectedFiles).length === 0) {
       return null;
@@ -203,7 +185,6 @@ export default function SupportingDocumentsStep({
     uploadFilesRef.current = uploadFilesToS3;
   }, [uploadFilesToS3]);
 
-  // Handle file removal
   const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
     
@@ -222,19 +203,16 @@ export default function SupportingDocumentsStep({
     toast.success("File removed");
   };
 
-  // Check if a document has been uploaded or selected
   const isDocumentUploaded = (categoryIndex: number, documentIndex: number): boolean => {
     const key = `${categoryIndex}-${documentIndex}`;
     return key in uploadedFiles;
   };
 
-  // Check if a document has an S3 key (actually uploaded)
   const isDocumentUploadedToS3 = (categoryIndex: number, documentIndex: number): boolean => {
     const key = `${categoryIndex}-${documentIndex}`;
     return uploadedFiles[key]?.s3Key !== undefined;
   };
 
-  // Save data to application when files change
   React.useEffect(() => {
     if (!applicationId || !onDataChange) return;
 
@@ -245,15 +223,15 @@ export default function SupportingDocumentsStep({
           const key = `${catIndex}-${docIndex}`;
           const file = uploadedFiles[key];
           
-            return {
-              title: doc.title,
-              ...(file?.s3Key && {
-                file: {
-                  file_name: file.name,
-                  s3_key: file.s3Key,
-                },
-              }),
-            };
+          return {
+            title: doc.title,
+            ...(file?.s3Key && {
+              file: {
+                file_name: file.name,
+                s3_key: file.s3Key,
+              },
+            }),
+          };
         }),
       })),
     };
@@ -262,13 +240,11 @@ export default function SupportingDocumentsStep({
       supportingDocuments: dataToSave,
       _uploadFiles: uploadFilesRef.current,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedFiles, categories, applicationId]);
+  }, [uploadedFiles, categories, applicationId, onDataChange]);
 
-  // Calculate upload status for each category
   const getCategoryStatus = (categoryIndex: number) => {
     let uploadedCount = 0;
-    let totalCount = categories[categoryIndex]?.documents.length || 0;
+    const totalCount = categories[categoryIndex]?.documents.length || 0;
     
     categories[categoryIndex]?.documents.forEach((_, docIndex) => {
       if (isDocumentUploadedToS3(categoryIndex, docIndex)) {
@@ -279,13 +255,12 @@ export default function SupportingDocumentsStep({
     return { uploadedCount, totalCount };
   };
 
-  // Show message if no categories configured
   if (categories.length === 0) {
     return (
       <div className="space-y-4">
         <p className="text-muted-foreground text-center py-8">
-              No documents required for this application.
-            </p>
+          No documents required for this application.
+        </p>
       </div>
     );
   }
@@ -313,8 +288,8 @@ export default function SupportingDocumentsStep({
                       ) : (
                         <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                       )}
-                <h3 className="text-lg font-semibold">{category.name}</h3>
-              </div>
+                      <h3 className="text-lg font-semibold">{category.name}</h3>
+                    </div>
                     <span
                       className={
                         isComplete
@@ -327,25 +302,23 @@ export default function SupportingDocumentsStep({
                   </CollapsibleTrigger>
                 </div>
                 <CollapsibleContent className="px-6 py-5">
-              <div className="space-y-4">
-                {category.documents.map((document, documentIndex) => {
-                  const key = `${categoryIndex}-${documentIndex}`;
-                  const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
-                  const fileIsUploading = isUploading(key);
-                  const file = uploadedFiles[key];
+                  <div className="space-y-4">
+                    {category.documents.map((document, documentIndex) => {
+                      const key = `${categoryIndex}-${documentIndex}`;
+                      const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
+                      const fileIsUploading = isUploading(key);
+                      const file = uploadedFiles[key];
 
-                  return (
+                      return (
                         <div key={documentIndex} className="flex items-center justify-between py-1">
-                          {/* Document Name on the left */}
-                            <Label
-                              htmlFor={`file-${key}`}
+                          <Label
+                            htmlFor={`file-${key}`}
                             className="text-base font-normal flex-1"
-                            >
-                              {document.title}
-                            </Label>
+                          >
+                            {document.title}
+                          </Label>
 
-                          {/* Upload button or uploaded file display on the right */}
-                      {isUploaded && file && !fileIsUploading ? (
+                          {isUploaded && file && !fileIsUploading ? (
                             <div className="flex items-center gap-2">
                               <Checkbox
                                 checked={true}
@@ -353,7 +326,7 @@ export default function SupportingDocumentsStep({
                               />
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
-                                {file.name}
+                                  {file.name}
                                 </span>
                                 <button
                                   type="button"
@@ -372,29 +345,29 @@ export default function SupportingDocumentsStep({
                               <Label
                                 htmlFor={`file-${key}`}
                                 className="text-sm text-primary cursor-pointer hover:underline font-normal"
-                          >
+                              >
                                 Upload file
                               </Label>
-                          <Input
-                            id={`file-${key}`}
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            onChange={(e) =>
-                              handleFileChange(categoryIndex, documentIndex, e)
-                            }
+                              <Input
+                                id={`file-${key}`}
+                                type="file"
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                onChange={(e) =>
+                                  handleFileChange(categoryIndex, documentIndex, e)
+                                }
                                 className="hidden"
-                            disabled={fileIsUploading}
-                          />
+                                disabled={fileIsUploading}
+                              />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
                 </CollapsibleContent>
-        </CardContent>
+              </CardContent>
             </Collapsible>
-      </Card>
+          </Card>
         );
       })}
     </div>

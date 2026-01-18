@@ -15,7 +15,7 @@ import {
 } from "@/hooks/use-applications";
 import { toast } from "sonner";
 import { getStepComponent } from "../new/step-components";
-import type { Product, WorkflowStepInfo } from "../new/types";
+import type { Product } from "../new/types";
 import { hasWorkflow, toWorkflowStepInfo } from "../new/helpers";
 
 export default function ApplicationWizardPage() {
@@ -24,49 +24,31 @@ export default function ApplicationWizardPage() {
   const params = useParams();
   const applicationId = params.id as string;
 
-  // Fetch application
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
-  // Extract productId from financingType (from application data)
   const applicationProductId = application?.financingType?.productId || null;
 
-  // Track selected product ID in state
-  // This allows us to update it when user selects a different product on step 1
-  // Initialize from application, but allow it to be changed
   const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
 
-  // Sync selectedProductId with application productId when application loads
-  // Only update if state is null (initial load) or if application productId changes
   React.useEffect(() => {
     if (applicationProductId) {
       setSelectedProductId(applicationProductId);
     }
   }, [applicationProductId]);
 
-  // Use selectedProductId from state (or fallback to application productId)
   const activeProductId = selectedProductId || applicationProductId;
 
-  // Fetch the product to get its workflow
   const { data: selectedProduct } = useProduct(activeProductId);
 
-  /**
-   * Extract workflow steps from the selected product
-   * 
-   * This takes the product's workflow and converts it into a simpler format
-   * that we can use to display the progress indicator and step names
-   */
-  const workflowSteps = React.useMemo((): WorkflowStepInfo[] => {
-    // If we don't have a product yet, return empty array
+  const workflowSteps = React.useMemo(() => {
     if (!selectedProduct) {
       return [];
     }
 
-    // Check if the product has a valid workflow
     if (!hasWorkflow(selectedProduct)) {
       return [];
     }
 
-    // Convert each step to step info
     const product = selectedProduct as Product;
     return product.workflow.map((step) => {
       return toWorkflowStepInfo(step);
@@ -75,45 +57,35 @@ export default function ApplicationWizardPage() {
 
   const totalSteps = workflowSteps.length;
 
-  // Get current step from URL, default to 1
   const currentStep = React.useMemo(() => {
     const stepParam = searchParams.get("step");
     const step = stepParam ? parseInt(stepParam, 10) : 1;
-    return Math.max(1, Math.min(step, totalSteps || 1)); // Clamp between 1 and total steps
+    return Math.max(1, Math.min(step, totalSteps || 1));
   }, [searchParams, totalSteps]);
 
-  // Reset to step 1 when product changes (if we're on step 1)
-  // This ensures the workflow updates immediately when user selects a different product
   React.useEffect(() => {
     if (currentStep === 1 && selectedProductId && selectedProductId !== applicationProductId) {
-      // Product has changed, ensure we're on step 1
-      // The URL might already be step 1, but this ensures consistency
       if (searchParams.get("step") !== "1") {
         router.replace(`/applications/${applicationId}?step=1`);
       }
     }
   }, [selectedProductId, applicationProductId, currentStep, applicationId, router, searchParams]);
 
-  // Get current step info
   const currentStepInfo = workflowSteps[currentStep - 1];
   const currentStepId = currentStepInfo?.id || "";
   const currentStepName = currentStepInfo?.name || "Loading...";
   const currentStepConfig = currentStepInfo?.config || {};
 
-  // Get the component for current step
   const StepComponent = getStepComponent(currentStepId);
 
-  // Validate step access
   const { data: stepValidation } = useValidateStep(applicationId, currentStep);
 
-  // Redirect to last allowed step if needed
   React.useEffect(() => {
     if (stepValidation && !stepValidation.allowed && stepValidation.lastAllowedStep !== currentStep) {
       router.replace(`/applications/${applicationId}?step=${stepValidation.lastAllowedStep}`);
     }
   }, [stepValidation, currentStep, applicationId, router]);
 
-  // If submitted, redirect to view-only page (no step param)
   React.useEffect(() => {
     if (application && application.status !== "DRAFT" && searchParams.get("step")) {
       router.replace(`/applications/${applicationId}`);
@@ -123,25 +95,16 @@ export default function ApplicationWizardPage() {
   const updateApplication = useUpdateApplication();
   const submitApplication = useSubmitApplication();
 
-  // Track step data from onDataChange
-  // This stores data from each step before saving
   const [stepData, setStepData] = React.useState<Record<string, unknown>>({});
 
-  // Handle data changes from step components
   const handleStepDataChange = React.useCallback((data: Record<string, unknown>) => {
-    // Handle product selection changes from step 1
-    // When user selects a different product, update selectedProductId
-    // This will trigger workflow steps to update
     if (data.productId && typeof data.productId === "string") {
       setSelectedProductId(data.productId);
     } else {
-      // Handle other step data changes
-      // Store the data so we can save it when user clicks "Save and continue"
       setStepData(data);
     }
   }, []);
 
-  // Update URL with new step
   const updateStep = React.useCallback((step: number) => {
     const params = new URLSearchParams();
     params.set("step", step.toString());
@@ -155,17 +118,13 @@ export default function ApplicationWizardPage() {
     }
 
     try {
-      // Save step 1 data (productId)
       if (currentStep === 1 && activeProductId) {
-        // Check if user selected a different product
         const productHasChanged = activeProductId !== applicationProductId;
         
-        // Prepare the data to send to the API
-        let inputToSend: any = {
+        const inputToSend: Record<string, unknown> = {
           productId: activeProductId,
         };
         
-        // If product changed, also clear all the old step data
         if (productHasChanged) {
           inputToSend.data = {
             financingTerms: null,
@@ -176,48 +135,38 @@ export default function ApplicationWizardPage() {
           };
         }
         
-        // Send the update to the API
         await updateApplication.mutateAsync({
           id: applicationId,
           input: inputToSend,
         });
         
-        // Show a message to the user
         if (productHasChanged) {
           toast.success("Financing type updated. All previous data has been cleared.");
         } else {
           toast.success("Financing type updated");
         }
       } else {
-        // Save data for other steps (step 2, 3, 4, 5, etc.)
-        // stepData contains data from onDataChange callback
-        
-        // Check if there are files to upload (for supporting documents step)
-        // The component exposes _uploadFiles function in stepData
         let dataToSave = { ...stepData };
         
         if (stepData._uploadFiles && typeof stepData._uploadFiles === "function") {
           try {
-            // Upload files to S3 first and get back fresh data with s3Keys
             const uploadResult = await (stepData._uploadFiles as () => Promise<{ supportingDocuments: unknown } | null>)();
             
-            // If upload returned fresh data, use it (includes s3Keys)
             if (uploadResult) {
               dataToSave = {
                 ...dataToSave,
-                ...uploadResult, // This includes supportingDocuments with s3Keys
+                ...uploadResult,
               };
             }
           } catch (error) {
             toast.error("Failed to upload files", {
               description: error instanceof Error ? error.message : "Unknown error",
             });
-            return; // Don't save if upload fails
+            return;
           }
         }
 
-        // Remove internal functions from stepData before saving
-        delete (dataToSave as any)._uploadFiles;
+        delete (dataToSave as Record<string, unknown>)._uploadFiles;
 
         if (Object.keys(dataToSave).length > 0) {
           await updateApplication.mutateAsync({
@@ -231,7 +180,6 @@ export default function ApplicationWizardPage() {
         }
       }
 
-      // Move to next step
       if (currentStep < totalSteps) {
         updateStep(currentStep + 1);
       }
@@ -253,7 +201,6 @@ export default function ApplicationWizardPage() {
     try {
       await submitApplication.mutateAsync(applicationId);
       toast.success("Application submitted successfully");
-      // Redirect to view-only page (no step param)
       router.replace(`/applications/${applicationId}`);
     } catch (error) {
       toast.error("Failed to submit application", {
@@ -262,7 +209,6 @@ export default function ApplicationWizardPage() {
     }
   };
 
-  // Show loading while fetching application
   if (isLoadingApp) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -274,7 +220,6 @@ export default function ApplicationWizardPage() {
     );
   }
 
-  // If application not found, show error
   if (!application) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -286,7 +231,6 @@ export default function ApplicationWizardPage() {
     );
   }
 
-  // If not in DRAFT, show read-only view (this should redirect, but just in case)
   if (application.status !== "DRAFT") {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -300,7 +244,6 @@ export default function ApplicationWizardPage() {
     );
   }
 
-  // If no productId selected yet, show message
   if (!activeProductId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -312,7 +255,6 @@ export default function ApplicationWizardPage() {
     );
   }
 
-  // If product is loading, show loading state
   if (!selectedProduct) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -326,9 +268,8 @@ export default function ApplicationWizardPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 sm:px-6">
-        <SidebarTrigger />
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
         <div className="flex items-center gap-2 flex-1">
           <h1 className="text-lg font-semibold">Dashboard</h1>
           <Button variant="ghost" size="icon" className="ml-auto">
@@ -337,43 +278,40 @@ export default function ApplicationWizardPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Title and Description */}
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold">{currentStepName}</h2>
-            {currentStep === 1 && (
-              <p className="text-muted-foreground">
-                Browse and invest in verified loan opportunities from your dashboard
-              </p>
+      <main className="flex-1 overflow-y-auto p-4 pt-0">
+        <div className="flex flex-1 flex-col gap-4 p-2 md:p-4">
+          <div className="max-w-4xl mx-auto w-full space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold">{currentStepName}</h2>
+              {currentStep === 1 && (
+                <p className="text-muted-foreground">
+                  Browse and invest in verified loan opportunities from your dashboard
+                </p>
+              )}
+            </div>
+
+            {workflowSteps.length > 0 && (
+              <ProgressIndicator 
+                steps={workflowSteps.map(s => s.name)} 
+                currentStep={currentStep - 1} 
+              />
+            )}
+
+            {currentStepInfo && (
+              <StepComponent
+                stepId={currentStepId}
+                stepName={currentStepName}
+                stepConfig={currentStepConfig}
+                applicationId={applicationId}
+                selectedProductId={activeProductId}
+                onDataChange={handleStepDataChange}
+              />
             )}
           </div>
-
-          {/* Progress Indicator */}
-          {workflowSteps.length > 0 && (
-            <ProgressIndicator 
-              steps={workflowSteps.map(s => s.name)} 
-              currentStep={currentStep - 1} 
-            />
-          )}
-
-          {/* Step Content - Dynamically render based on step ID */}
-          {currentStepInfo && (
-            <StepComponent
-              stepId={currentStepId}
-              stepName={currentStepName}
-              stepConfig={currentStepConfig}
-              applicationId={applicationId}
-              selectedProductId={activeProductId}
-              onDataChange={handleStepDataChange}
-            />
-          )}
         </div>
       </main>
 
-      {/* Footer with Navigation Buttons */}
-      <footer className="flex h-16 shrink-0 items-center justify-between gap-4 border-t px-4 sm:px-6">
+      <footer className="flex h-16 shrink-0 items-center justify-between gap-4 border-t px-4">
         <div>
           {currentStep > 1 && (
             <Button variant="outline" onClick={handleBack}>

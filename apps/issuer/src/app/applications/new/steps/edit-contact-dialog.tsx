@@ -36,7 +36,6 @@ export function EditContactDialog({
   const [icNo, setIcNo] = React.useState(initialContactPerson.icNo);
   const [contact, setContact] = React.useState(initialContactPerson.contact);
 
-  // Update local state when dialog opens with new values
   React.useEffect(() => {
     if (open) {
       setName(initialContactPerson.name);
@@ -56,7 +55,6 @@ export function EditContactDialog({
   };
 
   const handleCancel = () => {
-    // Reset to initial values
     setName(initialContactPerson.name);
     setPosition(initialContactPerson.position);
     setIcNo(initialContactPerson.icNo);
@@ -75,7 +73,6 @@ export function EditContactDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Applicant Name */}
           <div className="space-y-2">
             <Label htmlFor="applicant-name">Applicant name</Label>
             <Input
@@ -87,7 +84,6 @@ export function EditContactDialog({
             />
           </div>
 
-          {/* Applicant Position */}
           <div className="space-y-2">
             <Label htmlFor="applicant-position">Applicant position</Label>
             <Input
@@ -99,7 +95,6 @@ export function EditContactDialog({
             />
           </div>
 
-          {/* Applicant IC No */}
           <div className="space-y-2">
             <Label htmlFor="applicant-ic">Applicant IC no</Label>
             <Input
@@ -111,7 +106,6 @@ export function EditContactDialog({
             />
           </div>
 
-          {/* Applicant Contact */}
           <div className="space-y-2">
             <Label htmlFor="applicant-contact">Applicant contact</Label>
             <Input
