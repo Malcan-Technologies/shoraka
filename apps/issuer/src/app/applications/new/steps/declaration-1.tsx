@@ -163,7 +163,7 @@ export default function DeclarationStep({
         return (
           <Card
             key={index}
-            className="cursor-pointer hover:border-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="cursor-pointer"
             onClick={() => handleDeclarationToggle(index, !isChecked)}
             tabIndex={0}
           >
