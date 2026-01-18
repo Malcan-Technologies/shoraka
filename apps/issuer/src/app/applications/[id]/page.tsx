@@ -27,11 +27,27 @@ export default function ApplicationWizardPage() {
   // Fetch application
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
-  // Extract productId from financingType
-  const selectedProductId = application?.financingType?.productId || null;
+  // Extract productId from financingType (from application data)
+  const applicationProductId = application?.financingType?.productId || null;
+
+  // Track selected product ID in state
+  // This allows us to update it when user selects a different product on step 1
+  // Initialize from application, but allow it to be changed
+  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+
+  // Sync selectedProductId with application productId when application loads
+  // Only update if state is null (initial load) or if application productId changes
+  React.useEffect(() => {
+    if (applicationProductId) {
+      setSelectedProductId(applicationProductId);
+    }
+  }, [applicationProductId]);
+
+  // Use selectedProductId from state (or fallback to application productId)
+  const activeProductId = selectedProductId || applicationProductId;
 
   // Fetch the product to get its workflow
-  const { data: selectedProduct } = useProduct(selectedProductId);
+  const { data: selectedProduct } = useProduct(activeProductId);
 
   /**
    * Extract workflow steps from the selected product
@@ -65,6 +81,18 @@ export default function ApplicationWizardPage() {
     const step = stepParam ? parseInt(stepParam, 10) : 1;
     return Math.max(1, Math.min(step, totalSteps || 1)); // Clamp between 1 and total steps
   }, [searchParams, totalSteps]);
+
+  // Reset to step 1 when product changes (if we're on step 1)
+  // This ensures the workflow updates immediately when user selects a different product
+  React.useEffect(() => {
+    if (currentStep === 1 && selectedProductId && selectedProductId !== applicationProductId) {
+      // Product has changed, ensure we're on step 1
+      // The URL might already be step 1, but this ensures consistency
+      if (searchParams.get("step") !== "1") {
+        router.replace(`/applications/${applicationId}?step=1`);
+      }
+    }
+  }, [selectedProductId, applicationProductId, currentStep, applicationId, router, searchParams]);
 
   // Get current step info
   const currentStepInfo = workflowSteps[currentStep - 1];
@@ -103,18 +131,18 @@ export default function ApplicationWizardPage() {
   }, [router, applicationId]);
 
   const handleContinue = async () => {
-    if (currentStep === 1 && !selectedProductId) {
+    if (currentStep === 1 && !activeProductId) {
       toast.error("Please select a financing type");
       return;
     }
 
     // Save step 1 data (productId) - this should already be saved, but update if changed
-    if (currentStep === 1 && selectedProductId) {
+    if (currentStep === 1 && activeProductId) {
       try {
         await updateApplication.mutateAsync({
           id: applicationId,
           input: {
-            productId: selectedProductId,
+            productId: activeProductId,
           },
         });
         toast.success("Financing type updated");
@@ -190,7 +218,7 @@ export default function ApplicationWizardPage() {
   }
 
   // If no productId selected yet, show message
-  if (!selectedProductId) {
+  if (!activeProductId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
@@ -254,9 +282,15 @@ export default function ApplicationWizardPage() {
               stepName={currentStepName}
               stepConfig={currentStepConfig}
               applicationId={applicationId}
-              selectedProductId={selectedProductId}
+              selectedProductId={activeProductId}
               onDataChange={(data) => {
-                // Handle step data changes (for future steps)
+                // Handle product selection changes from step 1
+                // When user selects a different product, update selectedProductId
+                // This will trigger workflow steps to update
+                if (data.productId && typeof data.productId === "string") {
+                  setSelectedProductId(data.productId);
+                }
+                // Handle other step data changes (for future steps)
                 console.log("Step data changed:", data);
               }}
             />
@@ -277,7 +311,7 @@ export default function ApplicationWizardPage() {
           {currentStep < totalSteps ? (
             <Button
               onClick={handleContinue}
-              disabled={currentStep === 1 && !selectedProductId}
+              disabled={currentStep === 1 && !activeProductId}
               className="gap-2"
             >
               Save and continue

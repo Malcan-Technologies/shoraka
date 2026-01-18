@@ -230,7 +230,13 @@ export default function NewApplicationPage() {
               applicationId={applicationId}
               selectedProductId={selectedProductId}
               onDataChange={(data) => {
-                // Handle step data changes (for future steps)
+                // Handle product selection changes from step 1
+                // When user selects a different product, update selectedProductId
+                // This will trigger workflow steps to update
+                if (data.productId && typeof data.productId === "string") {
+                  setSelectedProductId(data.productId);
+                }
+                // Handle other step data changes (for future steps)
                 console.log("Step data changed:", data);
               }}
             />
