@@ -123,6 +123,24 @@ export default function ApplicationWizardPage() {
   const updateApplication = useUpdateApplication();
   const submitApplication = useSubmitApplication();
 
+  // Track step data from onDataChange
+  // This stores data from each step before saving
+  const [stepData, setStepData] = React.useState<Record<string, unknown>>({});
+
+  // Handle data changes from step components
+  const handleStepDataChange = React.useCallback((data: Record<string, unknown>) => {
+    // Handle product selection changes from step 1
+    // When user selects a different product, update selectedProductId
+    // This will trigger workflow steps to update
+    if (data.productId && typeof data.productId === "string") {
+      setSelectedProductId(data.productId);
+    } else {
+      // Handle other step data changes
+      // Store the data so we can save it when user clicks "Save and continue"
+      setStepData(data);
+    }
+  }, []);
+
   // Update URL with new step
   const updateStep = React.useCallback((step: number) => {
     const params = new URLSearchParams();
@@ -136,9 +154,9 @@ export default function ApplicationWizardPage() {
       return;
     }
 
-    // Save step 1 data (productId) - this should already be saved, but update if changed
-    if (currentStep === 1 && activeProductId) {
-      try {
+    try {
+      // Save step 1 data (productId)
+      if (currentStep === 1 && activeProductId) {
         // Check if user selected a different product
         const productHasChanged = activeProductId !== applicationProductId;
         
@@ -170,17 +188,49 @@ export default function ApplicationWizardPage() {
         } else {
           toast.success("Financing type updated");
         }
-      } catch (error) {
-        toast.error("Failed to save", {
-          description: error instanceof Error ? error.message : "Unknown error",
-        });
-        return;
-      }
-    }
+      } else {
+        // Save data for other steps (step 2, 3, 4, 5, etc.)
+        // stepData contains data from onDataChange callback
+        
+        // Check if there are files to upload (for supporting documents step)
+        // The component exposes _uploadFiles function in stepData
+        if (stepData._uploadFiles && typeof stepData._uploadFiles === "function") {
+          try {
+            // Upload files to S3 first
+            await (stepData._uploadFiles as () => Promise<void>)();
+          } catch (error) {
+            toast.error("Failed to upload files", {
+              description: error instanceof Error ? error.message : "Unknown error",
+            });
+            return; // Don't save if upload fails
+          }
+        }
 
-    // Move to next step
-    if (currentStep < totalSteps) {
-      updateStep(currentStep + 1);
+        // Remove internal functions from stepData before saving
+        const dataToSave = { ...stepData };
+        delete (dataToSave as any)._uploadFiles;
+
+        if (Object.keys(dataToSave).length > 0) {
+          await updateApplication.mutateAsync({
+            id: applicationId,
+            input: {
+              data: dataToSave,
+            },
+          });
+          
+          toast.success("Data saved successfully");
+        }
+      }
+
+      // Move to next step
+      if (currentStep < totalSteps) {
+        updateStep(currentStep + 1);
+      }
+    } catch (error) {
+      toast.error("Failed to save", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+      return;
     }
   };
 
@@ -307,16 +357,7 @@ export default function ApplicationWizardPage() {
               stepConfig={currentStepConfig}
               applicationId={applicationId}
               selectedProductId={activeProductId}
-              onDataChange={(data) => {
-                // Handle product selection changes from step 1
-                // When user selects a different product, update selectedProductId
-                // This will trigger workflow steps to update
-                if (data.productId && typeof data.productId === "string") {
-                  setSelectedProductId(data.productId);
-                }
-                // Handle other step data changes (for future steps)
-                console.log("Step data changed:", data);
-              }}
+              onDataChange={handleStepDataChange}
             />
           )}
         </div>

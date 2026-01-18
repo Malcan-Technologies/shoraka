@@ -117,6 +117,24 @@ export default function NewApplicationPage() {
   const { data: existingApplication } = useApplication(applicationId);
   const existingProductId = existingApplication?.financingType?.productId || null;
 
+  // Track step data from onDataChange
+  // This stores data from each step before saving
+  const [stepData, setStepData] = React.useState<Record<string, unknown>>({});
+
+  // Handle data changes from step components
+  const handleStepDataChange = React.useCallback((data: Record<string, unknown>) => {
+    // Handle product selection changes from step 1
+    // When user selects a different product, update selectedProductId
+    // This will trigger workflow steps to update
+    if (data.productId && typeof data.productId === "string") {
+      setSelectedProductId(data.productId);
+    } else {
+      // Handle other step data changes
+      // Store the data so we can save it when user clicks "Save and continue"
+      setStepData(data);
+    }
+  }, []);
+
   // Update URL with new step
   // If we have an applicationId, use /applications/{id}?step=X
   // Otherwise, use /applications/new?step=X
@@ -195,6 +213,42 @@ export default function NewApplicationPage() {
             toast.success("Financing type updated");
           }
         }
+      } else {
+        // Save data for other steps (step 2, 3, 4, 5, etc.)
+        // stepData contains data from onDataChange callback
+        if (!appIdForNavigation) {
+          toast.error("Application not found. Please refresh the page.");
+          return;
+        }
+
+        // Check if there are files to upload (for supporting documents step)
+        // The component exposes _uploadFiles function in stepData
+        if (stepData._uploadFiles && typeof stepData._uploadFiles === "function") {
+          try {
+            // Upload files to S3 first
+            await (stepData._uploadFiles as () => Promise<void>)();
+          } catch (error) {
+            toast.error("Failed to upload files", {
+              description: error instanceof Error ? error.message : "Unknown error",
+            });
+            return; // Don't save if upload fails
+          }
+        }
+
+        // Remove internal functions from stepData before saving
+        const dataToSave = { ...stepData };
+        delete (dataToSave as any)._uploadFiles;
+
+        if (Object.keys(dataToSave).length > 0) {
+          await updateApplication.mutateAsync({
+            id: appIdForNavigation,
+            input: {
+              data: dataToSave,
+            },
+          });
+          
+          toast.success("Data saved successfully");
+        }
       }
 
       // Move to next step (only if there are more steps)
@@ -257,16 +311,7 @@ export default function NewApplicationPage() {
               stepConfig={currentStepConfig}
               applicationId={applicationId}
               selectedProductId={selectedProductId}
-              onDataChange={(data) => {
-                // Handle product selection changes from step 1
-                // When user selects a different product, update selectedProductId
-                // This will trigger workflow steps to update
-                if (data.productId && typeof data.productId === "string") {
-                  setSelectedProductId(data.productId);
-                }
-                // Handle other step data changes (for future steps)
-                console.log("Step data changed:", data);
-              }}
+              onDataChange={handleStepDataChange}
             />
           )}
         </div>

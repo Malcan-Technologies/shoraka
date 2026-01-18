@@ -7,10 +7,16 @@ import {
   submitApplicationSchema,
   applicationIdParamSchema,
   validateStepQuerySchema,
+  requestApplicationDocumentUploadUrlSchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import {
+  generatePresignedUploadUrl,
+  generateApplicationDocumentKey,
+  validateApplicationDocument,
+} from "../../lib/s3/client";
 
 const applicationRepository = new NoteApplicationRepository();
 const applicationService = new NoteApplicationService(applicationRepository);
@@ -339,6 +345,73 @@ async function submitApplication(
 }
 
 /**
+ * Request presigned URL for uploading application document
+ * POST /v1/applications/:id/upload-document-url
+ */
+async function requestApplicationDocumentUploadUrl(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const input = requestApplicationDocumentUploadUrlSchema.parse(req.body);
+
+    // Check user has access to this application
+    const application = await applicationService.getApplicationById(id);
+    const hasAccess =
+      application.issuer_organization.owner_user_id === userId ||
+      application.issuer_organization.members.some(
+        (m: { user_id: string }) => m.user_id === userId
+      );
+
+    if (!hasAccess) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You do not have access to this application"
+      );
+    }
+
+    // Validate file
+    const validation = validateApplicationDocument({
+      contentType: input.contentType,
+      fileSize: input.fileSize,
+    });
+
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    // Generate S3 key
+    const s3Key = generateApplicationDocumentKey({
+      applicationId: id,
+      fileName: input.fileName,
+    });
+
+    // Generate presigned upload URL
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: s3Key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        uploadUrl,
+        s3Key,
+        expiresIn,
+      },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create applications router
  */
 export function createApplicationsRouter(): Router {
@@ -349,6 +422,7 @@ export function createApplicationsRouter(): Router {
   router.get("/:id/validate-step", requireAuth, validateStep);
   router.patch("/:id", requireAuth, updateApplication);
   router.post("/:id/submit", requireAuth, submitApplication);
+  router.post("/:id/upload-document-url", requireAuth, requestApplicationDocumentUploadUrl);
 
   return router;
 }

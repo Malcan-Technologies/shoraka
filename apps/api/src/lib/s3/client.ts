@@ -380,3 +380,54 @@ export function validateProductImage(params: {
   return { valid: true };
 }
 
+/**
+ * Generate S3 key for application documents
+ * Format: note_applications/{applicationId}/{sanitizedFileName}
+ */
+export function generateApplicationDocumentKey(params: {
+  applicationId: string;
+  fileName: string;
+}): string {
+  // Sanitize file name: remove special characters, keep alphanumeric, dots, hyphens, underscores
+  const sanitizedFileName = params.fileName
+    .replace(/[^a-zA-Z0-9._-]/g, "_") // Replace special chars with underscore
+    .replace(/_{2,}/g, "_") // Replace multiple underscores with single
+    .replace(/^_+|_+$/g, ""); // Remove leading/trailing underscores
+  
+  return `note_applications/${params.applicationId}/${sanitizedFileName}`;
+}
+
+/**
+ * Validate file type and size for application documents
+ * Allows PDF, DOC, DOCX, JPG, JPEG, PNG
+ */
+export function validateApplicationDocument(params: {
+  contentType: string;
+  fileSize: number;
+}): { valid: boolean; error?: string } {
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_CONTENT_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+  ];
+
+  if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
+    return {
+      valid: false,
+      error: `Invalid content type. Allowed types: PDF, DOC, DOCX, JPG, PNG`,
+    };
+  }
+
+  if (params.fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+    };
+  }
+
+  return { valid: true };
+}

@@ -29,7 +29,15 @@ export const validateStepQuerySchema = z.object({
   step: z.coerce.number().int().min(1).max(7),
 });
 
+// Request upload URL for application document
+export const requestApplicationDocumentUploadUrlSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  contentType: z.string().min(1),
+  fileSize: z.number().int().positive().max(10 * 1024 * 1024), // Max 10MB
+});
+
 export type CreateDraftApplicationInput = z.infer<typeof createDraftApplicationSchema>;
 export type UpdateApplicationInput = z.infer<typeof updateApplicationSchema>;
 export type SubmitApplicationInput = z.infer<typeof submitApplicationSchema>;
 export type ApplicationStatus = z.infer<typeof applicationStatusSchema>;
+export type RequestApplicationDocumentUploadUrlInput = z.infer<typeof requestApplicationDocumentUploadUrlSchema>;
