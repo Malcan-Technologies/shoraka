@@ -398,7 +398,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
     if (exists) return;
 
     const newStep: WorkflowStep = {
-      id: `${stepType.id}_${Date.now()}`,
+      id: `${stepType.id}_1`,
       name: stepType.name,
       config: stepType.defaultConfig || {},
     };
