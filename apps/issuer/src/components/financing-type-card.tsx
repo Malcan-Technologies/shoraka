@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon } from "@heroicons/react/24/solid";
+import { Checkbox } from "@cashsouk/ui";
 import { useRequestProductImageDownloadUrl } from "@/hooks/use-product-images";
 import { cn } from "@/lib/utils";
 
@@ -98,27 +98,13 @@ export function FinancingTypeCard({
             )}
           </div>
 
-          {/* Selection Indicator */}
-          <div 
-            className="flex-shrink-0 h-6 w-6 flex items-center justify-center"
-            style={{ transition: 'none' }}
-          >
-            <div 
-              className={cn(
-                "h-6 w-6 rounded-full flex items-center justify-center",
-                isSelected 
-                  ? "bg-primary" 
-                  : "border-2 border-muted-foreground/30 bg-transparent"
-              )}
-              style={{ transition: 'none', transform: 'none' }}
-            >
-              {isSelected && (
-                <CheckIcon 
-                  className="h-4 w-4 text-primary-foreground" 
-                  style={{ transition: 'none', transform: 'none' }}
-                />
-              )}
-            </div>
+          {/* Selection Indicator - Square Checkbox */}
+          <div className="flex-shrink-0">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelect}
+              className="rounded-none transition-none [&>span]:transition-none [&>span[data-state]]:transition-none pointer-events-none"
+            />
           </div>
         </div>
       </div>

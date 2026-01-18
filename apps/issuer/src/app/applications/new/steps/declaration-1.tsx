@@ -48,7 +48,7 @@ export default function DeclarationStep({
     // Legacy format: { declarations: [{ id: string, checked: boolean }] }
     if (typeof decl === 'object' && decl !== null && 'declarations' in decl) {
       const legacy = decl as {
-        declarations?: Array<{
+      declarations?: Array<{
           id: string;
           checked: boolean;
         }>;
@@ -91,12 +91,12 @@ export default function DeclarationStep({
           ? (item as { checked: boolean }).checked
           : false;
         state.set(index, checked);
-      });
+        });
     } else {
       // Initialize all to false if no existing data
       declarations.forEach((_, index) => {
         state.set(index, false);
-      });
+          });
     }
 
     setCheckedDeclarations(state);
@@ -160,7 +160,7 @@ export default function DeclarationStep({
         const isChecked = checkedDeclarations.get(index) || false;
         const declarationId = `declaration-${index}`;
 
-        return (
+                    return (
           <Card
             key={index}
             className="cursor-pointer"
@@ -169,27 +169,27 @@ export default function DeclarationStep({
           >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <Checkbox
+                        <Checkbox
                   id={declarationId}
                   checked={isChecked}
-                  onCheckedChange={(checked) =>
+                          onCheckedChange={(checked) =>
                     handleDeclarationToggle(index, checked === true)
-                  }
+                          }
                   className="rounded-none pointer-events-none transition-none [&>span]:transition-none [&>span[data-state]]:transition-none"
-                />
+                        />
                 <div className="flex-1 space-y-0">
-                  <Label
+                          <Label
                     htmlFor={declarationId}
                     className="text-sm font-medium leading-relaxed cursor-pointer pointer-events-none"
-                  >
+                          >
                     {declaration}
-                  </Label>
+                          </Label>
                 </div>
               </div>
             </CardContent>
           </Card>
-        );
-      })}
+                );
+              })}
     </div>
   );
 }

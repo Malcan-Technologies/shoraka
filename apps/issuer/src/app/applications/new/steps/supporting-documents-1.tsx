@@ -245,15 +245,15 @@ export default function SupportingDocumentsStep({
           const key = `${catIndex}-${docIndex}`;
           const file = uploadedFiles[key];
           
-          return {
-            title: doc.title,
-            ...(file?.s3Key && {
-              file: {
-                file_name: file.name,
-                s3_key: file.s3Key,
-              },
-            }),
-          };
+            return {
+              title: doc.title,
+              ...(file?.s3Key && {
+                file: {
+                  file_name: file.name,
+                  s3_key: file.s3Key,
+                },
+              }),
+            };
         }),
       })),
     };
@@ -284,8 +284,8 @@ export default function SupportingDocumentsStep({
     return (
       <div className="space-y-4">
         <p className="text-muted-foreground text-center py-8">
-          No documents required for this application.
-        </p>
+              No documents required for this application.
+            </p>
       </div>
     );
   }
@@ -313,8 +313,8 @@ export default function SupportingDocumentsStep({
                       ) : (
                         <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                       )}
-                      <h3 className="text-lg font-semibold">{category.name}</h3>
-                    </div>
+                <h3 className="text-lg font-semibold">{category.name}</h3>
+              </div>
                     <span
                       className={
                         isComplete
@@ -327,25 +327,25 @@ export default function SupportingDocumentsStep({
                   </CollapsibleTrigger>
                 </div>
                 <CollapsibleContent className="px-6 py-5">
-                  <div className="space-y-4">
-                    {category.documents.map((document, documentIndex) => {
-                      const key = `${categoryIndex}-${documentIndex}`;
-                      const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
-                      const fileIsUploading = isUploading(key);
-                      const file = uploadedFiles[key];
+              <div className="space-y-4">
+                {category.documents.map((document, documentIndex) => {
+                  const key = `${categoryIndex}-${documentIndex}`;
+                  const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
+                  const fileIsUploading = isUploading(key);
+                  const file = uploadedFiles[key];
 
-                      return (
+                  return (
                         <div key={documentIndex} className="flex items-center justify-between py-1">
                           {/* Document Name on the left */}
-                          <Label
-                            htmlFor={`file-${key}`}
+                            <Label
+                              htmlFor={`file-${key}`}
                             className="text-base font-normal flex-1"
-                          >
-                            {document.title}
-                          </Label>
+                            >
+                              {document.title}
+                            </Label>
 
                           {/* Upload button or uploaded file display on the right */}
-                          {isUploaded && file && !fileIsUploading ? (
+                      {isUploaded && file && !fileIsUploading ? (
                             <div className="flex items-center gap-2">
                               <Checkbox
                                 checked={true}
@@ -353,7 +353,7 @@ export default function SupportingDocumentsStep({
                               />
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
-                                  {file.name}
+                                {file.name}
                                 </span>
                                 <button
                                   type="button"
@@ -372,29 +372,29 @@ export default function SupportingDocumentsStep({
                               <Label
                                 htmlFor={`file-${key}`}
                                 className="text-sm text-primary cursor-pointer hover:underline font-normal"
-                              >
+                          >
                                 Upload file
                               </Label>
-                              <Input
-                                id={`file-${key}`}
-                                type="file"
-                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                onChange={(e) =>
-                                  handleFileChange(categoryIndex, documentIndex, e)
-                                }
+                          <Input
+                            id={`file-${key}`}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            onChange={(e) =>
+                              handleFileChange(categoryIndex, documentIndex, e)
+                            }
                                 className="hidden"
-                                disabled={fileIsUploading}
-                              />
-                            </div>
-                          )}
+                            disabled={fileIsUploading}
+                          />
                         </div>
-                      );
-                    })}
-                  </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
                 </CollapsibleContent>
-              </CardContent>
+        </CardContent>
             </Collapsible>
-          </Card>
+      </Card>
         );
       })}
     </div>
