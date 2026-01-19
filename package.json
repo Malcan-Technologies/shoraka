@@ -15,16 +15,20 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx}\""
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.18.0",
     "@next/codemod": "16.1.0-canary.21",
     "@playwright/test": "^1.40.1",
     "@types/node": "^20.19.24",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "eslint": "^9.0.0",
+    "eslint": "^9.18.0",
     "eslint-config-next": "^16.0.10",
+    "globals": "^16.0.0",
     "prettier": "^3.1.1",
     "turbo": "^1.11.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.22.0"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
