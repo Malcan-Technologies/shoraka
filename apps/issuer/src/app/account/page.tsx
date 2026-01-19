@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
+import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import {
   useOrganization,
@@ -342,6 +343,7 @@ export default function AccountPage() {
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
+  const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
 
   // Organization management hooks
   const { removeMember, changeRole, leave, isRemoving, isChangingRole, isLeaving } =
@@ -363,6 +365,23 @@ export default function AccountPage() {
   const [bankName, setBankName] = React.useState("");
   const [accountNumber, setAccountNumber] = React.useState("");
   const [accountType, setAccountType] = React.useState("Savings");
+
+  // Form states for addresses
+  const [businessLine1, setBusinessLine1] = React.useState("");
+  const [businessLine2, setBusinessLine2] = React.useState("");
+  const [businessCity, setBusinessCity] = React.useState("");
+  const [businessPostalCode, setBusinessPostalCode] = React.useState("");
+  const [businessState, setBusinessState] = React.useState("");
+  const [businessCountry, setBusinessCountry] = React.useState("");
+  
+  const [registeredLine1, setRegisteredLine1] = React.useState("");
+  const [registeredLine2, setRegisteredLine2] = React.useState("");
+  const [registeredCity, setRegisteredCity] = React.useState("");
+  const [registeredPostalCode, setRegisteredPostalCode] = React.useState("");
+  const [registeredState, setRegisteredState] = React.useState("");
+  const [registeredCountry, setRegisteredCountry] = React.useState("");
+  
+  const [sameAsBusinessAddress, setSameAsBusinessAddress] = React.useState(false);
 
   // Fetch detailed organization data
   const { data: orgData } = useQuery({
@@ -420,6 +439,24 @@ export default function AccountPage() {
       setBankName(getBankField(orgData.bankAccountDetails, "Bank"));
       setAccountNumber(getBankField(orgData.bankAccountDetails, "Bank account number"));
       setAccountType(getBankField(orgData.bankAccountDetails, "Account type") || "Savings");
+      
+      // Initialize addresses
+      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const business = addresses?.business;
+      setBusinessLine1(business?.line1 || "");
+      setBusinessLine2(business?.line2 || "");
+      setBusinessCity(business?.city || "");
+      setBusinessPostalCode(business?.postalCode || "");
+      setBusinessState(business?.state || "");
+      setBusinessCountry(business?.country || "");
+      
+      const registered = addresses?.registered;
+      setRegisteredLine1(registered?.line1 || "");
+      setRegisteredLine2(registered?.line2 || "");
+      setRegisteredCity(registered?.city || "");
+      setRegisteredPostalCode(registered?.postalCode || "");
+      setRegisteredState(registered?.state || "");
+      setRegisteredCountry(registered?.country || "");
     }
   }, [orgData]);
 
@@ -486,6 +523,115 @@ export default function AccountPage() {
     setAccountNumber(getBankField(orgData?.bankAccountDetails, "Bank account number"));
     setAccountType(getBankField(orgData?.bankAccountDetails, "Account type") || "Savings");
     setIsEditingBanking(false);
+  };
+
+  // Address update mutation
+  const updateAddressesMutation = useMutation({
+    mutationFn: async (input: {
+      businessAddress: {
+        line1: string | null;
+        line2: string | null;
+        city: string | null;
+        postalCode: string | null;
+        state: string | null;
+        country: string | null;
+      };
+      registeredAddress: {
+        line1: string | null;
+        line2: string | null;
+        city: string | null;
+        postalCode: string | null;
+        state: string | null;
+        country: string | null;
+      };
+    }) => {
+      if (!activeOrganization?.id) throw new Error("No organization selected");
+      const result = await apiClient.patch(
+        `/v1/organizations/issuer/${activeOrganization.id}/corporate-info`,
+        input
+      );
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      toast.success("Addresses updated successfully");
+      setIsEditingAddresses(false);
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update addresses", { description: error.message });
+    },
+  });
+
+  const handleSaveAddresses = () => {
+    const businessAddress = {
+      line1: businessLine1 || null,
+      line2: businessLine2 || null,
+      city: businessCity || null,
+      postalCode: businessPostalCode || null,
+      state: businessState || null,
+      country: businessCountry || null,
+    };
+    
+    const registeredAddress = sameAsBusinessAddress
+      ? businessAddress
+      : {
+          line1: registeredLine1 || null,
+          line2: registeredLine2 || null,
+          city: registeredCity || null,
+          postalCode: registeredPostalCode || null,
+          state: registeredState || null,
+          country: registeredCountry || null,
+        };
+    
+    updateAddressesMutation.mutate({ businessAddress, registeredAddress });
+  };
+
+  const handleCancelAddressesEdit = () => {
+    if (orgData) {
+      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const business = addresses?.business;
+      setBusinessLine1(business?.line1 || "");
+      setBusinessLine2(business?.line2 || "");
+      setBusinessCity(business?.city || "");
+      setBusinessPostalCode(business?.postalCode || "");
+      setBusinessState(business?.state || "");
+      setBusinessCountry(business?.country || "");
+      
+      const registered = addresses?.registered;
+      setRegisteredLine1(registered?.line1 || "");
+      setRegisteredLine2(registered?.line2 || "");
+      setRegisteredCity(registered?.city || "");
+      setRegisteredPostalCode(registered?.postalCode || "");
+      setRegisteredState(registered?.state || "");
+      setRegisteredCountry(registered?.country || "");
+      
+      setSameAsBusinessAddress(false);
+    }
+    setIsEditingAddresses(false);
+  };
+
+  // Helper function to format address for display
+  const formatAddressDisplay = (address?: {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+    state?: string | null;
+    country?: string | null;
+  }): string => {
+    if (!address) return "—";
+    const parts = [
+      address.line1,
+      address.line2,
+      address.city,
+      address.postalCode,
+      address.state,
+      address.country,
+    ].filter((part) => part && part.trim() !== "");
+    return parts.length > 0 ? parts.join(", ") : "—";
   };
 
   // Show loading state
@@ -792,33 +938,189 @@ export default function AccountPage() {
                         Business and registered addresses
                       </p>
                     </div>
+                    {!isEditingAddresses && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingAddresses(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
                   <div className="p-6 space-y-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <MapPinIcon className="h-4 w-4" />
-                        Business Address
-                      </Label>
-                      <Input
-                        value={orgData?.corporateOnboardingData?.addresses?.businessAddress || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+                    {/* Business Address */}
+                    <div className="space-y-4 pt-2">
+                      <h3 className="text-sm font-semibold">Business Address</h3>
+                      {!isEditingAddresses ? (
+                        <p className="text-sm text-muted-foreground">
+                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.business)}
+                        </p>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Address Line 1</Label>
+                            <Input
+                              value={businessLine1}
+                              onChange={(e) => setBusinessLine1(e.target.value)}
+                              placeholder="Street address"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Address Line 2</Label>
+                            <Input
+                              value={businessLine2}
+                              onChange={(e) => setBusinessLine2(e.target.value)}
+                              placeholder="Apartment, suite, etc. (optional)"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input
+                              value={businessCity}
+                              onChange={(e) => setBusinessCity(e.target.value)}
+                              placeholder="City"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Postal Code</Label>
+                            <Input
+                              value={businessPostalCode}
+                              onChange={(e) => setBusinessPostalCode(e.target.value)}
+                              placeholder="Postal code"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>State</Label>
+                            <Input
+                              value={businessState}
+                              onChange={(e) => setBusinessState(e.target.value)}
+                              placeholder="State"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <Input
+                              value={businessCountry}
+                              onChange={(e) => setBusinessCountry(e.target.value)}
+                              placeholder="Country"
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <MapPinIcon className="h-4 w-4" />
-                        Registered Address
-                      </Label>
-                      <Input
-                        value={orgData?.corporateOnboardingData?.addresses?.registeredAddress || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+
+                    {/* Registered Address */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold">Registered Address</h3>
+                        {isEditingAddresses && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="sameAsBusinessAddress"
+                              checked={sameAsBusinessAddress}
+                              onCheckedChange={(checked) => setSameAsBusinessAddress(checked === true)}
+                            />
+                            <Label htmlFor="sameAsBusinessAddress" className="text-sm font-normal cursor-pointer">
+                              Same as business address
+                            </Label>
+                          </div>
+                        )}
+                      </div>
+                      {!isEditingAddresses ? (
+                        <p className="text-sm text-muted-foreground">
+                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.registered)}
+                        </p>
+                      ) : (
+                        !sameAsBusinessAddress && (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label>Address Line 1</Label>
+                              <Input
+                                value={registeredLine1}
+                                onChange={(e) => setRegisteredLine1(e.target.value)}
+                                placeholder="Street address"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label>Address Line 2</Label>
+                              <Input
+                                value={registeredLine2}
+                                onChange={(e) => setRegisteredLine2(e.target.value)}
+                                placeholder="Apartment, suite, etc. (optional)"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>City</Label>
+                              <Input
+                                value={registeredCity}
+                                onChange={(e) => setRegisteredCity(e.target.value)}
+                                placeholder="City"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Postal Code</Label>
+                              <Input
+                                value={registeredPostalCode}
+                                onChange={(e) => setRegisteredPostalCode(e.target.value)}
+                                placeholder="Postal code"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>State</Label>
+                              <Input
+                                value={registeredState}
+                                onChange={(e) => setRegisteredState(e.target.value)}
+                                placeholder="State"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Country</Label>
+                              <Input
+                                value={registeredCountry}
+                                onChange={(e) => setRegisteredCountry(e.target.value)}
+                                placeholder="Country"
+                                className="h-11 rounded-xl"
+                              />
+                            </div>
+                          </div>
+                        )
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Update addresses in Corporate Info section
-                    </p>
+
+                    {isEditingAddresses && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelAddressesEdit}
+                          disabled={updateAddressesMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveAddresses}
+                          disabled={updateAddressesMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          {updateAddressesMutation.isPending ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
