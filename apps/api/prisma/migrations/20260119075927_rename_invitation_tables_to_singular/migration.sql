@@ -114,3 +114,4 @@ BEGIN
 
   RAISE NOTICE 'Migration completed: All tables, constraints, and indexes renamed to singular form';
 END $$;
+
