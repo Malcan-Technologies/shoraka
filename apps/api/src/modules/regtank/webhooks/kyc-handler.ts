@@ -2,6 +2,7 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankKYCWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
+import { AmlIdentityRepository } from "../aml-identity-repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
 import { OnboardingStatus, UserRole } from "@prisma/client";
@@ -18,12 +19,14 @@ import type { PortalType } from "../types";
 export class KYCWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
+  private amlIdentityRepository: AmlIdentityRepository;
   private provider: "ACURIS" | "DOWJONES";
 
   constructor(provider: "ACURIS" | "DOWJONES" = "ACURIS") {
     super();
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.amlIdentityRepository = new AmlIdentityRepository();
     this.provider = provider;
   }
 
@@ -224,6 +227,108 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       },
       "[KYC Webhook] ✓ Successfully processed and linked to onboarding record"
     );
+
+    // Update AML identity mapping with kycId
+    const amlOrganizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const amlPortalType = onboarding.portal_type as PortalType;
+    
+    if (amlOrganizationId && onboardingId) {
+      try {
+        // requestId IS the kycId
+        const kycId = requestId;
+        
+        // If onboardingId is an EOD requestId, find mapping by EOD
+        if (onboardingId.startsWith("EOD")) {
+          const mapping = await this.amlIdentityRepository.findByEodRequestId(onboardingId);
+          
+          if (mapping) {
+            // Update mapping with kycId
+            await this.amlIdentityRepository.upsertMapping({
+              organization_id: amlOrganizationId,
+              organization_type: amlPortalType,
+              entity_type: mapping.entity_type as "director" | "individual_shareholder",
+              name: mapping.name,
+              email: mapping.email,
+              cod_request_id: mapping.cod_request_id,
+              eod_request_id: onboardingId,
+              kyc_id: kycId,
+            });
+
+            // Find duplicates by name and email and copy kycId to them
+            if (mapping.name && mapping.email) {
+              await this.amlIdentityRepository.updateKycIdAndCopyToDuplicates(
+                amlOrganizationId,
+                kycId,
+                mapping.name,
+                mapping.email
+              );
+            }
+
+            logger.info(
+              {
+                kycId,
+                eodRequestId: onboardingId,
+                codRequestId: onboarding.request_id,
+                organizationId: amlOrganizationId,
+                entityType: mapping.entity_type,
+              },
+              "[KYC Webhook] Updated AML identity mapping with kycId from EOD"
+            );
+          }
+        } else if (onboardingId.startsWith("COD")) {
+          // If onboardingId is COD, find all mappings for this COD and update them
+          // This handles cases where kycId is provided at COD level
+          const mappings = await this.amlIdentityRepository.findByCodRequestId(onboardingId);
+          
+          for (const mapping of mappings) {
+            if (mapping.organization_id === amlOrganizationId) {
+              await this.amlIdentityRepository.upsertMapping({
+                organization_id: amlOrganizationId,
+                organization_type: amlPortalType,
+                entity_type: mapping.entity_type as "director" | "individual_shareholder",
+                name: mapping.name,
+                email: mapping.email,
+                cod_request_id: onboardingId,
+                eod_request_id: mapping.eod_request_id,
+                kyc_id: kycId,
+              });
+
+              // Copy kycId to duplicates
+              if (mapping.name && mapping.email) {
+                await this.amlIdentityRepository.updateKycIdAndCopyToDuplicates(
+                  amlOrganizationId,
+                  kycId,
+                  mapping.name,
+                  mapping.email
+                );
+              }
+            }
+          }
+
+          if (mappings.length > 0) {
+            logger.info(
+              {
+                kycId,
+                codRequestId: onboardingId,
+                organizationId: amlOrganizationId,
+                mappingsUpdated: mappings.length,
+              },
+              "[KYC Webhook] Updated AML identity mappings with kycId from COD"
+            );
+          }
+        }
+      } catch (mappingError) {
+        logger.warn(
+          {
+            error: mappingError instanceof Error ? mappingError.message : String(mappingError),
+            kycId: requestId,
+            onboardingId,
+            organizationId: amlOrganizationId,
+          },
+          "[KYC Webhook] Failed to update AML identity mapping (non-blocking)"
+        );
+      }
+    }
 
     // Handle KYC approval - update regtank_onboarding status and organization aml_approved flag
     const statusUpper = status?.toUpperCase();

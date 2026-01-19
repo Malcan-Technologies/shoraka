@@ -2,11 +2,15 @@
 
 import * as React from "react";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import type { Organization } from "@cashsouk/config";
+import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
 import { CorporateShareholdersList } from "./corporate-shareholders-list";
+import { toast } from "sonner";
 
 interface OnboardingStep {
   id: string;
@@ -89,8 +93,27 @@ export function OnboardingStatusCard({
   userName,
   actionButton,
 }: OnboardingStatusCardProps) {
+  const { refreshAmlStatus, refreshOrganizations } = useOrganization();
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
   const steps = getOnboardingSteps(organization);
   const allComplete = steps.every((step) => step.isCompleted);
+
+  const handleRefreshAml = async () => {
+    if (!organization.id) return;
+    
+    setIsRefreshing(true);
+    try {
+      await refreshAmlStatus(organization.id);
+      await refreshOrganizations();
+      toast.success("AML status refreshed successfully");
+    } catch (error) {
+      toast.error("Failed to refresh AML status", {
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Don't show if all steps are complete
   if (allComplete) {
@@ -213,10 +236,24 @@ export function OnboardingStatusCard({
           (organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0)) && (
           <Card className="mt-6">
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">AML Screening Status</CardTitle>
-              <CardDescription>
-                Your directors/shareholders are completing their AML screening.
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-base">AML Screening Status</CardTitle>
+                  <CardDescription>
+                    Your directors/shareholders are completing their AML screening.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshAml}
+                  disabled={isRefreshing}
+                  className="gap-2"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {organization.directorAmlStatus && organization.directorAmlStatus.directors.length > 0 && (

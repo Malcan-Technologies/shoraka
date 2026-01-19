@@ -180,6 +180,7 @@ interface OrganizationContextType {
     organizationId: string,
     input: UpdateOrganizationProfileInput
   ) => Promise<{ success: boolean }>;
+  refreshAmlStatus: (organizationId: string) => Promise<Organization>;
   isOnboarded: boolean;
   isPendingApproval: boolean;
   portalType: PortalType;
@@ -649,6 +650,80 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
     [apiUrl, getAccessToken, portalType]
   );
 
+  /**
+   * Refresh AML status for an organization
+   */
+  const refreshAmlStatus = useCallback(
+    async (organizationId: string): Promise<Organization> => {
+      const apiClient = createApiClient(apiUrl, getAccessToken);
+      const result = await apiClient.post<{
+        directorAmlStatus: {
+          directors: Array<{
+            kycId: string;
+            name: string;
+            email: string;
+            role: string;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          individualShareholders?: Array<{
+            kycId: string;
+            name: string;
+            email: string;
+            role: string;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          businessShareholders?: Array<{
+            codRequestId: string;
+            kybId: string;
+            businessName: string;
+            sharePercentage?: number | null;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        };
+        lastSyncedAt: string;
+      }>(`/v1/organizations/${portalType}/${organizationId}/refresh-aml`);
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to refresh AML status");
+      }
+
+      // Update local state with refreshed AML status
+      let updatedOrg: Organization | null = null;
+      setOrganizations((prev) =>
+        prev.map((org) => {
+          if (org.id === organizationId) {
+            updatedOrg = {
+              ...org,
+              directorAmlStatus: result.data.directorAmlStatus,
+            };
+            return updatedOrg;
+          }
+          return org;
+        })
+      );
+
+      if (!updatedOrg) {
+        throw new Error("Organization not found");
+      }
+
+      return updatedOrg;
+    },
+    [apiUrl, getAccessToken, portalType]
+  );
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -667,6 +742,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         setOnboardingSettings,
         acceptTnc,
         updateOrganizationProfile,
+        refreshAmlStatus,
         isOnboarded,
         isPendingApproval,
         portalType,

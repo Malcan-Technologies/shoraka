@@ -3,6 +3,7 @@ import { RegTankEODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { AuthRepository } from "../../auth/repository";
+import { AmlIdentityRepository } from "../aml-identity-repository";
 import { UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
@@ -19,6 +20,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private authRepository: AuthRepository;
   private organizationRepository: OrganizationRepository;
+  private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
 
   constructor() {
@@ -26,6 +28,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     this.repository = new RegTankRepository();
     this.authRepository = new AuthRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
   }
 
@@ -404,6 +407,137 @@ export class EODWebhookHandler extends BaseWebhookHandler {
                 organizationId,
               },
               "[EOD Webhook] Failed to fetch EOD details for kycId (non-blocking, will retry on COD approval)"
+            );
+          }
+        }
+
+        // If we have a kycId, update AML identity mapping
+        if (finalKycId && organizationId) {
+          try {
+            // Find mapping by EOD request ID
+            const mapping = await this.amlIdentityRepository.findByEodRequestId(eodRequestId);
+            
+            if (mapping) {
+              // Update mapping with kycId
+              await this.amlIdentityRepository.upsertMapping({
+                organization_id: organizationId,
+                organization_type: portalType,
+                entity_type: mapping.entity_type as "director" | "individual_shareholder",
+                name: mapping.name,
+                email: mapping.email,
+                cod_request_id: mapping.cod_request_id,
+                eod_request_id: eodRequestId,
+                kyc_id: finalKycId,
+              });
+
+              // Find duplicates by name and email and copy kycId to them
+              if (mapping.name && mapping.email) {
+                await this.amlIdentityRepository.updateKycIdAndCopyToDuplicates(
+                  organizationId,
+                  finalKycId,
+                  mapping.name,
+                  mapping.email
+                );
+              }
+
+              logger.info(
+                {
+                  eodRequestId,
+                  codRequestId: onboarding.request_id,
+                  kycId: finalKycId,
+                  organizationId,
+                  entityType: mapping.entity_type,
+                },
+                "[EOD Webhook] Updated AML identity mapping with kycId"
+              );
+            } else {
+              // Mapping doesn't exist yet - try to create it from EOD details
+              try {
+                const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+                const userInfo = eodDetails.corporateUserRequestInfo;
+                const formContent = userInfo?.formContent?.content || [];
+                const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+                const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+                const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || null;
+                const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || null;
+                
+                // Determine entity type from parent COD
+                const codDetails = await this.apiClient.getCorporateOnboardingDetails(onboarding.request_id);
+                const isDirector = codDetails.corpIndvDirectors?.some((d: any) => 
+                  d.corporateIndividualRequest?.requestId === eodRequestId
+                );
+                const isShareholder = codDetails.corpIndvShareholders?.some((s: any) => 
+                  s.corporateIndividualRequest?.requestId === eodRequestId
+                );
+
+                if (name && email) {
+                  // Create mapping for director or shareholder
+                  if (isDirector) {
+                    await this.amlIdentityRepository.upsertMapping({
+                      organization_id: organizationId,
+                      organization_type: portalType,
+                      entity_type: "director",
+                      name,
+                      email,
+                      cod_request_id: onboarding.request_id,
+                      eod_request_id: eodRequestId,
+                      kyc_id: finalKycId,
+                    });
+                  }
+                  
+                  if (isShareholder) {
+                    await this.amlIdentityRepository.upsertMapping({
+                      organization_id: organizationId,
+                      organization_type: portalType,
+                      entity_type: "individual_shareholder",
+                      name,
+                      email,
+                      cod_request_id: onboarding.request_id,
+                      eod_request_id: eodRequestId,
+                      kyc_id: finalKycId,
+                    });
+                  }
+
+                  // Copy kycId to duplicates
+                  await this.amlIdentityRepository.updateKycIdAndCopyToDuplicates(
+                    organizationId,
+                    finalKycId,
+                    name,
+                    email
+                  );
+
+                  logger.info(
+                    {
+                      eodRequestId,
+                      codRequestId: onboarding.request_id,
+                      kycId: finalKycId,
+                      organizationId,
+                      name,
+                      email,
+                    },
+                    "[EOD Webhook] Created new AML identity mapping with kycId"
+                  );
+                }
+              } catch (createError) {
+                logger.warn(
+                  {
+                    error: createError instanceof Error ? createError.message : String(createError),
+                    eodRequestId,
+                    organizationId,
+                  },
+                  "[EOD Webhook] Failed to create AML identity mapping (non-blocking)"
+                );
+              }
+            }
+          } catch (mappingError) {
+            logger.warn(
+              {
+                error: mappingError instanceof Error ? mappingError.message : String(mappingError),
+                eodRequestId,
+                organizationId,
+                kycId: finalKycId,
+              },
+              "[EOD Webhook] Failed to update AML identity mapping (non-blocking)"
             );
           }
         }

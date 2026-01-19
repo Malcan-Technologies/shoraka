@@ -1,0 +1,2017 @@
+{
+	"info": {
+		"_postman_id": "036ad7df-cb00-42dd-aac1-e9ffd7a00f3f",
+		"name": "Regtank APIs v3.0 -  Shoraka Digital Trial",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Onboarding",
+			"item": [
+				{
+					"name": "Individual Onboarding",
+					"item": [
+						{
+							"name": "Onboarding Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"email\": \"testmail@mail.com\",\r\n    \"surname\": \"Smith\",\r\n    \"forename\": \"John\",\r\n    \"middleName\": \"Rob\",\r\n    \"referenceId\": \"id00000001\",\r\n    \"countryOfResidence\": \"SG\",\r\n    \"placeOfBirth\": \"SG\",\r\n    \"nationality\": \"SG\",\r\n    \"idIssuingCountry\": \"SG\",\r\n    \"dateOfBirth\": \"1977-01-01\",\r\n    \"yearOfBirth\": \"1977\",\r\n    \"gender\": \"MALE\",\r\n    \"governmentIdNumber\": \"S123123SS\",\r\n    \"idType\": \"IDENTITY\",\r\n    \"language\": \"EN\",\r\n    \"bypassIdUpload\": \"FALSE\",\r\n    \"address\": \"woodlands crescent 32\",\r\n    \"walletAddress\": \"KwmgX4oEAZRLDLaVBv6VbV2S8PiyYv23mctbqHdP6GjQAcDvZUNg\",\r\n    \"industry\": \"WINE_SPIRITS\",\r\n    \"occupation\": \"CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS\",\r\n    \"tags\": [],\r\n    \"proofOfAddress\": {\r\n         \"fileName\": \"proofOfAddress.pdf\",\r\n         \"fileContent\": \"data:image/jpeg;base64,/9j..\"\r\n     }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/request",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"request"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding ID Document Upload",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"LD01752\",\r\n    \"email\": \"testmail@mail.com\",\r\n    \"documentType\": \"Identity\",\r\n    \"frontImage\": {\r\n        \"fileName\": \"icFront.jpeg\",\r\n        \"fileContent\": \"data:image/jpeg;base64,/9j..\"\r\n    },\r\n    \"backImage\": {\r\n        \"fileName\": \"icBack.jpeg\",\r\n        \"fileContent\": \"data:image/jpg;base64,/9j..\"\r\n    }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/document-upload",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"document-upload"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding Check",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "requestId",
+											"value": "LD01752",
+											"type": "text"
+										},
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJmYjI2OTVkZS1hZGM0LTRjNjEtOWE5OC03YmI3MmU0NTM2OTYiLCJpYXQiOjE3MDM2MTAyODAsInN1YiI6ImUzYzc3ODAzLTY5ZDMtNDZhOS04YzM3LTUwM2JkOWY0YzBmNyIsImlzcyI6IjI0YTc2NWIxYzA1ZmQzM2EwMTYwODNhMzY4NTZlMTQ2IiwiZXhwIjoxNzAzNjk2NjgwfQ.T-CM576KWT9VaiYQGXDy4-hB7rzmJjQCEsk0nHAEaWA",
+											"type": "text"
+										},
+										{
+											"key": "video",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "https:///{{companySpecificRegtankServerURL}}/v3/onboarding/indv/liveness-check",
+									"protocol": "https",
+									"path": [
+										"{{companySpecificRegtankServerURL}}",
+										"v3",
+										"onboarding",
+										"indv",
+										"liveness-check"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding Restart",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"LD01752\",\r\n    \"email\": \"123123123123123@mail.com\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/restart",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"restart"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding Get Detail",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/query?requestId=LD01752",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "LD01752"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding Get Setting",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/setting/query?formId=12306",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"setting",
+										"query"
+									],
+									"query": [
+										{
+											"key": "formId",
+											"value": "12306"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Onboarding Set Setting",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"formId\": \"12306\",\r\n    \"livenessConfidence\": \"90\",\r\n    \"approveMode\": \"false\",\r\n    \"kycApprovalTarget\": \"ACURIS\",\r\n    \"enabledRegistrationEmail\": \"true\",\r\n    \"redirectUrl\": \"https://regtank.com\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/indv/setting",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"indv",
+										"setting"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Corporate Onboarding",
+					"item": [
+						{
+							"name": "Business Onboarding Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\t\r\n    \"email\": \"test@regtank.com\",\r\n    \"companyName\": \"Company A\",\r\n    \"formName\": \"Business End User Onboarding Example Form1\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https:///{{companySpecificRegtankServerURL}}/v3/onboarding/corp/request",
+									"protocol": "https",
+									"path": [
+										"{{companySpecificRegtankServerURL}}",
+										"v3",
+										"onboarding",
+										"corp",
+										"request"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Business Onboarding Query COD",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/corp/query?requestId=COD00502",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"corp",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "COD00502"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Business Onboarding Query EOD",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/corp/indv/query?requestId=EOD00301",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"onboarding",
+										"corp",
+										"indv",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "EOD00301"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Business Onboarding Query EOD",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "https://{{companySpecificRegtankServerURL}}/v3/onboarding/corp/indv/query?requestId=EOD04023",
+											"protocol": "https",
+											"host": [
+												"{{companySpecificRegtankServerURL}}"
+											],
+											"path": [
+												"v3",
+												"onboarding",
+												"corp",
+												"indv",
+												"query"
+											],
+											"query": [
+												{
+													"key": "requestId",
+													"value": "EOD04023"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "Text",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Date",
+											"value": "Tue, 02 Sep 2025 06:05:09 GMT"
+										},
+										{
+											"key": "Expires",
+											"value": "0"
+										},
+										{
+											"key": "Content-Encoding",
+											"value": "gzip"
+										},
+										{
+											"key": "Vary",
+											"value": "accept-encoding,origin,access-control-request-headers,access-control-request-method,accept-encoding"
+										},
+										{
+											"key": "X-Frame-Options",
+											"value": "DENY"
+										},
+										{
+											"key": "Strict-Transport-Security",
+											"value": "max-age=31536000 ; includeSubDomains"
+										},
+										{
+											"key": "X-Content-Type-Options",
+											"value": "nosniff"
+										},
+										{
+											"key": "X-XSS-Protection",
+											"value": "1; mode=block"
+										},
+										{
+											"key": "Cache-Control",
+											"value": "no-cache, no-store, max-age=0, must-revalidate"
+										},
+										{
+											"key": "Pragma",
+											"value": "no-cache"
+										},
+										{
+											"key": "X-Cache",
+											"value": "Miss from cloudfront"
+										},
+										{
+											"key": "Via",
+											"value": "1.1 e356100ddad8d3e5373bcedb8e103884.cloudfront.net (CloudFront)"
+										},
+										{
+											"key": "X-Amz-Cf-Pop",
+											"value": "SIN2-P5"
+										},
+										{
+											"key": "X-Amz-Cf-Id",
+											"value": "k6BL5EwqiHCyfMiXe5zTHvAu5Zo6RqDGFTEPeyxyXNIxcGiCatEHrA=="
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"corporateIndividualRequest\": {\n        \"id\": 880629,\n        \"createdAt\": null,\n        \"updatedAt\": null,\n        \"createdBy\": null,\n        \"lastModifiedBy\": null,\n        \"createdDate\": \"2025-09-02T06:03:06.004+00:00\",\n        \"deviceType\": \"Desktop\",\n        \"email\": \"quanlei@regtank.com\",\n        \"requestId\": \"EOD04023\",\n        \"requestIpAddress\": \"128.106.195.2\",\n        \"status\": \"WAIT_FOR_APPROVAL\",\n        \"token\": \"a4fe505d-ae5a-4115-aa7f-cca4a757f171\",\n        \"updatedDate\": \"2025-09-02T06:04:21.201+00:00\",\n        \"sendEmailStatus\": null,\n        \"approveStatus\": \"WAIT_FOR_APPROVAL\",\n        \"approveMode\": true,\n        \"approveNote\": null,\n        \"kycType\": \"ACURIS\",\n        \"corporateRole\": null\n    },\n    \"corporateUserRequestInfo\": {\n        \"id\": 880630,\n        \"createdAt\": null,\n        \"updatedAt\": null,\n        \"createdBy\": null,\n        \"lastModifiedBy\": null,\n        \"address\": null,\n        \"backDocumentUrl\": null,\n        \"country\": null,\n        \"dateOfBirth\": null,\n        \"documentNum\": null,\n        \"documentType\": \"Passport\",\n        \"email\": \"quanlei@regtank.com\",\n        \"firstName\": \"1\",\n        \"frontDocumentUrl\": null,\n        \"fullName\": \"1  1\",\n        \"gender\": null,\n        \"lastName\": \"1\",\n        \"nationality\": null,\n        \"selfieUrl\": null,\n        \"title\": null,\n        \"corporateIndividualRequestId\": 880629,\n        \"livenessRequestId\": \"EOD04023\",\n        \"sendEmailStatus\": null,\n        \"status\": null,\n        \"governmentIdNumber\": null,\n        \"idIssuingCountry\": null,\n        \"idType\": null,\n        \"middleName\": null,\n        \"placeOfBirth\": \"SG\",\n        \"referenceId\": null,\n        \"walletAddress\": null,\n        \"yearOfBirth\": null,\n        \"formContent\": {\n            \"content\": [\n                {\n                    \"alias\": \"名(Given Name)\",\n                    \"fieldName\": \"First Name\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"1\"\n                },\n                {\n                    \"alias\": \"中间名 (Middle Name)\",\n                    \"fieldName\": \"Middle Name\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"\"\n                },\n                {\n                    \"alias\": \"姓 (Surname)\",\n                    \"fieldName\": \"Last Name\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"1\"\n                },\n                {\n                    \"alias\": \"委任称号(Designation)\",\n                    \"fieldName\": \"Designation\",\n                    \"fieldType\": \"picklist\",\n                    \"fieldValue\": \"Director\"\n                },\n                {\n                    \"alias\": \"邮箱 (Email Address)\",\n                    \"fieldName\": \"Email Address\",\n                    \"fieldType\": \"email\",\n                    \"fieldValue\": \"quanlei@regtank.com\"\n                },\n                {\n                    \"alias\": \"性别 (Gender)\",\n                    \"fieldName\": \"Gender\",\n                    \"fieldType\": \"picklist\",\n                    \"fieldValue\": \"Male\"\n                },\n                {\n                    \"alias\": \"出生日期 (Date of Birth)\",\n                    \"fieldName\": \"Date of Birth\",\n                    \"fieldType\": \"date\",\n                    \"fieldValue\": \"1992-01-28\"\n                },\n                {\n                    \"alias\": \"出生国家 (State of Birth)\",\n                    \"fieldName\": \"Place of Birth\",\n                    \"fieldType\": \"picklist-country\",\n                    \"fieldValue\": \"SG\"\n                },\n                {\n                    \"alias\": \"居住地址 (Residence Address)\",\n                    \"fieldName\": \"Address\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"Singapore\"\n                },\n                {\n                    \"cn\": false,\n                    \"fieldName\": \"身份证件号码 (Number of Identification Certificate)\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"S9640809991\"\n                },\n                {\n                    \"cn\": false,\n                    \"alias\": null,\n                    \"fieldName\": \"曾有名 (Previous Name)\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"\"\n                },\n                {\n                    \"cn\": false,\n                    \"fieldName\": \"中文姓名(Chinese Name)\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"\"\n                },\n                {\n                    \"cn\": false,\n                    \"fieldName\": \"国籍 (Nationality(ies)) \",\n                    \"fieldType\": \"multi-select-country\",\n                    \"fieldValue\": [\n                        \"SG\"\n                    ]\n                },\n                {\n                    \"cn\": false,\n                    \"fieldName\": \"波兰PESEL号码 (PESEL Number)\",\n                    \"fieldType\": \"text\",\n                    \"fieldValue\": \"\"\n                },\n                {\n                    \"cn\": false,\n                    \"alias\": null,\n                    \"fieldName\": \"其他称号 (Other Designation)\",\n                    \"fieldType\": \"picklist\",\n                    \"fieldValue\": \"授权代表 (Authorized Representative)\"\n                }\n            ],\n            \"displayArea\": \"Basic Information Setting\"\n        }\n    },\n    \"corporateDocumentInfo\": {\n        \"id\": 880628,\n        \"createdAt\": null,\n        \"updatedAt\": null,\n        \"createdBy\": null,\n        \"lastModifiedBy\": null,\n        \"corporateIndividualRequestId\": 880629,\n        \"backDocumentUrl\": null,\n        \"countryCode\": null,\n        \"documentNum\": null,\n        \"documentType\": \"Passport\",\n        \"frontDocumentUrl\": \"https://qc-live-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00001/COD03439/document/ae6fc3c59d10434bb2e1c4463085aafd.jpeg\",\n        \"ocrStatus\": \"PROCESSING\"\n    },\n    \"corporateLivenessCheckInfo\": null,\n    \"kycRequestInfo\": null\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "KYC",
+			"item": [
+				{
+					"name": "Acuris KYC",
+					"item": [
+						{
+							"name": "Acuris KYC Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"surname\": \"Smith\",\r\n    \"middleName\": \"Rob\",\r\n    \"forename\": \"John\",\r\n    \"gender\": \"MALE\",\r\n    \"enableReScreening\" : false,\r\n    \"enableOnGoingMonitoring\" : false,\r\n    \"dateOfBirth\": \"1972-01-23\",\r\n    \"assignee\" : \"isaac@regtank.com\",\r\n    \"address1\": \"23 Broad St\",\r\n    \"address2\": \"San Francisco\",\r\n    \"countryOfResidence\": \"US\",\r\n    \"email\": \"john.smith@mail.com\",\r\n    \"governmentIdNumber\": \"EN-05-10092\",\r\n    \"idIssuingCountry\": \"US\",\r\n    \"nationality\": \"SG\",\r\n    \"phone\": \"85640976\",\r\n    \"placeOfBirth\": \"SG\",\r\n    \"referenceId\": \"id82937184\",\r\n    \"yearOfBirth\": 1972\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyc/input",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyc",
+										"input"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYC Query Status",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyc/query?requestId=KYC01911&referenceId=id82937184",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyc",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "KYC01911"
+										},
+										{
+											"key": "referenceId",
+											"value": "id82937184"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYC Generate Score",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"KYC01911\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyc/scoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyc",
+										"scoring"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYC OM",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"KYC01911\",\r\n    \"enabled\": true\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyc/ongoing-monitoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyc",
+										"ongoing-monitoring"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Dow Jones KYC",
+					"item": [
+						{
+							"name": "Dow Jones KYC Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\": \"Barack Obama\",\r\n    \"countryOfResidence\": \"US\",\r\n    \"dateOfBirth\": \"10\",\r\n    \"monthOfBirth\": \"12\",\r\n    \"yearOfBirth\": \"1961\",\r\n    \"governmentIdNumber\": \"123456789\",\r\n    \"email\": \"barackobama@mailinator.com\",\r\n    \"phone\": \"0909123456\",\r\n    \"address1\": \"White House\",\r\n    \"address2\": \"USA\",\r\n    \"gender\": \"MALE\",\r\n    \"referenceId\": \"id82937184\",\r\n    \"placeOfBirth\": \"US\",\r\n    \"nationality\": \"US\",\r\n    \"idIssuingCountry\": \"US\",\r\n    \"profileNotes\": false,\r\n    \"occupationTitle\": false,\r\n    \"strictDateMatch\": true,\r\n    \"enableOnGoingMonitoring\": true,\r\n    \"enableReScreening\": true,\r\n    \"industry\": \"ACCOMMODATION_AND_FOOD_SERVICES\",\r\n    \"occupation\": \"CHIEF_EXECUTIVES_SENIOR_OFFICIALS_AND_LEGISLATORS\",\r\n    \"tags\": [\"Singpass\",\"ACRA\"]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyc/input",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyc",
+										"input"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYC Query Status",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyc/query?requestId=DJKYC01669&referenceId=id82937184",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyc",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "DJKYC01669"
+										},
+										{
+											"key": "referenceId",
+											"value": "id82937184"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYC Generate Score",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"DJKYC01669\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyc/scoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyc",
+										"scoring"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYC OM",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"DJKYC01669\",\r\n    \"enabled\": true\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyc/ongoing-monitoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyc",
+										"ongoing-monitoring"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "KYB",
+			"item": [
+				{
+					"name": "Acuris KYB",
+					"item": [
+						{
+							"name": "Acuris KYB Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"businessName\": \"Apple\",\r\n    \"businessIdNumber\": \"12345ABCD\",\r\n    \"address1\": \"23 Broad St\",\r\n    \"address2\": \"San Francisco\",\r\n    \"sizeOfTheCompany\": \"FROM_500_AND_MORE\",\r\n    \"email\": \"apple@mail.com\",\r\n    \"phone\": \"62739201\",\r\n    \"website\": \"apple.com\",\r\n    \"referenceId\": \"id62726482\",\r\n    \"natureOfBusiness\": \"COMPUTER_SOFTWARE_ENGINEERING\",\r\n    \"companyType\": \"CORPORATION\",\r\n    \"countryOfIncorporation\": \"US\",\r\n    \"countryOfHeadQuarter\": \"US\",\r\n    \"dateOfIncorporation\": \"2021-01-01\",\r\n    \"assignee\": \"quanlei@regtank.com\",\r\n    \"enableReScreening\": true,\r\n    \"enableOnGoingMonitoring\": true,\r\n    \"operatingCountry\": \"US\",\r\n    \"tags\": []  \r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyb/input",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyb",
+										"input"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYB Query Status",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyb/query?requestId=KYB00351&referenceId=id62726482",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyb",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "KYB00351"
+										},
+										{
+											"key": "referenceId",
+											"value": "id62726482"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYB Complete Resolution",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"KYB00200\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyb/complete-resolution",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyb",
+										"complete-resolution"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYB Generate Score",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"KYB00351\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyb/scoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyb",
+										"scoring"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Acuris KYB OM",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"KYB00351\",\r\n    \"enabled\": true\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyb/ongoing-monitoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"kyb",
+										"ongoing-monitoring"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Dow Jones KYB",
+					"item": [
+						{
+							"name": "Dow Jones KYB Request",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"businessName\": \"Apple\",\r\n    \"businessIdNumber\": \"12345ABCD\",\r\n    \"address1\": \"23 Broad St\",\r\n    \"address2\": \"San Francisco\",\r\n    \"sizeOfTheCompany\": \"FROM_500_AND_MORE\",\r\n    \"email\": \"apple@mail.com\",\r\n    \"phone\": \"62739201\",\r\n    \"website\": \"apple.com\",\r\n    \"referenceId\": \"id62726482\",\r\n    \"natureOfBusiness\": \"COMPUTER_SOFTWARE_ENGINEERING\",\r\n    \"companyType\": \"CORPORATION\",\r\n    \"countryOfIncorporation\": \"US\",\r\n    \"countryOfHeadQuarter\": \"US\",\r\n    \"dateOfIncorporation\": \"2021-01-01\",\r\n    \"assignee\": \"quanlei@regtank.com\",\r\n    \"relationship\": \"Partner\",\r\n    \"enableReScreening\": true,\r\n    \"enableOnGoingMonitoring\": true,\r\n    \"operatingCountry\": \"US\",\r\n    \"tags\": []  \r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyb/input",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyb",
+										"input"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYB Query Status",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyb/query?requestId=DJKYB00245&referenceId=id62726482",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyb",
+										"query"
+									],
+									"query": [
+										{
+											"key": "requestId",
+											"value": "DJKYB00245"
+										},
+										{
+											"key": "referenceId",
+											"value": "id62726482"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYB Complete Resolution",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"DJKYB00497\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyb/complete-resolution",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyb",
+										"complete-resolution"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYB Generate Score",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"DJKYB00245\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyb/scoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyb",
+										"scoring"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Dow Jones KYB OM",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status test\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearerTokenTemplate}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"requestId\": \"DJKYB00245\",\r\n    \"enabled\": false\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://{{companySpecificRegtankServerURL}}/v3/djkyb/ongoing-monitoring",
+									"protocol": "https",
+									"host": [
+										"{{companySpecificRegtankServerURL}}"
+									],
+									"path": [
+										"v3",
+										"djkyb",
+										"ongoing-monitoring"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "KYT",
+			"item": [
+				{
+					"name": "KYT Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status test\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerTokenTemplate}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"address\": \"3Pv7L9EeYyAMcn7U3tTWyKWxFpVJHfQBTa\",\r\n    \"asset\": \"BTC\",\r\n    \"referenceId\": \"id00000001\",\r\n    \"assignee\": \"quanlei@regtank.com\",\r\n    \"riskScoreChange\": true,\r\n    \"newTransaction\": true\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyt/input",
+							"protocol": "https",
+							"host": [
+								"{{companySpecificRegtankServerURL}}"
+							],
+							"path": [
+								"v3",
+								"kyt",
+								"input"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "KYT Query Status",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status test\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerTokenTemplate}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://{{companySpecificRegtankServerURL}}/v3/kyt/query?requestId=KYT00111&referenceId=id00000001",
+							"protocol": "https",
+							"host": [
+								"{{companySpecificRegtankServerURL}}"
+							],
+							"path": [
+								"v3",
+								"kyt",
+								"query"
+							],
+							"query": [
+								{
+									"key": "requestId",
+									"value": "KYT00111"
+								},
+								{
+									"key": "referenceId",
+									"value": "id00000001"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Oauth Token",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"token\", jsonData.access_token);",
+							"postman.setEnvironmentVariable(\"bearerTokenTemplate\", jsonData.access_token);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "{{clientIdTemplate}}",
+							"type": "text"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{clientSecretTemplate}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{regtankCrmServerURL}}/oauth/token",
+					"host": [
+						"{{regtankCrmServerURL}}"
+					],
+					"path": [
+						"oauth",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Set Webhook URL",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status test\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{bearerTokenTemplate}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijk1OWIyYjBjLTNhNDctNDRlYS1iMGRlLTgwOTM0Y2EyZTI0OCJ9.eyJzdWIiOiJiMTcwNjM4OS0wNDdiLTQzMTktYjRkMC0xMmQ3N2UwYzNkODAiLCJ1c2VyX2lkIjpudWxsLCJzY29wZSI6WyJyZWFkIiwid3JpdGUiXSwiZXhwIjoxNjI5MTkzNzE4LCJhdXRob3JpdGllcyI6WyJST0xFX1NFUlZJQ0UiXSwianRpIjoiZjcxZjZiZjYtMWEyNS00ZWRkLThhNTUtMjFlYjk3MjBmNjZkIiwiY2xpZW50X2lkIjoiYjE3MDYzODktMDQ3Yi00MzE5LWI0ZDAtMTJkNzdlMGMzZDgwIn0.QPuJdIg3cbSdzqB917C11yPNy_CuYKQs9U6Av98VSRm_rypDvvyqcStZ63tCPX36Sjlj3cdVHHabtbdQBCes-9mv5jVddZfkj9OL5TqtVpE8yNhnpmkOO12-IOZQjb4J_vWaw4cPPg1EBV8xvFwa178GxW6B7-hSgZz4BrT9HibNPuuF8_3d5uIy25dP8DGZpQLJhaDNuoU1Q7vXck0aJ7cN5nwyEkWy4pmJLAaEpNWeyJI9iRh9uAmiYCBHUmOEAuNgHbTGnv42fWDmOe23L2EUi2iB7S-IZ4GoWrIeyKd99uq9vIYQUnMMqukdZToK1k2KpK3KAQJ96zGqGUyz2w",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"webhookUrl\" : \"https://server.regtank.com/webhook\",\r\n    \"webhookEnabled\": false\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{companySpecificRegtankServerURL}}/alert/preferences",
+					"protocol": "https",
+					"host": [
+						"{{companySpecificRegtankServerURL}}"
+					],
+					"path": [
+						"alert",
+						"preferences"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

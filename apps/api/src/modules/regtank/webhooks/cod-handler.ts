@@ -5,6 +5,7 @@ import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
+import { AmlIdentityRepository } from "../aml-identity-repository";
 import { getRegTankAPIClient } from "../api-client";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -20,6 +21,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
   private authRepository: AuthRepository;
+  private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
 
   constructor() {
@@ -27,6 +29,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
     this.authRepository = new AuthRepository();
+    this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
   }
 
@@ -550,6 +553,118 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         const corporateOnboardingData = extractCorporateOnboardingData(codDetails);
         const corporateRequiredDocuments = extractRequiredDocuments(codDetails);
         const corporateEntities = extractCorporateEntities(codDetails);
+
+        // Extract and store KYC/KYB IDs in aml_identity_mapping table
+        try {
+          const mappings: Array<{
+            organization_id: string;
+            organization_type: "investor" | "issuer";
+            entity_type: "director" | "individual_shareholder" | "business_shareholder";
+            name?: string | null;
+            email?: string | null;
+            business_name?: string | null;
+            cod_request_id?: string | null;
+            eod_request_id?: string | null;
+            kyc_id?: string | null;
+            kyb_id?: string | null;
+          }> = [];
+
+          // Extract parent COD kybId from kybRequestDto
+          const parentKybId = codDetails.kybRequestDto?.kybId || null;
+
+          // Process directors
+          if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
+            for (const director of codDetails.corpIndvDirectors) {
+              const eodRequestId = director.corporateIndividualRequest?.requestId || null;
+              const userInfo = director.corporateUserRequestInfo;
+              const formContent = userInfo?.formContent?.content || [];
+              const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+              const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+              const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || null;
+              const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || null;
+              const kycId = director.kycRequestInfo?.kycId || null;
+
+              mappings.push({
+                organization_id: organizationId,
+                organization_type: portalType,
+                entity_type: "director",
+                name,
+                email,
+                cod_request_id: requestId,
+                eod_request_id: eodRequestId,
+                kyc_id: kycId,
+              });
+            }
+          }
+
+          // Process individual shareholders
+          if (codDetails.corpIndvShareholders && Array.isArray(codDetails.corpIndvShareholders)) {
+            for (const shareholder of codDetails.corpIndvShareholders) {
+              const eodRequestId = shareholder.corporateIndividualRequest?.requestId || null;
+              const userInfo = shareholder.corporateUserRequestInfo;
+              const formContent = userInfo?.formContent?.content || [];
+              const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
+              const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
+              const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || null;
+              const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || null;
+              const kycId = shareholder.kycRequestInfo?.kycId || null;
+
+              mappings.push({
+                organization_id: organizationId,
+                organization_type: portalType,
+                entity_type: "individual_shareholder",
+                name,
+                email,
+                cod_request_id: requestId,
+                eod_request_id: eodRequestId,
+                kyc_id: kycId,
+              });
+            }
+          }
+
+          // Process business shareholders
+          if (codDetails.corpBizShareholders && Array.isArray(codDetails.corpBizShareholders)) {
+            for (const bizShareholder of codDetails.corpBizShareholders) {
+              const codRequestId = bizShareholder.requestId || bizShareholder.corporateOnboardingRequest?.requestId || null;
+              const businessName = bizShareholder.businessName || bizShareholder.companyName || null;
+              const kybId = bizShareholder.kybRequestDto?.kybId || null;
+
+              mappings.push({
+                organization_id: organizationId,
+                organization_type: portalType,
+                entity_type: "business_shareholder",
+                business_name: businessName,
+                cod_request_id: codRequestId,
+                kyb_id: kybId,
+              });
+            }
+          }
+
+          // Bulk upsert all mappings
+          if (mappings.length > 0) {
+            await this.amlIdentityRepository.bulkUpsert(mappings);
+            logger.info(
+              {
+                organizationId,
+                codRequestId: requestId,
+                parentKybId,
+                directorsCount: mappings.filter(m => m.entity_type === "director").length,
+                shareholdersCount: mappings.filter(m => m.entity_type === "individual_shareholder").length,
+                businessShareholdersCount: mappings.filter(m => m.entity_type === "business_shareholder").length,
+              },
+              "[COD Webhook] Stored AML identity mappings"
+            );
+          }
+        } catch (mappingError) {
+          logger.error(
+            {
+              error: mappingError instanceof Error ? mappingError.message : String(mappingError),
+              organizationId,
+              codRequestId: requestId,
+            },
+            "[COD Webhook] Failed to store AML identity mappings (non-blocking)"
+          );
+        }
 
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);

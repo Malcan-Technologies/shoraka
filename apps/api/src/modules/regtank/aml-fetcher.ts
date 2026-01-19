@@ -2,6 +2,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getRegTankAPIClient } from "./api-client";
+import { AmlIdentityRepository } from "./aml-identity-repository";
 import type { PortalType } from "./types";
 
 interface DirectorAMLStatus {
@@ -38,9 +39,11 @@ interface BusinessShareholderAMLStatus {
  */
 export class AMLFetcherService {
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
+  private amlIdentityRepository: AmlIdentityRepository;
 
   constructor() {
     this.apiClient = getRegTankAPIClient();
+    this.amlIdentityRepository = new AmlIdentityRepository();
   }
 
   /**
@@ -463,6 +466,31 @@ export class AMLFetcherService {
             lastUpdated: new Date().toISOString(),
           });
 
+          // Store in AML identity mapping table
+          try {
+            await this.amlIdentityRepository.upsertMapping({
+              organization_id: organizationId,
+              organization_type: portalType,
+              entity_type: "individual_shareholder",
+              name,
+              email,
+              cod_request_id: codRequestId,
+              eod_request_id: eodRequestId,
+              kyc_id: kycId,
+              last_synced_at: new Date(),
+            });
+          } catch (mappingError) {
+            logger.warn(
+              {
+                error: mappingError instanceof Error ? mappingError.message : String(mappingError),
+                organizationId,
+                eodRequestId,
+                kycId,
+              },
+              "[AML Fetcher] Failed to store shareholder mapping (non-blocking)"
+            );
+          }
+
           logger.debug(
             { eodRequestId, kycId, name, amlStatus },
             "[AML Fetcher] ✓ Fetched shareholder AML status"
@@ -697,6 +725,29 @@ export class AMLFetcherService {
             amlRiskLevel,
             lastUpdated: new Date().toISOString(),
           };
+
+          // Store in AML identity mapping table
+          try {
+            await this.amlIdentityRepository.upsertMapping({
+              organization_id: organizationId,
+              organization_type: portalType,
+              entity_type: "business_shareholder",
+              business_name: businessShareholderAmlStatus.businessName,
+              cod_request_id: shareholderCodRequestId,
+              kyb_id: extractedKybId,
+              last_synced_at: new Date(),
+            });
+          } catch (mappingError) {
+            logger.warn(
+              {
+                error: mappingError instanceof Error ? mappingError.message : String(mappingError),
+                organizationId,
+                shareholderCodRequestId,
+                kybId: extractedKybId,
+              },
+              "[AML Fetcher] Failed to store business shareholder mapping (non-blocking)"
+            );
+          }
 
           // Step 9: Update or add to director_aml_status.businessShareholders[]
           const existingBusinessIndex = directorAmlStatus.businessShareholders.findIndex(

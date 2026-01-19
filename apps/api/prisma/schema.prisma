@@ -412,6 +412,37 @@ model RegTankOnboarding {
   @@map("regtank_onboarding")
 }
 
+model AmlIdentityMapping {
+  id                String   @id @default(cuid())
+  organization_id   String   @db.VarChar(255)
+  organization_type String   // 'investor' | 'issuer'
+  entity_type       String   // 'director' | 'individual_shareholder' | 'business_shareholder'
+  
+  // Identity fields for matching
+  name              String?
+  email             String?
+  business_name     String? // For business shareholders
+  
+  // RegTank IDs
+  cod_request_id    String? // Parent COD for individuals, own COD for businesses
+  eod_request_id    String? // Only for directors/individual shareholders
+  kyc_id            String? // For individuals
+  kyb_id            String? // For businesses
+  
+  // Metadata
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  last_synced_at    DateTime?
+
+  @@index([organization_id])
+  @@index([kyc_id])
+  @@index([kyb_id])
+  @@index([cod_request_id])
+  @@index([eod_request_id])
+  @@index([organization_id, email])
+  @@map("aml_identity_mapping")
+}
+
 model SiteDocument {
   id              String           @id @default(cuid())
   type            SiteDocumentType

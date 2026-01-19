@@ -112,9 +112,9 @@ export function DirectorsShareholdersCard({
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between p-6 border-b">
         <div>
-          <h2 className="text-lg font-semibold">AML Screening Status</h2>
+          <h2 className="text-lg font-semibold">Directors and Shareholders</h2>
           <p className="text-sm text-muted-foreground">
-            Directors and shareholders are completing their AML screening
+			Directors and shareholders details
           </p>
         </div>
       </div>

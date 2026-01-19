@@ -920,6 +920,261 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 
 ---
 
+## AML Identity Mapping System
+
+### Overview
+
+The AML Identity Mapping system provides efficient tracking and querying of KYC/KYB IDs for corporate onboarding entities (directors, individual shareholders, and business shareholders). This system enables:
+
+- **Direct Status Queries**: Query KYC/KYB status directly using stored IDs instead of reconstructing via COD → EOD flow
+- **Automatic ID Extraction**: Webhooks automatically extract and store KYC/KYB IDs as they arrive
+- **Missing Entity Discovery**: Automatically discovers and stores new directors/shareholders that don't exist in the database
+- **Duplicate Handling**: Properly handles directors who are also shareholders (same person, multiple roles)
+
+### Database Schema
+
+The `aml_identity_mapping` table stores KYC/KYB ID mappings:
+
+```sql
+CREATE TABLE aml_identity_mapping (
+  id                TEXT PRIMARY KEY,
+  organization_id   TEXT NOT NULL,
+  organization_type TEXT NOT NULL, -- 'investor' | 'issuer'
+  entity_type       TEXT NOT NULL, -- 'director' | 'individual_shareholder' | 'business_shareholder'
+  
+  -- Identity fields for matching
+  name              TEXT,
+  email             TEXT,
+  business_name     TEXT, -- For business shareholders
+  
+  -- RegTank IDs
+  cod_request_id    TEXT, -- Parent COD for individuals, own COD for businesses
+  eod_request_id    TEXT, -- Only for directors/individual shareholders
+  kyc_id            TEXT, -- For individuals
+  kyb_id            TEXT, -- For businesses
+  
+  -- Metadata
+  created_at        TIMESTAMP DEFAULT NOW(),
+  updated_at        TIMESTAMP DEFAULT NOW(),
+  last_synced_at    TIMESTAMP
+);
+```
+
+**Indexes:**
+- `organization_id` - Fast lookup by organization
+- `kyc_id` - Direct KYC status queries
+- `kyb_id` - Direct KYB status queries
+- `cod_request_id` - Lookup by COD
+- `eod_request_id` - Lookup by EOD
+- `(organization_id, email)` - Duplicate detection
+
+### Data Flow
+
+```mermaid
+flowchart TD
+    WebhookArrival[Webhook Arrives]
+    WebhookArrival --> ExtractIDs[Extract KYC/KYB IDs]
+    ExtractIDs --> StoreMapping[Store in aml_identity_mapping]
+    ExtractIDs --> UpdateAMLStatus[Update director_aml_status JSON]
+    
+    UserClicksRefresh[User Clicks Refresh]
+    UserClicksRefresh --> FetchParentCOD[Fetch Parent COD]
+    FetchParentCOD --> IdentifyExpected[Identify Expected Entities]
+    IdentifyExpected --> CheckMapping{Check<br/>aml_identity_mapping}
+    CheckMapping -->|IDs Found| DirectQuery[Direct Query<br/>/v3/kyc/query<br/>/v3/kyb/query]
+    CheckMapping -->|IDs Missing or<br/>Entity Not Found| FallbackFlow[Fallback Flow<br/>COD → EOD → KYC/KYB]
+    
+    DirectQuery --> UpdateBothDB[Update Both:<br/>aml_identity_mapping<br/>director_aml_status]
+    FallbackFlow --> ExtractNewIDs[Extract IDs During Fetch]
+    ExtractNewIDs --> StoreNewMapping[Store New Mappings]
+    StoreNewMapping --> UpdateBothDB
+    
+    UpdateBothDB --> HandleDuplicates[Handle Duplicates<br/>Match by name & email]
+    HandleDuplicates --> ReturnToFrontend[Return Updated Status]
+```
+
+### Webhook ID Extraction
+
+Webhooks automatically extract and store KYC/KYB IDs:
+
+#### COD Webhook
+
+Extracts:
+- **EOD requestIds** from `corpIndvDirectors` and `corpIndvShareholders` arrays
+- **COD requestIds** from `corpBizShareholders` (business shareholder COD IDs)
+- **kybId** from `kybRequestDto.kybId` (main company KYB ID)
+
+Stores mappings for:
+- All directors (with EOD requestId and parent COD requestId)
+- All individual shareholders (with EOD requestId and parent COD requestId)
+- All business shareholders (with their own COD requestId)
+
+#### EOD Webhook
+
+Extracts:
+- **kycId** from `kycRequestInfo.kycId` in EOD details
+
+Updates mapping:
+- Finds mapping by `eodRequestId`
+- Updates with `kycId`
+- Copies `kycId` to all records with matching name + email (handles duplicates)
+
+#### KYC Webhook
+
+Extracts:
+- **kycId** from `requestId` (the KYC webhook `requestId` IS the kycId)
+
+Updates mapping:
+- If `onboardingId` is EOD: Finds mapping by EOD requestId, updates with kycId
+- If `onboardingId` is COD: Finds all mappings for that COD, updates with kycId
+- Copies kycId to all records with matching name + email
+
+#### KYB Webhook
+
+Extracts:
+- **kybId** from `requestId` (the KYB webhook `requestId` IS the kybId)
+
+Updates mapping:
+- If `onboardingId` is main company COD: Updates main company mapping (if stored)
+- If `onboardingId` is business shareholder COD: Updates business shareholder mapping
+- If no `onboardingId` but `kybId` matches stored value: Updates by kybId lookup
+
+### Refresh Endpoint
+
+**Endpoint:** `POST /v1/organizations/{portalType}/:id/refresh-aml`
+
+**Purpose:** Manually sync AML statuses for an organization. Handles both existing entities with IDs and missing entities.
+
+**Authentication:** Required (user must have access to organization)
+
+**Request:**
+```bash
+POST /v1/organizations/investor/cmkgklvz5001jkhktmxav791t/refresh-aml
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "directorAmlStatus": {
+      "directors": [
+        {
+          "kycId": "KYC06407",
+          "name": "John Doe",
+          "email": "john@example.com",
+          "role": "Director",
+          "amlStatus": "Approved",
+          "amlMessageStatus": "DONE",
+          "amlRiskScore": 33.0,
+          "amlRiskLevel": "Medium Risk",
+          "lastUpdated": "2025-01-19T12:30:00Z"
+        }
+      ],
+      "individualShareholders": [...],
+      "businessShareholders": [...],
+      "lastSyncedAt": "2025-01-19T12:30:00Z"
+    },
+    "lastSyncedAt": "2025-01-19T12:30:00Z"
+  },
+  "correlationId": "..."
+}
+```
+
+**How It Works:**
+
+1. **Fetches Parent COD**: Gets the organization's COD requestId and fetches COD details
+2. **Identifies Expected Entities**: Extracts all directors, shareholders, and business shareholders from COD
+3. **Checks Existing Mappings**: Queries `aml_identity_mapping` table for existing records
+4. **Identifies Missing Entities**: Compares expected vs existing to find missing ones
+5. **Direct Queries**: For entities with KYC/KYB IDs, queries `/v3/kyc/query` or `/v3/kyb/query` directly
+6. **Fallback Flow**: For entities without IDs or completely missing, uses COD → EOD → KYC/KYB flow
+7. **Stores New Mappings**: As entities are discovered, stores them in `aml_identity_mapping`
+8. **Updates Both Locations**: Updates both `aml_identity_mapping` table and `director_aml_status` JSON
+9. **Handles Duplicates**: Merges records for people appearing as both director and shareholder
+10. **Returns Fresh Data**: Returns complete updated AML status to frontend
+
+**Missing Entity Handling:**
+
+If a director/shareholder/business shareholder is completely missing from the database:
+
+- The service fetches parent COD to discover all expected entities
+- Identifies which entities are missing
+- Uses the full COD → EOD → KYC/KYB flow to fetch their data
+- Stores the newly discovered entities in both `aml_identity_mapping` AND `director_aml_status`
+- Returns the complete updated status to the frontend
+
+### Duplicate Handling
+
+The system handles directors who are also shareholders (same person, multiple roles):
+
+**Matching Logic:**
+- Individuals are matched by `name` + `email` (case-insensitive)
+- Business shareholders are matched by `business_name`
+
+**KYC ID Sharing:**
+- When a person appears as both director and shareholder, they share the same `kycId`
+- The `updateKycIdAndCopyToDuplicates()` method copies kycId to all matching records
+- Both roles are preserved in the response (person appears in both `directors` and `individualShareholders` arrays)
+
+**Example:**
+```json
+{
+  "directors": [
+    {
+      "kycId": "KYC06407",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "Director, Shareholder (25%)"
+    }
+  ],
+  "individualShareholders": [
+    {
+      "kycId": "KYC06407",  // Same kycId
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "Shareholder (25%)"
+    }
+  ]
+}
+```
+
+### Migration Script
+
+A one-time migration script is available to populate the mapping table from existing data:
+
+**File:** `apps/api/src/scripts/migrate-aml-mappings.ts`
+
+**Usage:**
+```bash
+cd apps/api
+pnpm tsx src/scripts/migrate-aml-mappings.ts
+```
+
+**What It Does:**
+- Extracts KYC/KYB IDs from `director_aml_status` JSON (most reliable source)
+- Extracts EOD requestIds from `director_kyc_status` JSON
+- Extracts entity information from `corporate_entities` JSON
+- Creates mapping entries for all directors, shareholders, and business shareholders
+- Handles duplicates by name + email matching
+
+**When to Run:**
+- After deploying the migration to production
+- Before enabling the refresh endpoint for users
+- Can be run multiple times safely (uses upsert logic)
+
+### Benefits
+
+1. **Performance**: Direct KYC/KYB queries are much faster than reconstructing via COD → EOD flow
+2. **Reliability**: Mapping table provides single source of truth for ID relationships
+3. **Deduplication**: Proper handling of directors who are also shareholders
+4. **Auto-Discovery**: Automatically discovers and stores missing entities during refresh
+5. **Maintainability**: Clear separation between ID mapping and AML status storage
+6. **Scalability**: Indexed lookups enable fast queries even with thousands of records
+
+---
+
 ## Implementation Checklist
 
 ### Backend (`apps/api`)
@@ -932,6 +1187,12 @@ RegTank sends webhook notifications as **POST requests** to your configured webh
 - [x] **Controller** - API endpoints
 - [x] **Settings Configuration** - Set redirect URL per formId
 - [x] **Webhook Preferences** - Set webhook URL globally
+- [x] **AML Identity Mapping** - KYC/KYB ID tracking table
+- [x] **AML Identity Repository** - CRUD operations for mapping table
+- [x] **AML Sync Service** - Direct queries and missing entity handling
+- [x] **Refresh Endpoint** - POST `/organizations/:id/refresh-aml`
+- [x] **Webhook ID Extraction** - COD, EOD, KYC, KYB webhooks extract and store IDs
+- [x] **Migration Script** - Populate mapping table from existing data
 
 ### Frontend (Investor/Issuer Portals)
 

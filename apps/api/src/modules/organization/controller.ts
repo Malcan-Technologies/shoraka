@@ -15,6 +15,7 @@ import {
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { AMLSyncService } from "../regtank/aml-sync-service";
 
 const organizationService = new OrganizationService();
 
@@ -802,6 +803,42 @@ async function updateCorporateInfo(
 }
 
 /**
+ * Refresh AML status for an organization
+ * POST /v1/organizations/investor/:id/refresh-aml
+ * POST /v1/organizations/issuer/:id/refresh-aml
+ */
+async function refreshOrganizationAML(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+
+    // Verify user has access to organization (getOrganization throws if no access)
+    await organizationService.getOrganization(userId, id, portalType);
+
+    // Sync AML status (handles both existing and missing entities)
+    const amlSyncService = new AMLSyncService();
+    const amlStatus = await amlSyncService.syncOrganizationAMLStatus(id, portalType);
+
+    // Return updated organization with fresh AML data
+    res.json({
+      success: true,
+      data: {
+        directorAmlStatus: amlStatus,
+        lastSyncedAt: new Date().toISOString(),
+      },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create router for organization routes
  */
 export function createOrganizationRouter(): Router {
@@ -859,6 +896,9 @@ export function createOrganizationRouter(): Router {
   router.patch("/investor/:id/corporate-info", requireAuth, (req, res, next) =>
     updateCorporateInfo(req, res, next, "investor")
   );
+  router.post("/investor/:id/refresh-aml", requireAuth, (req, res, next) =>
+    refreshOrganizationAML(req, res, next, "investor")
+  );
 
   // Issuer organization routes
   router.get("/issuer", requireAuth, (req, res, next) =>
@@ -911,6 +951,9 @@ export function createOrganizationRouter(): Router {
   );
   router.patch("/issuer/:id/corporate-info", requireAuth, (req, res, next) =>
     updateCorporateInfo(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
+    refreshOrganizationAML(req, res, next, "issuer")
   );
 
   // Shared invitation acceptance route
