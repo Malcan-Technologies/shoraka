@@ -77,7 +77,7 @@ export function FinancingTypeCard({
           />
         ) : (
           <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center">
-            <span className="text-2xl">🌙</span>
+            <p className="text-xs text-muted-foreground">Loading...</p>
           </div>
         )}
       </div>
