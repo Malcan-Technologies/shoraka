@@ -696,6 +696,27 @@ export default function AccountPage() {
                       />
                     </div>
                   </div>
+
+                  {isEditingProfile && (
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelProfileEdit}
+                        disabled={updateProfileMutation.isPending}
+                        className="gap-2 rounded-xl"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleSaveProfile}
+                        disabled={updateProfileMutation.isPending}
+                        className="gap-2 rounded-xl"
+                      >
+                        {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 

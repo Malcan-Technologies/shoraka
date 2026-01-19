@@ -4,6 +4,15 @@ import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+export interface Address {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
 export function useCorporateInfo(organizationId: string | undefined) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -25,8 +34,8 @@ export function useCorporateInfo(organizationId: string | undefined) {
             ssmRegisterNumber?: string;
           };
           addresses?: {
-            businessAddress?: string;
-            registeredAddress?: string;
+            business?: Address;
+            registered?: Address;
           };
         };
       }>(`/v1/organizations/issuer/${organizationId}`);
@@ -46,8 +55,8 @@ export function useCorporateInfo(organizationId: string | undefined) {
       businessName?: string | null;
       numberOfEmployees?: number | null;
       ssmRegisterNumber?: string | null;
-      businessAddress?: string | null;
-      registeredAddress?: string | null;
+      businessAddress?: Address | null;
+      registeredAddress?: Address | null;
     }) => {
       if (!organizationId) throw new Error("No organization selected");
       const result = await apiClient.patch(

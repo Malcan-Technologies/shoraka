@@ -392,46 +392,20 @@ export function OnboardingReviewDialog({
                 <>
                   <Separator />
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">Individual AML Screening Status</h4>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="max-w-xs">
-                              Individual director AML screening must be completed and approved in RegTank
-                              before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
-                              processed automatically.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          refreshCorporateAmlMutation.mutate(application.id, {
-                            onSuccess: () => {
-                              toast.success("AML status refreshed successfully");
-                              if (onRefresh) {
-                                onRefresh();
-                              }
-                            },
-                            onError: (error) => {
-                              toast.error("Failed to refresh AML status", {
-                                description: error instanceof Error ? error.message : "An unknown error occurred",
-                              });
-                            },
-                          });
-                        }}
-                        disabled={refreshCorporateAmlMutation.isPending}
-                        className="gap-2"
-                      >
-                        <ArrowPathIcon className={`h-4 w-4 ${refreshCorporateAmlMutation.isPending ? "animate-spin" : ""}`} />
-                        Refresh
-                      </Button>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-medium">Individual AML Screening Status</h4>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            Individual director AML screening must be completed and approved in RegTank
+                            before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
+                            processed automatically.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <DirectorAmlList
                       directors={application.directorAmlStatus?.directors || []}

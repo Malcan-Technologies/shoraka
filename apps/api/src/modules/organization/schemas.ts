@@ -88,6 +88,16 @@ export const changeMemberRoleSchema = z.object({
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
 });
 
+// Address schema for structured addresses
+export const addressSchema = z.object({
+  line1: z.string().optional().nullable(),
+  line2: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  postalCode: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
+});
+
 // Corporate info update schema
 export const updateCorporateInfoSchema = z.object({
   tinNumber: z.string().optional().nullable(),
@@ -96,6 +106,8 @@ export const updateCorporateInfoSchema = z.object({
   businessName: z.string().optional().nullable(),
   numberOfEmployees: z.number().int().positive().optional().nullable(),
   ssmRegisterNumber: z.string().optional().nullable(),
+  businessAddress: addressSchema.optional().nullable(),
+  registeredAddress: addressSchema.optional().nullable(),
 });
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;

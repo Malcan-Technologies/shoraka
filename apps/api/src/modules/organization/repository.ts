@@ -696,6 +696,22 @@ export class OrganizationRepository {
       businessName?: string | null;
       numberOfEmployees?: number | null;
       ssmRegisterNumber?: string | null;
+      businessAddress?: {
+        line1?: string | null;
+        line2?: string | null;
+        city?: string | null;
+        postalCode?: string | null;
+        state?: string | null;
+        country?: string | null;
+      } | null;
+      registeredAddress?: {
+        line1?: string | null;
+        line2?: string | null;
+        city?: string | null;
+        postalCode?: string | null;
+        state?: string | null;
+        country?: string | null;
+      } | null;
     }
   ) {
     const corporateData = {
@@ -720,10 +736,20 @@ export class OrganizationRepository {
       });
 
       const existingData = (existing?.corporate_onboarding_data as any) || {};
+      const existingAddresses = existingData.addresses || {};
+      
       const mergedData = {
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
-        // Preserve existing addresses from COD webhook (read-only)
-        addresses: existingData.addresses || {},
+        addresses: {
+          // Merge business address if provided, otherwise keep existing
+          business: data.businessAddress !== undefined 
+            ? data.businessAddress 
+            : (existingAddresses.business || existingAddresses.businessAddress || null),
+          // Merge registered address if provided, otherwise keep existing
+          registered: data.registeredAddress !== undefined 
+            ? data.registeredAddress 
+            : (existingAddresses.registered || existingAddresses.registeredAddress || null),
+        },
       };
 
       return prisma.investorOrganization.update({
@@ -737,10 +763,20 @@ export class OrganizationRepository {
       });
 
       const existingData = (existing?.corporate_onboarding_data as any) || {};
+      const existingAddresses = existingData.addresses || {};
+      
       const mergedData = {
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
-        // Preserve existing addresses from COD webhook (read-only)
-        addresses: existingData.addresses || {},
+        addresses: {
+          // Merge business address if provided, otherwise keep existing
+          business: data.businessAddress !== undefined 
+            ? data.businessAddress 
+            : (existingAddresses.business || existingAddresses.businessAddress || null),
+          // Merge registered address if provided, otherwise keep existing
+          registered: data.registeredAddress !== undefined 
+            ? data.registeredAddress 
+            : (existingAddresses.registered || existingAddresses.registeredAddress || null),
+        },
       };
 
       return prisma.issuerOrganization.update({

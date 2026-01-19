@@ -340,26 +340,6 @@ async function getOrganization(
               };
             };
 
-            // Helper function to format address from nested object to single line
-            const formatAddress = (addr: {
-              line1?: string | null;
-              line2?: string | null;
-              city?: string | null;
-              postalCode?: string | null;
-              state?: string | null;
-              country?: string | null;
-            }): string => {
-              const parts = [
-                addr.line1,
-                addr.line2,
-                addr.city,
-                addr.postalCode,
-                addr.state,
-                addr.country,
-              ].filter((part) => part != null && part !== "");
-              return parts.join(" ") || "";
-            };
-
             return {
               basicInfo: data.basicInfo
                 ? {
@@ -381,17 +361,9 @@ async function getOrganization(
                 : undefined,
               addresses: data.addresses
                 ? {
-                    // Transform nested address objects to single-line strings
-                    businessAddress: data.addresses.businessAddress
-                      ? data.addresses.businessAddress
-                      : data.addresses.business
-                        ? formatAddress(data.addresses.business)
-                        : undefined,
-                    registeredAddress: data.addresses.registeredAddress
-                      ? data.addresses.registeredAddress
-                      : data.addresses.registered
-                        ? formatAddress(data.addresses.registered)
-                        : undefined,
+                    // Return structured address objects
+                    business: data.addresses.business || data.addresses.businessAddress || undefined,
+                    registered: data.addresses.registered || data.addresses.registeredAddress || undefined,
                   }
                 : undefined,
             };
