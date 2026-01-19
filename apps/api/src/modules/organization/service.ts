@@ -882,12 +882,36 @@ export class OrganizationService {
       select: { email: true },
     });
 
-    if (!user || user.email !== invitation.email) {
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    // Check if this is a placeholder email (link-based invitation)
+    const isPlaceholderEmail = invitation.email.startsWith('invitation-') && 
+                              invitation.email.includes('@cashsouk.com');
+
+    // For non-placeholder invitations, verify email matches
+    if (!isPlaceholderEmail && user.email !== invitation.email) {
       throw new AppError(
         403,
         "EMAIL_MISMATCH",
         "This invitation was sent to a different email address"
       );
+    }
+
+    // If it's a placeholder email, update it to the real user's email
+    if (isPlaceholderEmail) {
+      if (invitation.investor_organization_id) {
+        await prisma.investorOrganizationInvitation.update({
+          where: { id: invitation.id },
+          data: { email: user.email },
+        });
+      } else if (invitation.issuer_organization_id) {
+        await prisma.issuerOrganizationInvitation.update({
+          where: { id: invitation.id },
+          data: { email: user.email },
+        });
+      }
     }
 
     // Check if already a member

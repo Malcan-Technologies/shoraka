@@ -1151,7 +1151,7 @@ export default function AccountPage() {
                         <div className="flex-1">
                           <MemberCard member={member} />
                         </div>
-                        {!isPersonal && isCurrentUserAdmin && !activeOrganization.isOwner && (
+                        {!isPersonal && isCurrentUserAdmin && (
                           <div className="flex items-center gap-2 ml-auto">
                             {member.role === "ORGANIZATION_MEMBER" ? (
                               <Button
@@ -1223,15 +1223,20 @@ export default function AccountPage() {
                     </div>
                   </div>
                   <div className="p-6 space-y-3">
-                    {invitations.map((invitation) => (
-                      <div key={invitation.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                        <div>
-                          <p className="font-medium">{invitation.email}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} • Expires{" "}
-                            {new Date(invitation.expiresAt).toLocaleDateString()}
-                          </p>
-                        </div>
+                    {invitations.map((invitation) => {
+                      const isPlaceholderEmail = invitation.email.startsWith('invitation-') && 
+                                                invitation.email.includes('@cashsouk.com');
+                      return (
+                        <div key={invitation.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                          <div>
+                            <p className="font-medium">
+                              {isPlaceholderEmail ? 'Link-based invitation' : invitation.email}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} • Expires{" "}
+                              {new Date(invitation.expiresAt).toLocaleDateString()}
+                            </p>
+                          </div>
                         <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
@@ -1265,7 +1270,8 @@ export default function AccountPage() {
                           </Button>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               )}
