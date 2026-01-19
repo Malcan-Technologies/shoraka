@@ -122,14 +122,14 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
       role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
     }): Promise<{ invitationUrl: string }> => {
       if (!organizationId) throw new Error("No organization selected");
-      const result = await apiClient.post<{ success: boolean; data: { invitationUrl: string; token: string } }>(
+      const result = await apiClient.post<{ invitationUrl: string; token: string }>(
         `/v1/organizations/issuer/${organizationId}/members/generate-link`,
         { email, role }
       );
       if (!result.success) {
         throw new Error(result.error.message);
       }
-      return { invitationUrl: result.data.data.invitationUrl };
+      return { invitationUrl: result.data.invitationUrl };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-invitations", organizationId] });
