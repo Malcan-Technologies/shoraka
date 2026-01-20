@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Checkbox } from "@cashsouk/ui";
 import { useRequestProductImageDownloadUrl } from "@/hooks/use-product-images";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface FinancingTypeCardProps {
@@ -76,9 +77,7 @@ export function FinancingTypeCard({
             className="h-14 w-14 object-contain rounded-lg aspect-square border border-border"
           />
         ) : (
-          <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center aspect-square border border-border">
-            <p className="text-xs text-muted-foreground">Loading...</p>
-          </div>
+          <Skeleton className="h-14 w-14 rounded-lg aspect-square border border-border" />
         )}
       </div>
 
