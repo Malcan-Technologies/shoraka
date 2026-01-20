@@ -3,6 +3,9 @@ import FinancingType1 from "./steps/financing-type-1";
 import VerifyCompanyInfo1 from "./steps/verify-company-info-1";
 import SupportingDocuments1 from "./steps/supporting-documents-1";
 import Declaration1 from "./steps/declaration-1";
+import BuyerDetails1 from "./steps/buyer-details-1";
+import InvoiceDetails1 from "./steps/invoice-details-1";
+import ReviewSubmit1 from "./steps/review-submit-1";
 
 export interface StepComponentProps {
   stepId: string;
@@ -15,10 +18,13 @@ export interface StepComponentProps {
 
 const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> = {
   "financing_type_1": FinancingType1,
+  "invoice_details_1": InvoiceDetails1,
+  "buyer_details_1": BuyerDetails1,
   "verify_company_info_1": VerifyCompanyInfo1,
   "company_info_1": VerifyCompanyInfo1,
   "supporting_documents_1": SupportingDocuments1,
   "declaration_1": Declaration1,
+  "review_submit_1": ReviewSubmit1,
 };
 
 

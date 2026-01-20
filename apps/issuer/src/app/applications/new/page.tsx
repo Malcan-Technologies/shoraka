@@ -262,8 +262,7 @@ export default function NewApplicationPage() {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto w-full space-y-6">
-
+          <div className="max-w-4xl mx-auto w-full px-8 py-10 space-y-12">
             {currentStepInfo ? (
               <StepComponent
                 stepId={currentStepId}
