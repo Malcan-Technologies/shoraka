@@ -187,10 +187,16 @@ export default function ApplicationWizardPage() {
           <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-8 space-y-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                {currentStep === 1 ? "Select financing type" : currentStepName}
+                {currentStep === 1
+                  ? "Select financing type"
+                  : currentStepId === "verify_company_info_1"
+                  ? "Verify company details"
+                  : currentStepName}
               </h1>
               <p className="text-[15px] leading-7 text-muted-foreground mt-1">
                 {currentStep === 1
+                  ? "Browse and invest in verified loan opportunities from your dashboard"
+                  : currentStepId === "verify_company_info_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : "Temporary description for " + currentStepName}
               </p>
@@ -200,7 +206,12 @@ export default function ApplicationWizardPage() {
           <div className="border-b border-border -mx-4">
             <div className="max-w-7xl mx-auto w-full px-4 pt-2 pb-4">
               <ProgressIndicator
-                steps={workflowSteps.map((s) => s.name)}
+                steps={workflowSteps.map((s) => {
+                  if (s.name === "Company Info" || s.id === "verify_company_info_1") {
+                    return "Verify company info";
+                  }
+                  return s.name;
+                })}
                 currentStep={currentStep - 1}
                 isLoading={isLoadingApp || !selectedProduct}
               />
