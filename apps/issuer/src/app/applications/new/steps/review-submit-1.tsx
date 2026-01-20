@@ -4,6 +4,7 @@ import * as React from "react";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { FinancingTypeCard } from "@/components/financing-type-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProducts } from "@/hooks/use-products";
 import { cn } from "@/lib/utils";
 import type { StepComponentProps } from "../step-components";
@@ -30,11 +31,13 @@ export default function ReviewSubmitStep({
   applicationId,
   selectedProductId,
 }: StepComponentProps) {
-  const { data: application } = useApplication(applicationId);
-  const { data: productsData } = useProducts({
+  const { data: application, isLoading: isLoadingApplication } = useApplication(applicationId);
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
+
+  const isLoading = isLoadingApplication || isLoadingProducts;
 
   const selectedFinancingType = React.useMemo(() => {
     if (!selectedProductId || !productsData || !hasProducts(productsData)) {
@@ -129,6 +132,141 @@ export default function ReviewSubmitStep({
 
     return savedData?.categories || null;
   }, [application]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-12">
+        {/* Financing details skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Financing details</h3>
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card">
+              <Skeleton className="h-14 w-14 rounded-lg aspect-square border border-border" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <Skeleton className="h-5 w-32 mb-1" />
+                    <Skeleton className="h-4 w-full max-w-md" />
+                  </div>
+                  <Skeleton className="h-5 w-5 rounded-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <div className="text-muted-foreground pl-6">Invoice amount (RM)</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Invoice payment due date</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Financing goal (RM)</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Loan term</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Profit rate</div>
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Company info skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Company info</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <div className="text-muted-foreground pl-6">Company name</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Type of entity</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">SSM no</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Industry</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Nature of business</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Number of employees</div>
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Director & Shareholders skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Director & Shareholders</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <Skeleton className="h-5 w-24 pl-6" />
+            <Skeleton className="h-5 rounded" />
+            <Skeleton className="h-5 w-24 pl-6" />
+            <Skeleton className="h-5 rounded" />
+            <Skeleton className="h-5 w-24 pl-6" />
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Banking details skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Banking details</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <div className="text-muted-foreground pl-6">Bank name</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Bank account number</div>
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Address skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Address</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <div className="text-muted-foreground pl-6">Business address</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Registered address</div>
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Contact Person skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Contact Person</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+            <div className="text-muted-foreground pl-6">Applicant name</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Applicant position</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Applicant IC no</div>
+            <Skeleton className="h-5 rounded" />
+            <div className="text-muted-foreground pl-6">Applicant contact</div>
+            <Skeleton className="h-5 rounded" />
+          </div>
+        </section>
+
+        {/* Legal docs skeleton */}
+        <section>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <h3 className="font-semibold">Legal docs</h3>
+          </div>
+          <div className="mt-6">
+            <ul className="space-y-4">
+              {[1, 2, 3, 4].map((index) => (
+                <li key={index} className="flex items-center justify-between text-sm min-h-[2rem]">
+                  <Skeleton className="h-3.5 w-48 pl-6" />
+                  <Skeleton className="h-8 w-28" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-12">
