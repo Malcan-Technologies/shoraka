@@ -44,30 +44,6 @@ export function DirectorAmlList({ directors }: DirectorAmlListProps) {
     }
   };
 
-  const getMessageStatusBadge = (messageStatus: DirectorAmlStatus["amlMessageStatus"]) => {
-    switch (messageStatus) {
-      case "DONE":
-        return (
-          <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10 text-xs">
-            Done
-          </Badge>
-        );
-      case "ERROR":
-        return (
-          <Badge variant="outline" className="border-destructive/30 text-foreground bg-destructive/10 text-xs">
-            Error
-          </Badge>
-        );
-      case "PENDING":
-      default:
-        return (
-          <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10 text-xs">
-            Pending
-          </Badge>
-        );
-    }
-  };
-
   const directorRoles = [
     "Director",
     "Managing",
@@ -162,7 +138,6 @@ export function DirectorAmlList({ directors }: DirectorAmlListProps) {
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="font-medium text-sm">{person.name}</span>
         {getAmlStatusBadge(person.amlStatus)}
-        {getMessageStatusBadge(person.amlMessageStatus)}
       </div>
       <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
         <div className="truncate">
