@@ -54,7 +54,7 @@ const AVAILABLE_STEPS: StepType[] = [
   },
   {
     id: "company_info",
-    name: "Company Info",
+    name: "Verify company info",
     description: "Business verification and details",
     icon: BuildingOfficeIcon,
     defaultConfig: {

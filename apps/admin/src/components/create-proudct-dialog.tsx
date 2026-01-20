@@ -122,7 +122,7 @@ const DEFAULT_WORKFLOW = [
   { id: "financing_type_1", name: "Financing Type", config: {} },
   { id: "financing_terms_1", name: "Financing Terms", config: {} },
   { id: "invoice_details_1", name: "Invoice Details", config: {} },
-  { id: "company_info_1", name: "Company Info", config: {} },
+  { id: "company_info_1", name: "Verify company info", config: {} },
   { id: "supporting_documents_1", name: "Supporting Documents", config: {} },
   { id: "declaration_1", name: "Declaration", config: {} },
   { id: "review_submit_1", name: "Review & Submit", config: {} },

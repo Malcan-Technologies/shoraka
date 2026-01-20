@@ -428,7 +428,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
       "Financing Type",
       "Financing Terms",
       "Invoice Details",
-      "Company Info",
+      "Verify company info",
       "Supporting Documents",
       "Declaration",
       "Review & Submit",
