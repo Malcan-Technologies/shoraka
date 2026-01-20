@@ -155,16 +155,16 @@ export default function ReviewSubmitStep({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-            <div className="text-muted-foreground pl-6">Invoice amount (RM)</div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Invoice amount (RM)</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Invoice payment due date</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Invoice payment due date</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Financing goal (RM)</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Financing goal (RM)</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Loan term</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Loan term</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Profit rate</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Profit rate</div>
             <Skeleton className="h-5 rounded" />
           </div>
         </section>
@@ -174,18 +174,18 @@ export default function ReviewSubmitStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold">Company info</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-            <div className="text-muted-foreground pl-6">Company name</div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Company name</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Type of entity</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Type of entity</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">SSM no</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">SSM no</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Industry</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Industry</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Nature of business</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Nature of business</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Number of employees</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Number of employees</div>
             <Skeleton className="h-5 rounded" />
           </div>
         </section>
@@ -195,7 +195,7 @@ export default function ReviewSubmitStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold">Director & Shareholders</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+          <div className="grid grid-cols-2 gap-6 mt-6">
             <Skeleton className="h-5 w-24 pl-6" />
             <Skeleton className="h-5 rounded" />
             <Skeleton className="h-5 w-24 pl-6" />
@@ -210,10 +210,10 @@ export default function ReviewSubmitStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold">Banking details</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-            <div className="text-muted-foreground pl-6">Bank name</div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank name</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Bank account number</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank account number</div>
             <Skeleton className="h-5 rounded" />
           </div>
         </section>
@@ -223,10 +223,10 @@ export default function ReviewSubmitStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold">Address</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-            <div className="text-muted-foreground pl-6">Business address</div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Business address</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Registered address</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Registered address</div>
             <Skeleton className="h-5 rounded" />
           </div>
         </section>
@@ -236,14 +236,14 @@ export default function ReviewSubmitStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold">Contact Person</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-            <div className="text-muted-foreground pl-6">Applicant name</div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant name</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Applicant position</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant position</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Applicant IC no</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant IC no</div>
             <Skeleton className="h-5 rounded" />
-            <div className="text-muted-foreground pl-6">Applicant contact</div>
+            <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant contact</div>
             <Skeleton className="h-5 rounded" />
           </div>
         </section>
@@ -256,7 +256,7 @@ export default function ReviewSubmitStep({
           <div className="mt-6">
             <ul className="space-y-4">
               {[1, 2, 3, 4].map((index) => (
-                <li key={index} className="flex items-center justify-between text-sm min-h-[2rem]">
+                <li key={index} className="flex items-center justify-between text-[17px] leading-7 min-h-[2rem]">
                   <Skeleton className="h-3.5 w-48 pl-6" />
                   <Skeleton className="h-8 w-28" />
                 </li>
@@ -289,34 +289,34 @@ export default function ReviewSubmitStep({
           ) : (
             <div className="bg-sidebar border border-sidebar-border rounded-xl p-4 flex items-start gap-4">
               <div className="pt-1 text-muted-foreground">🌙</div>
-              <div className="flex-1">
-                <div className="text-sm font-medium">No financing type selected</div>
-                <div className="text-xs text-muted-foreground">
-                  Financing type information not available
-                </div>
-              </div>
+                  <div className="flex-1">
+                    <div className="text-[17px] leading-7 font-medium">No financing type selected</div>
+                    <div className="text-sm text-muted-foreground">
+                      Financing type information not available
+                    </div>
+                  </div>
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-          <div className="text-muted-foreground pl-6">Invoice amount (RM)</div>
-          <div className="text-foreground font-medium">
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Invoice amount (RM)</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {financingData.invoiceAmount as string}
           </div>
-          <div className="text-muted-foreground pl-6">Invoice payment due date</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Invoice payment due date</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {financingData.paymentDueDate as string}
           </div>
-          <div className="text-muted-foreground pl-6">Financing goal (RM)</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Financing goal (RM)</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {financingData.financingGoal as string}
           </div>
-          <div className="text-muted-foreground pl-6">Loan term</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Loan term</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {financingData.loanTerm as string}
           </div>
-          <div className="text-muted-foreground pl-6">Profit rate</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Profit rate</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {financingData.profitRate as string}
           </div>
         </div>
@@ -326,29 +326,29 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Company info</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-          <div className="text-muted-foreground pl-6">Company name</div>
-          <div className="text-foreground font-medium">
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Company name</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.companyName as string}
           </div>
-          <div className="text-muted-foreground pl-6">Type of entity</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Type of entity</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.entityType as string}
           </div>
-          <div className="text-muted-foreground pl-6">SSM no</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">SSM no</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.registrationNumber as string}
           </div>
-          <div className="text-muted-foreground pl-6">Industry</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Industry</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.industry as string}
           </div>
-          <div className="text-muted-foreground pl-6">Nature of business</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Nature of business</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.natureOfBusiness as string}
           </div>
-          <div className="text-muted-foreground pl-6">Number of employees</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Number of employees</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.numberOfEmployees as string}
           </div>
         </div>
@@ -358,22 +358,22 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Director & Shareholders</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6">
           {Array.isArray(companyData.directors) && companyData.directors.length > 0 ? (
             companyData.directors.map((director: unknown, index: number) => {
               const dir = director as { name: string; ownership: string; kycStatus?: string };
               return (
                 <React.Fragment key={index}>
-                  <div className="text-muted-foreground pl-6">Director</div>
+                  <div className="text-[17px] leading-7 text-muted-foreground pl-6">Director</div>
                   <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                    <div className="text-sm font-medium whitespace-nowrap">{dir.name}</div>
+                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{dir.name}</div>
                     <div className="h-4 w-px bg-border" />
-                    <div className="text-sm text-muted-foreground whitespace-nowrap">{dir.ownership}</div>
+                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{dir.ownership}</div>
                     <div className="h-4 w-px bg-border" />
                     {dir.kycStatus === "verified" ? (
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-600">KYC</span>
+                        <span className="text-[17px] leading-7 text-green-600">KYC</span>
                       </div>
                     ) : (
                       <div />
@@ -383,7 +383,7 @@ export default function ReviewSubmitStep({
               );
             })
           ) : (
-            <div className="col-span-2 text-sm text-muted-foreground pl-6">No directors found</div>
+            <div className="col-span-2 text-[17px] leading-7 text-muted-foreground pl-6">No directors found</div>
           )}
         </div>
       </section>
@@ -392,13 +392,13 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Banking details</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-          <div className="text-muted-foreground pl-6">Bank name</div>
-          <div className="text-foreground font-medium">
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank name</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.bankName as string}
           </div>
-          <div className="text-muted-foreground pl-6">Bank account number</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank account number</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.bankAccountNumber as string}
           </div>
         </div>
@@ -408,13 +408,13 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Address</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
-          <div className="text-muted-foreground pl-6">Business address</div>
-          <div className="text-foreground font-medium">
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Business address</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.businessAddress ? formatAddress(companyData.businessAddress as { line1: string; line2: string; city: string; postalCode: string; state: string; country: string } | string) : "-"}
           </div>
-          <div className="text-muted-foreground pl-6">Registered address</div>
-          <div className="text-foreground font-medium">
+          <div className="text-[17px] leading-7 text-muted-foreground pl-6">Registered address</div>
+          <div className="text-[17px] leading-7 text-foreground font-medium">
             {companyData.registeredAddress ? formatAddress(companyData.registeredAddress as { line1: string; line2: string; city: string; postalCode: string; state: string; country: string } | string) : "-"}
           </div>
         </div>
@@ -424,28 +424,28 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Contact Person</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6">
           {companyData.contactPerson ? (
             <>
-              <div className="text-muted-foreground pl-6">Applicant name</div>
-              <div className="text-foreground font-medium">
+              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant name</div>
+              <div className="text-[17px] leading-7 text-foreground font-medium">
                 {(companyData.contactPerson as { name?: string }).name || "-"}
               </div>
-              <div className="text-muted-foreground pl-6">Applicant position</div>
-              <div className="text-foreground font-medium">
+              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant position</div>
+              <div className="text-[17px] leading-7 text-foreground font-medium">
                 {(companyData.contactPerson as { position?: string }).position || "-"}
               </div>
-              <div className="text-muted-foreground pl-6">Applicant IC no</div>
-              <div className="text-foreground font-medium">
+              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant IC no</div>
+              <div className="text-[17px] leading-7 text-foreground font-medium">
                 {(companyData.contactPerson as { icNo?: string }).icNo || "-"}
               </div>
-              <div className="text-muted-foreground pl-6">Applicant contact</div>
-              <div className="text-foreground font-medium">
+              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant contact</div>
+              <div className="text-[17px] leading-7 text-foreground font-medium">
                 {(companyData.contactPerson as { contact?: string }).contact || "-"}
               </div>
             </>
           ) : (
-            <div className="col-span-2 text-sm text-muted-foreground pl-6">No contact person information available</div>
+            <div className="col-span-2 text-[17px] leading-7 text-muted-foreground pl-6">No contact person information available</div>
           )}
         </div>
       </section>
@@ -463,17 +463,17 @@ export default function ReviewSubmitStep({
                   const fileName = document.file?.file_name || document.file?.name || "";
 
                   return (
-                    <li key={`${category.name}-${documentIndex}`} className="flex items-center justify-between text-sm min-h-[2rem]">
+                    <li key={`${category.name}-${documentIndex}`} className="flex items-center justify-between text-[17px] leading-7 min-h-[2rem]">
                       <span className="pl-6">{document.title}</span>
                       {hasFile && fileName ? (
-                        <div className="flex items-center gap-2 bg-background text-foreground border border-border text-sm rounded-sm px-2 py-1 min-h-[2rem]">
+                        <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
                           <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
                             <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                           </div>
                           <span>{fileName}</span>
                         </div>
                       ) : (
-                        <div className="text-muted-foreground text-sm">Not uploaded</div>
+                        <div className="text-[17px] leading-7 text-muted-foreground">Not uploaded</div>
                       )}
                     </li>
                   );

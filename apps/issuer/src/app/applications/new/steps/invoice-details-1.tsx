@@ -108,7 +108,7 @@ export default function InvoiceDetailsStep({
           <h3 className="font-semibold">Invoices</h3>
           <Button
             onClick={handleAddInvoice}
-            className="bg-primary text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:opacity-90"
+            className="bg-primary text-white text-[17px] leading-7 font-medium px-4 py-1.5 rounded-lg hover:opacity-90"
           >
             <PlusIcon className="h-4 w-4 mr-1" />
             Add invoice
@@ -116,7 +116,7 @@ export default function InvoiceDetailsStep({
         </div>
         <div className="bg-white border border-border rounded-xl overflow-hidden mt-6">
           <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-left border-t border-border">
+          <table className="min-w-full text-[17px] leading-7 text-left border-t border-border">
             <thead className="bg-muted text-muted-foreground font-medium">
               <tr>
                 <th className="py-3 px-4">Invoice</th>
@@ -209,7 +209,7 @@ export default function InvoiceDetailsStep({
                     {invoice.documents ? (
                       <span className="text-green-600">✔ {invoice.documents}</span>
                     ) : (
-                      <button className="text-accent text-sm font-medium hover:underline">
+                      <button className="text-accent text-[17px] leading-7 font-medium hover:underline">
                         📤 Upload file
                       </button>
                     )}
@@ -220,7 +220,7 @@ export default function InvoiceDetailsStep({
           </table>
         </div>
 
-        <div className="p-4 border-t border-border text-sm flex justify-between">
+        <div className="p-4 border-t border-border text-[17px] leading-7 flex justify-between">
           <div className="text-muted-foreground italic">
             Estimated fees based on 15% p.a., but exact amount will only be decided in offer letter
           </div>

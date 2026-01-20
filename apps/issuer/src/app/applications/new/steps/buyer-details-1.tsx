@@ -55,7 +55,7 @@ export default function BuyerDetailsStep({
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Buyer name</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Buyer name</Label>
             <Input
               type="text"
               value={buyerData.buyerName}
@@ -64,7 +64,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Buyer entity type</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Buyer entity type</Label>
             <Input
               type="text"
               value={buyerData.buyerEntityType}
@@ -73,7 +73,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Buyer SSM number</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Buyer SSM number</Label>
             <Input
               type="text"
               value={buyerData.buyerSsmNumber}
@@ -82,7 +82,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Buyer country</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Buyer country</Label>
             <Input
               type="text"
               value={buyerData.buyerCountry}
@@ -91,9 +91,9 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div className="col-span-2">
-            <Label className="block text-sm text-muted-foreground mb-1">Is buyer related to issuer?</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Is buyer related to issuer?</Label>
             <div className="flex gap-6 mt-2">
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-[17px] leading-7">
                 <input
                   type="radio"
                   name="relation"
@@ -103,7 +103,7 @@ export default function BuyerDetailsStep({
                 />
                 <span className="text-foreground">Yes</span>
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-[17px] leading-7">
                 <input
                   type="radio"
                   name="relation"
@@ -116,11 +116,11 @@ export default function BuyerDetailsStep({
             </div>
           </div>
           <div className="col-span-2">
-            <Label className="block text-sm text-muted-foreground mb-1">Upload buyer consent</Label>
-            <div className="border border-dashed border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Upload buyer consent</Label>
+            <div className="border border-dashed border-border rounded-xl p-6 text-center text-[17px] leading-7 text-muted-foreground">
               <div className="text-2xl mb-2 text-muted-foreground">📤</div>
               <span className="text-accent font-medium">Click to upload</span> or drag and drop<br />
-              <span className="text-xs text-muted-foreground">PDF (max. 5MB)</span>
+              <span className="text-sm text-muted-foreground">PDF (max. 5MB)</span>
             </div>
           </div>
         </div>
@@ -132,7 +132,7 @@ export default function BuyerDetailsStep({
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Contract title</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract title</Label>
             <Input
               type="text"
               value="Nestle Food Sdn Bhd"
@@ -140,7 +140,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Contract number</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract number</Label>
             <Input
               type="text"
               value="20212345678"
@@ -148,7 +148,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Contract value</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract value</Label>
             <Input
               type="text"
               value="RM 80,000"
@@ -157,7 +157,7 @@ export default function BuyerDetailsStep({
           </div>
           <div></div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Contract start date</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract start date</Label>
             <Input
               type="date"
               value="2025-04-12"
@@ -165,7 +165,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div>
-            <Label className="block text-sm text-muted-foreground mb-1">Contract end date</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract end date</Label>
             <Input
               type="date"
               value="2025-04-12"
@@ -173,7 +173,7 @@ export default function BuyerDetailsStep({
             />
           </div>
           <div className="col-span-2">
-            <Label className="block text-sm text-muted-foreground mb-1">Contract description</Label>
+            <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract description</Label>
             <textarea
               placeholder="Add contract description"
               className="w-full border border-border h-28 px-4 py-2 rounded-xl resize-none"

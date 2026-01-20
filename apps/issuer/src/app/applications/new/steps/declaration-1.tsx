@@ -168,8 +168,8 @@ export default function DeclarationStep({
               />
             </div>
             <div className="flex gap-2 flex-1 min-w-0">
-              <span className="font-semibold text-foreground shrink-0 text-[15px] leading-7">{declarationNumber}.</span>
-              <p className="text-[15px] leading-7 text-foreground break-words max-w-full">
+              <span className="font-semibold text-foreground shrink-0 text-[17px] leading-7">{declarationNumber}.</span>
+              <p className="text-[17px] leading-7 text-foreground break-words max-w-full">
                 {declaration}
               </p>
             </div>
