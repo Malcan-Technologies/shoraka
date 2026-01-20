@@ -109,8 +109,12 @@ export default function DeclarationStep({
   const isFirstDeclaration = declarations.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="border border-border rounded-xl p-6 space-y-4">
+    <div className="space-y-12">
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Declaration</h3>
+        </div>
+        <div className="border border-border rounded-xl p-6 space-y-4 mt-6">
         <label className="flex items-start gap-3 font-medium text-foreground">
           <Checkbox
             checked={allChecked}
@@ -128,6 +132,7 @@ export default function DeclarationStep({
             <li key={index}>{declaration}</li>
           ))}
         </ul>
+        </div>
       </div>
     </div>
   );

@@ -103,9 +103,9 @@ export default function InvoiceDetailsStep({
 
   return (
     <div className="space-y-12">
-      <div className="bg-white border border-border rounded-xl overflow-hidden">
-        <div className="p-4 flex justify-between items-center">
-          <h3 className="text-sm font-semibold">Invoices</h3>
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Invoices</h3>
           <Button
             onClick={handleAddInvoice}
             className="bg-primary text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:opacity-90"
@@ -114,8 +114,8 @@ export default function InvoiceDetailsStep({
             Add invoice
           </Button>
         </div>
-
-        <div className="overflow-x-auto">
+        <div className="bg-white border border-border rounded-xl overflow-hidden mt-6">
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm text-left border-t border-border">
             <thead className="bg-muted text-muted-foreground font-medium">
               <tr>
@@ -232,6 +232,7 @@ export default function InvoiceDetailsStep({
               Total fees: <strong>XXX</strong>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

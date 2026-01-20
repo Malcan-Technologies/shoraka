@@ -239,23 +239,23 @@ export default function NewApplicationPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 pt-0">
-        <div className="flex flex-1 flex-col gap-4 p-2 md:p-4">
-          <div className="max-w-4xl mx-auto w-full space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-semibold">
+        <div className="flex flex-1 flex-col gap-4">
+          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-8 space-y-6">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                 {currentStep === 1 ? "Select financing type" : currentStepName}
-              </h2>
-              {currentStep === 1 && (
-                <p className="text-muted-foreground">
-                  Browse and invest in verified loan opportunities from your dashboard
-                </p>
-              )}
+              </h1>
+              <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+                {currentStep === 1 
+                  ? "Browse and invest in verified loan opportunities from your dashboard"
+                  : "Temporary description for " + currentStepName}
+              </p>
             </div>
           </div>
 
           {workflowSteps.length > 0 && (
-            <div className="border-b border-border pb-6 -mx-6 md:-mx-8">
-              <div className="max-w-4xl mx-auto w-full px-6 md:px-8">
+            <div className="border-b border-border -mx-4">
+              <div className="max-w-7xl mx-auto w-full px-4 pt-2 pb-4">
                 <ProgressIndicator 
                   steps={workflowSteps.map(s => s.name)} 
                   currentStep={currentStep - 1} 
@@ -264,7 +264,7 @@ export default function NewApplicationPage() {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto w-full px-8 py-10 space-y-12">
+          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6 space-y-12">
             {currentStepInfo ? (
               <StepComponent
                 stepId={currentStepId}

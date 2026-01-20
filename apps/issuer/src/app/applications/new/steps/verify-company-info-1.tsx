@@ -131,7 +131,9 @@ export default function VerifyCompanyInfoStep({
       </div>
 
       <div>
-        <h3 className="font-semibold border-b border-border pb-2">Director & Shareholders</h3>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Director & Shareholders</h3>
+        </div>
         <div className="grid grid-cols-3 gap-4 mt-6">
           {companyData.directors.length === 0 ? (
             <p className="text-sm text-muted-foreground col-span-3">No directors found</p>

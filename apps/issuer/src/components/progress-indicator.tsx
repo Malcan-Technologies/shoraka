@@ -11,7 +11,7 @@ interface ProgressIndicatorProps {
 
 export function ProgressIndicator({ steps, currentStep }: ProgressIndicatorProps) {
   return (
-    <div className="w-full">
+    <div className="w-full py-2">
       <div className="relative">
         <div className="relative flex items-start justify-between">
           {steps.map((step, index) => {
@@ -48,11 +48,12 @@ export function ProgressIndicator({ steps, currentStep }: ProgressIndicatorProps
                   </div>
                   <span
                     className={cn(
-                      "mt-2 text-xs text-center max-w-[100px] leading-tight",
+                      "mt-2 text-xs text-center max-w-[100px] leading-tight line-clamp-2 h-8 flex items-start justify-center",
                       isActive || isCompleted
                         ? "font-semibold text-black"
                         : "font-normal text-zinc-500"
                     )}
+                    title={step}
                   >
                     {step}
                   </span>

@@ -51,7 +51,7 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Financing details</h3>
         </div>
-        <div className="bg-muted border border-border rounded-xl p-4 flex items-start gap-4 mt-4">
+        <div className="bg-muted border border-border rounded-xl p-4 flex items-start gap-4 mt-6">
           <div className="pt-1 text-muted-foreground">🌙</div>
           <div className="flex-1">
             <div className="text-sm font-medium">Invoice financing (Islamic)</div>
@@ -61,7 +61,7 @@ export default function ReviewSubmitStep({
           </div>
           <div className="text-primary pt-1">✓</div>
         </div>
-        <div className="grid grid-cols-2 gap-y-4 mt-6 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
           <div className="text-muted-foreground">Invoice amount (RM)</div>
           <div className="text-foreground font-medium">
             {financingData.invoiceAmount as string}
@@ -89,7 +89,7 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Company info</h3>
         </div>
-        <div className="grid grid-cols-2 gap-y-4 mt-4 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
           <div className="text-muted-foreground">Company name</div>
           <div className="text-foreground font-medium">
             {companyData.companyName as string}
@@ -121,7 +121,7 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Director & Shareholders</h3>
         </div>
-        <div className="space-y-3 mt-4 text-sm">
+        <div className="space-y-3 mt-6 text-sm">
           {Array.isArray(companyData.directors) &&
             companyData.directors.map((director: unknown, index: number) => {
               const dir = director as { name: string; ownership: string; kycStatus?: string };
@@ -143,7 +143,7 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Banking details</h3>
         </div>
-        <div className="grid grid-cols-2 gap-y-4 mt-4 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
           <div className="text-muted-foreground">Bank name</div>
           <div className="text-foreground font-medium">
             {companyData.bankName as string}
@@ -159,7 +159,7 @@ export default function ReviewSubmitStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Address</h3>
         </div>
-        <div className="grid grid-cols-2 gap-y-4 mt-4 text-sm">
+        <div className="grid grid-cols-2 gap-6 mt-6 text-sm">
           <div className="text-muted-foreground">Business address</div>
           <div className="text-foreground font-medium">
             {companyData.businessAddress as string}

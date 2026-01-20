@@ -284,7 +284,7 @@ export default function SupportingDocumentsStep({
                 )}
               </div>
             </div>
-            <ul className="space-y-2 mt-4">
+            <ul className="space-y-2 mt-6">
               {category.documents.map((document, documentIndex) => {
                 const key = `${categoryIndex}-${documentIndex}`;
                 const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
