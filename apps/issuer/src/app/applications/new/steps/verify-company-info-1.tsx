@@ -176,11 +176,11 @@ export default function VerifyCompanyInfoStep({
         <div className="grid grid-cols-2 gap-6 mt-6">
           {isLoadingCompanyInfo ? (
             <>
-              <div className="text-sm text-muted-foreground pl-6">Director</div>
+              <Skeleton className="h-5 w-24 pl-6" />
               <Skeleton className="h-5 rounded" />
-              <div className="text-sm text-muted-foreground pl-6">Director</div>
+              <Skeleton className="h-5 w-24 pl-6" />
               <Skeleton className="h-5 rounded" />
-              <div className="text-sm text-muted-foreground pl-6">Director</div>
+              <Skeleton className="h-5 w-24 pl-6" />
               <Skeleton className="h-5 rounded" />
             </>
           ) : companyData.directors.length === 0 ? (
