@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
@@ -318,6 +319,38 @@ export default function SupportingDocumentsStep({
 
     return { uploadedCount, totalCount };
   };
+
+  const [isLoadingDocuments] = React.useState(false);
+  const isLoading = isLoadingDocuments || !stepConfig;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-12">
+        {[1, 2].map((categoryIndex) => (
+          <div key={categoryIndex}>
+            <div className="flex justify-between items-center border-b border-border pb-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            </div>
+            <ul className="space-y-4 mt-6">
+              {[1, 2, 3].map((docIndex) => (
+                <li key={docIndex} className="flex items-center justify-between text-sm min-h-[2rem]">
+                  <Skeleton className="h-3.5 w-48 pl-6" />
+                  <Skeleton className="h-8 w-28" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (categories.length === 0) {
     return (
