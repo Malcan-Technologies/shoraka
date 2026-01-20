@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Checkbox } from "@cashsouk/ui";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
@@ -101,6 +102,37 @@ export default function DeclarationStep({
       declaration: dataToSave,
     });
   }, [checkedDeclarations, applicationId, onDataChange, declarations]);
+
+
+  // Show skeleton while loading (when stepConfig is not available yet)
+  const isLoading = !stepConfig;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((index) => (
+          <div
+            key={index}
+            className={cn(
+              "flex items-start gap-3 p-5 border rounded-xl max-w-2xl",
+              "border-border"
+            )}
+          >
+            <div className="pt-0.5 shrink-0">
+              <Skeleton className="h-5 w-5 rounded-none" />
+            </div>
+            <div className="flex gap-2 flex-1 min-w-0">
+              <Skeleton className="h-[21px] w-4 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-[21px] w-full max-w-md" />
+                <Skeleton className="h-[21px] w-3/4 max-w-sm" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Show message if no declarations
   if (declarations.length === 0) {
