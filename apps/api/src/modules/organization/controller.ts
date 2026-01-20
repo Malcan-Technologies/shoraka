@@ -172,7 +172,7 @@ async function createOrganization(
     const userId = getUserId(req);
     const input = createOrganizationSchema.parse(req.body);
 
-    const organization = await organizationService.createOrganization(userId, portalType, input);
+    const organization = await organizationService.createOrganization(req, userId, portalType, input);
 
     res.status(201).json({
       success: true,

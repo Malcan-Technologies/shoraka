@@ -101,7 +101,7 @@ export class RegTankService {
     // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
     // This allows users to resume onboarding if it was restarted by admin
     const previousOrgStatus = organization.onboarding_status;
-    
+
     if (organization.type === OrganizationType.PERSONAL) {
       if (
         previousOrgStatus === OnboardingStatus.PENDING ||
@@ -177,6 +177,9 @@ export class RegTankService {
           user_agent: userAgent,
           device_info: deviceInfo,
           device_type: deviceType,
+          organization_name: organization.name,
+          investor_organization_id: organizationId,
+          issuer_organization_id: null,
           metadata: {
             organizationId,
             requestId: existingOnboarding.request_id,
@@ -448,6 +451,9 @@ export class RegTankService {
         user_agent: userAgent,
         device_info: deviceInfo,
         device_type: deviceType,
+        organization_name: organization.name,
+        investor_organization_id: organizationId,
+        issuer_organization_id: null,
         metadata: {
           organizationId,
           requestId: regTankResponse.requestId,
@@ -494,9 +500,9 @@ export class RegTankService {
     const formName =
       portalType === "investor"
         ? process.env.REGTANK_INVESTOR_CORPORATE_FORM_NAME ||
-          "Cashsauk Business Onboarding Form"
+        "Cashsauk Business Onboarding Form"
         : process.env.REGTANK_ISSUER_CORPORATE_FORM_NAME ||
-          "Cashsauk Business Onboarding Form";
+        "Cashsauk Business Onboarding Form";
 
     logger.info(
       {
@@ -766,6 +772,9 @@ export class RegTankService {
         user_agent: userAgent,
         device_info: deviceInfo,
         device_type: deviceType,
+        organization_name: organization.name,
+        investor_organization_id: organizationId,
+        issuer_organization_id: null,
         metadata: {
           organizationId,
           requestId: regTankResponse.requestId,

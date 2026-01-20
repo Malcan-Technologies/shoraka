@@ -316,6 +316,9 @@ export class AuthRepository {
     userAgent?: string;
     deviceInfo?: string;
     deviceType?: string;
+    organizationName?: string;
+    investorOrganizationId?: string;
+    issuerOrganizationId?: string;
     metadata?: object;
   }): Promise<OnboardingLog> {
     return prisma.onboardingLog.create({
@@ -328,6 +331,9 @@ export class AuthRepository {
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
         device_type: data.deviceType,
+        organization_name: data.organizationName,
+        investor_organization_id: data.investorOrganizationId,
+        issuer_organization_id: data.issuerOrganizationId,
         metadata: data.metadata as Prisma.InputJsonValue,
       },
     });

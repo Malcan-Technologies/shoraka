@@ -51,6 +51,7 @@ export class OrganizationService {
    * Create a new organization for the specified portal type
    */
   async createOrganization(
+    req: Request,
     userId: string,
     portalType: PortalType,
     input: CreateOrganizationInput
@@ -197,6 +198,32 @@ export class OrganizationService {
         );
       }
     }
+
+    // Determine the role and portal for logging
+    const logRole = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const logPortal = getPortalFromRole(logRole);
+
+    // Log ONBOARDING_STARTED when the organization is successfully created (the 'Create' submit action)
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await this.authRepository.createOnboardingLog({
+      userId,
+      role: logRole,
+      eventType: "ONBOARDING_STARTED",
+      portal: logPortal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      organizationName: organization.name || undefined,
+      investorOrganizationId: portalType === "investor" ? organization.id : undefined,
+      issuerOrganizationId: portalType === "issuer" ? organization.id : undefined,
+      metadata: {
+        organizationId: organization.id,
+        organizationType: organization.type,
+        organizationName: organization.name,
+        role: logRole,
+      },
+    });
 
     return organization;
   }
@@ -599,6 +626,9 @@ export class OrganizationService {
         userAgent,
         deviceInfo,
         deviceType,
+        organizationName: organization.name || undefined,
+        investorOrganizationId: portalType === "investor" ? organizationId : undefined,
+        issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
         metadata: {
           organizationId,
           organizationType: organization.type,

@@ -1001,6 +1001,9 @@ export class AdminRepository {
    */
   async createOnboardingLog(data: {
     userId: string;
+    investorOrganizationId?: string;
+    issuerOrganizationId?: string;
+    organizationName?: string;
     role: UserRole;
     eventType: string;
     portal?: string;
@@ -1013,6 +1016,9 @@ export class AdminRepository {
     return prisma.onboardingLog.create({
       data: {
         user_id: data.userId,
+        investor_organization_id: data.investorOrganizationId,
+        issuer_organization_id: data.issuerOrganizationId,
+        organization_name: data.organizationName,
         role: data.role,
         event_type: data.eventType,
         portal: data.portal,
