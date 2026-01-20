@@ -30,6 +30,7 @@ import { DirectorsListCard } from "../../components/directors-list-card";
 import { ShareholdersListCard } from "../../components/shareholders-list-card";
 import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
+import { ConfirmDialog } from "../../components/confirm-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -350,12 +351,47 @@ export default function AccountPage() {
     useOrganizationMembers(activeOrganization?.id);
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
   
+  // Fetch current user ID
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{
+        userId: string;
+        user: {
+          first_name: string | null;
+          last_name: string | null;
+        };
+      }>("/v1/auth/me");
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
   // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
   const isCurrentUserAdmin = React.useMemo(() => {
-    if (!activeOrganization) return false;
+    if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
-    return false;
-  }, [activeOrganization]);
+    // Check if current user member has admin role
+    const currentUserMember = activeOrganization.members?.find(
+      (m) => m.id === currentUser.userId
+    );
+    return currentUserMember?.role === "ORGANIZATION_ADMIN";
+  }, [activeOrganization, currentUser]);
+
+  // Confirmation dialog states
+  const [confirmDialog, setConfirmDialog] = React.useState<{
+    open: boolean;
+    type: "remove" | "leave" | "promote" | "demote" | null;
+    memberId?: string;
+    memberName?: string;
+    memberRole?: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+  }>({
+    open: false,
+    type: null,
+  });
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
@@ -1146,63 +1182,101 @@ export default function AccountPage() {
                 </div>
                 {activeOrganization.members && activeOrganization.members.length > 0 ? (
                   <div className="grid gap-3">
-                    {activeOrganization.members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
-                        <div className="flex-1">
-                          <MemberCard member={member} />
-                        </div>
-                        {!isPersonal && isCurrentUserAdmin && (
-                          <div className="flex items-center gap-2 ml-auto">
-                            {member.role === "ORGANIZATION_MEMBER" ? (
+                    {activeOrganization.members.map((member) => {
+                      const isCurrentUser = currentUser && member.id === currentUser.userId;
+                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
+                      const canLeave = !isPersonal && isCurrentUser;
+                      const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
+
+                      return (
+                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                          <div className="flex-1">
+                            <MemberCard member={member} />
+                          </div>
+                          {canManageMembers && (
+                            <div className="flex items-center gap-2 ml-auto">
+                              {member.role === "ORGANIZATION_MEMBER" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      open: true,
+                                      type: "promote",
+                                      memberId: member.id,
+                                      memberName,
+                                      memberRole: member.role,
+                                    })
+                                  }
+                                  disabled={isChangingRole}
+                                  className="gap-1"
+                                  title="Promote to Admin"
+                                >
+                                  <ArrowUpIcon className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                // Only show demote button if not demoting yourself
+                                !isCurrentUser && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setConfirmDialog({
+                                        open: true,
+                                        type: "demote",
+                                        memberId: member.id,
+                                        memberName,
+                                        memberRole: member.role,
+                                      })
+                                    }
+                                    disabled={isChangingRole}
+                                    className="gap-1"
+                                    title="Demote to Member"
+                                  >
+                                    <ArrowDownIcon className="h-4 w-4" />
+                                  </Button>
+                                )
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_ADMIN" })}
-                                disabled={isChangingRole}
-                                className="gap-1"
-                                title="Promote to Admin"
+                                onClick={() =>
+                                  setConfirmDialog({
+                                    open: true,
+                                    type: "remove",
+                                    memberId: member.id,
+                                    memberName,
+                                  })
+                                }
+                                disabled={isRemoving}
+                                className="gap-1 text-destructive hover:text-destructive"
+                                title="Remove Member"
                               >
-                                <ArrowUpIcon className="h-4 w-4" />
+                                <TrashIcon className="h-4 w-4" />
                               </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => changeRole({ userId: member.id, role: "ORGANIZATION_MEMBER" })}
-                                disabled={isChangingRole}
-                                className="gap-1"
-                                title="Demote to Member"
-                              >
-                                <ArrowDownIcon className="h-4 w-4" />
-                              </Button>
-                            )}
+                            </div>
+                          )}
+                          {canLeave && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeMember(member.id)}
-                              disabled={isRemoving}
-                              className="gap-1 text-destructive hover:text-destructive"
-                              title="Remove Member"
+                              onClick={() =>
+                                setConfirmDialog({
+                                  open: true,
+                                  type: "leave",
+                                })
+                              }
+                              disabled={isLeaving}
+                              className="gap-1 text-destructive hover:text-destructive ml-auto"
+                              title="Leave Organization"
                             >
-                              <TrashIcon className="h-4 w-4" />
+                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                              Leave
                             </Button>
-                          </div>
-                        )}
-                        {!isPersonal && !activeOrganization.isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => leave()}
-                            disabled={isLeaving}
-                            className="gap-1 text-destructive hover:text-destructive ml-auto"
-                            title="Leave Organization"
-                          >
-                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                            Leave
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
@@ -1393,6 +1467,93 @@ export default function AccountPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Confirmation Dialogs */}
+      {confirmDialog.type === "remove" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Remove Member"
+          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organization? This action cannot be undone.`}
+          confirmText="Remove"
+          cancelText="Cancel"
+          variant="destructive"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              removeMember(confirmDialog.memberId);
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isRemoving}
+        />
+      )}
+
+      {confirmDialog.type === "leave" && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Leave Organization"
+          description="Are you sure you want to leave this organization? You will lose access to all organization data and will need to be re-invited to regain access."
+          confirmText="Leave"
+          cancelText="Cancel"
+          variant="destructive"
+          onConfirm={async () => {
+            try {
+              await leave();
+              setConfirmDialog({ open: false, type: null });
+            } catch (error) {
+              // Error is handled by the hook
+            }
+          }}
+          isLoading={isLeaving}
+        />
+      )}
+
+      {confirmDialog.type === "promote" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Promote to Admin"
+          description={`Are you sure you want to promote ${confirmDialog.memberName} to Organization Admin? They will be able to manage members and organization settings.`}
+          confirmText="Promote"
+          cancelText="Cancel"
+          variant="default"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_ADMIN" });
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isChangingRole}
+        />
+      )}
+
+      {confirmDialog.type === "demote" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Demote to Member"
+          description={`Are you sure you want to demote ${confirmDialog.memberName} to Organization Member? They will lose admin privileges.`}
+          confirmText="Demote"
+          cancelText="Cancel"
+          variant="default"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_MEMBER" });
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isChangingRole}
+        />
+      )}
     </>
   );
 }

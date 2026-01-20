@@ -23,7 +23,7 @@ export const organizationIdParamSchema = z.object({
 
 export const memberIdParamSchema = z.object({
   id: z.string().cuid(),
-  userId: z.string().cuid(),
+  userId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),
 });
 
 export const portalTypeSchema = z.enum(["investor", "issuer"]);
@@ -84,7 +84,7 @@ export const leaveOrganizationSchema = z.object({
 
 // Promote/Demote member schema
 export const changeMemberRoleSchema = z.object({
-  userId: z.string().cuid(),
+  userId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
 });
 

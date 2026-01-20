@@ -528,6 +528,7 @@ export class AuthService {
    * Get current user profile with session info
    */
   async getCurrentUser(userId: string): Promise<{
+    userId: string;
     user: User & { admin: { status: string; role_description: string | null } | null };
     activeRole: UserRole | null;
     sessions: {
@@ -554,6 +555,7 @@ export class AuthService {
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
 
     return {
+      userId: user.user_id,
       user,
       activeRole: activeSession?.active_role || null,
       sessions: {

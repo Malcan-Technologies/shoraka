@@ -1145,11 +1145,6 @@ export class OrganizationService {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
-    // Cannot leave if you're the owner
-    if (organization.owner_user_id === userId) {
-      throw new AppError(400, "CANNOT_LEAVE_AS_OWNER", "Organization owner cannot leave. Transfer ownership first.");
-    }
-
     // Check if user is a member
     const userMember = organization.members.find(
       (m: { user_id: string; role: string }) => m.user_id === userId
@@ -1159,14 +1154,17 @@ export class OrganizationService {
       throw new AppError(404, "NOT_MEMBER", "You are not a member of this organization");
     }
 
-    // Check if user is the last admin
-    if (userMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN) {
+    // Check if user is admin (including owner) - must ensure at least 1 admin remains
+    const isAdmin = userMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    const isOwner = organization.owner_user_id === userId;
+    
+    if (isAdmin || isOwner) {
       const adminCount = await this.repository.countOrganizationAdmins(organizationId, portalType);
-      if (adminCount === 1) {
+      if (adminCount <= 1) {
         throw new AppError(
           400,
           "LAST_ADMIN",
-          "Cannot leave - at least one organization admin must remain"
+          "Cannot leave - at least one organization admin must remain. Please promote another member to admin first."
         );
       }
     }
@@ -1178,7 +1176,7 @@ export class OrganizationService {
       await this.repository.removeIssuerOrganizationMember(organizationId, userId);
     }
 
-    logger.info({ userId, organizationId, portalType }, "Member left organization");
+    logger.info({ userId, organizationId, portalType, wasOwner: isOwner }, "Member left organization");
 
     return { success: true };
   }
@@ -1210,6 +1208,11 @@ export class OrganizationService {
     // Cannot change owner's role
     if (input.userId === organization.owner_user_id) {
       throw new AppError(400, "CANNOT_CHANGE_OWNER", "Cannot change organization owner's role");
+    }
+
+    // Cannot demote yourself
+    if (input.userId === userId && input.role === "ORGANIZATION_MEMBER") {
+      throw new AppError(400, "CANNOT_DEMOTE_SELF", "You cannot demote yourself. Please ask another admin to do so.");
     }
 
     // Check if target is a member
