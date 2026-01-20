@@ -933,6 +933,8 @@ export class ApiClient {
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.startDate) queryParams.append("startDate", params.startDate);
     if (params.endDate) queryParams.append("endDate", params.endDate);
+    if (params.organizationId) queryParams.append("organizationId", params.organizationId);
+    if (params.portalType) queryParams.append("portalType", params.portalType);
 
     return this.get<ActivitiesResponse>(`/v1/activities?${queryParams.toString()}`);
   }

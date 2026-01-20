@@ -19,6 +19,8 @@ export const getActivitiesQuerySchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   dateRange: z.enum(["24h", "7d", "30d", "all"]).optional(),
+  organizationId: z.string().optional(),
+  portalType: z.enum(["investor", "issuer"]).optional(),
 });
 
 /**

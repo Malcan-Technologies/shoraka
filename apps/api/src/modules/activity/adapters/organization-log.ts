@@ -17,12 +17,29 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     userId: string,
     filters: ActivityFilters
   ): Promise<OnboardingLog[]> {
-    const { search, event_types, startDate, endDate, limit, offset } = filters;
+    const { search, event_types, startDate, endDate, limit, offset, organizationId, portalType } = filters;
     const supportedTypes = this.getEventTypes();
 
     let finalEventTypes = event_types
       ? event_types.filter(et => supportedTypes.includes(et))
       : supportedTypes;
+
+    // Build the where clause
+    const where: any = {
+      event_type: { in: finalEventTypes },
+      created_at: buildDateFilter(startDate, endDate),
+    };
+
+    // Filter by organization if provided, otherwise filter by user_id
+    if (organizationId && portalType) {
+      if (portalType === "investor") {
+        where.investor_organization_id = organizationId;
+      } else {
+        where.issuer_organization_id = organizationId;
+      }
+    } else {
+      where.user_id = userId;
+    }
 
     // Pre-calculate which event types match the search string via their shared labels
     const matchingEventTypes = search
@@ -36,42 +53,39 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
         })
       : [];
 
+    if (search) {
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+        {
+          metadata: {
+            path: ["status"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["reason"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["section"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["form_name"],
+            string_contains: search,
+          },
+        },
+      ];
+    }
+
     return prisma.onboardingLog.findMany({
-      where: {
-        user_id: userId,
-        event_type: { in: finalEventTypes },
-        created_at: buildDateFilter(startDate, endDate),
-        OR: search
-          ? [
-              { event_type: { contains: search, mode: "insensitive" } },
-              { event_type: { in: matchingEventTypes } },
-              {
-                metadata: {
-                  path: ["status"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["reason"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["section"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["form_name"],
-                  string_contains: search,
-                },
-              },
-            ]
-          : undefined,
-      },
+      where,
       orderBy: { created_at: "desc" },
       take: limit,
       skip: offset,
@@ -82,12 +96,29 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     userId: string,
     filters: ActivityFilters
   ): Promise<number> {
-    const { search, event_types, startDate, endDate } = filters;
+    const { search, event_types, startDate, endDate, organizationId, portalType } = filters;
     const supportedTypes = this.getEventTypes();
 
     let finalEventTypes = event_types
       ? event_types.filter((et) => supportedTypes.includes(et))
       : supportedTypes;
+
+    // Build the where clause
+    const where: any = {
+      event_type: { in: finalEventTypes },
+      created_at: buildDateFilter(startDate, endDate),
+    };
+
+    // Filter by organization if provided, otherwise filter by user_id
+    if (organizationId && portalType) {
+      if (portalType === "investor") {
+        where.investor_organization_id = organizationId;
+      } else {
+        where.issuer_organization_id = organizationId;
+      }
+    } else {
+      where.user_id = userId;
+    }
 
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
@@ -100,42 +131,39 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
         })
       : [];
 
+    if (search) {
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+        {
+          metadata: {
+            path: ["status"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["reason"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["section"],
+            string_contains: search,
+          },
+        },
+        {
+          metadata: {
+            path: ["form_name"],
+            string_contains: search,
+          },
+        },
+      ];
+    }
+
     return prisma.onboardingLog.count({
-      where: {
-        user_id: userId,
-        event_type: { in: finalEventTypes },
-        created_at: buildDateFilter(startDate, endDate),
-        OR: search
-          ? [
-              { event_type: { contains: search, mode: "insensitive" } },
-              { event_type: { in: matchingEventTypes } },
-              {
-                metadata: {
-                  path: ["status"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["reason"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["section"],
-                  string_contains: search,
-                },
-              },
-              {
-                metadata: {
-                  path: ["form_name"],
-                  string_contains: search,
-                },
-              },
-            ]
-          : undefined,
-      },
+      where,
     });
   }
 

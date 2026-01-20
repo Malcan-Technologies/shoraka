@@ -72,9 +72,15 @@ export class AuditLogAggregator {
     );
     const totalCount = counts.reduce((acc, count) => acc + count, 0);
 
-    // Get the unfiltered total count (only user_id and categories filter)
+    // Get the unfiltered total count (only user_id/organization filter and categories filter)
     const unfilteredCounts = await Promise.all(
-      activeAdapters.map((adapter) => adapter.count(userId, { categories }))
+      activeAdapters.map((adapter) =>
+        adapter.count(userId, {
+          categories,
+          organizationId: filters.organizationId,
+          portalType: filters.portalType,
+        })
+      )
     );
     const unfilteredTotalCount = unfilteredCounts.reduce((acc, count) => acc + count, 0);
 

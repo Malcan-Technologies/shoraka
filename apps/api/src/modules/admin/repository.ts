@@ -1106,47 +1106,29 @@ export class AdminRepository {
               roles: true,
             },
           },
+          investor_organization: {
+            select: { type: true },
+          },
+          issuer_organization: {
+            select: { type: true },
+          },
         },
       }),
       prisma.onboardingLog.count({ where }),
     ]);
 
-    // Fetch organization info for each log
-    const logsWithOrgInfo = await Promise.all(
-      logs.map(async (log) => {
-        let organizationName: string | null = null;
-        let organizationType: OrganizationType | null = null;
+    // Map logs with organization info from the OnboardingLog record itself
+    const logsWithOrgInfo = logs.map((log) => {
+      const organizationName = log.organization_name;
+      const organizationType =
+        log.investor_organization?.type || log.issuer_organization?.type || null;
 
-        // Try to get organization info based on portal and user_id
-        if (log.portal === "investor") {
-          const org = await prisma.investorOrganization.findFirst({
-            where: { owner_user_id: log.user_id },
-            select: { name: true, type: true },
-            orderBy: { created_at: "desc" },
-          });
-          if (org) {
-            organizationName = org.name;
-            organizationType = org.type;
-          }
-        } else if (log.portal === "issuer") {
-          const org = await prisma.issuerOrganization.findFirst({
-            where: { owner_user_id: log.user_id },
-            select: { name: true, type: true },
-            orderBy: { created_at: "desc" },
-          });
-          if (org) {
-            organizationName = org.name;
-            organizationType = org.type;
-          }
-        }
-
-        return {
-          ...log,
-          organizationName,
-          organizationType,
-        };
-      })
-    );
+      return {
+        ...log,
+        organizationName,
+        organizationType,
+      };
+    });
 
     return { logs: logsWithOrgInfo, total };
   }
@@ -1237,45 +1219,27 @@ export class AdminRepository {
             roles: true,
           },
         },
+        investor_organization: {
+          select: { type: true },
+        },
+        issuer_organization: {
+          select: { type: true },
+        },
       },
     });
 
-    // Fetch organization info for each log
-    const logsWithOrgInfo = await Promise.all(
-      logs.map(async (log) => {
-        let organizationName: string | null = null;
-        let organizationType: OrganizationType | null = null;
+    // Map logs with organization info from the OnboardingLog record itself
+    const logsWithOrgInfo = logs.map((log) => {
+      const organizationName = log.organization_name;
+      const organizationType =
+        log.investor_organization?.type || log.issuer_organization?.type || null;
 
-        // Try to get organization info based on portal and user_id
-        if (log.portal === "investor") {
-          const org = await prisma.investorOrganization.findFirst({
-            where: { owner_user_id: log.user_id },
-            select: { name: true, type: true },
-            orderBy: { created_at: "desc" },
-          });
-          if (org) {
-            organizationName = org.name;
-            organizationType = org.type;
-          }
-        } else if (log.portal === "issuer") {
-          const org = await prisma.issuerOrganization.findFirst({
-            where: { owner_user_id: log.user_id },
-            select: { name: true, type: true },
-            orderBy: { created_at: "desc" },
-          });
-          if (org) {
-            organizationName = org.name;
-            organizationType = org.type;
-          }
-        }
-
-        return {
-          ...log,
-          organizationName,
-          organizationType,
-        };
-      })
-    );
+      return {
+        ...log,
+        organizationName,
+        organizationType,
+      };
+    });
 
     return logsWithOrgInfo;
   }
@@ -1362,14 +1326,14 @@ export class AdminRepository {
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
     onboardingStatus?:
-      | "PENDING"
-      | "IN_PROGRESS"
-      | "PENDING_APPROVAL"
-      | "PENDING_AML"
-      | "PENDING_SSM_REVIEW"
-      | "PENDING_FINAL_APPROVAL"
-      | "COMPLETED"
-      | "REJECTED";
+    | "PENDING"
+    | "IN_PROGRESS"
+    | "PENDING_APPROVAL"
+    | "PENDING_AML"
+    | "PENDING_SSM_REVIEW"
+    | "PENDING_FINAL_APPROVAL"
+    | "COMPLETED"
+    | "REJECTED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1378,14 +1342,14 @@ export class AdminRepository {
       name: string | null;
       registrationNumber: string | null;
       onboardingStatus:
-        | "PENDING"
-        | "IN_PROGRESS"
-        | "PENDING_APPROVAL"
-        | "PENDING_AML"
-        | "PENDING_SSM_REVIEW"
-        | "PENDING_FINAL_APPROVAL"
-        | "COMPLETED"
-        | "REJECTED";
+      | "PENDING"
+      | "IN_PROGRESS"
+      | "PENDING_APPROVAL"
+      | "PENDING_AML"
+      | "PENDING_SSM_REVIEW"
+      | "PENDING_FINAL_APPROVAL"
+      | "COMPLETED"
+      | "REJECTED";
       onboardedAt: Date | null;
       owner: {
         userId: string;

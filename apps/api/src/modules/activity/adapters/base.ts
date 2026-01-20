@@ -33,6 +33,8 @@ export interface ActivityFilters {
   endDate?: Date;
   limit?: number;
   offset?: number;
+  organizationId?: string;
+  portalType?: "investor" | "issuer";
 }
 
 /**

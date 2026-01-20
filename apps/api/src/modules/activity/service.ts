@@ -45,6 +45,8 @@ export const activityService = {
         endDate: finalEndDate,
         limit,
         offset,
+        organizationId: query.organizationId,
+        portalType: query.portalType,
       });
 
       return {
