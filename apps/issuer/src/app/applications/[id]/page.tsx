@@ -189,22 +189,26 @@ export default function ApplicationWizardPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                 {currentStep === 1
                   ? "Select financing type"
-                  : currentStepId === "verify_company_info_1"
+                  : currentStepId === "verify_company_info_1" || currentStepId === "company_info_1"
                   ? "Verify company details"
                   : currentStepId === "supporting_documents_1"
                   ? "Provide invoice details"
                   : currentStepId === "declaration_1"
                   ? "Declarations"
+                  : currentStepId === "review_submit_1"
+                  ? "Review and submit"
                   : currentStepName}
               </h1>
               <p className="text-[15px] leading-7 text-muted-foreground mt-1">
                 {currentStep === 1
                   ? "Browse and invest in verified loan opportunities from your dashboard"
-                  : currentStepId === "verify_company_info_1"
+                  : currentStepId === "verify_company_info_1" || currentStepId === "company_info_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : currentStepId === "supporting_documents_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : currentStepId === "declaration_1"
+                  ? "Browse and invest in verified loan opportunities from your dashboard"
+                  : currentStepId === "review_submit_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : "Temporary description for " + currentStepName}
               </p>
