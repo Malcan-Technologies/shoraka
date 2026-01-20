@@ -24,6 +24,8 @@ export function useProducts(params: GetProductsParams) {
       return response.data;
     },
     staleTime: 60 * 1000, // 1 minute
+    // staleTime: 0, // Data is immediately stale, always refetch
+    // gcTime: 0, // Don't cache data (formerly cacheTime)
     refetchOnMount: true,
   });
 }

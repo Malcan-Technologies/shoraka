@@ -54,11 +54,36 @@ export default function FinancingTypeStep({
     }
   }, [localSelectedProductId, onDataChange]);
 
+  console.log('isloadingproducts', isLoadingProducts)
   if (isLoadingProducts) {
+
     return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-20 rounded-lg" />
+      <div className="space-y-12">
+        {[1, 2, 3].map((categoryIndex) => (
+          <div key={categoryIndex}>
+            <div className="flex justify-between items-center border-b border-border pb-2">
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 mt-6">
+              {[1, 2].map((cardIndex) => (
+                <div
+                  key={cardIndex}
+                  className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card"
+                >
+                  <Skeleton className="h-14 w-14 rounded-lg aspect-square border border-border" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <Skeleton className="h-5 w-32 mb-1" />
+                        <Skeleton className="h-4 w-full max-w-md" />
+                      </div>
+                      <Skeleton className="h-5 w-5 rounded-none" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     );

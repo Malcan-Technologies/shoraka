@@ -29,22 +29,12 @@ const STEP_COMPONENTS: Record<string, React.ComponentType<StepComponentProps>> =
 };
 
 
-export function getStepComponent(stepId: string): React.ComponentType<StepComponentProps> {
-  if (stepId in STEP_COMPONENTS) {
-    return STEP_COMPONENTS[stepId];
-  }
-  
-
- 
-  
-  return DefaultStepComponent;
+export function getStepComponent(stepId: string) {
+  return STEP_COMPONENTS[stepId] || DefaultStepComponent;
 }
 
-function DefaultStepComponent({ stepName }: StepComponentProps) {
-  // Check if this is the financing type step (step 1)
-  const isFinancingTypeStep = stepName === "Select financing type" || stepName === "Loading...";
-  
-  if (isFinancingTypeStep) {
+export function getStepSkeleton(stepId: string): React.ReactElement | null {
+  if (stepId === "financing_type_1" || stepId === "") {
     return (
       <div className="space-y-12">
         {[1, 2, 3].map((categoryIndex) => (
@@ -76,39 +66,160 @@ function DefaultStepComponent({ stepName }: StepComponentProps) {
       </div>
     );
   }
-  
+
+  if (stepId === "verify_company_info_1" || stepId === "company_info_1") {
+    return (
+      <div className="space-y-12">
+        <div>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <React.Fragment key={i}>
+                <div className="text-sm text-muted-foreground">
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-11 w-full rounded-xl" />
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stepId === "supporting_documents_1") {
+    return (
+      <div className="space-y-12">
+        {[1, 2].map((categoryIndex) => (
+          <div key={categoryIndex}>
+            <div className="flex justify-between items-center border-b border-border pb-2">
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <ul className="space-y-2 mt-6">
+              {[1, 2, 3].map((docIndex) => (
+                <li key={docIndex} className="flex justify-between text-sm">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-4 w-24" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (stepId === "declaration_1") {
+    return (
+      <div className="space-y-12">
+        <div>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="border border-border rounded-xl p-6 space-y-4 mt-6">
+            <Skeleton className="h-6 w-64" />
+            <div className="space-y-2 pl-6">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stepId === "buyer_details_1") {
+    return (
+      <div className="space-y-12">
+        <div>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <React.Fragment key={i}>
+                <div>
+                  <Skeleton className="h-4 w-32 mb-1" />
+                  <Skeleton className="h-11 w-full rounded-xl" />
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stepId === "invoice_details_1") {
+    return (
+      <div className="space-y-12">
+        <div>
+          <div className="flex justify-between items-center border-b border-border pb-2">
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="bg-white border border-border rounded-xl overflow-hidden mt-6">
+            <div className="p-4 border-b border-border">
+              <Skeleton className="h-6 w-32" />
+            </div>
+            <div className="p-4">
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex gap-4">
+                    {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                      <Skeleton key={j} className="h-10 flex-1" />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stepId === "review_submit_1") {
+    return (
+      <div className="space-y-12">
+        {[1, 2, 3, 4, 5].map((sectionIndex) => (
+          <div key={sectionIndex}>
+            <div className="flex justify-between items-center border-b border-border pb-2">
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <div className="grid grid-cols-2 gap-6 mt-6">
+              {[1, 2, 3, 4].map((i) => (
+                <React.Fragment key={i}>
+                  <div className="text-sm text-muted-foreground">
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-4 w-48" />
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function DefaultStepComponent({ stepId, stepName }: StepComponentProps) {
   return (
-    <div className="space-y-12">
+    <div className="rounded-xl border bg-card p-6 space-y-4">
       <div>
-        <div className="flex justify-between items-center border-b border-border pb-2">
-          <Skeleton className="h-5 w-40" />
-        </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <div className="text-sm text-muted-foreground">
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-11 w-full rounded-xl" />
-        </div>
+        <h3 className="text-lg font-semibold mb-2">{stepName || "Step"}</h3>
+        <p className="text-muted-foreground">
+          This step component has not been created yet.
+        </p>
+      </div>
+      <div className="space-y-2 text-sm text-muted-foreground">
+        <p>Step ID: <code className="text-xs bg-muted px-2 py-1 rounded">{stepId || "unknown"}</code></p>
+        <p>You can continue to the next step using the navigation buttons below.</p>
       </div>
     </div>
   );
