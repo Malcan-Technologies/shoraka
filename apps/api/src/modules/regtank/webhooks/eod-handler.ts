@@ -43,11 +43,11 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     // The main onboarding record stores COD requestId, not EOD requestId
     // We need to find the parent COD onboarding record by searching for COD webhooks that contain this EOD requestId
     // The EOD requestId appears in COD webhook payload's corpIndvDirectors, corpIndvShareholders, or corpBizShareholders arrays
-    
+
     // Find the parent COD onboarding record by searching through all corporate onboarding records
     // and checking if their COD webhook payloads contain this EOD requestId
     let onboarding = null;
-    
+
     // Query all corporate onboarding records
     const allCorporateOnboardings = await prisma.regTankOnboarding.findMany({
       where: {
@@ -78,7 +78,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
         },
       },
     });
-    
+
     for (const corporateOnboarding of allCorporateOnboardings) {
       // Check webhook payloads for COD webhook that contains this EOD requestId
       if (corporateOnboarding.webhook_payloads && Array.isArray(corporateOnboarding.webhook_payloads)) {
@@ -89,7 +89,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
             const corpIndvDirectors = payloadObj.corpIndvDirectors as string[] | undefined;
             const corpIndvShareholders = payloadObj.corpIndvShareholders as string[] | undefined;
             const corpBizShareholders = payloadObj.corpBizShareholders as string[] | undefined;
-            
+
             if (
               (corpIndvDirectors && Array.isArray(corpIndvDirectors) && corpIndvDirectors.includes(eodRequestId)) ||
               (corpIndvShareholders && Array.isArray(corpIndvShareholders) && corpIndvShareholders.includes(eodRequestId)) ||
@@ -152,7 +152,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
 
     try {
       const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
-      
+
       await this.authRepository.createOnboardingLog({
         userId: onboarding.user_id,
         role,
@@ -200,7 +200,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     if (organizationId) {
       try {
         const portalType = onboarding.portal_type as PortalType;
-        
+
         // Map EOD status to KYC status
         let kycStatus = "PENDING";
         if (statusUpper === "LIVENESS_STARTED") {
@@ -360,13 +360,13 @@ export class EODWebhookHandler extends BaseWebhookHandler {
               // Update director_kyc_status with the fetched kycId
               const org = portalType === "investor"
                 ? await prisma.investorOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { director_kyc_status: true },
-                  })
+                  where: { id: organizationId },
+                  select: { director_kyc_status: true },
+                })
                 : await prisma.issuerOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { director_kyc_status: true },
-                  });
+                  where: { id: organizationId },
+                  select: { director_kyc_status: true },
+                });
 
               if (org && org.director_kyc_status) {
                 const directorKycStatus = org.director_kyc_status as any;
@@ -584,13 +584,13 @@ export class EODWebhookHandler extends BaseWebhookHandler {
           // Get organization to update director_aml_status
           const org = portalType === "investor"
             ? await prisma.investorOrganization.findUnique({
-                where: { id: organizationId },
-                select: { id: true, director_kyc_status: true, director_aml_status: true },
-              })
+              where: { id: organizationId },
+              select: { id: true, director_kyc_status: true, director_aml_status: true },
+            })
             : await prisma.issuerOrganization.findUnique({
-                where: { id: organizationId },
-                select: { id: true, director_kyc_status: true, director_aml_status: true },
-              });
+              where: { id: organizationId },
+              select: { id: true, director_kyc_status: true, director_aml_status: true },
+            });
 
           if (org && org.director_kyc_status) {
             const directorKycStatus = org.director_kyc_status as any;

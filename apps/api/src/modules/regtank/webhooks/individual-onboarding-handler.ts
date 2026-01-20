@@ -102,7 +102,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding log - FORM_FILLED when form is completed
             try {
               await this.authRepository.createOnboardingLog({
@@ -131,7 +131,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
               "Liveness test passed, updated investor organization status to PENDING_APPROVAL"
@@ -145,7 +145,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
               await this.authRepository.createOnboardingLog({
@@ -174,7 +174,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
               "Liveness test passed, updated issuer organization status to PENDING_APPROVAL"
@@ -205,7 +205,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
               await this.authRepository.createOnboardingLog({
@@ -234,7 +234,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId },
               "Updated investor organization status to PENDING_APPROVAL"
@@ -248,7 +248,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
               await this.authRepository.createOnboardingLog({
@@ -277,7 +277,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId },
               "Updated issuer organization status to PENDING_APPROVAL"
@@ -309,10 +309,10 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // If rejected, update organization status to REJECTED and log it
     if (statusUpper === "REJECTED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
-      
+
       try {
         let previousStatus: OnboardingStatus | null = null;
-        
+
         if (portalType === "investor") {
           const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (orgExists) {
@@ -321,7 +321,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.REJECTED
             );
-            
+
             // Create ONBOARDING_REJECTED log
             try {
               await this.authRepository.createOnboardingLog({
@@ -350,7 +350,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create ONBOARDING_REJECTED log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
               "Updated investor organization status to REJECTED and logged rejection event"
@@ -364,7 +364,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.REJECTED
             );
-            
+
             // Create ONBOARDING_REJECTED log
             try {
               await this.authRepository.createOnboardingLog({
@@ -393,7 +393,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create ONBOARDING_REJECTED log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
               "Updated issuer organization status to REJECTED and logged rejection event"

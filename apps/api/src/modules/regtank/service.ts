@@ -454,7 +454,7 @@ export class RegTankService {
         organization_name: organization.name,
         investor_organization_id: organizationId,
         issuer_organization_id: null,
-          metadata: {
+        metadata: {
           organizationId,
           requestId: regTankResponse.requestId,
           onboardingType: "INDIVIDUAL",

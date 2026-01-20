@@ -493,13 +493,13 @@ export class RegTankDevWebhookHandler {
       const orgDev = organizationId
         ? portalType === "investor"
           ? await prismaDev.investorOrganization.findUnique({
-              where: { id: organizationId },
-              select: { name: true },
-            })
+            where: { id: organizationId },
+            select: { name: true },
+          })
           : await prismaDev.issuerOrganization.findUnique({
-              where: { id: organizationId },
-              select: { name: true },
-            })
+            where: { id: organizationId },
+            select: { name: true },
+          })
         : null;
 
       await prismaDev.onboardingLog.create({

@@ -444,7 +444,6 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       if (isMainCompanyCod) {
         logger.debug(
           {
-            onboardingId,
             kybRequestId: requestId,
             onboardingRequestId: onboarding?.request_id,
             note: "onboardingId is the main company COD, skipping business shareholder search"

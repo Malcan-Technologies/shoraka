@@ -1285,19 +1285,19 @@ export class AdminService {
     const latestOrg =
       data.portal === "investor"
         ? (
-            await prisma.investorOrganization.findMany({
-              where: { owner_user_id: userId },
-              orderBy: { updated_at: "desc" },
-              take: 1,
-            })
-          )[0]
+          await prisma.investorOrganization.findMany({
+            where: { owner_user_id: userId },
+            orderBy: { updated_at: "desc" },
+            take: 1,
+          })
+        )[0]
         : (
-            await prisma.issuerOrganization.findMany({
-              where: { owner_user_id: userId },
-              orderBy: { updated_at: "desc" },
-              take: 1,
-            })
-          )[0];
+          await prisma.issuerOrganization.findMany({
+            where: { owner_user_id: userId },
+            orderBy: { updated_at: "desc" },
+            take: 1,
+          })
+        )[0];
 
     // Create onboarding log
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
@@ -1360,14 +1360,14 @@ export class AdminService {
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
     onboardingStatus?:
-      | "PENDING"
-      | "IN_PROGRESS"
-      | "PENDING_APPROVAL"
-      | "PENDING_AML"
-      | "PENDING_SSM_REVIEW"
-      | "PENDING_FINAL_APPROVAL"
-      | "COMPLETED"
-      | "REJECTED";
+    | "PENDING"
+    | "IN_PROGRESS"
+    | "PENDING_APPROVAL"
+    | "PENDING_AML"
+    | "PENDING_SSM_REVIEW"
+    | "PENDING_FINAL_APPROVAL"
+    | "COMPLETED"
+    | "REJECTED";
   }): Promise<{
     organizations: {
       id: string;
@@ -1376,14 +1376,14 @@ export class AdminService {
       name: string | null;
       registrationNumber: string | null;
       onboardingStatus:
-        | "PENDING"
-        | "IN_PROGRESS"
-        | "PENDING_APPROVAL"
-        | "PENDING_AML"
-        | "PENDING_SSM_REVIEW"
-        | "PENDING_FINAL_APPROVAL"
-        | "COMPLETED"
-        | "REJECTED";
+      | "PENDING"
+      | "IN_PROGRESS"
+      | "PENDING_APPROVAL"
+      | "PENDING_AML"
+      | "PENDING_SSM_REVIEW"
+      | "PENDING_FINAL_APPROVAL"
+      | "COMPLETED"
+      | "REJECTED";
       onboardedAt: string | null;
       owner: {
         userId: string;
@@ -1641,15 +1641,15 @@ export class AdminService {
       const { applications } = await this.regTankRepository.listOnboardingApplications({
         page: 1,
         pageSize: 1000,
-      search: params.search,
-      portal: params.portal as "investor" | "issuer" | undefined,
-      type: params.type as OrganizationType | undefined,
-    });
+        search: params.search,
+        portal: params.portal as "investor" | "issuer" | undefined,
+        type: params.type as OrganizationType | undefined,
+      });
 
-    // Map applications to response format with derived approval status
-    const mappedApplications = applications.map((app) =>
-      this.mapToOnboardingApplicationResponse(app)
-    );
+      // Map applications to response format with derived approval status
+      const mappedApplications = applications.map((app) =>
+        this.mapToOnboardingApplicationResponse(app)
+      );
 
       // Filter by status
       let filteredApplications: OnboardingApplicationResponse[];
@@ -1886,27 +1886,27 @@ export class AdminService {
 
     const directorKycStatus:
       | {
-          corpIndvDirectorCount: number;
-          corpIndvShareholderCount: number;
-          corpBizShareholderCount: number;
-          directors: Array<{
-            eodRequestId: string;
-            name: string;
-            email: string;
-            role: string;
-            kycStatus:
-              | "PENDING"
-              | "LIVENESS_STARTED"
-              | "WAIT_FOR_APPROVAL"
-              | "APPROVED"
-              | "REJECTED";
-            kycId?: string;
-            lastUpdated: string;
-          }>;
-          lastSyncedAt: string;
-        }
+        corpIndvDirectorCount: number;
+        corpIndvShareholderCount: number;
+        corpBizShareholderCount: number;
+        directors: Array<{
+          eodRequestId: string;
+          name: string;
+          email: string;
+          role: string;
+          kycStatus:
+          | "PENDING"
+          | "LIVENESS_STARTED"
+          | "WAIT_FOR_APPROVAL"
+          | "APPROVED"
+          | "REJECTED";
+          kycId?: string;
+          lastUpdated: string;
+        }>;
+        lastSyncedAt: string;
+      }
       | undefined = directorKycStatusRaw
-      ? {
+        ? {
           ...(directorKycStatusRaw as {
             corpIndvDirectorCount: number;
             corpIndvShareholderCount: number;
@@ -1946,7 +1946,7 @@ export class AdminService {
               | "REJECTED",
           })),
         }
-      : undefined;
+        : undefined;
 
     // Director AML status (only for corporate onboarding)
     const directorAmlStatusRaw =
@@ -1958,32 +1958,32 @@ export class AdminService {
 
     const directorAmlStatus:
       | {
-          directors: Array<{
-            kycId: string;
-            name: string;
-            email: string;
-            role: string;
-            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-            amlRiskScore: number | null;
-            amlRiskLevel: string | null;
-            lastUpdated: string;
-          }>;
-          businessShareholders?: Array<{
-            codRequestId: string;
-            kybId: string;
-            businessName: string;
-            sharePercentage?: number | null;
-            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-            amlRiskScore: number | null;
-            amlRiskLevel: string | null;
-            lastUpdated: string;
-          }>;
-          lastSyncedAt: string;
-        }
+        directors: Array<{
+          kycId: string;
+          name: string;
+          email: string;
+          role: string;
+          amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+          amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+          amlRiskScore: number | null;
+          amlRiskLevel: string | null;
+          lastUpdated: string;
+        }>;
+        businessShareholders?: Array<{
+          codRequestId: string;
+          kybId: string;
+          businessName: string;
+          sharePercentage?: number | null;
+          amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+          amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+          amlRiskScore: number | null;
+          amlRiskLevel: string | null;
+          lastUpdated: string;
+        }>;
+        lastSyncedAt: string;
+      }
       | undefined = directorAmlStatusRaw
-      ? {
+        ? {
           ...(directorAmlStatusRaw as {
             directors: Array<{
               kycId: string;
@@ -2052,7 +2052,7 @@ export class AdminService {
             amlMessageStatus: b.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
           })),
         }
-      : undefined;
+        : undefined;
 
     // Corporate entities (only for corporate onboarding)
     const corporateEntitiesRaw =
@@ -2064,10 +2064,10 @@ export class AdminService {
 
     const corporateEntities = corporateEntitiesRaw
       ? (corporateEntitiesRaw as {
-          directors?: Array<Record<string, unknown>>;
-          shareholders?: Array<Record<string, unknown>>;
-          corporateShareholders?: Array<Record<string, unknown>>;
-        })
+        directors?: Array<Record<string, unknown>>;
+        shareholders?: Array<Record<string, unknown>>;
+        corporateShareholders?: Array<Record<string, unknown>>;
+      })
       : undefined;
 
     return {
@@ -2408,11 +2408,11 @@ export class AdminService {
       // For company accounts, also check SSM approval and director KYC completion
       if (isCompany) {
         if (!investorOrg.ssm_approved) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          "SSM approval is required for company accounts"
-        );
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            "SSM approval is required for company accounts"
+          );
         }
 
         // Check if all directors have completed KYC
@@ -3063,11 +3063,11 @@ export class AdminService {
             // Person is both director and shareholder - merge roles
             existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
             existingDirector.shareholderEodRequestId = shareholderEodRequestId;
-            
+
             // Fetch both EOD details to check which one has kycId
             let directorKycId: string | undefined;
             let shareholderKycId: string | undefined;
-            
+
             // Fetch director EOD details
             if (existingDirector.eodRequestId) {
               try {
@@ -3084,7 +3084,7 @@ export class AdminService {
                 );
               }
             }
-            
+
             // Fetch shareholder EOD details
             if (shareholderEodRequestId) {
               try {
@@ -3101,7 +3101,7 @@ export class AdminService {
                 );
               }
             }
-            
+
             // Use kycId from whichever EOD record has it (prioritize director if both have it)
             if (directorKycId) {
               existingDirector.kycId = directorKycId;
@@ -3113,7 +3113,7 @@ export class AdminService {
                 existingDirector.kycId = kycId;
               }
             }
-            
+
             // Update KYC status if shareholder has a more recent or different status
             // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
             const statusPriority = {
@@ -3128,7 +3128,7 @@ export class AdminService {
             if (newPriority > currentPriority) {
               existingDirector.kycStatus = kycStatus;
             }
-            
+
             existingDirector.lastUpdated = new Date().toISOString();
           } else {
             // Person is only a shareholder - add as new entry
@@ -3162,13 +3162,13 @@ export class AdminService {
       let updatedCorporateEntities: any = null;
       const existingOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
-            where: { id: org.id },
-            select: { corporate_entities: true },
-          })
+          where: { id: org.id },
+          select: { corporate_entities: true },
+        })
         : await prisma.issuerOrganization.findUnique({
-            where: { id: org.id },
-            select: { corporate_entities: true },
-          });
+          where: { id: org.id },
+          select: { corporate_entities: true },
+        });
 
       if (existingOrg && codDetails.corpBizShareholders) {
         const corporateEntities = (existingOrg.corporate_entities as any) || {
@@ -3411,8 +3411,8 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
-      const codRequestId = onboarding.request_id;
-      const portalType = onboarding.portal_type as PortalType;
+    const codRequestId = onboarding.request_id;
+    const portalType = onboarding.portal_type as PortalType;
 
     try {
       logger.info(
@@ -3427,13 +3427,13 @@ export class AdminService {
       // Get updated director_aml_status to count directors
       const updatedOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
-            where: { id: org.id },
-            select: { director_aml_status: true },
-          })
+          where: { id: org.id },
+          select: { director_aml_status: true },
+        })
         : await prisma.issuerOrganization.findUnique({
-            where: { id: org.id },
-            select: { director_aml_status: true },
-          });
+          where: { id: org.id },
+          select: { director_aml_status: true },
+        });
 
       const directorAmlStatus = (updatedOrg?.director_aml_status as any) || { directors: [] };
       const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
