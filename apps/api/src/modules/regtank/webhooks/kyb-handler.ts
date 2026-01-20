@@ -78,7 +78,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     // Note: requestId is the KYB/DJKYB ID (e.g., "KYB00087" or "DJKYB00012"), NOT the onboarding request ID, so we don't use it directly
     let onboarding;
     let foundBy = "";
-    
+
     if (onboardingId) {
       logger.debug(
         { onboardingId, kybRequestId: requestId },
@@ -88,11 +88,11 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       if (onboarding) {
         foundBy = "onboardingId";
         logger.info(
-          { 
-            onboardingId, 
+          {
+            onboardingId,
             kybRequestId: requestId,
             onboardingRequestId: onboarding.request_id,
-            foundBy 
+            foundBy
           },
           "[KYB Webhook] ✓ Found onboarding record by onboardingId"
         );
@@ -103,7 +103,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         );
       }
     }
-    
+
     if (!onboarding && referenceId) {
       logger.debug(
         { referenceId, kybRequestId: requestId },
@@ -113,11 +113,11 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       if (onboarding) {
         foundBy = "referenceId";
         logger.info(
-          { 
-            referenceId, 
+          {
+            referenceId,
             kybRequestId: requestId,
             onboardingRequestId: onboarding.request_id,
-            foundBy 
+            foundBy
           },
           "[KYB Webhook] ✓ Found onboarding record by referenceId"
         );
@@ -132,12 +132,12 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     // Determine if onboardingId is the main company's COD
     // If onboarding is found and its request_id matches onboardingId, it's the main company
     const isMainCompanyCod = onboarding && onboarding.request_id === onboardingId && onboardingId?.startsWith("COD");
-    
+
     if (!onboarding) {
       logger.warn(
-        { 
-          kybRequestId: requestId, 
-          referenceId, 
+        {
+          kybRequestId: requestId,
+          referenceId,
           onboardingId,
           note: "KYB requestId is the KYB ID, not the onboarding request ID. Use onboardingId field instead. Will attempt to process as business shareholder if onboardingId is a COD."
         },
@@ -155,7 +155,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         },
         "[KYB Webhook] Appending webhook payload to onboarding record history"
       );
-      
+
       await this.repository.appendWebhookPayload(
         onboarding.request_id,
         payload as Prisma.InputJsonValue
@@ -211,6 +211,39 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 },
               });
 
+            // Create onboarding log
+            try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
+                metadata: {
+                  organizationId,
+                  kybRequestId: requestId,
+                  onboardingRequestId: onboarding.request_id,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  trigger: "KYB_APPROVED",
+                  riskLevel,
+                  riskScore,
+                  isCorporateOnboarding,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  kybRequestId: requestId,
+                },
+                "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
+              );
+            }
               // Create onboarding log
               try {
                 const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
@@ -266,6 +299,38 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 },
               });
 
+            // Create onboarding log
+            try {
+              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
+                metadata: {
+                  organizationId,
+                  kybRequestId: requestId,
+                  onboardingRequestId: onboarding.request_id,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  trigger: "KYB_APPROVED",
+                  riskLevel,
+                  riskScore,
+                },
+              });
+            } catch (logError) {
+              logger.error(
+                {
+                  error: logError instanceof Error ? logError.message : String(logError),
+                  organizationId,
+                  kybRequestId: requestId,
+                },
+                "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
+              );
+            }
               // Create onboarding log
               try {
                 const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
@@ -338,12 +403,12 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         try {
           // requestId IS the kybId
           const kybId = requestId;
-          
+
           // Find organization to get business name
           const org = portalType === "investor"
             ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
             : await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          
+
           if (org && org.name) {
             // Update or create mapping for main company (though main company doesn't have entity_type in our mapping)
             // Actually, main company KYB is stored at organization level, not in mapping table
@@ -378,8 +443,8 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     if (onboardingId && onboardingId.startsWith("COD")) {
       if (isMainCompanyCod) {
         logger.debug(
-          { 
-            onboardingId, 
+          {
+            onboardingId,
             kybRequestId: requestId,
             onboardingRequestId: onboarding?.request_id,
             note: "onboardingId is the main company COD, skipping business shareholder search"
@@ -392,8 +457,8 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         // 1. onboardingId found but doesn't match main company (shouldn't happen, but safe)
         // 2. onboardingId not found in regTankOnboarding (business shareholder COD)
         logger.info(
-          { 
-            onboardingId, 
+          {
+            onboardingId,
             kybRequestId: requestId,
             isMainCompanyCod: false,
             onboardingFound: !!onboarding,
@@ -406,7 +471,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     } else if (!onboarding && !onboardingId && requestId) {
       // No onboardingId but we have kybId - try to find by kybId in corporate_entities
       logger.debug(
-        { 
+        {
           kybRequestId: requestId,
           note: "No onboardingId provided, attempting to find business shareholder by kybId"
         },
@@ -425,7 +490,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
    */
   private async handleBusinessShareholderKYB(payload: RegTankKYBWebhook): Promise<void> {
     const { requestId: kybId, onboardingId, status, riskScore, riskLevel, messageStatus } = payload;
-    
+
     // If onboardingId is provided, it must be a COD for business shareholders
     // If not provided, we'll search by kybId
     if (onboardingId && !onboardingId.startsWith("COD")) {
@@ -459,7 +524,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       if (!org.corporate_entities) return false;
       const corporateEntities = org.corporate_entities as any;
       const corporateShareholders = corporateEntities?.corporateShareholders || [];
-      
+
       // Match by COD requestId (onboardingId) OR by kybId
       return corporateShareholders.some((s: any) => {
         const codRequestId = s.corporateOnboardingRequest?.requestId || s.requestId;
@@ -472,7 +537,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       if (!org.corporate_entities) return false;
       const corporateEntities = org.corporate_entities as any;
       const corporateShareholders = corporateEntities?.corporateShareholders || [];
-      
+
       // Match by COD requestId (onboardingId) OR by kybId
       return corporateShareholders.some((s: any) => {
         const codRequestId = s.corporateOnboardingRequest?.requestId || s.requestId;
@@ -488,8 +553,8 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
     if (allOrgs.length === 0) {
       logger.warn(
-        { 
-          kybId, 
+        {
+          kybId,
           onboardingId,
           note: "No organization found with matching business shareholder COD or kybId. This may be a main company KYB or the business shareholder data hasn't been stored yet."
         },
@@ -504,15 +569,15 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         // Fetch updated COD details (only if onboardingId is provided)
         let businessName = "Unknown";
         let sharePercentage: string | null = null;
-        
+
         if (onboardingId) {
           const codDetails = await this.apiClient.getCorporateOnboardingDetails(onboardingId);
-          
+
           // Extract business info
           const formContent = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Basic Information Setting"
           )?.content || [];
-          
+
           businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || "Unknown";
           sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
         } else {
@@ -523,7 +588,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
             const storedKybId = s.kybId;
             return kybId && storedKybId === kybId;
           });
-          
+
           if (shareholder) {
             businessName = (shareholder as any).businessName || (shareholder as any).name || "Unknown";
             sharePercentage = (shareholder as any).sharePercentage || (shareholder as any).share_percentage || null;
@@ -545,10 +610,10 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
         // Update director_aml_status.businessShareholders
         // Preserve existing directors array when updating businessShareholders
-        const directorAmlStatus = (org.director_aml_status as any) || { 
-          directors: [], 
-          businessShareholders: [], 
-          lastSyncedAt: new Date().toISOString() 
+        const directorAmlStatus = (org.director_aml_status as any) || {
+          directors: [],
+          businessShareholders: [],
+          lastSyncedAt: new Date().toISOString()
         };
         // Ensure directors array exists (preserve existing data)
         if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {

@@ -158,6 +158,9 @@ export class EODWebhookHandler extends BaseWebhookHandler {
         role,
         eventType,
         portal: portalType,
+        organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        investorOrganizationId: onboarding.investor_organization_id || undefined,
+        issuerOrganizationId: onboarding.issuer_organization_id || undefined,
         metadata: {
           eodRequestId,
           codRequestId: onboarding.request_id,

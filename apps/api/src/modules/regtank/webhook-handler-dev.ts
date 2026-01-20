@@ -8,6 +8,7 @@ import { prisma } from "../../lib/prisma";
 import { OnboardingStatus, UserRole, PrismaClient } from "@prisma/client";
 import { PortalType } from "./types";
 import { AuthRepository } from "../auth/repository";
+import { OrganizationRepository } from "../organization/repository";
 
 /**
  * RegTank Dev Webhook Handler
@@ -488,12 +489,28 @@ export class RegTankDevWebhookHandler {
       // Log onboarding completed in dev database
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
+      // Fetch organization details for logging
+      const orgDev = organizationId
+        ? portalType === "investor"
+          ? await prismaDev.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: { name: true },
+            })
+          : await prismaDev.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: { name: true },
+            })
+        : null;
+
       await prismaDev.onboardingLog.create({
         data: {
           user_id: onboarding.user_id,
           role,
           event_type: "USER_COMPLETED",
           portal: portalType,
+          organization_name: orgDev?.name || undefined,
+          investor_organization_id: (portalType === "investor" && organizationId) ? organizationId : null,
+          issuer_organization_id: (portalType === "issuer" && organizationId) ? organizationId : null,
           metadata: {
             organizationId,
             requestId,
@@ -520,6 +537,14 @@ export class RegTankDevWebhookHandler {
       const portalType = onboarding.portal_type as PortalType;
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
       const authRepository = new AuthRepository();
+      const organizationRepository = new OrganizationRepository();
+
+      // Fetch organization details for logging
+      const org = organizationId
+        ? portalType === "investor"
+          ? await organizationRepository.findInvestorOrganizationById(organizationId)
+          : await organizationRepository.findIssuerOrganizationById(organizationId)
+        : null;
 
       // Determine event type based on status
       let eventType = "WEBHOOK_RECEIVED";
@@ -546,6 +571,9 @@ export class RegTankDevWebhookHandler {
         role,
         eventType,
         portal: portalType,
+        organizationName: org?.name || undefined,
+        investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
+        issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
         metadata: {
           requestId,
           status: statusUpper,

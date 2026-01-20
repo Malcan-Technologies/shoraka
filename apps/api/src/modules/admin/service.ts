@@ -263,6 +263,18 @@ export class AdminService {
       rolesChanged ? updatedRoles : undefined
     );
 
+    // Fetch latest organizations for logging
+    const [latestInvestorOrg, latestIssuerOrg] = await Promise.all([
+      prisma.investorOrganization.findFirst({
+        where: { owner_user_id: userId },
+        orderBy: { updated_at: "desc" },
+      }),
+      prisma.issuerOrganization.findFirst({
+        where: { owner_user_id: userId },
+        orderBy: { updated_at: "desc" },
+      }),
+    ]);
+
     // Create onboarding logs for the target user(s) when their onboarding status is updated
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
@@ -281,6 +293,9 @@ export class AdminService {
         userAgent,
         deviceInfo,
         deviceType,
+        organizationName: latestInvestorOrg?.name || undefined,
+        investorOrganizationId: latestInvestorOrg?.id || undefined,
+        issuerOrganizationId: undefined,
         metadata: {
           updatedBy: adminUserId,
           previousStatus: previousInvestorOnboarded,
@@ -302,6 +317,9 @@ export class AdminService {
         userAgent,
         deviceInfo,
         deviceType,
+        organizationName: latestIssuerOrg?.name || undefined,
+        investorOrganizationId: undefined,
+        issuerOrganizationId: latestIssuerOrg?.id || undefined,
         metadata: {
           updatedBy: adminUserId,
           previousStatus: previousIssuerOnboarded,
@@ -1263,6 +1281,24 @@ export class AdminService {
 
     const updatedUser = await this.repository.updateUserOnboarding(userId, updateData);
 
+    // Fetch the latest organization for logging
+    const latestOrg =
+      data.portal === "investor"
+        ? (
+            await prisma.investorOrganization.findMany({
+              where: { owner_user_id: userId },
+              orderBy: { updated_at: "desc" },
+              take: 1,
+            })
+          )[0]
+        : (
+            await prisma.issuerOrganization.findMany({
+              where: { owner_user_id: userId },
+              orderBy: { updated_at: "desc" },
+              take: 1,
+            })
+          )[0];
+
     // Create onboarding log
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     await this.repository.createOnboardingLog({
@@ -1274,6 +1310,9 @@ export class AdminService {
       userAgent,
       deviceInfo,
       deviceType,
+      organizationName: latestOrg?.name || undefined,
+      investorOrganizationId: data.portal === "investor" ? latestOrg?.id : undefined,
+      issuerOrganizationId: data.portal === "issuer" ? latestOrg?.id : undefined,
       metadata: {
         resetBy: adminUserId,
         previousStatus: true,
@@ -1515,6 +1554,7 @@ export class AdminService {
       where: { id: organizationId },
       select: {
         id: true,
+        name: true,
         owner_user_id: true,
         is_sophisticated_investor: true,
         sophisticated_investor_reason: true,
@@ -1540,6 +1580,9 @@ export class AdminService {
         role: UserRole.INVESTOR,
         event_type: "SOPHISTICATED_STATUS_UPDATED",
         portal: "investor",
+        organization_name: org.name,
+        investor_organization_id: organizationId,
+        issuer_organization_id: null,
         metadata: {
           organizationId,
           previousStatus: org.is_sophisticated_investor,
@@ -2263,6 +2306,9 @@ export class AdminService {
       userAgent,
       deviceInfo,
       deviceType,
+      organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
       metadata: {
         cancelledOnboardingId: onboardingId,
         cancelledRequestId: onboarding.request_id,
@@ -2523,6 +2569,9 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
+        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        investor_organization_id: onboarding.investor_organization_id || undefined,
+        issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
           organizationId: org.id,
           organizationType: onboarding.organization_type,
@@ -2651,6 +2700,9 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
+        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        investor_organization_id: onboarding.investor_organization_id || undefined,
+        issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
           organizationId: org.id,
           organizationType: onboarding.organization_type,
@@ -2765,6 +2817,9 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
+        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        investor_organization_id: onboarding.investor_organization_id || undefined,
+        issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
           organizationId: org.id,
           organizationType: onboarding.organization_type,

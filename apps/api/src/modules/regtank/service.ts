@@ -454,7 +454,7 @@ export class RegTankService {
         organization_name: organization.name,
         investor_organization_id: organizationId,
         issuer_organization_id: null,
-        metadata: {
+          metadata: {
           organizationId,
           requestId: regTankResponse.requestId,
           onboardingType: "INDIVIDUAL",
@@ -773,8 +773,8 @@ export class RegTankService {
         device_info: deviceInfo,
         device_type: deviceType,
         organization_name: organization.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
+        investor_organization_id: portalType === "investor" ? organizationId : null,
+        issuer_organization_id: portalType === "issuer" ? organizationId : null,
         metadata: {
           organizationId,
           requestId: regTankResponse.requestId,
@@ -1219,6 +1219,7 @@ export class RegTankService {
           where: { id: organizationId },
           select: {
             id: true,
+            name: true,
             type: true,
             owner_user_id: true,
             is_sophisticated_investor: true,
@@ -1263,6 +1264,9 @@ export class RegTankService {
               role: UserRole.INVESTOR,
               event_type: "SOPHISTICATED_STATUS_UPDATED",
               portal: "investor",
+              organization_name: org.name,
+              investor_organization_id: organizationId,
+              issuer_organization_id: null,
               metadata: {
                 organizationId,
                 previousStatus: org.is_sophisticated_investor,
@@ -1673,6 +1677,9 @@ export class RegTankService {
                 role: UserRole.INVESTOR,
                 eventType: "ONBOARDING_APPROVED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
                 metadata: {
                   organizationId,
                   requestId,
@@ -1718,6 +1725,9 @@ export class RegTankService {
                 role: UserRole.ISSUER,
                 eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
                 metadata: {
                   organizationId,
                   requestId,
@@ -1803,6 +1813,13 @@ export class RegTankService {
       const portalType = onboarding.portal_type as PortalType;
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
+      // Fetch organization details for logging
+      const org = organizationId
+        ? portalType === "investor"
+          ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+          : await this.organizationRepository.findIssuerOrganizationById(organizationId)
+        : null;
+
       // Determine event type based on status
       // Use new specific event types for better tracking
       // Note: ONBOARDING_APPROVED is logged separately when admin approves in RegTank (see extractAndUpdateOrganizationData)
@@ -1832,6 +1849,9 @@ export class RegTankService {
         role,
         eventType,
         portal: portalType,
+        organizationName: org?.name || undefined,
+        investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
+        issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
         metadata: {
           requestId,
           status: statusUpper,

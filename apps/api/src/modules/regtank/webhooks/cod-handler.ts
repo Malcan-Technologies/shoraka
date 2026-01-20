@@ -132,7 +132,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const operationalInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Operational Information"
           );
-          
+
           // Return the entire operationalInfo object (RegTank format)
           // This has the structure: { content: [...], displayArea: "..." }
           // This ensures banking details are stored in the same RegTank format used by individual onboarding
@@ -144,9 +144,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const transactionInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Transaction Information"
           );
-          
+
           if (!transactionInfo) return null;
-          
+
           const content = transactionInfo.content || [];
           return {
             sourceOfFunds: content.find((f: any) => f.fieldName === "Source of funds")?.fieldValue || null,
@@ -160,9 +160,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Beneficiary Account Information"
           );
-          
+
           if (!beneficiaryInfo) return null;
-          
+
           const content = beneficiaryInfo.content || [];
           return {
             pepStatus: content.find((f: any) => f.fieldName?.includes("PEP"))?.fieldValue || null,
@@ -175,9 +175,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const basicInfoArea = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Basic Information Setting"
           );
-          
+
           const basicContent = basicInfoArea?.content || [];
-          
+
           // Extract basic info
           const basicInfo = {
             businessName: basicContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || null,
@@ -187,7 +187,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
             numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
           };
-          
+
           // Extract entity criteria
           const entityCriteria = {
             publicCompanyCriteria: basicContent.find((f: any) => f.fieldName === "Public Company Criteria: ")?.fieldValue || null,
@@ -197,7 +197,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             statutoryBodyCriteria: basicContent.find((f: any) => f.fieldName?.includes("Statutory Body"))?.fieldValue || null,
             pensionFundCriteria: basicContent.find((f: any) => f.fieldName?.includes("Pension Fund"))?.fieldValue || null,
           };
-          
+
           // Extract addresses
           const addresses = {
             business: {
@@ -217,7 +217,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               country: basicContent.find((f: any) => f.fieldName === "Country (Registered Address)")?.fieldValue || null,
             },
           };
-          
+
           return {
             basicInfo,
             entityCriteria,
@@ -230,16 +230,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const documentsArea = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Required Documents"
           );
-          
+
           if (!documentsArea) return null;
-          
+
           const requiredDocuments = (documentsArea.content || []).map((doc: any) => ({
             fieldName: doc.fieldName || null,
             fileName: doc.fileName || null,
             fileType: doc.fileType || null,
             url: doc.fieldValue || null,
           }));
-          
+
           return requiredDocuments;
         };
 
@@ -268,7 +268,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             createdDate: director.corporateIndividualRequest?.createdDate || null,
             updatedDate: director.corporateIndividualRequest?.updatedDate || null,
           }));
-          
+
           const shareholders = (codDetails.corpIndvShareholders || []).map((shareholder: any) => ({
             eodRequestId: shareholder.corporateIndividualRequest?.requestId || null,
             personalInfo: {
@@ -292,19 +292,19 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             createdDate: shareholder.corporateIndividualRequest?.createdDate || null,
             updatedDate: shareholder.corporateIndividualRequest?.updatedDate || null,
           }));
-          
+
           const corporateShareholders = (codDetails.corpBizShareholders || []).map((corpShareholder: any) => ({
             // Extract corporate shareholder details if available
             ...corpShareholder,
           }));
-          
+
           return {
             directors,
             shareholders,
             corporateShareholders,
           };
         };
-        
+
         // Extract director information from COD details
         // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
         const directorsMap = new Map<string, {
@@ -324,25 +324,25 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const eodRequestId = director.corporateIndividualRequest?.requestId || "";
             const userInfo = director.corporateUserRequestInfo;
             const formContent = userInfo?.formContent?.content || [];
-            
+
             // Extract name, email, role from formContent
             const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
             const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
             const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
-            
+
             const mapKey = normalizeKey(name, email);
-            
+
             // Fetch EOD details to get latest KYC status and kycId
             let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
             let kycId = director.kycRequestInfo?.kycId;
-            
+
             if (eodRequestId) {
               try {
                 const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
                 const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
-                
+
                 // Map EOD status to KYC status
                 if (eodStatus === "LIVENESS_STARTED") {
                   kycStatus = "LIVENESS_STARTED";
@@ -353,7 +353,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 } else if (eodStatus === "REJECTED") {
                   kycStatus = "REJECTED";
                 }
-                
+
                 // Get KYC ID from EOD details if available
                 if (eodDetails.kycRequestInfo?.kycId) {
                   kycId = eodDetails.kycRequestInfo.kycId;
@@ -369,7 +369,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 );
               }
             }
-            
+
             directorsMap.set(mapKey, {
               eodRequestId,
               name,
@@ -389,26 +389,26 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const shareholderEodRequestId = shareholder.corporateIndividualRequest?.requestId || "";
             const userInfo = shareholder.corporateUserRequestInfo;
             const formContent = userInfo?.formContent?.content || [];
-            
+
             const firstName = formContent.find((f: any) => f.fieldName === "First Name")?.fieldValue || "";
             const lastName = formContent.find((f: any) => f.fieldName === "Last Name")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
             const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
-            
+
             const mapKey = normalizeKey(name, email);
             const existingDirector = directorsMap.get(mapKey);
             const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
-            
+
             // Fetch EOD details to get latest KYC status and kycId
             let kycStatus = shareholder.corporateIndividualRequest?.status || "PENDING";
             let kycId = shareholder.kycRequestInfo?.kycId;
-            
+
             if (shareholderEodRequestId) {
               try {
                 const eodDetails = await this.apiClient.getEntityOnboardingDetails(shareholderEodRequestId);
                 const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
-                
+
                 if (eodStatus === "LIVENESS_STARTED") {
                   kycStatus = "LIVENESS_STARTED";
                 } else if (eodStatus === "WAIT_FOR_APPROVAL") {
@@ -421,7 +421,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   // If status is PENDING but kycId exists, it means KYC is completed and waiting for approval
                   kycStatus = "WAIT_FOR_APPROVAL";
                 }
-                
+
                 if (eodDetails.kycRequestInfo?.kycId) {
                   kycId = eodDetails.kycRequestInfo.kycId;
                   // If we have a kycId but status is still PENDING, it means KYC is completed
@@ -445,16 +445,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 kycStatus = "WAIT_FOR_APPROVAL";
               }
             }
-            
+
             if (existingDirector) {
               // Person is both director and shareholder - merge roles
               existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
               existingDirector.shareholderEodRequestId = shareholderEodRequestId;
-              
+
               // Fetch both EOD details to check which one has kycId
               let directorKycId: string | undefined;
               let shareholderKycId: string | undefined;
-              
+
               // Fetch director EOD details
               if (existingDirector.eodRequestId) {
                 try {
@@ -471,7 +471,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   );
                 }
               }
-              
+
               // Fetch shareholder EOD details
               if (shareholderEodRequestId) {
                 try {
@@ -488,7 +488,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   );
                 }
               }
-              
+
               // Use kycId from whichever EOD record has it (prioritize director if both have it)
               if (directorKycId) {
                 existingDirector.kycId = directorKycId;
@@ -500,7 +500,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   existingDirector.kycId = shareholder.kycRequestInfo.kycId;
                 }
               }
-              
+
               // Update KYC status if shareholder has a more recent or different status
               if (kycStatus !== existingDirector.kycStatus) {
                 // Prioritize APPROVED > WAIT_FOR_APPROVAL > LIVENESS_STARTED > PENDING
@@ -517,7 +517,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   existingDirector.kycStatus = kycStatus;
                 }
               }
-              
+
               existingDirector.lastUpdated = new Date().toISOString();
             } else {
               // Person is only a shareholder - add as new entry
@@ -692,8 +692,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.INVESTOR,
                 eventType: "CORPORATE_ONBOARDING_APPROVED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
                 metadata: {
-              organizationId,
+                  organizationId,
                   requestId,
                   previousStatus,
                   newStatus: OnboardingStatus.PENDING_APPROVAL,
@@ -742,6 +745,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.ISSUER,
                 eventType: "CORPORATE_ONBOARDING_APPROVED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
                 metadata: {
                   organizationId,
                   requestId,
@@ -788,10 +794,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         );
 
         let codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
-        
+
         // Extract kybId from COD details (try kybRequestDto.kybId first, then payload kybId)
         let extractedKybId = kybId || null;
-        
+
         // Check if kybId exists in COD details (kybRequestDto structure)
         if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
           const codDetailsObj = codDetails as Record<string, unknown>;
@@ -813,9 +819,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             { requestId, organizationId },
             "kybId not found in initial COD details, waiting 3 seconds before retry"
           );
-          
+
           await new Promise((resolve) => setTimeout(resolve, 3000));
-          
+
           try {
             codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
             if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
@@ -880,27 +886,27 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         try {
           if (codDetails && typeof codDetails === "object" && !Array.isArray(codDetails)) {
             const codDetailsObj = codDetails as Record<string, unknown>;
-            
+
             // Helper function to normalize name+email for duplicate detection
             const normalizeKey = (name: string, email: string): string => {
               return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
             };
-            
+
             // Get existing director_kyc_status from organization
             const org = portalType === "investor"
               ? await prisma.investorOrganization.findUnique({
-                  where: { id: organizationId },
-                  select: { director_kyc_status: true },
-                })
+                where: { id: organizationId },
+                select: { director_kyc_status: true },
+              })
               : await prisma.issuerOrganization.findUnique({
-                  where: { id: organizationId },
-                  select: { director_kyc_status: true },
-                });
-            
+                where: { id: organizationId },
+                select: { director_kyc_status: true },
+              });
+
             if (org && org.director_kyc_status) {
               const existingStatus = org.director_kyc_status as any;
               const directorsMap = new Map<string, any>();
-              
+
               // Build map from existing directors
               if (existingStatus.directors && Array.isArray(existingStatus.directors)) {
                 for (const dir of existingStatus.directors) {
@@ -908,11 +914,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   directorsMap.set(key, { ...dir });
                 }
               }
-              
+
               // Process COD details to update kycId values
               const corpIndvDirectors = codDetailsObj.corpIndvDirectors as any[];
               const corpIndvShareholders = codDetailsObj.corpIndvShareholders as any[];
-              
+
               // Update directors that don't have kycId yet
               if (corpIndvDirectors && Array.isArray(corpIndvDirectors)) {
                 for (const director of corpIndvDirectors) {
@@ -924,7 +930,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
                   const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
                   const key = normalizeKey(name, email);
-                  
+
                   const existing = directorsMap.get(key);
                   if (existing && eodRequestId && !existing.kycId) {
                     // Fetch EOD details to get kycId
@@ -951,7 +957,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   }
                 }
               }
-              
+
               // Update shareholders (and check duplicates for kycId)
               if (corpIndvShareholders && Array.isArray(corpIndvShareholders)) {
                 for (const shareholder of corpIndvShareholders) {
@@ -963,14 +969,14 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
                   const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
                   const key = normalizeKey(name, email);
-                  
+
                   const existing = directorsMap.get(key);
                   if (existing) {
                     // Person is both director and shareholder - check both EOD records for kycId
                     if (!existing.kycId && existing.eodRequestId && shareholderEodRequestId) {
                       let directorKycId: string | undefined;
                       let shareholderKycId: string | undefined;
-                      
+
                       // Check director EOD
                       if (existing.eodRequestId) {
                         try {
@@ -987,7 +993,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                           );
                         }
                       }
-                      
+
                       // Check shareholder EOD
                       if (shareholderEodRequestId) {
                         try {
@@ -1004,7 +1010,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                           );
                         }
                       }
-                      
+
                       // Use kycId from whichever EOD record has it (prioritize director if both have it)
                       if (directorKycId) {
                         existing.kycId = directorKycId;
@@ -1055,18 +1061,18 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   }
                 }
               }
-              
+
               // Update organization with refreshed director_kyc_status
               const updatedDirectors = Array.from(directorsMap.values());
               const directorsWithKycId = updatedDirectors.filter((d) => d.kycId).length;
-              
+
               if (directorsWithKycId > 0) {
                 const updatedStatus = {
                   ...existingStatus,
                   directors: updatedDirectors,
                   lastSyncedAt: new Date().toISOString(),
                 };
-                
+
                 if (portalType === "investor") {
                   await prisma.investorOrganization.update({
                     where: { id: organizationId },
@@ -1078,7 +1084,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                     data: { director_kyc_status: updatedStatus as Prisma.InputJsonValue },
                   });
                 }
-                
+
                 logger.info(
                   {
                     organizationId,
@@ -1118,13 +1124,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           const org = portalType === "investor"
             ? await prisma.investorOrganization.findUnique({
-                where: { id: organizationId },
-                select: { corporate_entities: true },
-              })
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
             : await prisma.issuerOrganization.findUnique({
-                where: { id: organizationId },
-                select: { corporate_entities: true },
-              });
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            });
 
           if (org && org.corporate_entities) {
             const corporateEntities = org.corporate_entities as any;
@@ -1255,16 +1261,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           // Fetch latest COD details to get updated corporate shareholders status
           const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
-          
+
           const org = portalType === "investor"
             ? await prisma.investorOrganization.findUnique({
-                where: { id: organizationId },
-                select: { corporate_entities: true },
-              })
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
             : await prisma.issuerOrganization.findUnique({
-                where: { id: organizationId },
-                select: { corporate_entities: true },
-              });
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            });
 
           if (org && org.corporate_entities && codDetails.corpBizShareholders) {
             const corporateEntities = org.corporate_entities as any;
@@ -1273,7 +1279,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             // Update corporate shareholders with latest status from COD details
             if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
               const codCorpShareholders = codDetails.corpBizShareholders as any[];
-              
+
               // Create a map of existing corporate shareholders by COD requestId or company name
               const existingMap = new Map<string, any>();
               for (const existing of corporateEntities.corporateShareholders) {
@@ -1288,7 +1294,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 const codRequestId = codShareholder.corporateOnboardingRequest?.requestId || codShareholder.requestId || "";
                 const codName = codShareholder.name || codShareholder.businessName || "";
                 const key = codRequestId || codName;
-                
+
                 if (key) {
                   const existing = existingMap.get(key);
                   if (existing) {
@@ -1299,7 +1305,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                       // Preserve any fields we want to keep from existing
                       lastUpdated: new Date().toISOString(),
                     };
-                    
+
                     // Replace in array
                     const index = corporateEntities.corporateShareholders.findIndex(
                       (s: any) => (s.corporateOnboardingRequest?.requestId || s.requestId || s.name || "") === key
@@ -1399,7 +1405,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const previousStatus = org.onboarding_status;
             const newStatus = finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL;
             statusChangedToPendingAml = previousStatus === OnboardingStatus.PENDING_APPROVAL && newStatus === OnboardingStatus.PENDING_AML;
-            
+
             await prisma.investorOrganization.update({
               where: { id: organizationId },
               data: {
@@ -1415,6 +1421,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.INVESTOR,
                 eventType: "COD_APPROVED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
                 metadata: {
                   organizationId,
                   requestId,
@@ -1446,7 +1455,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const previousStatus = org.onboarding_status;
             const newStatus = finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL;
             statusChangedToPendingAml = previousStatus === OnboardingStatus.PENDING_APPROVAL && newStatus === OnboardingStatus.PENDING_AML;
-            
+
             await prisma.issuerOrganization.update({
               where: { id: organizationId },
               data: {
@@ -1462,6 +1471,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.ISSUER,
                 eventType: "COD_APPROVED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
                 metadata: {
                   organizationId,
                   requestId,
@@ -1501,13 +1513,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               // Get organization with corporate_entities
               const org = portalType === "investor"
                 ? await prisma.investorOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { corporate_entities: true, director_aml_status: true },
-                  })
+                  where: { id: organizationId },
+                  select: { corporate_entities: true, director_aml_status: true },
+                })
                 : await prisma.issuerOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { corporate_entities: true, director_aml_status: true },
-                  });
+                  where: { id: organizationId },
+                  select: { corporate_entities: true, director_aml_status: true },
+                });
 
               if (!org || !org.corporate_entities) {
                 logger.warn({ requestId, organizationId }, "[COD Webhook] No corporate_entities found");
@@ -1542,16 +1554,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 try {
                   // Fetch COD details for this business shareholder
                   const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
-                  
+
                   // Extract kybRequestDto
                   const kybRequestDto = codDetails.kybRequestDto;
                   const kybId = kybRequestDto?.kybId || null;
-                  
+
                   // Extract business info from formContent
                   const formContent = codDetails.formContent?.displayAreas?.find(
                     (area: any) => area.displayArea === "Basic Information Setting"
                   )?.content || [];
-                  
+
                   const businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || shareholder.name || "Unknown";
                   const sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
 
@@ -1585,10 +1597,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               // Store in director_aml_status.businessShareholders
               if (businessShareholdersAml.length > 0) {
                 // Preserve existing directors array when updating businessShareholders
-                const directorAmlStatus = (org.director_aml_status as any) || { 
-                  directors: [], 
-                  businessShareholders: [], 
-                  lastSyncedAt: new Date().toISOString() 
+                const directorAmlStatus = (org.director_aml_status as any) || {
+                  directors: [],
+                  businessShareholders: [],
+                  lastSyncedAt: new Date().toISOString()
                 };
                 // Ensure directors array exists (preserve existing data)
                 if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
@@ -1657,6 +1669,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.INVESTOR,
                 eventType: "COD_REJECTED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
                 metadata: {
                   organizationId,
                   requestId,
@@ -1696,6 +1711,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: UserRole.ISSUER,
                 eventType: "COD_REJECTED",
                 portal: portalType,
+                organizationName: org.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
                 metadata: {
                   organizationId,
                   requestId,
