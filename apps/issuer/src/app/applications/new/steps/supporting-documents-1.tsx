@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@cashsouk/ui";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { XMarkIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
@@ -266,108 +262,60 @@ export default function SupportingDocumentsStep({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       {categories.map((category, categoryIndex) => {
-        const [isOpen, setIsOpen] = React.useState(true);
         const status = getCategoryStatus(categoryIndex);
         const isComplete = status.uploadedCount === status.totalCount && status.totalCount > 0;
 
         return (
-          <Card key={categoryIndex}>
-            <Collapsible
-              open={isOpen}
-              onOpenChange={setIsOpen}
-              className="space-y-0"
-            >
-              <CardContent className="p-0">
-                <div className="border-b px-6 py-4">
-                  <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
-                    <div className="flex items-center gap-2.5">
-                      {isOpen ? (
-                        <ChevronUpIcon className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <h3 className="text-lg font-semibold">{category.name}</h3>
-                    </div>
-                    <span
-                      className={
-                        isComplete
-                          ? "text-sm text-green-700 font-medium"
-                          : "text-sm text-muted-foreground"
-                      }
-                    >
-                      {status.uploadedCount}/{status.totalCount} {isComplete ? "files uploaded" : "files required"}
-                    </span>
-                  </CollapsibleTrigger>
-                </div>
-                <CollapsibleContent className="px-6 py-5">
-                  <div className="space-y-4">
-                    {category.documents.map((document, documentIndex) => {
-                      const key = `${categoryIndex}-${documentIndex}`;
-                      const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
-                      const fileIsUploading = isUploading(key);
-                      const file = uploadedFiles[key];
+          <div key={categoryIndex}>
+            <div className="flex justify-between items-center border-b border-border pb-2">
+              <h3 className="font-semibold">{category.name}</h3>
+              <div className={isComplete ? "text-sm text-primary font-medium" : "text-sm text-muted-foreground font-medium"}>
+                {isComplete ? (
+                  <>
+                    <CheckCircleIcon className="h-4 w-4 inline mr-1" />
+                    {status.uploadedCount}/{status.totalCount} files uploaded
+                  </>
+                ) : (
+                  <>
+                    {status.uploadedCount}/{status.totalCount} files required
+                  </>
+                )}
+              </div>
+            </div>
+            <ul className="space-y-2 mt-4">
+              {category.documents.map((document, documentIndex) => {
+                const key = `${categoryIndex}-${documentIndex}`;
+                const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
+                const fileIsUploading = isUploading(key);
+                const file = uploadedFiles[key];
 
-                      return (
-                        <div key={documentIndex} className="flex items-center justify-between py-1">
-                          <Label
-                            htmlFor={`file-${key}`}
-                            className="text-base font-normal flex-1"
-                          >
-                            {document.title}
-                          </Label>
-
-                          {isUploaded && file && !fileIsUploading ? (
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                checked={true}
-                                className="rounded-none pointer-events-none"
-                              />
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-medium text-foreground truncate max-w-[180px]">
-                                  {file.name}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveFile(categoryIndex, documentIndex);
-                                  }}
-                                  className="text-muted-foreground hover:text-destructive transition-colors h-7 w-7 p-0 flex-shrink-0 flex items-center justify-center"
-                                >
-                                  <XMarkIcon className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center">
-                              <Label
-                                htmlFor={`file-${key}`}
-                                className="text-sm text-primary cursor-pointer hover:underline font-normal"
-                              >
-                                Upload file
-                              </Label>
-                              <Input
-                                id={`file-${key}`}
-                                type="file"
-                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                onChange={(e) =>
-                                  handleFileChange(categoryIndex, documentIndex, e)
-                                }
-                                className="hidden"
-                                disabled={fileIsUploading}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CollapsibleContent>
-              </CardContent>
-            </Collapsible>
-          </Card>
+                return (
+                  <li key={documentIndex} className="flex justify-between text-sm">
+                    <span>{document.title}</span>
+                    {isUploaded && file && !fileIsUploading ? (
+                      <span className="text-muted-foreground">{file.name}</span>
+                    ) : (
+                      <label htmlFor={`file-${key}`} className="text-accent font-medium cursor-pointer hover:underline">
+                        Upload file
+                        <Input
+                          id={`file-${key}`}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                          onChange={(e) =>
+                            handleFileChange(categoryIndex, documentIndex, e)
+                          }
+                          className="hidden"
+                          disabled={fileIsUploading}
+                        />
+                      </label>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         );
       })}
     </div>

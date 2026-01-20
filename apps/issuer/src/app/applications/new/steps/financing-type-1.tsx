@@ -59,20 +59,27 @@ export default function FinancingTypeStep({
   }
 
   return (
-    <div className="space-y-3">
-      {financingTypes.map((type) => (
-        <FinancingTypeCard
-          key={type.id}
-          id={type.id}
-          name={type.name}
-          description={type.description}
-          s3Key={type.s3Key}
-          isSelected={localSelectedProductId === type.id}
-          onSelect={() => {
-            setLocalSelectedProductId(type.id);
-          }}
-        />
-      ))}
+    <div className="space-y-12">
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Financing option</h3>
+        </div>
+        <div className="grid grid-cols-1 gap-4 mt-6">
+          {financingTypes.map((type) => (
+            <FinancingTypeCard
+              key={type.id}
+              id={type.id}
+              name={type.name}
+              description={type.description}
+              s3Key={type.s3Key}
+              isSelected={localSelectedProductId === type.id}
+              onSelect={() => {
+                setLocalSelectedProductId(type.id);
+              }}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

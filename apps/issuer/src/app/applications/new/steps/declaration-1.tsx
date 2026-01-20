@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@cashsouk/ui";
-import { Label } from "@/components/ui/label";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
 
@@ -106,42 +105,30 @@ export default function DeclarationStep({
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {declarations.map((declaration, index) => {
-        const isChecked = checkedDeclarations.get(index) || false;
-        const declarationId = `declaration-${index}`;
+  const allChecked = Array.from(checkedDeclarations.values()).every(checked => checked);
+  const isFirstDeclaration = declarations.length > 0;
 
-        return (
-          <Card
-            key={index}
-            className="cursor-pointer"
-            onClick={() => handleDeclarationToggle(index, !isChecked)}
-            tabIndex={0}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  id={declarationId}
-                  checked={isChecked}
-                  onCheckedChange={(checked) =>
-                    handleDeclarationToggle(index, checked === true)
-                  }
-                  className="rounded-none pointer-events-none transition-none [&>span]:transition-none [&>span[data-state]]:transition-none"
-                />
-                <div className="flex-1 space-y-0">
-                  <Label
-                    htmlFor={declarationId}
-                    className="text-sm font-medium leading-relaxed cursor-pointer pointer-events-none"
-                  >
-                    {declaration}
-                  </Label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+  return (
+    <div className="space-y-4">
+      <div className="border border-border rounded-xl p-6 space-y-4">
+        <label className="flex items-start gap-3 font-medium text-foreground">
+          <Checkbox
+            checked={allChecked}
+            onCheckedChange={(checked) => {
+              declarations.forEach((_, index) => {
+                handleDeclarationToggle(index, checked === true);
+              });
+            }}
+            className="mt-1 w-4 h-4 rounded-none"
+          />
+          I / We hereby declare and confirm that
+        </label>
+        <ul className="list-decimal list-inside text-foreground space-y-2 pl-6">
+          {declarations.map((declaration, index) => (
+            <li key={index}>{declaration}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

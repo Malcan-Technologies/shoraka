@@ -1,13 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { PencilIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { PencilIcon } from "@heroicons/react/24/outline";
 import type { StepComponentProps } from "../step-components";
 import { EditAddressDialog } from "./edit-address-dialog";
 import { EditBankingDialog } from "./edit-banking-dialog";
@@ -61,222 +56,167 @@ export default function VerifyCompanyInfoStep({
   }, [companyData, applicationId, onDataChange]);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Company info</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Company name</Label>
-              <Input
-                value={companyData.companyName}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Type of entity</Label>
-              <Input
-                value={companyData.entityType}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">SSM no</Label>
-              <Input
-                value={companyData.registrationNumber}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Industry</Label>
-              <Input
-                value={companyData.industry}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Nature of business</Label>
-              <Input
-                value={companyData.natureOfBusiness}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Number of employees</Label>
-              <Input
-                value={companyData.numberOfEmployees}
-                readOnly
-                disabled
-                className="bg-muted"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-12">
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Company info</h3>
+          <button className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80">
+            Edit <PencilIcon className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-sm text-muted-foreground">Company name</div>
+          <Input
+            value={companyData.companyName}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Type of entity</div>
+          <Input
+            value={companyData.entityType}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">SSM no</div>
+          <Input
+            value={companyData.registrationNumber}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Industry</div>
+          <Input
+            value={companyData.industry}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Nature of business</div>
+          <Input
+            value={companyData.natureOfBusiness}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Number of employees</div>
+          <Input
+            value={companyData.numberOfEmployees}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Address</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0"
-              onClick={() => setIsEditAddressOpen(true)}
-            >
-              <PencilIcon className="h-4 w-4" />
-              Edit
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <Label className="text-sm text-muted-foreground">Business address</Label>
-            <Input
-              value={companyData.businessAddress}
-              disabled
-              className="bg-muted"
-            />
-          </div>
-          <Separator />
-          <div className="space-y-1">
-            <Label className="text-sm text-muted-foreground">Registered address</Label>
-            <Input
-              value={companyData.registeredAddress}
-              disabled
-              className="bg-muted"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Address</h3>
+          <button 
+            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+            onClick={() => setIsEditAddressOpen(true)}
+          >
+            Edit <PencilIcon className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-sm text-muted-foreground">Business address</div>
+          <Input
+            value={companyData.businessAddress}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Registered address</div>
+          <Input
+            value={companyData.registeredAddress}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Director & Shareholders</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {companyData.directors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No directors found</p>
-            ) : (
-              companyData.directors.map((director, index) => (
-                <div key={index} className="flex items-center justify-between py-2">
-                  <div>
-                    <p className="text-sm font-medium">{director.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{director.ownership}</p>
+      <div>
+        <h3 className="font-semibold border-b border-border pb-2">Director & Shareholders</h3>
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          {companyData.directors.length === 0 ? (
+            <p className="text-sm text-muted-foreground col-span-3">No directors found</p>
+          ) : (
+            <>
+              {companyData.directors.map((director, index) => (
+                <React.Fragment key={index}>
+                  <div className="text-sm text-muted-foreground">Director</div>
+                  <div className="text-sm font-medium">{director.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {director.ownership}
+                    {director.kycStatus === "verified" && (
+                      <span className="ml-2 text-green-600">● KYC</span>
+                    )}
                   </div>
-                  {director.kycStatus === "verified" && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-                      KYC
-                    </Badge>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                </React.Fragment>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Banking details</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0"
-              onClick={() => setIsEditBankingOpen(true)}
-            >
-              <PencilIcon className="h-4 w-4" />
-              Edit
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <Label className="text-sm text-muted-foreground">Bank name</Label>
-            <Input
-              value={companyData.bankName}
-              disabled
-              className="bg-muted"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-sm text-muted-foreground">Bank account number</Label>
-            <Input
-              value={companyData.bankAccountNumber}
-              disabled
-              className="bg-muted"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Banking details</h3>
+          <button 
+            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+            onClick={() => setIsEditBankingOpen(true)}
+          >
+            Edit <PencilIcon className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-sm text-muted-foreground">Bank name</div>
+          <Input
+            value={companyData.bankName}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Bank account number</div>
+          <Input
+            value={companyData.bankAccountNumber}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Contact</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0"
-              onClick={() => setIsEditContactOpen(true)}
-            >
-              <PencilIcon className="h-4 w-4" />
-              Edit
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Applicant name</Label>
-              <Input
-                value={contactPerson.name}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Applicant position</Label>
-              <Input
-                value={contactPerson.position}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Applicant IC no</Label>
-              <Input
-                value={contactPerson.icNo}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">Applicant contact</Label>
-              <Input
-                value={contactPerson.contact}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        <div className="flex justify-between items-center border-b border-border pb-2">
+          <h3 className="font-semibold">Contact Person</h3>
+          <button 
+            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+            onClick={() => setIsEditContactOpen(true)}
+          >
+            Edit <PencilIcon className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="text-sm text-muted-foreground">Applicant name</div>
+          <Input
+            value={contactPerson.name}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Applicant position</div>
+          <Input
+            value={contactPerson.position}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Applicant IC no</div>
+          <Input
+            value={contactPerson.icNo}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+          <div className="text-sm text-muted-foreground">Applicant contact</div>
+          <Input
+            value={contactPerson.contact}
+            disabled
+            className="bg-muted rounded-xl border border-border"
+          />
+        </div>
+      </div>
 
       <EditAddressDialog
         open={isEditAddressOpen}
