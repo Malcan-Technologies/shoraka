@@ -62,7 +62,7 @@ export default function ActivityPage() {
             <div className="flex items-center gap-2">
               <CardTitle className="text-2xl font-bold">Activities</CardTitle>
               {pagination && (
-                <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground font-normal">
+                <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground font-normal hover:bg-muted">
                   {pagination.total}
                 </Badge>
               )}
