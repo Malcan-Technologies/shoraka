@@ -536,7 +536,7 @@ export class AuthService {
 
     const activeSession = await this.repository.findActiveSession(user.user_id);
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
-    const lastLoginEntry = await this.repository.findLastSuccessfulLogin(user.user_id);
+    const recentLogins = await this.repository.findRecentLogins(user.user_id, 3);
 
     return {
       user,
@@ -544,13 +544,11 @@ export class AuthService {
       sessions: {
         active: activeSessionsCount > 0 ? activeSessionsCount : 1,
       },
-      lastLogin: lastLoginEntry
-        ? {
-          at: lastLoginEntry.created_at,
-          ip: lastLoginEntry.ip_address,
-          device: lastLoginEntry.device_info,
-        }
-        : null,
+      recentLogins: recentLogins.map((login) => ({
+        at: login.created_at,
+        ip: login.ip_address,
+        device: login.device_info,
+      })),
     };
   }
 

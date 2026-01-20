@@ -40,7 +40,6 @@ import {
   KeyIcon,
   PencilIcon,
   XMarkIcon,
-  ClockIcon,
   ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
@@ -78,11 +77,11 @@ interface MeResponse {
   sessions: {
     active: number;
   };
-  lastLogin: {
-    at: string | null;
+  recentLogins: Array<{
+    at: string;
     ip: string | null;
     device: string | null;
-  } | null;
+  }>;
 }
 
 function ProfileSkeleton() {
@@ -176,9 +175,10 @@ function ProfileSkeleton() {
                   <Skeleton className="h-5 w-32" />
                   <Skeleton className="h-6 w-28 rounded-full" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Skeleton className="h-20 w-full rounded-lg" />
-                  <Skeleton className="h-20 w-full rounded-lg" />
+                <div className="space-y-3">
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
                 </div>
               </div>
             </CardContent>
@@ -216,7 +216,7 @@ export default function ProfilePage() {
         user: profileData.user,
         activeRole: profileData.activeRole,
         sessions: profileData.sessions,
-        lastLogin: profileData.lastLogin,
+        recentLogins: profileData.recentLogins,
       });
     }
   }, [profileData, queryClient]);
@@ -575,50 +575,43 @@ export default function ProfilePage() {
                       variant="outline"
                       className="bg-blue-50 text-blue-700 border-blue-200 ml-auto"
                     >
-                      {profileData.sessions.active} Active {profileData.sessions.active === 1 ? 'Session' : 'Sessions'}
+                      {profileData.sessions.active} Active{" "}
+                      {profileData.sessions.active === 1 ? "Session" : "Sessions"}
                     </Badge>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                      <ClockIcon className="h-3.5 w-3.5" />
-                      Last Login
-                    </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">
-                        {profileData?.lastLogin?.at
-                          ? formatDistanceToNow(new Date(profileData.lastLogin.at), {
-                              addSuffix: true,
-                            })
-                          : "No recent activity"}
-                      </p>
-                      {profileData?.lastLogin?.at && (
-                        <p className="text-[0.75rem] text-muted-foreground">
-                          {new Date(profileData.lastLogin.at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                      <ComputerDesktopIcon className="h-3.5 w-3.5" />
-                      Device & IP
-                    </div>
-                    <div className="space-y-0.5">
-                      <p
-                        className="text-sm font-medium truncate"
-                        title={profileData?.lastLogin?.device || "Unknown Device"}
+                <div className="space-y-3">
+                  {profileData?.recentLogins && profileData.recentLogins.length > 0 ? (
+                    profileData.recentLogins.map((login, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 text-sm"
                       >
-                        {profileData?.lastLogin?.device || "Unknown Device"}
-                      </p>
-                      <p className="text-[0.75rem] text-muted-foreground">
-                        IP: {profileData?.lastLogin?.ip || "Unknown"}
-                      </p>
+                        <div className="flex items-center gap-3">
+                          <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate" title={login.device || "Unknown Device"}>
+                              {login.device || "Unknown Device"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">IP: {login.ip || "Unknown"}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-medium">
+                            {formatDistanceToNow(new Date(login.at), { addSuffix: true })}
+                          </p>
+                          <p className="text-[0.7rem] text-muted-foreground">
+                            {new Date(login.at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 rounded-lg border border-dashed text-center text-sm text-muted-foreground">
+                      No recent activity found
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-muted-foreground">
