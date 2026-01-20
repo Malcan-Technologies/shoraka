@@ -28,9 +28,9 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@cashsouk/ui";
-import { useCurrentUser, CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
+import { CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
 import {
   EnvelopeIcon,
   UserCircleIcon,
@@ -40,6 +40,8 @@ import {
   KeyIcon,
   PencilIcon,
   XMarkIcon,
+  ClockIcon,
+  ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
 import { formatDistanceToNow } from "date-fns";
@@ -67,6 +69,19 @@ interface UserData {
   admin: {
     status: string;
     role_description: string | null;
+  } | null;
+}
+
+interface MeResponse {
+  user: UserData;
+  activeRole: string | null;
+  sessions: {
+    active: number;
+  };
+  lastLogin: {
+    at: string | null;
+    ip: string | null;
+    device: string | null;
   } | null;
 }
 
@@ -142,28 +157,28 @@ function ProfileSkeleton() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Skeleton className="h-4 w-full max-w-md" />
-              <Skeleton className="h-10 w-36" />
-            </CardContent>
-          </Card>
-
-          {/* Account Info Skeleton */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-lg" />
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-4 w-44" />
-                </div>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full max-w-md" />
+                <Skeleton className="h-10 w-36" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-12" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-6 w-16 rounded-full" />
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-6 w-32 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full max-w-md" />
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-6 w-28 rounded-full" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Skeleton className="h-20 w-full rounded-lg" />
+                  <Skeleton className="h-20 w-full rounded-lg" />
                 </div>
               </div>
             </CardContent>
@@ -181,8 +196,32 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
 
-  const { data, isLoading } = useCurrentUser();
-  const userData = data?.user as UserData | undefined;
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ["auth", "me", "profile"],
+    queryFn: async () => {
+      const result = await apiClient.get<MeResponse>("/v1/auth/me");
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  // Sync user data to the global cache for sidebar/nav components
+  React.useEffect(() => {
+    if (profileData?.user) {
+      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, {
+        user: profileData.user,
+        activeRole: profileData.activeRole,
+        sessions: profileData.sessions,
+        lastLogin: profileData.lastLogin,
+      });
+    }
+  }, [profileData, queryClient]);
+
+  const userData = profileData?.user;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -523,6 +562,67 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Two-factor authentication is enforced for all users and cannot be disabled.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-base font-medium">Recent Activity</Label>
+                  {profileData?.sessions && (
+                    <Badge
+                      variant="outline"
+                      className="bg-blue-50 text-blue-700 border-blue-200 ml-auto"
+                    >
+                      {profileData.sessions.active} Active {profileData.sessions.active === 1 ? 'Session' : 'Sessions'}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                      <ClockIcon className="h-3.5 w-3.5" />
+                      Last Login
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">
+                        {profileData?.lastLogin?.at
+                          ? formatDistanceToNow(new Date(profileData.lastLogin.at), {
+                              addSuffix: true,
+                            })
+                          : "No recent activity"}
+                      </p>
+                      {profileData?.lastLogin?.at && (
+                        <p className="text-[0.75rem] text-muted-foreground">
+                          {new Date(profileData.lastLogin.at).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                      <ComputerDesktopIcon className="h-3.5 w-3.5" />
+                      Device & IP
+                    </div>
+                    <div className="space-y-0.5">
+                      <p
+                        className="text-sm font-medium truncate"
+                        title={profileData?.lastLogin?.device || "Unknown Device"}
+                      >
+                        {profileData?.lastLogin?.device || "Unknown Device"}
+                      </p>
+                      <p className="text-[0.75rem] text-muted-foreground">
+                        IP: {profileData?.lastLogin?.ip || "Unknown"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  This information helps you monitor unauthorized access to your account.
                 </p>
               </div>
             </CardContent>

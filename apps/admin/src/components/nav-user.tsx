@@ -42,7 +42,7 @@ export function NavUser() {
   const userData = data?.user
 
   const user = {
-    name: userData 
+    name: userData
       ? [userData.first_name, userData.last_name].filter(Boolean).join(" ") || "Admin"
       : "Admin",
     email: userData?.email || "",
@@ -125,13 +125,13 @@ export function NavUser() {
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link href="/profile">
                   <BadgeCheck />
-                  Account
+                  Profile
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={handleLogout} 
+            <DropdownMenuItem
+              onClick={handleLogout}
               disabled={isLoggingOut}
               className="cursor-pointer"
             >

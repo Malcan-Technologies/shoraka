@@ -512,6 +512,11 @@ export class AuthService {
     sessions: {
       active: number;
     };
+    lastLogin: {
+      at: Date | null;
+      ip: string | null;
+      device: string | null;
+    } | null;
   }> {
     const user = await prisma.user.findUnique({
       where: { cognito_sub: userId },
@@ -531,13 +536,21 @@ export class AuthService {
 
     const activeSession = await this.repository.findActiveSession(user.user_id);
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
+    const lastLoginEntry = await this.repository.findLastSuccessfulLogin(user.user_id);
 
     return {
       user,
       activeRole: activeSession?.active_role || null,
       sessions: {
-        active: activeSessionsCount,
+        active: activeSessionsCount > 0 ? activeSessionsCount : 1,
       },
+      lastLogin: lastLoginEntry
+        ? {
+          at: lastLoginEntry.created_at,
+          ip: lastLoginEntry.ip_address,
+          device: lastLoginEntry.device_info,
+        }
+        : null,
     };
   }
 

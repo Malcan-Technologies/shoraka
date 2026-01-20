@@ -282,6 +282,35 @@ export class AuthRepository {
   }
 
   /**
+   * Find last successful login for user
+   * Returns the most recent login that is NOT the current one if possible,
+   * otherwise returns the most recent one.
+   */
+  async findLastSuccessfulLogin(userId: string): Promise<AccessLog | null> {
+    const logs = await prisma.accessLog.findMany({
+      where: {
+        user_id: userId,
+        event_type: "LOGIN",
+        success: true,
+      },
+      orderBy: { created_at: "desc" },
+      take: 2,
+    });
+
+    // If we have at least 2 logs, the second one is the "last login" (previous session)
+    if (logs.length >= 2) {
+      return logs[1];
+    }
+
+    // If we only have 1 log, it's the current session
+    if (logs.length === 1) {
+      return logs[0];
+    }
+
+    return null;
+  }
+
+  /**
    * Create security log entry
    */
   async createSecurityLog(data: {
