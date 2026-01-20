@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PencilIcon } from "@heroicons/react/24/outline";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PencilIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import type { StepComponentProps } from "../step-components";
 import { EditCompanyInfoDialog } from "./edit-company-info-dialog";
 import { EditAddressDialog } from "./edit-address-dialog";
@@ -65,20 +66,17 @@ export default function VerifyCompanyInfoStep({
     },
   });
 
-  const contactPerson = companyData.contactPerson || {
-    name: "",
-    position: "",
-    icNo: "",
-    contact: "",
-  };
-  
   const [isEditCompanyInfoOpen, setIsEditCompanyInfoOpen] = React.useState(false);
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
   const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
+  const [isLoadingCompanyInfo] = React.useState(false);
+
+  const inputClassName = "bg-muted rounded-xl border border-border";
+  const editButtonClassName = "h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10";
   
   React.useEffect(() => {
-    if (companyData && applicationId && onDataChange) {
+    if (applicationId && onDataChange) {
       onDataChange({
         companyInfo: companyData,
       });
@@ -90,82 +88,84 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Company info</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditCompanyInfoOpen(true)}
-            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            Edit
-            <PencilIcon className="h-4 w-4" />
-          </Button>
+          {!isLoadingCompanyInfo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditCompanyInfoOpen(true)}
+              className={editButtonClassName}
+            >
+              Edit
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
-          <div className="text-sm text-muted-foreground">Company name</div>
-          <Input
-            value={companyData.companyName}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Type of entity</div>
-          <Input
-            value={companyData.entityType}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">SSM no</div>
-          <Input
-            value={companyData.registrationNumber}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Industry</div>
-          <Input
-            value={companyData.industry}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Nature of business</div>
-          <Input
-            value={companyData.natureOfBusiness}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Number of employees</div>
-          <Input
-            value={companyData.numberOfEmployees}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
+          {isLoadingCompanyInfo ? (
+            <>
+              <div className="text-sm text-muted-foreground">Company name</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Type of entity</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">SSM no</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Industry</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Nature of business</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Number of employees</div>
+              <Skeleton className="h-10 rounded-xl" />
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Company name</div>
+              <Input value={companyData.companyName} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Type of entity</div>
+              <Input value={companyData.entityType} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">SSM no</div>
+              <Input value={companyData.registrationNumber} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Industry</div>
+              <Input value={companyData.industry} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Nature of business</div>
+              <Input value={companyData.natureOfBusiness} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Number of employees</div>
+              <Input value={companyData.numberOfEmployees} disabled className={inputClassName} />
+            </>
+          )}
         </div>
       </div>
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Address</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditAddressOpen(true)}
-            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            Edit
-            <PencilIcon className="h-4 w-4" />
-          </Button>
+          {!isLoadingCompanyInfo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditAddressOpen(true)}
+              className={editButtonClassName}
+            >
+              Edit
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
-          <div className="text-sm text-muted-foreground">Business address</div>
-          <Input
-            value={formatAddress(companyData.businessAddress)}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Registered address</div>
-          <Input
-            value={formatAddress(companyData.registeredAddress)}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
+          {isLoadingCompanyInfo ? (
+            <>
+              <div className="text-sm text-muted-foreground">Business address</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Registered address</div>
+              <Skeleton className="h-10 rounded-xl" />
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Business address</div>
+              <Input value={formatAddress(companyData.businessAddress)} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Registered address</div>
+              <Input value={formatAddress(companyData.registeredAddress)} disabled className={inputClassName} />
+            </>
+          )}
         </div>
       </div>
 
@@ -173,19 +173,35 @@ export default function VerifyCompanyInfoStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Director & Shareholders</h3>
         </div>
-        <div className="grid grid-cols-3 gap-4 mt-6">
-          {companyData.directors.length === 0 ? (
-            <p className="text-sm text-muted-foreground col-span-3">No directors found</p>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          {isLoadingCompanyInfo ? (
+            <>
+              <div className="text-sm text-muted-foreground">Director</div>
+              <Skeleton className="h-5 rounded" />
+              <div className="text-sm text-muted-foreground">Director</div>
+              <Skeleton className="h-5 rounded" />
+              <div className="text-sm text-muted-foreground">Director</div>
+              <Skeleton className="h-5 rounded" />
+            </>
+          ) : companyData.directors.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No directors found</p>
           ) : (
             <>
               {companyData.directors.map((director, index) => (
                 <React.Fragment key={index}>
                   <div className="text-sm text-muted-foreground">Director</div>
-                  <div className="text-sm font-medium">{director.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {director.ownership}
-                    {director.kycStatus === "verified" && (
-                      <span className="ml-2 text-green-600">● KYC</span>
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                    <div className="text-sm font-medium whitespace-nowrap">{director.name}</div>
+                    <div className="h-4 w-px bg-border" />
+                    <div className="text-sm text-muted-foreground whitespace-nowrap">{director.ownership}</div>
+                    <div className="h-4 w-px bg-border" />
+                    {director.kycStatus === "verified" ? (
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-600">KYC</span>
+                      </div>
+                    ) : (
+                      <div />
                     )}
                   </div>
                 </React.Fragment>
@@ -198,70 +214,76 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Banking details</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditBankingOpen(true)}
-            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            Edit
-            <PencilIcon className="h-4 w-4" />
-          </Button>
+          {!isLoadingCompanyInfo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditBankingOpen(true)}
+              className={editButtonClassName}
+            >
+              Edit
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
-          <div className="text-sm text-muted-foreground">Bank name</div>
-          <Input
-            value={companyData.bankName}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Bank account number</div>
-          <Input
-            value={companyData.bankAccountNumber}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
+          {isLoadingCompanyInfo ? (
+            <>
+              <div className="text-sm text-muted-foreground">Bank name</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Bank account number</div>
+              <Skeleton className="h-10 rounded-xl" />
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Bank name</div>
+              <Input value={companyData.bankName} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Bank account number</div>
+              <Input value={companyData.bankAccountNumber} disabled className={inputClassName} />
+            </>
+          )}
         </div>
       </div>
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Contact Person</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditContactOpen(true)}
-            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            Edit
-            <PencilIcon className="h-4 w-4" />
-          </Button>
+          {!isLoadingCompanyInfo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditContactOpen(true)}
+              className={editButtonClassName}
+            >
+              Edit
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
-          <div className="text-sm text-muted-foreground">Applicant name</div>
-          <Input
-            value={contactPerson.name}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Applicant position</div>
-          <Input
-            value={contactPerson.position}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Applicant IC no</div>
-          <Input
-            value={contactPerson.icNo}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
-          <div className="text-sm text-muted-foreground">Applicant contact</div>
-          <Input
-            value={contactPerson.contact}
-            disabled
-            className="bg-muted rounded-xl border border-border"
-          />
+          {isLoadingCompanyInfo ? (
+            <>
+              <div className="text-sm text-muted-foreground">Applicant name</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Applicant position</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Applicant IC no</div>
+              <Skeleton className="h-10 rounded-xl" />
+              <div className="text-sm text-muted-foreground">Applicant contact</div>
+              <Skeleton className="h-10 rounded-xl" />
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Applicant name</div>
+              <Input value={companyData.contactPerson.name} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Applicant position</div>
+              <Input value={companyData.contactPerson.position} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Applicant IC no</div>
+              <Input value={companyData.contactPerson.icNo} disabled className={inputClassName} />
+              <div className="text-sm text-muted-foreground">Applicant contact</div>
+              <Input value={companyData.contactPerson.contact} disabled className={inputClassName} />
+            </>
+          )}
         </div>
       </div>
 
@@ -308,7 +330,7 @@ export default function VerifyCompanyInfoStep({
       <EditContactDialog
         open={isEditContactOpen}
         onOpenChange={setIsEditContactOpen}
-        contactPerson={contactPerson}
+        contactPerson={companyData.contactPerson}
         onSave={(contactPerson) => {
           console.log("Save contact:", contactPerson);
           setIsEditContactOpen(false);
