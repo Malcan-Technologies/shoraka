@@ -253,12 +253,22 @@ export default function NewApplicationPage() {
             </div>
           </div>
 
-          {workflowSteps.length > 0 && (
+          {workflowSteps.length > 0 ? (
             <div className="border-b border-border -mx-4">
               <div className="max-w-7xl mx-auto w-full px-4 pt-2 pb-4">
                 <ProgressIndicator 
                   steps={workflowSteps.map(s => s.name)} 
-                  currentStep={currentStep - 1} 
+                  currentStep={currentStep - 1}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="border-b border-border -mx-4">
+              <div className="max-w-7xl mx-auto w-full px-4 pt-2 pb-4">
+                <ProgressIndicator 
+                  steps={[]} 
+                  currentStep={0}
+                  isLoading={true}
                 />
               </div>
             </div>

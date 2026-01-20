@@ -2,14 +2,33 @@
 
 import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface ProgressIndicatorProps {
   steps: readonly string[];
   currentStep: number;
+  isLoading?: boolean;
 }
 
-export function ProgressIndicator({ steps, currentStep }: ProgressIndicatorProps) {
+export function ProgressIndicator({ steps, currentStep, isLoading }: ProgressIndicatorProps) {
+  if (isLoading || steps.length === 0) {
+    return (
+      <div className="w-full py-2">
+        <div className="relative">
+          <div className="relative flex items-start justify-between">
+            {[1, 2, 3, 4, 5, 6, 7].map((_, index) => (
+              <div key={index} className="flex flex-col items-center relative z-10 flex-1">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <Skeleton className="mt-2 h-8 w-[100px]" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full py-2">
       <div className="relative">
