@@ -285,7 +285,9 @@ export default function ApplicationWizardPage() {
         <div className="flex flex-1 flex-col gap-4 p-2 md:p-4">
           <div className="max-w-4xl mx-auto w-full space-y-6">
             <div className="space-y-2">
-              <h2 className="text-2xl font-semibold">{currentStepName}</h2>
+              <h2 className="text-2xl font-semibold">
+                {currentStep === 1 ? "Select financing type" : currentStepName}
+              </h2>
               {currentStep === 1 && (
                 <p className="text-muted-foreground">
                   Browse and invest in verified loan opportunities from your dashboard
