@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, AdminRole } from "@prisma/client";
+import { PrismaClient, UserRole, AdminRole, OrganizationType } from "@prisma/client";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 
@@ -55,8 +55,8 @@ async function main() {
         first_name: "Khai",
         last_name: "Kit",
         phone: "+60165584792",
-          investor_account: [],
-          issuer_account: [],
+        investor_account: [],
+        issuer_account: [],
       },
     });
   }
@@ -145,6 +145,41 @@ async function main() {
 
   logger.info(`✅ Created ${accessLogs.length} access log entries`);
 
+  logger.info("🌱 Seeding organization data...");
+
+  // Create Investor Organization for admin
+  const investorOrg = await prisma.investorOrganization.create({
+    data: {
+      owner_user_id: adminUser.user_id,
+      type: OrganizationType.COMPANY,
+      name: "Malcan Ventures Sdn Bhd",
+      registration_number: "202401012345",
+      onboarding_status: "COMPLETED",
+      onboarded_at: new Date(),
+      is_sophisticated_investor: true,
+      onboarding_approved: true,
+      aml_approved: true,
+      tnc_accepted: true,
+    },
+  });
+
+  // Create Issuer Organization for admin
+  const issuerOrg = await prisma.issuerOrganization.create({
+    data: {
+      owner_user_id: adminUser.user_id,
+      type: OrganizationType.COMPANY,
+      name: "Malcan Issuers Sdn Bhd",
+      registration_number: "202401054321",
+      onboarding_status: "COMPLETED",
+      onboarded_at: new Date(),
+      onboarding_approved: true,
+      aml_approved: true,
+      tnc_accepted: true,
+    },
+  });
+
+  logger.info(`✅ Organizations created: ${investorOrg.name} and ${issuerOrg.name}`);
+
   logger.info("🌱 Seeding audit log data for activity feed...");
 
   // Seed Onboarding Logs
@@ -152,6 +187,8 @@ async function main() {
     data: [
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_STARTED",
         role: UserRole.INVESTOR,
         metadata: { portal: "investor" },
@@ -159,6 +196,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_RESUMED",
         role: UserRole.INVESTOR,
         metadata: { step: "IDENTITY_VERIFICATION" },
@@ -166,6 +205,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_CANCELLED",
         role: UserRole.INVESTOR,
         metadata: { reason: "User requested deletion" },
@@ -173,6 +214,17 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        issuer_organization_id: issuerOrg.id,
+        organization_name: issuerOrg.name,
+        event_type: "ONBOARDING_STARTED",
+        role: UserRole.ISSUER,
+        metadata: { portal: "issuer" },
+        created_at: new Date(now.getTime() - 11.5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_REJECTED",
         role: UserRole.INVESTOR,
         metadata: { reason: "Invalid documents" },
@@ -180,6 +232,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_STATUS_UPDATED",
         role: UserRole.INVESTOR,
         metadata: { old_status: "PENDING", new_status: "IN_PROGRESS" },
@@ -187,6 +241,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "FORM_FILLED",
         role: UserRole.INVESTOR,
         metadata: { form_name: "personal_details" },
@@ -194,6 +250,17 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        issuer_organization_id: issuerOrg.id,
+        organization_name: issuerOrg.name,
+        event_type: "ONBOARDING_APPROVED",
+        role: UserRole.ISSUER,
+        metadata: { approved_by: "system" },
+        created_at: new Date(now.getTime() - 8.5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "ONBOARDING_APPROVED",
         role: UserRole.INVESTOR,
         metadata: { approved_by: "system" },
@@ -201,6 +268,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "AML_APPROVED",
         role: UserRole.INVESTOR,
         metadata: { risk_level: "LOW" },
@@ -208,6 +277,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "TNC_APPROVED",
         role: UserRole.INVESTOR,
         metadata: { version: "1.0" },
@@ -215,6 +286,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "TNC_ACCEPTED",
         role: UserRole.INVESTOR,
         metadata: { version: "1.0" },
@@ -222,6 +295,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "SSM_APPROVED",
         role: UserRole.INVESTOR,
         metadata: { registration_verified: true },
@@ -229,6 +304,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "FINAL_APPROVAL_COMPLETED",
         role: UserRole.INVESTOR,
         metadata: { final_status: "COMPLETED" },
@@ -236,6 +313,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "SOPHISTICATED_STATUS_UPDATED",
         role: UserRole.INVESTOR,
         metadata: { is_sophisticated: true },
@@ -243,6 +322,8 @@ async function main() {
       },
       {
         user_id: adminUser.user_id,
+        investor_organization_id: investorOrg.id,
+        organization_name: investorOrg.name,
         event_type: "KYC_SUBMITTED",
         role: UserRole.INVESTOR,
         metadata: { status: "PENDING_APPROVAL" },
