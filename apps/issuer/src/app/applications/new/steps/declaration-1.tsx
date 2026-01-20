@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@cashsouk/ui";
+import { cn } from "@/lib/utils";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
 
@@ -13,20 +13,32 @@ export default function DeclarationStep({
 }: StepComponentProps) {
   const { data: application } = useApplication(applicationId);
 
+  // Get declarations from step config
+  const declarations: string[] = React.useMemo(() => {
+    if (!stepConfig?.declarations || !Array.isArray(stepConfig.declarations)) {
+      return [];
+    }
+    return stepConfig.declarations as string[];
+  }, [stepConfig]);
+
+  // Load existing checked state from application data
   const existingData = React.useMemo(() => {
     if (!application?.declaration) {
       return null;
     }
+
     const decl = application.declaration;
-    
+
+    // Handle array format: [{ checked: boolean }, ...]
     if (Array.isArray(decl) && decl.length > 0) {
-      if (typeof decl[0] === 'boolean') {
-        return (decl as boolean[]).map(checked => ({ checked }));
+      if (typeof decl[0] === "boolean") {
+        return (decl as boolean[]).map((checked) => ({ checked }));
       }
-      return decl as Array<{ checked: boolean; [key: string]: unknown }>;
+      return decl as Array<{ checked: boolean }>;
     }
-    
-    if (typeof decl === 'object' && decl !== null && 'declarations' in decl) {
+
+    // Handle legacy format: { declarations: [{ id: string, checked: boolean }] }
+    if (typeof decl === "object" && decl !== null && "declarations" in decl) {
       const legacy = decl as {
         declarations?: Array<{
           id: string;
@@ -36,54 +48,53 @@ export default function DeclarationStep({
       if (legacy.declarations) {
         return legacy.declarations
           .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10))
-          .map(d => ({ checked: d.checked }));
+          .map((d) => ({ checked: d.checked }));
       }
     }
-    
+
     return null;
   }, [application]);
 
-  const declarations = React.useMemo(() => {
-    if (!stepConfig || !stepConfig.declarations || !Array.isArray(stepConfig.declarations)) {
-      return [];
-    }
-    return stepConfig.declarations as string[];
-  }, [stepConfig]);
+  // State to track which declarations are checked
+  const [checkedDeclarations, setCheckedDeclarations] = React.useState<Record<number, boolean>>({});
 
-  const [checkedDeclarations, setCheckedDeclarations] = React.useState<Map<number, boolean>>(new Map());
-
+  // Initialize checked state from existing data
   React.useEffect(() => {
-    const state = new Map<number, boolean>();
+    const initialState: Record<number, boolean> = {};
 
     if (Array.isArray(existingData)) {
       existingData.forEach((item, index) => {
-        const checked = typeof item === 'object' && item !== null && 'checked' in item
+        const checked = typeof item === "object" && item !== null && "checked" in item
           ? (item as { checked: boolean }).checked
           : false;
-        state.set(index, checked);
+        initialState[index] = checked;
       });
     } else {
+      // Initialize all as unchecked
       declarations.forEach((_, index) => {
-        state.set(index, false);
+        initialState[index] = false;
       });
     }
 
-    setCheckedDeclarations(state);
+    setCheckedDeclarations(initialState);
   }, [existingData, declarations]);
 
-  const handleDeclarationToggle = React.useCallback((index: number, checked: boolean) => {
-    setCheckedDeclarations((prev) => {
-      const newState = new Map(prev);
-      newState.set(index, checked);
-      return newState;
-    });
+  // Handle when user checks/unchecks a declaration
+  const handleToggle = React.useCallback((index: number, checked: boolean) => {
+    setCheckedDeclarations((prev) => ({
+      ...prev,
+      [index]: checked,
+    }));
   }, []);
 
+  // Save data whenever checked state changes
   React.useEffect(() => {
-    if (!applicationId || !onDataChange) return;
+    if (!applicationId || !onDataChange) {
+      return;
+    }
 
     const dataToSave = declarations.map((_, index) => ({
-      checked: checkedDeclarations.get(index) || false,
+      checked: checkedDeclarations[index] || false,
     }));
 
     onDataChange({
@@ -91,49 +102,48 @@ export default function DeclarationStep({
     });
   }, [checkedDeclarations, applicationId, onDataChange, declarations]);
 
+  // Show message if no declarations
   if (declarations.length === 0) {
     return (
       <div className="space-y-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-center">
-              No declarations required for this application.
-            </p>
-          </CardContent>
-        </Card>
+        <p className="text-muted-foreground text-center py-8">
+          No declarations required for this application.
+        </p>
       </div>
     );
   }
 
-  const allChecked = Array.from(checkedDeclarations.values()).every(checked => checked);
-  const isFirstDeclaration = declarations.length > 0;
-
   return (
-    <div className="space-y-12">
-      <div>
-        <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Declaration</h3>
-        </div>
-        <div className="border border-border rounded-xl p-6 space-y-4 mt-6">
-        <label className="flex items-start gap-3 font-medium text-foreground">
-          <Checkbox
-            checked={allChecked}
-            onCheckedChange={(checked) => {
-              declarations.forEach((_, index) => {
-                handleDeclarationToggle(index, checked === true);
-              });
-            }}
-            className="mt-1 w-4 h-4 rounded-none"
-          />
-          I / We hereby declare and confirm that
-        </label>
-        <ul className="list-decimal list-inside text-foreground space-y-2 pl-6">
-          {declarations.map((declaration, index) => (
-            <li key={index}>{declaration}</li>
-          ))}
-        </ul>
-        </div>
-      </div>
+    <div className="space-y-4">
+      {declarations.map((declaration, index) => {
+        const isChecked = checkedDeclarations[index] || false;
+        const declarationNumber = index + 1;
+
+        return (
+          <label
+            key={index}
+            className={cn(
+              "flex items-start gap-3 p-5 border rounded-xl cursor-pointer max-w-2xl",
+              "border-border hover:border-primary/50"
+            )}
+            style={{ transition: 'none' }}
+          >
+            <div className="pt-0.5 shrink-0">
+              <Checkbox
+                checked={isChecked}
+                onCheckedChange={(checked) => handleToggle(index, checked === true)}
+                className="rounded-none transition-none [&>span]:transition-none [&>span[data-state]]:transition-none"
+              />
+            </div>
+            <div className="flex gap-2 flex-1 min-w-0">
+              <span className="font-semibold text-foreground shrink-0 text-[15px] leading-7">{declarationNumber}.</span>
+              <p className="text-[15px] leading-7 text-foreground break-words max-w-full">
+                {declaration}
+              </p>
+            </div>
+          </label>
+        );
+      })}
     </div>
   );
 }

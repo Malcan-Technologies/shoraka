@@ -193,6 +193,8 @@ export default function ApplicationWizardPage() {
                   ? "Verify company details"
                   : currentStepId === "supporting_documents_1"
                   ? "Provide invoice details"
+                  : currentStepId === "declaration_1"
+                  ? "Declarations"
                   : currentStepName}
               </h1>
               <p className="text-[15px] leading-7 text-muted-foreground mt-1">
@@ -201,6 +203,8 @@ export default function ApplicationWizardPage() {
                   : currentStepId === "verify_company_info_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : currentStepId === "supporting_documents_1"
+                  ? "Browse and invest in verified loan opportunities from your dashboard"
+                  : currentStepId === "declaration_1"
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : "Temporary description for " + currentStepName}
               </p>
