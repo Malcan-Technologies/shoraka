@@ -11,7 +11,7 @@ interface ProgressIndicatorProps {
 
 export function ProgressIndicator({ steps, currentStep }: ProgressIndicatorProps) {
   return (
-    <div className="w-full mb-6">
+    <div className="w-full">
       <div className="relative">
         <div className="relative flex items-start justify-between">
           {steps.map((step, index) => {

@@ -249,13 +249,20 @@ export default function NewApplicationPage() {
                 </p>
               )}
             </div>
+          </div>
 
-            {workflowSteps.length > 0 && (
-              <ProgressIndicator 
-                steps={workflowSteps.map(s => s.name)} 
-                currentStep={currentStep - 1} 
-              />
-            )}
+          {workflowSteps.length > 0 && (
+            <div className="border-b border-border pb-6 -mx-6 md:-mx-8">
+              <div className="max-w-4xl mx-auto w-full px-6 md:px-8">
+                <ProgressIndicator 
+                  steps={workflowSteps.map(s => s.name)} 
+                  currentStep={currentStep - 1} 
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-4xl mx-auto w-full space-y-6">
 
             {currentStepInfo ? (
               <StepComponent
