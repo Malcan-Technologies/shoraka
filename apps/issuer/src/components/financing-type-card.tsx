@@ -59,10 +59,10 @@ export function FinancingTypeCard({
   return (
     <div
       className={cn(
-        "flex items-center gap-4 p-4 rounded-lg border cursor-pointer select-none",
+        "flex items-center gap-4 p-4 rounded-lg border cursor-pointer select-none bg-card",
         isSelected
-          ? "border-primary bg-primary/5"
-          : "border-border bg-card hover:border-primary/50"
+          ? "border-primary"
+          : "border-border hover:border-primary/50"
       )}
       onClick={onSelect}
       style={{ transition: 'none' }}
@@ -73,10 +73,10 @@ export function FinancingTypeCard({
           <img
             src={imageUrl}
             alt={name}
-            className="h-14 w-14 object-contain rounded-lg"
+            className="h-14 w-14 object-contain rounded-lg aspect-square border border-border"
           />
         ) : (
-          <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center">
+          <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center aspect-square border border-border">
             <p className="text-xs text-muted-foreground">Loading...</p>
           </div>
         )}
