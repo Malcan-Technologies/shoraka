@@ -2,11 +2,25 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { PencilIcon } from "@heroicons/react/24/outline";
 import type { StepComponentProps } from "../step-components";
+import { EditCompanyInfoDialog } from "./edit-company-info-dialog";
 import { EditAddressDialog } from "./edit-address-dialog";
 import { EditBankingDialog } from "./edit-banking-dialog";
 import { EditContactDialog } from "./edit-contact-dialog";
+
+function formatAddress(address: { line1: string; line2: string; city: string; postalCode: string; state: string; country: string }): string {
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.postalCode,
+    address.state,
+    address.country,
+  ].filter(Boolean);
+  return parts.join(", ");
+}
 
 export default function VerifyCompanyInfoStep({
   applicationId,
@@ -19,8 +33,23 @@ export default function VerifyCompanyInfoStep({
     industry: "Textile",
     natureOfBusiness: "Private",
     numberOfEmployees: "50",
-    businessAddress: "24 Jalan Kiara, Kuala Lumpur 50480 Wilayah Persekutuan Kuala Lumpur, Malaysia",
-    registeredAddress: "24 Jalan Kiara, Kuala Lumpur 50480 Wilayah Persekutuan Kuala Lumpur, Malaysia",
+    businessAddress: {
+      line1: "24 Jalan Kiara",
+      line2: "",
+      city: "Kuala Lumpur",
+      postalCode: "50480",
+      state: "Wilayah Persekutuan Kuala Lumpur",
+      country: "Malaysia",
+    },
+    registeredAddressSameAsBusiness: true,
+    registeredAddress: {
+      line1: "24 Jalan Kiara",
+      line2: "",
+      city: "Kuala Lumpur",
+      postalCode: "50480",
+      state: "Wilayah Persekutuan Kuala Lumpur",
+      country: "Malaysia",
+    },
     directors: [
       { name: "Nur Hidayah", ownership: "30% ownership", kycStatus: "verified" as const },
       { name: "Nazrin", ownership: "45% ownership", kycStatus: "verified" as const },
@@ -43,6 +72,7 @@ export default function VerifyCompanyInfoStep({
     contact: "",
   };
   
+  const [isEditCompanyInfoOpen, setIsEditCompanyInfoOpen] = React.useState(false);
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
   const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
@@ -60,9 +90,15 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Company info</h3>
-          <button className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80">
-            Edit <PencilIcon className="h-3 w-3" />
-          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsEditCompanyInfoOpen(true)}
+            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            Edit
+            <PencilIcon className="h-4 w-4" />
+          </Button>
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div className="text-sm text-muted-foreground">Company name</div>
@@ -107,23 +143,26 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Address</h3>
-          <button 
-            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setIsEditAddressOpen(true)}
+            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
-            Edit <PencilIcon className="h-3 w-3" />
-          </button>
+            Edit
+            <PencilIcon className="h-4 w-4" />
+          </Button>
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div className="text-sm text-muted-foreground">Business address</div>
           <Input
-            value={companyData.businessAddress}
+            value={formatAddress(companyData.businessAddress)}
             disabled
             className="bg-muted rounded-xl border border-border"
           />
           <div className="text-sm text-muted-foreground">Registered address</div>
           <Input
-            value={companyData.registeredAddress}
+            value={formatAddress(companyData.registeredAddress)}
             disabled
             className="bg-muted rounded-xl border border-border"
           />
@@ -159,12 +198,15 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Banking details</h3>
-          <button 
-            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setIsEditBankingOpen(true)}
+            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
-            Edit <PencilIcon className="h-3 w-3" />
-          </button>
+            Edit
+            <PencilIcon className="h-4 w-4" />
+          </Button>
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div className="text-sm text-muted-foreground">Bank name</div>
@@ -185,12 +227,15 @@ export default function VerifyCompanyInfoStep({
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold">Contact Person</h3>
-          <button 
-            className="text-accent text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setIsEditContactOpen(true)}
+            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
-            Edit <PencilIcon className="h-3 w-3" />
-          </button>
+            Edit
+            <PencilIcon className="h-4 w-4" />
+          </Button>
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           <div className="text-sm text-muted-foreground">Applicant name</div>
@@ -220,13 +265,31 @@ export default function VerifyCompanyInfoStep({
         </div>
       </div>
 
+      <EditCompanyInfoDialog
+        open={isEditCompanyInfoOpen}
+        onOpenChange={setIsEditCompanyInfoOpen}
+        companyData={{
+          companyName: companyData.companyName,
+          entityType: companyData.entityType,
+          registrationNumber: companyData.registrationNumber,
+          industry: companyData.industry,
+          natureOfBusiness: companyData.natureOfBusiness,
+          numberOfEmployees: companyData.numberOfEmployees,
+        }}
+        onSave={(data) => {
+          console.log("Save company info:", data);
+          setIsEditCompanyInfoOpen(false);
+        }}
+      />
+
       <EditAddressDialog
         open={isEditAddressOpen}
         onOpenChange={setIsEditAddressOpen}
         businessAddress={companyData.businessAddress}
         registeredAddress={companyData.registeredAddress}
-        onSave={(businessAddress, registeredAddress) => {
-          console.log("Save addresses:", { businessAddress, registeredAddress });
+        registeredAddressSameAsBusiness={companyData.registeredAddressSameAsBusiness}
+        onSave={(businessAddress, registeredAddress, registeredAddressSameAsBusiness) => {
+          console.log("Save addresses:", { businessAddress, registeredAddress, registeredAddressSameAsBusiness });
           setIsEditAddressOpen(false);
         }}
       />

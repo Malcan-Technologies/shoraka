@@ -31,34 +31,25 @@ export function EditContactDialog({
   contactPerson: initialContactPerson,
   onSave,
 }: EditContactDialogProps) {
-  const [name, setName] = React.useState(initialContactPerson.name);
-  const [position, setPosition] = React.useState(initialContactPerson.position);
   const [icNo, setIcNo] = React.useState(initialContactPerson.icNo);
-  const [contact, setContact] = React.useState(initialContactPerson.contact);
 
   React.useEffect(() => {
     if (open) {
-      setName(initialContactPerson.name);
-      setPosition(initialContactPerson.position);
       setIcNo(initialContactPerson.icNo);
-      setContact(initialContactPerson.contact);
     }
   }, [open, initialContactPerson]);
 
   const handleSave = () => {
     onSave({
-      name,
-      position,
+      name: initialContactPerson.name,
+      position: initialContactPerson.position,
       icNo,
-      contact,
+      contact: initialContactPerson.contact,
     });
   };
 
   const handleCancel = () => {
-    setName(initialContactPerson.name);
-    setPosition(initialContactPerson.position);
     setIcNo(initialContactPerson.icNo);
-    setContact(initialContactPerson.contact);
     onOpenChange(false);
   };
 
@@ -68,33 +59,11 @@ export function EditContactDialog({
         <DialogHeader>
           <DialogTitle>Edit Contact</DialogTitle>
           <DialogDescription className="text-[15px]">
-            Update the contact person information.
+            Update the applicant&apos;s IC number.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="applicant-name">Applicant name</Label>
-            <Input
-              id="applicant-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter applicant name"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="applicant-position">Applicant position</Label>
-            <Input
-              id="applicant-position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Enter applicant position"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="applicant-ic">Applicant IC no</Label>
             <Input
@@ -102,17 +71,6 @@ export function EditContactDialog({
               value={icNo}
               onChange={(e) => setIcNo(e.target.value)}
               placeholder="Enter IC number"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="applicant-contact">Applicant contact</Label>
-            <Input
-              id="applicant-contact"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Enter contact number"
               className="h-11 rounded-xl"
             />
           </div>
