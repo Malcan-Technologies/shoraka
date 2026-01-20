@@ -275,7 +275,7 @@ export default function NewApplicationPage() {
           )}
 
           <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6 space-y-12">
-            {currentStepInfo ? (
+            {currentStepInfo && selectedProduct ? (
               <StepComponent
                 stepId={currentStepId}
                 stepName={currentStepName}

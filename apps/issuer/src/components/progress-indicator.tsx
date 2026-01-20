@@ -17,12 +17,30 @@ export function ProgressIndicator({ steps, currentStep, isLoading }: ProgressInd
       <div className="w-full py-2">
         <div className="relative">
           <div className="relative flex items-start justify-between">
-            {[1, 2, 3, 4, 5, 6, 7].map((_, index) => (
-              <div key={index} className="flex flex-col items-center relative z-10 flex-1">
-                <Skeleton className="w-8 h-8 rounded-full" />
-                <Skeleton className="mt-2 h-8 w-[100px]" />
-              </div>
-            ))}
+            {[1, 2, 3, 4, 5, 6, 7].map((_, index) => {
+              const showConnector = index < 6;
+              return (
+                <React.Fragment key={index}>
+                  <div className="flex flex-col items-center relative z-10 flex-1">
+                    <div className="relative">
+                      <Skeleton className="w-8 h-8 rounded-full border-2" />
+                    </div>
+                    <span className="mt-2 text-xs text-center max-w-[100px] leading-tight line-clamp-2 h-8 flex items-start justify-center">
+                      <Skeleton className="h-4 w-[80px]" />
+                    </span>
+                  </div>
+                  {showConnector && (
+                    <div
+                      className="absolute top-4 z-0 bg-zinc-200 h-px"
+                      style={{
+                        left: `calc(${((index + 0.5) / 7) * 100}% + 16px)`,
+                        right: `calc(${((7 - index - 1.5) / 7) * 100}% + 16px)`,
+                      }}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       </div>

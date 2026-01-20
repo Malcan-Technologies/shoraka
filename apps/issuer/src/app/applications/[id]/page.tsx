@@ -258,17 +258,6 @@ export default function ApplicationWizardPage() {
     );
   }
 
-  if (!selectedProduct) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading product workflow...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -296,20 +285,20 @@ export default function ApplicationWizardPage() {
             </div>
           </div>
 
-          {(workflowSteps.length > 0 || isLoadingApp) && (
+          {(workflowSteps.length > 0 || isLoadingApp || !selectedProduct) && (
             <div className="border-b border-border -mx-4">
               <div className="max-w-7xl mx-auto w-full px-4 pt-2 pb-4">
                 <ProgressIndicator 
                   steps={workflowSteps.map(s => s.name)} 
                   currentStep={currentStep - 1}
-                  isLoading={isLoadingApp}
+                  isLoading={isLoadingApp || !selectedProduct}
                 />
               </div>
             </div>
           )}
 
           <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6 space-y-12">
-            {currentStepInfo ? (
+            {currentStepInfo && selectedProduct ? (
               <StepComponent
                 stepId={currentStepId}
                 stepName={currentStepName}
