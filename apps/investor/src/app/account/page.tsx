@@ -38,6 +38,7 @@ import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
+import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -384,8 +385,16 @@ export default function AccountPage() {
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
 
   // Organization management hooks
-  const { removeMember, changeRole, leave, isRemoving, isChangingRole, isLeaving } =
-    useOrganizationMembers(activeOrganization?.id);
+  const {
+    removeMember,
+    changeRole,
+    leave,
+    transferOwnership,
+    isRemoving,
+    isChangingRole,
+    isLeaving,
+    isTransferringOwnership,
+  } = useOrganizationMembers(activeOrganization?.id);
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
   
   // Fetch current user ID
@@ -429,6 +438,9 @@ export default function AccountPage() {
     open: false,
     type: null,
   });
+
+  // Transfer ownership dialog state
+  const [transferOwnershipOpen, setTransferOwnershipOpen] = React.useState(false);
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
@@ -1264,7 +1276,9 @@ export default function AccountPage() {
                     {activeOrganization.members.map((member) => {
                       const isCurrentUser = currentUser && member.id === currentUser.userId;
                       const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
-                      const canLeave = !isPersonal && isCurrentUser;
+                      const isOwner = activeOrganization.isOwner && isCurrentUser;
+                      const canLeave = !isPersonal && isCurrentUser && !isOwner;
+                      const canTransferOwnership = !isPersonal && isOwner && activeOrganization.members.length > 1;
                       const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
 
                       return (
@@ -1351,6 +1365,19 @@ export default function AccountPage() {
                             >
                               <ArrowRightOnRectangleIcon className="h-4 w-4" />
                               Leave
+                            </Button>
+                          )}
+                          {canTransferOwnership && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setTransferOwnershipOpen(true)}
+                              disabled={isTransferringOwnership}
+                              className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50 ml-auto"
+                              title="Transfer Ownership"
+                            >
+                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                              Transfer
                             </Button>
                           )}
                         </div>
@@ -1650,6 +1677,21 @@ export default function AccountPage() {
             }
           }}
           isLoading={isChangingRole}
+        />
+      )}
+
+      {/* Transfer Ownership Dialog */}
+      {activeOrganization && currentUser && (
+        <TransferOwnershipDialog
+          open={transferOwnershipOpen}
+          onOpenChange={setTransferOwnershipOpen}
+          members={activeOrganization.members || []}
+          currentUserId={currentUser.userId}
+          onConfirm={(newOwnerId) => {
+            transferOwnership(newOwnerId);
+            setTransferOwnershipOpen(false);
+          }}
+          isLoading={isTransferringOwnership}
         />
       )}
     </>

@@ -100,6 +100,31 @@ export function useOrganizationMembers(organizationId: string | undefined) {
     },
   });
 
+  const transferOwnershipMutation = useMutation({
+    mutationFn: async (newOwnerId: string) => {
+      if (!organizationId) throw new Error("No organization selected");
+      const result = await apiClient.post(
+        `/v1/organizations/investor/${organizationId}/transfer-ownership`,
+        { newOwnerId }
+      );
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    onSuccess: () => {
+      // Invalidate all organization-related queries
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["organization-members", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      toast.success("Ownership transferred successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to transfer ownership", { description: error.message });
+    },
+  });
+
   return {
     members: data || [],
     isLoading,
@@ -107,8 +132,10 @@ export function useOrganizationMembers(organizationId: string | undefined) {
     removeMember: removeMemberMutation.mutate,
     changeRole: changeRoleMutation.mutate,
     leave: leaveMutation.mutate,
+    transferOwnership: transferOwnershipMutation.mutate,
     isRemoving: removeMemberMutation.isPending,
     isChangingRole: changeRoleMutation.isPending,
     isLeaving: leaveMutation.isPending,
+    isTransferringOwnership: transferOwnershipMutation.isPending,
   };
 }
