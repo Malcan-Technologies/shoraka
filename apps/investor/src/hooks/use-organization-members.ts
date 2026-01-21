@@ -42,8 +42,11 @@ export function useOrganizationMembers(organizationId: string | undefined) {
       return result.data;
     },
     onSuccess: () => {
+      // Invalidate all organization-related queries
       queryClient.invalidateQueries({ queryKey: ["organization-members", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-organizations"] });
       toast.success("Member removed successfully");
     },
     onError: (error: Error) => {
@@ -64,8 +67,11 @@ export function useOrganizationMembers(organizationId: string | undefined) {
       return result.data;
     },
     onSuccess: () => {
+      // Invalidate all organization-related queries
       queryClient.invalidateQueries({ queryKey: ["organization-members", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-organizations"] });
       toast.success("Member role updated successfully");
     },
     onError: (error: Error) => {
@@ -83,7 +89,10 @@ export function useOrganizationMembers(organizationId: string | undefined) {
       return result.data;
     },
     onSuccess: () => {
+      // Invalidate all organization-related queries
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["organization-members", organizationId] });
       toast.success("Left organization successfully");
     },
     onError: (error: Error) => {

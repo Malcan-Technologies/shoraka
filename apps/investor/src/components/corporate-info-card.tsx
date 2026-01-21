@@ -37,13 +37,14 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
   }, [corporateInfo]);
 
   const handleSave = () => {
+    // Only save editable fields (Industry and Number of Employees)
     update({
-      tinNumber: tinNumber || null,
+      tinNumber: corporateInfo?.basicInfo?.tinNumber || null, // Keep existing value
       industry: industry || null,
-      entityType: entityType || null,
-      businessName: businessName || null,
+      entityType: corporateInfo?.basicInfo?.entityType || null, // Keep existing value
+      businessName: corporateInfo?.basicInfo?.businessName || null, // Keep existing value
       numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees, 10) : null,
-      ssmRegisterNumber: ssmRegisterNumber || null,
+      ssmRegisterNumber: corporateInfo?.basicInfo?.ssmRegisterNumber || null, // Keep existing value
     });
     setIsEditing(false);
   };
@@ -94,13 +95,13 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       <div className="p-6 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>TIN Number</Label>
+            <Label className="text-muted-foreground">TIN Number</Label>
             <Input
               value={tinNumber}
-              onChange={(e) => setTinNumber(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
             />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
             <Label>Industry</Label>
@@ -112,22 +113,22 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label>Entity Type</Label>
+            <Label className="text-muted-foreground">Entity Type</Label>
             <Input
               value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
             />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
-            <Label>Business Name</Label>
+            <Label className="text-muted-foreground">Business Name</Label>
             <Input
               value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
             />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
             <Label>Number of Employees</Label>
@@ -140,13 +141,13 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label>SSM Register Number</Label>
+            <Label className="text-muted-foreground">SSM Register Number</Label>
             <Input
               value={ssmRegisterNumber}
-              onChange={(e) => setSsmRegisterNumber(e.target.value)}
-              disabled={!isEditing}
-              className={!isEditing ? "bg-muted" : ""}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
             />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
         </div>
         {isEditing && (

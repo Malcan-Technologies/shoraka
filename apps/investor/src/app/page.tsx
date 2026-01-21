@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import { useOrganization } from "@cashsouk/config";
+import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { SidebarTrigger } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import { Button } from "../components/ui/button";
@@ -31,6 +32,13 @@ function InvestorDashboardContent() {
   // Check onboarding status after authentication is confirmed
   useEffect(() => {
     if (isAuthenticated && !isOrgLoading) {
+      // Check for pending invitation token (fallback mechanism)
+      // Note: The primary invitation redirect mechanism is now through OAuth state
+      const hasPendingInvitation = checkAndRedirectForPendingInvitation();
+      if (hasPendingInvitation) {
+        return; // Redirect is happening, stop further execution
+      }
+
       // If no organizations at all, redirect to onboarding
       if (organizations.length === 0) {
         if (!hasRedirected.current) {
