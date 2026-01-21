@@ -901,102 +901,17 @@ export default function ProfilePage() {
               </div>
               )}
 
-              {/* Corporate Info Section - Only for COMPANY accounts */}
+              {/* 1. Corporate Info Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard organizationId={activeOrganization.id} />
               )}
 
-              {/* Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
-                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
-              )}
-
-              {/* Contact Details Section (Editable) */}
-              <div className="rounded-xl border bg-card">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <div>
-                    <h2 className="text-lg font-semibold">Contact details</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Manage your phone number and email address
-                    </p>
-                  </div>
-                  {!isEditingProfile && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsEditingProfile(true)}
-                      className="gap-2 rounded-xl"
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                      Edit
-                    </Button>
-                  )}
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <PhoneIcon className="h-4 w-4" />
-                        Phone number
-                      </Label>
-                      {isEditingProfile ? (
-                        <PhoneInput
-                          international
-                          defaultCountry="MY"
-                          value={phoneNumber}
-                          onChange={setPhoneNumber}
-                          className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
-                        />
-                      ) : (
-                        <Input
-                          value={phoneNumber || "—"}
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
-                        />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <EnvelopeIcon className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input
-                        value={
-                          activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
-                        }
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                  </div>
-
-                  {isEditingProfile && (
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={handleCancelProfileEdit}
-                        disabled={updateProfileMutation.isPending}
-                        className="gap-2 rounded-xl"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleSaveProfile}
-                        disabled={updateProfileMutation.isPending}
-                        className="gap-2 rounded-xl"
-                      >
-                        {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Address Section (Editable) */}
-              {isPersonal ? (
-                <div className="rounded-xl border bg-card">
-                  <div className="flex items-center justify-between p-6 border-b">
+              {/* For PERSONAL accounts: Address comes before Contact Details */}
+              {isPersonal && (
+                <>
+                  {/* Address Section (Editable) - Personal */}
+                  <div className="rounded-xl border bg-card">
+                    <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Address</h2>
                       <p className="text-sm text-muted-foreground">
@@ -1057,7 +972,93 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
-              ) : (
+
+                  {/* Contact Details Section (Editable) - Personal */}
+                  <div className="rounded-xl border bg-card">
+                    <div className="flex items-center justify-between p-6 border-b">
+                      <div>
+                        <h2 className="text-lg font-semibold">Contact details</h2>
+                        <p className="text-sm text-muted-foreground">
+                          Manage your phone number and email address
+                        </p>
+                      </div>
+                      {!isEditingProfile && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingProfile(true)}
+                          className="gap-2 rounded-xl"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <PhoneIcon className="h-4 w-4" />
+                            Phone number
+                          </Label>
+                          {isEditingProfile ? (
+                            <PhoneInput
+                              international
+                              defaultCountry="MY"
+                              value={phoneNumber}
+                              onChange={setPhoneNumber}
+                              className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                            />
+                          ) : (
+                            <Input
+                              value={phoneNumber || "—"}
+                              disabled
+                              className="bg-muted h-11 rounded-xl"
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <EnvelopeIcon className="h-4 w-4" />
+                            Email
+                          </Label>
+                          <Input
+                            value={
+                              activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                            }
+                            disabled
+                            className="bg-muted h-11 rounded-xl"
+                          />
+                        </div>
+                      </div>
+
+                      {isEditingProfile && (
+                        <div className="flex justify-end gap-2 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={handleCancelProfileEdit}
+                            disabled={updateProfileMutation.isPending}
+                            className="gap-2 rounded-xl"
+                          >
+                            <XMarkIcon className="h-4 w-4" />
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleSaveProfile}
+                            disabled={updateProfileMutation.isPending}
+                            className="gap-2 rounded-xl"
+                          >
+                            {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 2. Address/Addresses Section - For COMPANY accounts only (Personal is handled above) */}
+              {!isPersonal && (
                 <div className="rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
@@ -1253,7 +1254,96 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Members Section */}
+              {/* 3. Contact Details Section (Editable) - For COMPANY accounts only (Personal is handled above) */}
+              {!isPersonal && (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Contact details</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Manage your phone number and email address
+                      </p>
+                    </div>
+                    {!isEditingProfile && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingProfile(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <PhoneIcon className="h-4 w-4" />
+                          Phone number
+                        </Label>
+                        {isEditingProfile ? (
+                          <PhoneInput
+                            international
+                            defaultCountry="MY"
+                            value={phoneNumber}
+                            onChange={setPhoneNumber}
+                            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                          />
+                        ) : (
+                          <Input
+                            value={phoneNumber || "—"}
+                            disabled
+                            className="bg-muted h-11 rounded-xl"
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <EnvelopeIcon className="h-4 w-4" />
+                          Email
+                        </Label>
+                        <Input
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                          }
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    {isEditingProfile && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelProfileEdit}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={updateProfileMutation.isPending}
+                          className="gap-2 rounded-xl"
+                        >
+                          {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
+                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
+              )}
+
+              {/* 5. Members Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
