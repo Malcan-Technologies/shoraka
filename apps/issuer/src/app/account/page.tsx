@@ -8,9 +8,17 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import { Badge } from "../../components/ui/badge";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import {
   useOrganization,
   useAuthToken,
@@ -26,9 +34,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsListCard } from "../../components/directors-list-card";
-import { ShareholdersListCard } from "../../components/shareholders-list-card";
-import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
+import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { toast } from "sonner";
@@ -59,6 +65,33 @@ import {
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+// Malaysian banks list (values match RegTank format)
+const MALAYSIAN_BANKS = [
+  { value: "Affin Bank Berhad", label: "Affin Bank" },
+  { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
+  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
+  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
+  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
+  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
+  { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
+  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
+  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
+  { value: "Bank of America", label: "Bank of America" },
+  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
+  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
+  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
+  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
+  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
+  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
+  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
+  { value: "Public Bank Berhad", label: "Public Bank" },
+  { value: "RHB Bank Berhad", label: "RHB Bank" },
+  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
+  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
+  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
+  { value: "UOB Bank Berhad", label: "UOB Bank" },
+];
 
 const roleConfig: Record<
   OrganizationMemberRole,
@@ -455,6 +488,11 @@ export default function AccountPage() {
             registeredAddress?: string;
           };
         };
+        corporateEntities?: {
+          directors?: Array<Record<string, unknown>>;
+          shareholders?: Array<Record<string, unknown>>;
+          corporateShareholders?: Array<Record<string, unknown>>;
+        };
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -686,7 +724,9 @@ export default function AccountPage() {
     : activeOrganization.name || "Company Account";
   const accountIcon = isPersonal ? UserIcon : BuildingOffice2Icon;
   const AccountIcon = accountIcon;
-  const displayName = [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—";
+  const displayName = isPersonal
+    ? [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—"
+    : orgData?.corporateOnboardingData?.basicInfo?.businessName || accountName;
 
   return (
     <>
@@ -930,13 +970,14 @@ export default function AccountPage() {
                         <MapPinIcon className="h-4 w-4" />
                         Full Address
                       </Label>
-                      <Input
+                      <Textarea
                         placeholder="Enter your full address"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         disabled={!isEditingProfile}
+                        rows={3}
                         maxLength={500}
-                        className={`h-11 rounded-xl ${!isEditingProfile ? "bg-muted" : ""}`}
+                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
                       />
                       {isEditingProfile && (
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
@@ -1350,13 +1391,9 @@ export default function AccountPage() {
                 </div>
               )}
 
-              {/* Directors/Shareholders Cards - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <>
-                  <DirectorsListCard organizationId={activeOrganization.id} />
-                  <ShareholdersListCard organizationId={activeOrganization.id} />
-                  <BusinessShareholdersListCard organizationId={activeOrganization.id} />
-                </>
+              {/* Directors/Shareholders Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
+                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
               )}
 
               {/* Invite Member Dialog */}
@@ -1398,22 +1435,49 @@ export default function AccountPage() {
                         <BanknotesIcon className="h-4 w-4" />
                         Bank name
                       </Label>
-                      <Input
-                        value={bankName || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+                      {isEditingBanking ? (
+                        <Select value={bankName} onValueChange={setBankName}>
+                          <SelectTrigger className="h-11 rounded-xl">
+                            <SelectValue placeholder="Select bank" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MALAYSIAN_BANKS.map((bank) => (
+                              <SelectItem key={bank.value} value={bank.value}>
+                                {bank.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={bankName || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <DocumentTextIcon className="h-4 w-4" />
                         Account type
                       </Label>
-                      <Input
-                        value={accountType || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+                      {isEditingBanking ? (
+                        <Select value={accountType} onValueChange={setAccountType}>
+                          <SelectTrigger className="h-11 rounded-xl">
+                            <SelectValue placeholder="Select account type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Savings">Savings</SelectItem>
+                            <SelectItem value="Checking">Checking</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={accountType || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label className="flex items-center gap-2">
