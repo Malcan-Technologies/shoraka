@@ -162,13 +162,13 @@ export function NavUser() {
               {isProfileDisabled ? (
                 <DropdownMenuItem disabled className="cursor-not-allowed opacity-50">
                   <BadgeCheck />
-                  Profile
+                  Account
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/profile">
+                  <Link href="/account">
                     <BadgeCheck />
-                    Profile
+                    Account
                   </Link>
                 </DropdownMenuItem>
               )}

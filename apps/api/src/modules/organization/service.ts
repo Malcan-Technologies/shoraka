@@ -51,6 +51,7 @@ export class OrganizationService {
    * Create a new organization for the specified portal type
    */
   async createOrganization(
+    req: Request,
     userId: string,
     portalType: PortalType,
     input: CreateOrganizationInput
@@ -198,6 +199,32 @@ export class OrganizationService {
       }
     }
 
+    // Determine the role and portal for logging
+    const logRole = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const logPortal = getPortalFromRole(logRole);
+
+    // Log ONBOARDING_STARTED when the organization is successfully created (the 'Create' submit action)
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await this.authRepository.createOnboardingLog({
+      userId,
+      role: logRole,
+      eventType: "ONBOARDING_STARTED",
+      portal: logPortal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      organizationName: organization.name || undefined,
+      investorOrganizationId: portalType === "investor" ? organization.id : undefined,
+      issuerOrganizationId: portalType === "issuer" ? organization.id : undefined,
+      metadata: {
+        organizationId: organization.id,
+        organizationType: organization.type,
+        organizationName: organization.name,
+        role: logRole,
+      },
+    });
+
     return organization;
   }
 
@@ -271,13 +298,13 @@ export class OrganizationService {
     const updatedOrg =
       portalType === "investor"
         ? await this.repository.updateInvestorOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.COMPLETED
-          )
+          organizationId,
+          OnboardingStatus.COMPLETED
+        )
         : await this.repository.updateIssuerOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.COMPLETED
-          );
+          organizationId,
+          OnboardingStatus.COMPLETED
+        );
 
     logger.info({ organizationId, portalType }, "Organization onboarding completed");
 
@@ -366,8 +393,8 @@ export class OrganizationService {
     }
 
     const role =
-      input.role === "ORGANIZATION_ADMIN" 
-        ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
         : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
     logger.info(
@@ -599,6 +626,9 @@ export class OrganizationService {
         userAgent,
         deviceInfo,
         deviceType,
+        organizationName: organization.name || undefined,
+        investorOrganizationId: portalType === "investor" ? organizationId : undefined,
+        issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
         metadata: {
           organizationId,
           organizationType: organization.type,
@@ -666,8 +696,8 @@ export class OrganizationService {
     if (portalType === "investor") {
       invitation = await this.repository.createInvestorOrganizationInvitation({
         email,
-        role: input.role === "ORGANIZATION_ADMIN" 
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+        role: input.role === "ORGANIZATION_ADMIN"
+          ? OrganizationMemberRole.ORGANIZATION_ADMIN
           : OrganizationMemberRole.ORGANIZATION_MEMBER,
         investorOrganizationId: organizationId,
         token,
@@ -677,8 +707,8 @@ export class OrganizationService {
     } else {
       invitation = await this.repository.createIssuerOrganizationInvitation({
         email,
-        role: input.role === "ORGANIZATION_ADMIN" 
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+        role: input.role === "ORGANIZATION_ADMIN"
+          ? OrganizationMemberRole.ORGANIZATION_ADMIN
           : OrganizationMemberRole.ORGANIZATION_MEMBER,
         issuerOrganizationId: organizationId,
         token,
@@ -730,14 +760,14 @@ export class OrganizationService {
       } catch (error) {
         emailError = error instanceof Error ? error.message : String(error);
         logger.error(
-          { 
-            error: emailError, 
-            invitationId: invitation.id, 
+          {
+            error: emailError,
+            invitationId: invitation.id,
             email: input.email,
             inviteLink,
             sesRegion: process.env.SES_REGION || process.env.AWS_REGION,
             emailFrom: process.env.EMAIL_FROM,
-          }, 
+          },
           "Failed to send invitation email - invitation URL available for manual sharing"
         );
       }
@@ -783,29 +813,29 @@ export class OrganizationService {
     const existingInvitation =
       portalType === "investor"
         ? await prisma.investorOrganizationInvitation.findFirst({
-            where: {
-              email,
-              role: input.role === "ORGANIZATION_ADMIN" 
-                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
-                : OrganizationMemberRole.ORGANIZATION_MEMBER,
-              accepted: false,
-              expires_at: { gt: new Date() },
-              investor_organization_id: organizationId,
-            },
-            orderBy: { created_at: "desc" },
-          })
+          where: {
+            email,
+            role: input.role === "ORGANIZATION_ADMIN"
+              ? OrganizationMemberRole.ORGANIZATION_ADMIN
+              : OrganizationMemberRole.ORGANIZATION_MEMBER,
+            accepted: false,
+            expires_at: { gt: new Date() },
+            investor_organization_id: organizationId,
+          },
+          orderBy: { created_at: "desc" },
+        })
         : await prisma.issuerOrganizationInvitation.findFirst({
-            where: {
-              email,
-              role: input.role === "ORGANIZATION_ADMIN" 
-                ? OrganizationMemberRole.ORGANIZATION_ADMIN 
-                : OrganizationMemberRole.ORGANIZATION_MEMBER,
-              accepted: false,
-              expires_at: { gt: new Date() },
-              issuer_organization_id: organizationId,
-            },
-            orderBy: { created_at: "desc" },
-          });
+          where: {
+            email,
+            role: input.role === "ORGANIZATION_ADMIN"
+              ? OrganizationMemberRole.ORGANIZATION_ADMIN
+              : OrganizationMemberRole.ORGANIZATION_MEMBER,
+            accepted: false,
+            expires_at: { gt: new Date() },
+            issuer_organization_id: organizationId,
+          },
+          orderBy: { created_at: "desc" },
+        });
 
     let token: string;
     if (existingInvitation) {
@@ -821,8 +851,8 @@ export class OrganizationService {
       if (portalType === "investor") {
         await this.repository.createInvestorOrganizationInvitation({
           email,
-          role: input.role === "ORGANIZATION_ADMIN" 
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+          role: input.role === "ORGANIZATION_ADMIN"
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN
             : OrganizationMemberRole.ORGANIZATION_MEMBER,
           investorOrganizationId: organizationId,
           token,
@@ -832,8 +862,8 @@ export class OrganizationService {
       } else {
         await this.repository.createIssuerOrganizationInvitation({
           email,
-          role: input.role === "ORGANIZATION_ADMIN" 
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN 
+          role: input.role === "ORGANIZATION_ADMIN"
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN
             : OrganizationMemberRole.ORGANIZATION_MEMBER,
           issuerOrganizationId: organizationId,
           token,

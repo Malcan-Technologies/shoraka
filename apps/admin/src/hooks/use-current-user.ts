@@ -23,6 +23,11 @@ interface MeResponse {
   sessions: {
     active: number;
   };
+  recentLogins: Array<{
+    at: string;
+    ip: string | null;
+    device: string | null;
+  }>;
 }
 
 export const CURRENT_USER_QUERY_KEY = ["auth", "me"] as const;

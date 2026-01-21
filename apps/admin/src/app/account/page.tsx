@@ -28,9 +28,9 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@cashsouk/ui";
-import { useCurrentUser, CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
+import { CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
 import {
   EnvelopeIcon,
   UserCircleIcon,
@@ -40,6 +40,7 @@ import {
   KeyIcon,
   PencilIcon,
   XMarkIcon,
+  ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
 import { formatDistanceToNow } from "date-fns";
@@ -70,17 +71,30 @@ interface UserData {
   } | null;
 }
 
-function ProfileSkeleton() {
+interface MeResponse {
+  user: UserData;
+  activeRole: string | null;
+  sessions: {
+    active: number;
+  };
+  recentLogins: Array<{
+    at: string;
+    ip: string | null;
+    device: string | null;
+  }>;
+}
+
+function AccountPageSkeleton() {
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Profile</h1>
+        <h1 className="text-lg font-semibold">Account</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
-          {/* Personal Information Skeleton */}
+          {/* Account Information Skeleton */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -142,28 +156,29 @@ function ProfileSkeleton() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Skeleton className="h-4 w-full max-w-md" />
-              <Skeleton className="h-10 w-36" />
-            </CardContent>
-          </Card>
-
-          {/* Account Info Skeleton */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-lg" />
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-4 w-44" />
-                </div>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full max-w-md" />
+                <Skeleton className="h-10 w-36" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-12" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-6 w-16 rounded-full" />
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-6 w-32 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full max-w-md" />
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-6 w-28 rounded-full" />
+                </div>
+                <div className="space-y-3">
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
                 </div>
               </div>
             </CardContent>
@@ -174,15 +189,39 @@ function ProfileSkeleton() {
   );
 }
 
-export default function ProfilePage() {
+export default function AccountPage() {
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [isEditing, setIsEditing] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
 
-  const { data, isLoading } = useCurrentUser();
-  const userData = data?.user as UserData | undefined;
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ["auth", "me", "profile"],
+    queryFn: async () => {
+      const result = await apiClient.get<MeResponse>("/v1/auth/me");
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  // Sync user data to the global cache for sidebar/nav components
+  React.useEffect(() => {
+    if (profileData?.user) {
+      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, {
+        user: profileData.user,
+        activeRole: profileData.activeRole,
+        sessions: profileData.sessions,
+        recentLogins: profileData.recentLogins,
+      });
+    }
+  }, [profileData, queryClient]);
+
+  const userData = profileData?.user;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -248,7 +287,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return <ProfileSkeleton />;
+    return <AccountPageSkeleton />;
   }
 
   return (
@@ -256,7 +295,7 @@ export default function ProfilePage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Profile</h1>
+        <h1 className="text-lg font-semibold">Account</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
@@ -306,7 +345,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Profile Information Card */}
+          {/* Account Information Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -523,6 +562,48 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Two-factor authentication is enforced for all users and cannot be disabled.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <Label className="text-base font-medium">Recent Activity</Label>
+                <div className="space-y-3">
+                  {profileData?.recentLogins && profileData.recentLogins.length > 0 ? (
+                    profileData.recentLogins.map((login, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 text-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate" title={login.device || "Unknown Device"}>
+                              {login.device || "Unknown Device"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">IP: {login.ip || "Unknown"}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-medium">
+                            {formatDistanceToNow(new Date(login.at), { addSuffix: true })}
+                          </p>
+                          <p className="text-[0.7rem] text-muted-foreground">
+                            {new Date(login.at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 rounded-lg border border-dashed text-center text-sm text-muted-foreground">
+                      No recent activity found
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  This information helps you monitor unauthorized access to your account.
                 </p>
               </div>
             </CardContent>

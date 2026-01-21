@@ -5,6 +5,7 @@ import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
+import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 
@@ -17,12 +18,14 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
   private service: RegTankService;
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
+  private authRepository: AuthRepository;
 
   constructor() {
     super();
     this.service = new RegTankService();
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.authRepository = new AuthRepository();
   }
 
   protected getWebhookType(): string {
@@ -99,22 +102,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding log - FORM_FILLED when form is completed
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  event_type: "FORM_FILLED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.PENDING_APPROVAL,
-                    trigger: "LIVENESS_PASSED",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "FORM_FILLED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  trigger: "LIVENESS_PASSED",
                 },
               });
             } catch (logError) {
@@ -127,7 +131,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
               "Liveness test passed, updated investor organization status to PENDING_APPROVAL"
@@ -141,22 +145,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.PENDING_APPROVAL,
-                    trigger: "LIVENESS_PASSED",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  trigger: "LIVENESS_PASSED",
                 },
               });
             } catch (logError) {
@@ -169,7 +174,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
               "Liveness test passed, updated issuer organization status to PENDING_APPROVAL"
@@ -200,22 +205,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.PENDING_APPROVAL,
-                    trigger: "WAIT_FOR_APPROVAL",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  trigger: "WAIT_FOR_APPROVAL",
                 },
               });
             } catch (logError) {
@@ -228,7 +234,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId },
               "Updated investor organization status to PENDING_APPROVAL"
@@ -242,22 +248,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.PENDING_APPROVAL
             );
-            
+
             // Create onboarding status updated log
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.PENDING_APPROVAL,
-                    trigger: "WAIT_FOR_APPROVAL",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  trigger: "WAIT_FOR_APPROVAL",
                 },
               });
             } catch (logError) {
@@ -270,7 +277,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create onboarding status updated log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId },
               "Updated issuer organization status to PENDING_APPROVAL"
@@ -302,10 +309,10 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // If rejected, update organization status to REJECTED and log it
     if (statusUpper === "REJECTED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
-      
+
       try {
         let previousStatus: OnboardingStatus | null = null;
-        
+
         if (portalType === "investor") {
           const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (orgExists) {
@@ -314,22 +321,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.REJECTED
             );
-            
+
             // Create ONBOARDING_REJECTED log
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  event_type: "ONBOARDING_REJECTED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.REJECTED,
-                    trigger: "REGTANK_REJECTION",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.INVESTOR,
+                eventType: "ONBOARDING_REJECTED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: organizationId,
+                issuerOrganizationId: undefined,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.REJECTED,
+                  trigger: "REGTANK_REJECTION",
                 },
               });
             } catch (logError) {
@@ -342,7 +350,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create ONBOARDING_REJECTED log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
               "Updated investor organization status to REJECTED and logged rejection event"
@@ -356,22 +364,23 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               organizationId,
               OnboardingStatus.REJECTED
             );
-            
+
             // Create ONBOARDING_REJECTED log
             try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_REJECTED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: OnboardingStatus.REJECTED,
-                    trigger: "REGTANK_REJECTION",
-                  },
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: UserRole.ISSUER,
+                eventType: "ONBOARDING_REJECTED",
+                portal: portalType,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: undefined,
+                issuerOrganizationId: organizationId,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: OnboardingStatus.REJECTED,
+                  trigger: "REGTANK_REJECTION",
                 },
               });
             } catch (logError) {
@@ -384,7 +393,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 "Failed to create ONBOARDING_REJECTED log (non-blocking)"
               );
             }
-            
+
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
               "Updated issuer organization status to REJECTED and logged rejection event"

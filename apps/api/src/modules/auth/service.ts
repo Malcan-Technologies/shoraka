@@ -200,8 +200,6 @@ export class AuthService {
     userId: string,
     role?: UserRole
   ): Promise<{ success: boolean }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
     // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -244,25 +242,6 @@ export class AuthService {
         onboardingRole = user.roles[0] || UserRole.INVESTOR;
       }
     }
-
-    const portal = getPortalFromRole(onboardingRole as UserRole);
-
-    // Create onboarding log - always log ONBOARDING_STARTED when user lands on onboarding page
-    // Note: ONBOARDING_RESUMED is logged by RegTank service when actually resuming onboarding
-    await this.repository.createOnboardingLog({
-      userId: user.user_id,
-      role: onboardingRole as UserRole,
-      eventType: "ONBOARDING_STARTED",
-      portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      metadata: {
-        role: onboardingRole,
-        roles: user.roles,
-      },
-    });
 
     return { success: true };
   }
@@ -534,6 +513,11 @@ export class AuthService {
     sessions: {
       active: number;
     };
+    lastLogin: {
+      at: Date | null;
+      ip: string | null;
+      device: string | null;
+    } | null;
   }> {
     const user = await prisma.user.findUnique({
       where: { cognito_sub: userId },
@@ -553,14 +537,20 @@ export class AuthService {
 
     const activeSession = await this.repository.findActiveSession(user.user_id);
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
+    const recentLogins = await this.repository.findRecentLogins(user.user_id, 3);
 
     return {
       userId: user.user_id,
       user,
       activeRole: activeSession?.active_role || null,
       sessions: {
-        active: activeSessionsCount,
+        active: activeSessionsCount > 0 ? activeSessionsCount : 1,
       },
+      recentLogins: recentLogins.map((login) => ({
+        at: login.created_at,
+        ip: login.ip_address,
+        device: login.device_info,
+      })),
     };
   }
 

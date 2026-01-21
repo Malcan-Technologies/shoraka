@@ -16,6 +16,7 @@ import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createProductRouter } from "./modules/products/controller";
+import { activityRouter } from "./modules/activity/controller";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -98,6 +99,8 @@ export function registerRoutes(app: Application): void {
   // Site documents routes (authenticated users)
   v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
 
+  // Activity routes
+  v1Router.use("/activities", requireAuth, activityRouter);
 
   app.use("/v1", v1Router);
 }

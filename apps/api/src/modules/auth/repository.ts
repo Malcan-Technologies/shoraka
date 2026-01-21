@@ -282,6 +282,22 @@ export class AuthRepository {
   }
 
   /**
+   * Find recent successful logins for user
+   * Returns up to 'limit' most recent logins.
+   */
+  async findRecentLogins(userId: string, limit: number = 3): Promise<AccessLog[]> {
+    return prisma.accessLog.findMany({
+      where: {
+        user_id: userId,
+        event_type: "LOGIN",
+        success: true,
+      },
+      orderBy: { created_at: "desc" },
+      take: limit,
+    });
+  }
+
+  /**
    * Create security log entry
    */
   async createSecurityLog(data: {
@@ -316,6 +332,9 @@ export class AuthRepository {
     userAgent?: string;
     deviceInfo?: string;
     deviceType?: string;
+    organizationName?: string;
+    investorOrganizationId?: string;
+    issuerOrganizationId?: string;
     metadata?: object;
   }): Promise<OnboardingLog> {
     return prisma.onboardingLog.create({
@@ -328,6 +347,9 @@ export class AuthRepository {
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
         device_type: data.deviceType,
+        organization_name: data.organizationName,
+        investor_organization_id: data.investorOrganizationId,
+        issuer_organization_id: data.issuerOrganizationId,
         metadata: data.metadata as Prisma.InputJsonValue,
       },
     });

@@ -72,7 +72,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     // Note: requestId is the KYC/DJKYC ID (e.g., "KYC06407" or "DJKYC08238"), NOT the onboarding request ID, so we don't use it directly
     let onboarding;
     let foundBy = "";
-    
+
     if (onboardingId) {
       logger.debug(
         { onboardingId, kycRequestId: requestId },
@@ -82,11 +82,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       if (onboarding) {
         foundBy = "onboardingId";
         logger.info(
-          { 
-            onboardingId, 
+          {
+            onboardingId,
             kycRequestId: requestId,
             onboardingRequestId: onboarding.request_id,
-            foundBy 
+            foundBy
           },
           "[KYC Webhook] ✓ Found onboarding record by onboardingId"
         );
@@ -97,7 +97,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         );
       }
     }
-    
+
     if (!onboarding && referenceId) {
       logger.debug(
         { referenceId, kycRequestId: requestId },
@@ -107,11 +107,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       if (onboarding) {
         foundBy = "referenceId";
         logger.info(
-          { 
-            referenceId, 
+          {
+            referenceId,
             kycRequestId: requestId,
             onboardingRequestId: onboarding.request_id,
-            foundBy 
+            foundBy
           },
           "[KYC Webhook] ✓ Found onboarding record by referenceId"
         );
@@ -130,7 +130,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         { eodRequestId: onboardingId, kycRequestId: requestId },
         "[KYC Webhook] onboardingId is an EOD requestId, searching for parent COD onboarding record"
       );
-      
+
       // Search through all corporate onboardings to find the one that contains this EOD
       const allCorporateOnboardings = await prisma.regTankOnboarding.findMany({
         where: {
@@ -158,11 +158,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 onboarding = corporateOnboarding;
                 foundBy = "eodParentCod";
                 logger.info(
-                  { 
+                  {
                     eodRequestId: onboardingId,
                     kycRequestId: requestId,
                     codRequestId: corporateOnboarding.request_id,
-                    foundBy 
+                    foundBy
                   },
                   "[KYC Webhook] ✓ Found parent COD onboarding record for EOD requestId"
                 );
@@ -173,7 +173,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           if (onboarding) break;
         }
       }
-      
+
       if (!onboarding) {
         logger.debug(
           { eodRequestId: onboardingId, kycRequestId: requestId },
@@ -184,9 +184,9 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
     if (!onboarding) {
       logger.warn(
-        { 
-          kycRequestId: requestId, 
-          referenceId, 
+        {
+          kycRequestId: requestId,
+          referenceId,
           onboardingId,
           note: "KYC requestId is the KYC ID, not the onboarding request ID. Use onboardingId field instead."
         },
@@ -206,7 +206,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       },
       "[KYC Webhook] Appending webhook payload to onboarding record history"
     );
-    
+
     await this.repository.appendWebhookPayload(
       onboarding.request_id,
       payload as Prisma.InputJsonValue
@@ -231,16 +231,16 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     // Update AML identity mapping with kycId
     const amlOrganizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
     const amlPortalType = onboarding.portal_type as PortalType;
-    
+
     if (amlOrganizationId && onboardingId) {
       try {
         // requestId IS the kycId
         const kycId = requestId;
-        
+
         // If onboardingId is an EOD requestId, find mapping by EOD
         if (onboardingId.startsWith("EOD")) {
           const mapping = await this.amlIdentityRepository.findByEodRequestId(onboardingId);
-          
+
           if (mapping) {
             // Update mapping with kycId
             await this.amlIdentityRepository.upsertMapping({
@@ -279,7 +279,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           // If onboardingId is COD, find all mappings for this COD and update them
           // This handles cases where kycId is provided at COD level
           const mappings = await this.amlIdentityRepository.findByCodRequestId(onboardingId);
-          
+
           for (const mapping of mappings) {
             if (mapping.organization_id === amlOrganizationId) {
               await this.amlIdentityRepository.upsertMapping({
@@ -373,14 +373,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             // For corporate onboarding, KYC approval should set status to PENDING_AML (not PENDING_FINAL_APPROVAL)
             // For personal onboarding, KYC approval sets status to PENDING_FINAL_APPROVAL
             const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-            const newStatus = isCorporateOnboarding 
-              ? OnboardingStatus.PENDING_AML 
+            const newStatus = isCorporateOnboarding
+              ? OnboardingStatus.PENDING_AML
               : OnboardingStatus.PENDING_FINAL_APPROVAL;
 
             // Update aml_approved flag, status, and store KYC response
             await prisma.investorOrganization.update({
               where: { id: onboarding.investor_organization_id },
-              data: { 
+              data: {
                 aml_approved: true,
                 onboarding_status: newStatus,
                 kyc_response: payload as Prisma.InputJsonValue,
@@ -394,7 +394,10 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   user_id: onboarding.user_id,
                   role: UserRole.INVESTOR,
                   event_type: "AML_APPROVED",
-                  portal: portalType,
+                  portal: portalType as PortalType,
+                  organization_name: org.name || undefined,
+                  investor_organization_id: onboarding.investor_organization_id || undefined,
+                  issuer_organization_id: undefined,
                   metadata: {
                     organizationId: onboarding.investor_organization_id,
                     kycRequestId: requestId,
@@ -440,14 +443,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             // For corporate onboarding, KYC approval should set status to PENDING_AML (not PENDING_FINAL_APPROVAL)
             // For personal onboarding, KYC approval sets status to PENDING_FINAL_APPROVAL
             const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-            const newStatus = isCorporateOnboarding 
-              ? OnboardingStatus.PENDING_AML 
+            const newStatus = isCorporateOnboarding
+              ? OnboardingStatus.PENDING_AML
               : OnboardingStatus.PENDING_FINAL_APPROVAL;
 
             // Update aml_approved flag, status, and store KYC response
             await prisma.issuerOrganization.update({
               where: { id: onboarding.issuer_organization_id },
-              data: { 
+              data: {
                 aml_approved: true,
                 onboarding_status: newStatus,
                 kyc_response: payload as Prisma.InputJsonValue,
@@ -461,7 +464,10 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   user_id: onboarding.user_id,
                   role: UserRole.ISSUER,
                   event_type: "AML_APPROVED",
-                  portal: portalType,
+                  portal: portalType as PortalType,
+                  organization_name: org.name || undefined,
+                  investor_organization_id: undefined,
+                  issuer_organization_id: onboarding.issuer_organization_id || undefined,
                   metadata: {
                     organizationId: onboarding.issuer_organization_id,
                     kycRequestId: requestId,
@@ -613,7 +619,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         }
 
         const director = directorKycStatus.directors[directorIndex];
-        
+
         // Update kycId in director_kyc_status if it's missing or different
         if (!director.kycId || director.kycId !== requestId) {
           director.kycId = requestId;

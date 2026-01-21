@@ -63,5 +63,48 @@ export interface Investment {
   updatedAt: string;
 }
 
-export * from "./admin";
+export type ActivityCategory = "organization";
 
+export interface Activity {
+  id: string;
+  user_id: string;
+  category: ActivityCategory;
+  event_type: string; // Displayed as "Event" in UI
+  activity: string;   // Displayed as "Activity" in UI (human-readable)
+  metadata: any | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  created_at: string; // Displayed as "Time" in UI
+  source_table: string;
+  status?: "success" | "failed";
+}
+
+export interface GetActivitiesParams {
+  page: number;
+  limit: number;
+  search?: string;
+  categories?: ActivityCategory[];
+  eventType?: string;
+  eventTypes?: string[];
+  status?: "success" | "failed";
+  startDate?: string;
+  endDate?: string;
+  dateRange?: "24h" | "7d" | "30d" | "all";
+  organizationId?: string;
+  portalType?: "investor" | "issuer";
+}
+
+export interface ActivitiesResponse {
+  activities: Activity[];
+  pagination: {
+    total: number;
+    unfilteredTotal: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+export * from "@cashsouk/config/src/activity-config";
+export * from "./admin";

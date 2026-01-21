@@ -281,7 +281,9 @@ export type OnboardingEventType =
   | "AML_APPROVED"
   | "TNC_APPROVED"
   | "SSM_APPROVED"
-  | "TNC_ACCEPTED";
+  | "TNC_ACCEPTED"
+  | "KYC_APPROVED"
+  | "KYB_APPROVED";
 
 export interface OnboardingLogUser {
   first_name: string;

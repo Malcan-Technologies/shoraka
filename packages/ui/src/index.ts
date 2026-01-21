@@ -81,3 +81,6 @@ export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
 export { InviteMemberDialog } from "./invite-member-dialog";
 export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-member-dialog";
+export { ActivityBadge } from "./components/activity-badge";
+export { ActivityItem } from "./components/activity-item";
+export { ActivityToolbar } from "./components/activity-toolbar";
