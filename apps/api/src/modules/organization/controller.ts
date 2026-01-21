@@ -60,6 +60,7 @@ async function listOrganizations(
           onboardingStatus: org.onboarding_status,
           onboardedAt: org.onboarded_at,
           isOwner: org.owner_user_id === userId,
+          ownerId: org.owner_user_id,
           members: org.members.map(
             (m: {
               user_id: string;
@@ -183,6 +184,7 @@ async function createOrganization(
         registrationNumber: organization.registration_number,
         onboardingStatus: organization.onboarding_status,
         createdAt: organization.created_at,
+        ownerId: organization.owner_user_id,
       },
     });
   } catch (error) {
@@ -244,6 +246,7 @@ async function getOrganization(
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
         isOwner: organization.owner_user_id === userId,
+        ownerId: organization.owner_user_id,
         members: organization.members.map(
           (m: {
             user_id: string;

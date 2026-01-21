@@ -58,6 +58,7 @@ export interface Organization {
   onboardingStatus: OnboardingStatus;
   onboardedAt: string | null;
   isOwner: boolean;
+  ownerId: string;
   members: OrganizationMember[];
   regtankOnboardingStatus?: string | null;
   regtankVerifyLink?: string | null;
@@ -354,6 +355,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         registrationNumber: string | null;
         onboardingStatus: OnboardingStatus;
         createdAt: string;
+        ownerId: string;
       }>(`/v1/organizations/${portalType}`, input);
 
       if (!result.success) {
@@ -371,6 +373,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         onboardingStatus: result.data.onboardingStatus,
         onboardedAt: null,
         isOwner: true,
+        ownerId: result.data.ownerId,
         members: [],
         createdAt: result.data.createdAt,
       };

@@ -948,7 +948,9 @@ export default function AccountPage() {
                         Email
                       </Label>
                       <Input
-                        value={activeOrganization.members?.[0]?.email || "—"}
+                        value={
+                          activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                        }
                         disabled
                         className="bg-muted h-11 rounded-xl"
                       />
