@@ -392,19 +392,7 @@ export default function AccountPage() {
               <Separator />
 
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-base font-medium">Recent Activity</Label>
-                  {profileData?.sessions && (
-                    <Badge
-                      variant="outline"
-                      className="bg-blue-50 text-blue-700 border-blue-200 ml-auto"
-                    >
-                      {profileData.sessions.active} Active{" "}
-                      {profileData.sessions.active === 1 ? "Session" : "Sessions"}
-                    </Badge>
-                  )}
-                </div>
-
+                <Label className="text-base font-medium">Recent Activity</Label>
                 <div className="space-y-3">
                   {profileData?.recentLogins && profileData.recentLogins.length > 0 ? (
                     profileData.recentLogins.map((login, i) => (
