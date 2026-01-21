@@ -917,7 +917,7 @@ export class OrganizationService {
     }
 
     // Check if this is a placeholder email (link-based invitation)
-    const isPlaceholderEmail = invitation.email.startsWith('invitation-') && 
+    const isPlaceholderEmail = invitation.email.startsWith('invitation-') &&
                               invitation.email.includes('@cashsouk.com');
 
     // For non-placeholder invitations, verify email matches

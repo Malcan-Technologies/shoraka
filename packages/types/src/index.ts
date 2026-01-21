@@ -106,5 +106,5 @@ export interface ActivitiesResponse {
   };
 }
 
-export * from "@cashsouk/config/src/activity-config";
+export * from "../../config/src/activity-config";
 export * from "./admin";

@@ -7,7 +7,6 @@ import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
-import { prisma } from "../../../lib/prisma";
 
 /**
  * Individual Onboarding Webhook Handler

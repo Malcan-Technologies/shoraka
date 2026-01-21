@@ -1,5 +1,4 @@
-// AdminRole will be available after Prisma generate
-type AdminRole = "SUPER_ADMIN" | "COMPLIANCE_OFFICER" | "OPERATIONS_OFFICER" | "FINANCE_OFFICER";
+import { AdminRole, OrganizationMemberRole } from "@prisma/client";
 
 const roleLabels: Record<AdminRole, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -47,25 +46,25 @@ export function adminInvitationTemplate(
               <p style="margin: 8px 0 0; font-size: 16px; color: #6F4924;">P2P Lending Platform</p>
             </td>
           </tr>
-          
+
           <!-- Content -->
           <tr>
             <td style="padding: 40px;">
               <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${inviterText}!</h2>
-              
+
               <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #333;">
                 You have been invited to join CashSouk as a <strong>${roleLabel}</strong>.
               </p>
-              
+
               <div style="background-color: #fafafa; border-left: 4px solid #8A0304; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${roleLabel}</p>
                 <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${roleDescription}</p>
               </div>
-              
+
               <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: #333;">
                 Click the button below to accept your invitation and set up your admin account. This invitation link will expire in 24 hours.
               </p>
-              
+
               <!-- CTA Button -->
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
@@ -74,14 +73,14 @@ export function adminInvitationTemplate(
                   </td>
                 </tr>
               </table>
-              
+
               <p style="margin: 32px 0 0; font-size: 14px; line-height: 1.6; color: #666;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
                 <a href="${inviteLink}" style="color: #CE2922; word-break: break-all;">${inviteLink}</a>
               </p>
             </td>
           </tr>
-          
+
           <!-- Footer -->
           <tr>
             <td style="padding: 24px 40px; background-color: #fafafa; border-top: 1px solid #e8e8e8; border-radius: 0 0 12px 12px;">
@@ -121,16 +120,20 @@ If you didn't expect this invitation, you can safely ignore this email.
   return { subject, html, text };
 }
 
-type OrganizationMemberRole = "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
-
 const orgRoleLabels: Record<OrganizationMemberRole, string> = {
   ORGANIZATION_ADMIN: "Organization Admin",
   ORGANIZATION_MEMBER: "Organization Member",
+  OWNER: "Owner",
+  DIRECTOR: "Director",
+  MEMBER: "Member",
 };
 
 const orgRoleDescriptions: Record<OrganizationMemberRole, string> = {
   ORGANIZATION_ADMIN: "Full administrative access to manage organization members and settings",
   ORGANIZATION_MEMBER: "Member access to view and participate in organization activities",
+  OWNER: "Organization owner with full control",
+  DIRECTOR: "Director with management responsibilities",
+  MEMBER: "Regular organization member",
 };
 
 export function organizationInvitationTemplate(
@@ -167,25 +170,25 @@ export function organizationInvitationTemplate(
               <p style="margin: 8px 0 0; font-size: 16px; color: #6F4924;">P2P Lending Platform</p>
             </td>
           </tr>
-          
+
           <!-- Content -->
           <tr>
             <td style="padding: 40px;">
               <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${inviterText}!</h2>
-              
+
               <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #333;">
                 You have been invited to join <strong>${organizationName}</strong> as a <strong>${roleLabel}</strong> on the CashSouk ${portalLabel} Portal.
               </p>
-              
+
               <div style="background-color: #fafafa; border-left: 4px solid #8A0304; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${roleLabel}</p>
                 <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${roleDescription}</p>
               </div>
-              
+
               <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: #333;">
                 Click the button below to accept your invitation and join the organization. This invitation link will expire in 7 days.
               </p>
-              
+
               <!-- CTA Button -->
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
@@ -194,14 +197,14 @@ export function organizationInvitationTemplate(
                   </td>
                 </tr>
               </table>
-              
+
               <p style="margin: 32px 0 0; font-size: 14px; line-height: 1.6; color: #666;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
                 <a href="${inviteLink}" style="color: #CE2922; word-break: break-all;">${inviteLink}</a>
               </p>
             </td>
           </tr>
-          
+
           <!-- Footer -->
           <tr>
             <td style="padding: 24px 40px; background-color: #fafafa; border-top: 1px solid #e8e8e8; border-radius: 0 0 12px 12px;">

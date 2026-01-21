@@ -513,11 +513,11 @@ export class AuthService {
     sessions: {
       active: number;
     };
-    lastLogin: {
-      at: Date | null;
+    recentLogins: Array<{
+      at: Date;
       ip: string | null;
       device: string | null;
-    } | null;
+    }>;
   }> {
     const user = await prisma.user.findUnique({
       where: { cognito_sub: userId },
