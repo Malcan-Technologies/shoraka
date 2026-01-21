@@ -10,6 +10,7 @@ import {
   generateMemberInviteLinkSchema,
   acceptOrganizationInvitationSchema,
   changeMemberRoleSchema,
+  transferOwnershipSchema,
   updateCorporateInfoSchema,
   PortalType,
 } from "./schemas";
@@ -725,6 +726,33 @@ async function changeMemberRole(
 }
 
 /**
+ * Transfer organization ownership
+ * POST /v1/organizations/investor/:id/transfer-ownership
+ * POST /v1/organizations/issuer/:id/transfer-ownership
+ */
+async function transferOwnership(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = transferOwnershipSchema.parse(req.body);
+
+    const result = await organizationService.transferOwnership(userId, id, portalType, input);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Get corporate entities (directors, shareholders)
  * GET /v1/organizations/investor/:id/corporate-entities
  * GET /v1/organizations/issuer/:id/corporate-entities
@@ -856,6 +884,9 @@ export function createOrganizationRouter(): Router {
   router.patch("/investor/:id/members/:userId/role", requireAuth, (req, res, next) =>
     changeMemberRole(req, res, next, "investor")
   );
+  router.post("/investor/:id/transfer-ownership", requireAuth, (req, res, next) =>
+    transferOwnership(req, res, next, "investor")
+  );
   router.get("/investor/:id/invitations", requireAuth, (req, res, next) =>
     getPendingInvitations(req, res, next, "investor")
   );
@@ -911,6 +942,9 @@ export function createOrganizationRouter(): Router {
   );
   router.patch("/issuer/:id/members/:userId/role", requireAuth, (req, res, next) =>
     changeMemberRole(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/transfer-ownership", requireAuth, (req, res, next) =>
+    transferOwnership(req, res, next, "issuer")
   );
   router.get("/issuer/:id/invitations", requireAuth, (req, res, next) =>
     getPendingInvitations(req, res, next, "issuer")

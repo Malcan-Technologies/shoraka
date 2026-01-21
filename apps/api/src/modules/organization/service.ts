@@ -1184,11 +1184,19 @@ export class OrganizationService {
       throw new AppError(404, "NOT_MEMBER", "You are not a member of this organization");
     }
 
-    // Check if user is admin (including owner) - must ensure at least 1 admin remains
-    const isAdmin = userMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    // Owner cannot leave - must transfer ownership first
     const isOwner = organization.owner_user_id === userId;
-    
-    if (isAdmin || isOwner) {
+    if (isOwner) {
+      throw new AppError(
+        400,
+        "OWNER_CANNOT_LEAVE",
+        "Organization owner cannot leave. Please transfer ownership to another member first."
+      );
+    }
+
+    // Check if user is admin - must ensure at least 1 admin remains
+    const isAdmin = userMember.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    if (isAdmin) {
       const adminCount = await this.repository.countOrganizationAdmins(organizationId, portalType);
       if (adminCount <= 1) {
         throw new AppError(
@@ -1279,6 +1287,84 @@ export class OrganizationService {
     logger.info(
       { organizationId, targetUserId: input.userId, newRole },
       "Member role changed"
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Transfer organization ownership to another member
+   */
+  async transferOwnership(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: { newOwnerId: string }
+  ): Promise<{ success: boolean }> {
+    // Verify access
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+
+    // Only current owner can transfer ownership
+    if (organization.owner_user_id !== userId) {
+      throw new AppError(403, "FORBIDDEN", "Only the organization owner can transfer ownership");
+    }
+
+    // Verify new owner is a member
+    const newOwnerMember = organization.members.find(
+      (m: { user_id: string }) => m.user_id === input.newOwnerId
+    );
+
+    if (!newOwnerMember) {
+      throw new AppError(404, "NOT_FOUND", "New owner must be a member of the organization");
+    }
+
+    // Cannot transfer to self
+    if (input.newOwnerId === userId) {
+      throw new AppError(400, "INVALID_TRANSFER", "Cannot transfer ownership to yourself");
+    }
+
+    // Update owner_user_id and ensure new owner is an admin
+    if (portalType === "investor") {
+      await prisma.$transaction([
+        // Update organization owner
+        prisma.investorOrganization.update({
+          where: { id: organizationId },
+          data: { owner_user_id: input.newOwnerId },
+        }),
+        // Ensure new owner has admin role
+        prisma.organizationMember.updateMany({
+          where: {
+            user_id: input.newOwnerId,
+            investor_organization_id: organizationId,
+          },
+          data: {
+            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+          },
+        }),
+      ]);
+    } else {
+      await prisma.$transaction([
+        // Update organization owner
+        prisma.issuerOrganization.update({
+          where: { id: organizationId },
+          data: { owner_user_id: input.newOwnerId },
+        }),
+        // Ensure new owner has admin role
+        prisma.organizationMember.updateMany({
+          where: {
+            user_id: input.newOwnerId,
+            issuer_organization_id: organizationId,
+          },
+          data: {
+            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+          },
+        }),
+      ]);
+    }
+
+    logger.info(
+      { organizationId, previousOwner: userId, newOwner: input.newOwnerId, portalType },
+      "Ownership transferred"
     );
 
     return { success: true };

@@ -88,6 +88,11 @@ export const changeMemberRoleSchema = z.object({
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
 });
 
+// Transfer ownership schema
+export const transferOwnershipSchema = z.object({
+  newOwnerId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),
+});
+
 // Address schema for structured addresses
 export const addressSchema = z.object({
   line1: z.string().optional().nullable(),
@@ -118,6 +123,7 @@ export type AcceptOrganizationInvitationInput = z.infer<typeof acceptOrganizatio
 export type RemoveMemberInput = z.infer<typeof removeMemberSchema>;
 export type LeaveOrganizationInput = z.infer<typeof leaveOrganizationSchema>;
 export type ChangeMemberRoleInput = z.infer<typeof changeMemberRoleSchema>;
+export type TransferOwnershipInput = z.infer<typeof transferOwnershipSchema>;
 export type UpdateCorporateInfoInput = z.infer<typeof updateCorporateInfoSchema>;
 export type PortalType = z.infer<typeof portalTypeSchema>;
 export type UpdateOrganizationProfileInput = z.infer<typeof updateOrganizationProfileSchema>;
