@@ -82,6 +82,8 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
     // Include invitation token if present (for admin invitations)
     const invitationToken = req.query.invitation as string | undefined;
     const invitationRole = req.query.invitation_role as string | undefined;
+    // Include redirect URL if present (for preserving destination after auth)
+    const redirectUrl = req.query.redirect as string | undefined;
 
     const stateData = encryptOAuthState(
       createOAuthState({
@@ -91,6 +93,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
         signup: signupParam,
         invitationToken,
         invitationRole,
+        redirectUrl,
         timestamp: Date.now(),
       })
     );
@@ -865,6 +868,15 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Pass onboarding flag if user needs to complete onboarding
     if (!hasRequestedRole || !onboardingCompleted) {
       redirectUrl.searchParams.set("onboarding", "required");
+    }
+
+    // Pass redirect URL from OAuth state if present (for preserving invitation links, etc.)
+    if (stateData.redirectUrl) {
+      redirectUrl.searchParams.set("redirect_to", stateData.redirectUrl);
+      logger.info(
+        { correlationId, userId: user.user_id, redirectTo: stateData.redirectUrl },
+        "Preserving post-auth redirect URL through landing callback"
+      );
     }
 
     logger.info(

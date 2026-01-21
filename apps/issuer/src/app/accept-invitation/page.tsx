@@ -22,6 +22,18 @@ export default function AcceptInvitationPage() {
   const [invitationAccepted, setInvitationAccepted] = React.useState(false);
   const hasAttemptedAcceptance = React.useRef(false);
 
+  // Store token in localStorage before potential auth redirect
+  // Note: This runs only if the component mounts (user is authenticated)
+  // For unauthenticated users, the URL is preserved in sessionStorage by redirectToLogin()
+  React.useEffect(() => {
+    if (token && typeof window !== "undefined") {
+      localStorage.setItem("pending_invitation_token", token);
+      console.log("[Invitation] Stored token for post-auth:", token);
+    } else if (!token && typeof window !== "undefined") {
+      console.warn("[Invitation] No token in URL. User may have been redirected after auth.");
+    }
+  }, [token]);
+
   // Fetch user profile to check if name exists
   const { data: userProfile } = useQuery({
     queryKey: ["user-profile"],

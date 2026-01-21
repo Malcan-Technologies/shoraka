@@ -698,8 +698,8 @@ export class OrganizationService {
 
     const portalUrl =
       portalType === "investor"
-        ? process.env.INVESTOR_URL || "http://localhost:3001"
-        : process.env.ISSUER_URL || "http://localhost:3002";
+        ? process.env.INVESTOR_URL || "http://localhost:3002"
+        : process.env.ISSUER_URL || "http://localhost:3001";
 
     const inviteLink = `${portalUrl}/accept-invitation?token=${token}`;
     const orgName = organization.name || "the organization";
@@ -846,8 +846,8 @@ export class OrganizationService {
     // Generate invitation URL
     const portalUrl =
       portalType === "investor"
-        ? process.env.INVESTOR_URL || "http://localhost:3001"
-        : process.env.ISSUER_URL || "http://localhost:3002";
+        ? process.env.INVESTOR_URL || "http://localhost:3002"
+        : process.env.ISSUER_URL || "http://localhost:3001";
 
     const inviteUrl = `${portalUrl}/accept-invitation?token=${token}`;
 
@@ -1078,8 +1078,8 @@ export class OrganizationService {
 
     const portalUrl =
       portalType === "investor"
-        ? process.env.INVESTOR_URL || "http://localhost:3001"
-        : process.env.ISSUER_URL || "http://localhost:3002";
+        ? process.env.INVESTOR_URL || "http://localhost:3002"
+        : process.env.ISSUER_URL || "http://localhost:3001";
 
     const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
     const orgName =

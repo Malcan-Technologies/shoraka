@@ -12,6 +12,7 @@ export interface OAuthState {
   signup?: boolean;
   invitationToken?: string; // Admin invitation token
   invitationRole?: string; // Admin invitation role
+  redirectUrl?: string; // Post-auth redirect destination (e.g., /accept-invitation?token=xyz)
   timestamp: number; // To enforce expiration
   stateId: string; // Unique ID for replay attack prevention
 }

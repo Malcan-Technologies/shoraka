@@ -39,10 +39,17 @@ export function redirectToLanding() {
 
 /**
  * Redirect to Cognito login for issuer role
+ * Preserves current URL for post-auth redirect by passing it as a query parameter
  */
 export function redirectToLogin() {
   if (typeof window !== "undefined") {
-    window.location.href = `${API_URL}/api/auth/login?role=ISSUER`;
+    // Save current URL to restore after authentication
+    const currentUrl = window.location.pathname + window.location.search;
+    console.log("[redirectToLogin] Preserving redirect URL:", currentUrl);
+    
+    // Pass the redirect URL as a query parameter to survive OAuth flow across origins
+    const encodedRedirectUrl = encodeURIComponent(currentUrl);
+    window.location.href = `${API_URL}/api/auth/login?role=ISSUER&redirect=${encodedRedirectUrl}`;
   }
 }
 

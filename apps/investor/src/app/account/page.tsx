@@ -1393,7 +1393,7 @@ export default function AccountPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              const portalUrl = process.env.NEXT_PUBLIC_INVESTOR_PORTAL_URL || "http://localhost:3001";
+                              const portalUrl = process.env.NEXT_PUBLIC_INVESTOR_PORTAL_URL || "http://localhost:3002";
                               const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
                               navigator.clipboard.writeText(inviteLink);
                               toast.success("Invitation link copied to clipboard");

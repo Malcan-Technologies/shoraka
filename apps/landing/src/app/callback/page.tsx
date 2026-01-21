@@ -15,9 +15,10 @@ function CallbackPageContent() {
   const processedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Get portal and onboarding params (set by backend redirect)
+  // Get portal, onboarding, and redirect params (set by backend redirect)
   const portalParam = searchParams.get("portal");
   const onboardingParam = searchParams.get("onboarding");
+  const redirectToParam = searchParams.get("redirect_to"); // Post-auth destination
 
   useEffect(() => {
     // Prevent multiple executions
@@ -102,16 +103,18 @@ function CallbackPageContent() {
         }
 
         if (targetPortal === "investor") {
-          // Redirect based on onboarding status
-          const investorDestination = onboarding ? "/onboarding-start" : "/";
+          // If a specific redirect destination is provided, use it (e.g., invitation link)
+          // Otherwise, redirect based on onboarding status
+          const investorDestination = redirectToParam || (onboarding ? "/onboarding-start" : "/");
           console.info("[Landing Callback] Redirecting to investor portal:", investorDestination);
           window.location.replace(`${INVESTOR_URL}${investorDestination}`);
           return;
         }
 
         if (targetPortal === "issuer") {
-          // Redirect based on onboarding status
-          const issuerDestination = onboarding ? "/onboarding-start" : "/";
+          // If a specific redirect destination is provided, use it (e.g., invitation link)
+          // Otherwise, redirect based on onboarding status
+          const issuerDestination = redirectToParam || (onboarding ? "/onboarding-start" : "/");
           console.info("[Landing Callback] Redirecting to issuer portal:", issuerDestination);
           window.location.replace(`${ISSUER_URL}${issuerDestination}`);
           return;
@@ -129,7 +132,7 @@ function CallbackPageContent() {
     };
 
     handleCallback();
-  }, [portalParam, onboardingParam, router]);
+  }, [portalParam, onboardingParam, redirectToParam, router]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">
