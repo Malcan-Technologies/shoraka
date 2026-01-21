@@ -123,9 +123,9 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link href="/profile">
+                <Link href="/account">
                   <BadgeCheck />
-                  Profile
+                  Account
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>

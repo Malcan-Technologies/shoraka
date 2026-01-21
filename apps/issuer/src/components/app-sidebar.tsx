@@ -180,13 +180,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="opacity-50 cursor-not-allowed"
                   >
                     <UserCircleIcon className="h-4 w-4" />
-                    <span>Account</span>
+                    <span>Profile</span>
                   </SidebarMenuButton>
                 ) : (
-                  <SidebarMenuButton asChild isActive={pathname === "/account"} tooltip="Account">
-                    <Link href="/account">
+                  <SidebarMenuButton asChild isActive={pathname === "/profile"} tooltip="Profile">
+                    <Link href="/profile">
                       <UserCircleIcon className="h-4 w-4" />
-                      <span>Account</span>
+                      <span>Profile</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

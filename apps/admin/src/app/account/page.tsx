@@ -84,17 +84,17 @@ interface MeResponse {
   }>;
 }
 
-function ProfileSkeleton() {
+function AccountPageSkeleton() {
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Profile</h1>
+        <h1 className="text-lg font-semibold">Account</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
-          {/* Personal Information Skeleton */}
+          {/* Account Information Skeleton */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -189,7 +189,7 @@ function ProfileSkeleton() {
   );
 }
 
-export default function ProfilePage() {
+export default function AccountPage() {
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -287,7 +287,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return <ProfileSkeleton />;
+    return <AccountPageSkeleton />;
   }
 
   return (
@@ -295,7 +295,7 @@ export default function ProfilePage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Profile</h1>
+        <h1 className="text-lg font-semibold">Account</h1>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
@@ -345,7 +345,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Profile Information Card */}
+          {/* Account Information Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
