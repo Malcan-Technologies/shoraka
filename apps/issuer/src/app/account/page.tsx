@@ -8,9 +8,17 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import { Badge } from "../../components/ui/badge";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import {
   useOrganization,
   useAuthToken,
@@ -26,10 +34,9 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsListCard } from "../../components/directors-list-card";
-import { ShareholdersListCard } from "../../components/shareholders-list-card";
-import { BusinessShareholdersListCard } from "../../components/business-shareholders-list-card";
+import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
+import { ConfirmDialog } from "../../components/confirm-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -58,6 +65,33 @@ import {
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+// Malaysian banks list (values match RegTank format)
+const MALAYSIAN_BANKS = [
+  { value: "Affin Bank Berhad", label: "Affin Bank" },
+  { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
+  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
+  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
+  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
+  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
+  { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
+  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
+  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
+  { value: "Bank of America", label: "Bank of America" },
+  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
+  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
+  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
+  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
+  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
+  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
+  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
+  { value: "Public Bank Berhad", label: "Public Bank" },
+  { value: "RHB Bank Berhad", label: "RHB Bank" },
+  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
+  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
+  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
+  { value: "UOB Bank Berhad", label: "UOB Bank" },
+];
 
 const roleConfig: Record<
   OrganizationMemberRole,
@@ -354,12 +388,48 @@ export default function ProfilePage() {
     useOrganizationMembers(activeOrganization?.id);
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
 
+
+  // Fetch current user ID
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{
+        userId: string;
+        user: {
+          first_name: string | null;
+          last_name: string | null;
+        };
+      }>("/v1/auth/me");
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
   // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
   const isCurrentUserAdmin = React.useMemo(() => {
-    if (!activeOrganization) return false;
+    if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
-    return false;
-  }, [activeOrganization]);
+    // Check if current user member has admin role
+    const currentUserMember = activeOrganization.members?.find(
+      (m) => m.id === currentUser.userId
+    );
+    return currentUserMember?.role === "ORGANIZATION_ADMIN";
+  }, [activeOrganization, currentUser]);
+
+  // Confirmation dialog states
+  const [confirmDialog, setConfirmDialog] = React.useState<{
+    open: boolean;
+    type: "remove" | "leave" | "promote" | "demote" | null;
+    memberId?: string;
+    memberName?: string;
+    memberRole?: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+  }>({
+    open: false,
+    type: null,
+  });
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
@@ -422,6 +492,11 @@ export default function ProfilePage() {
             businessAddress?: string;
             registeredAddress?: string;
           };
+        };
+        corporateEntities?: {
+          directors?: Array<Record<string, unknown>>;
+          shareholders?: Array<Record<string, unknown>>;
+          corporateShareholders?: Array<Record<string, unknown>>;
         };
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
@@ -654,7 +729,9 @@ export default function ProfilePage() {
     : activeOrganization.name || "Company Account";
   const accountIcon = isPersonal ? UserIcon : BuildingOffice2Icon;
   const AccountIcon = accountIcon;
-  const displayName = [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—";
+  const displayName = isPersonal
+    ? [orgData?.firstName, orgData?.lastName].filter(Boolean).join(" ") || "—"
+    : orgData?.corporateOnboardingData?.basicInfo?.businessName || accountName;
 
   return (
     <>
@@ -840,7 +917,9 @@ export default function ProfilePage() {
                         Email
                       </Label>
                       <Input
-                        value={activeOrganization.members?.[0]?.email || "—"}
+                        value={
+                          activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                        }
                         disabled
                         className="bg-muted h-11 rounded-xl"
                       />
@@ -898,13 +977,14 @@ export default function ProfilePage() {
                         <MapPinIcon className="h-4 w-4" />
                         Full Address
                       </Label>
-                      <Input
+                      <Textarea
                         placeholder="Enter your full address"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         disabled={!isEditingProfile}
+                        rows={3}
                         maxLength={500}
-                        className={`h-11 rounded-xl ${!isEditingProfile ? "bg-muted" : ""}`}
+                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
                       />
                       {isEditingProfile && (
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
@@ -1159,70 +1239,101 @@ export default function ProfilePage() {
                 </div>
                 {activeOrganization.members && activeOrganization.members.length > 0 ? (
                   <div className="grid gap-3">
-                    {activeOrganization.members.map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <MemberCard member={member} />
-                        </div>
-                        {!isPersonal && isCurrentUserAdmin && (
-                          <div className="flex items-center gap-2 ml-auto">
-                            {member.role === "ORGANIZATION_MEMBER" ? (
+                    {activeOrganization.members.map((member) => {
+                      const isCurrentUser = currentUser && member.id === currentUser.userId;
+                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
+                      const canLeave = !isPersonal && isCurrentUser;
+                      const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
+
+                      return (
+                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                          <div className="flex-1">
+                            <MemberCard member={member} />
+                          </div>
+                          {canManageMembers && (
+                            <div className="flex items-center gap-2 ml-auto">
+                              {member.role === "ORGANIZATION_MEMBER" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      open: true,
+                                      type: "promote",
+                                      memberId: member.id,
+                                      memberName,
+                                      memberRole: member.role,
+                                    })
+                                  }
+                                  disabled={isChangingRole}
+                                  className="gap-1"
+                                  title="Promote to Admin"
+                                >
+                                  <ArrowUpIcon className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                // Only show demote button if not demoting yourself
+                                !isCurrentUser && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setConfirmDialog({
+                                        open: true,
+                                        type: "demote",
+                                        memberId: member.id,
+                                        memberName,
+                                        memberRole: member.role,
+                                      })
+                                    }
+                                    disabled={isChangingRole}
+                                    className="gap-1"
+                                    title="Demote to Member"
+                                  >
+                                    <ArrowDownIcon className="h-4 w-4" />
+                                  </Button>
+                                )
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() =>
-                                  changeRole({ userId: member.id, role: "ORGANIZATION_ADMIN" })
+                                  setConfirmDialog({
+                                    open: true,
+                                    type: "remove",
+                                    memberId: member.id,
+                                    memberName,
+                                  })
                                 }
-                                disabled={isChangingRole}
-                                className="gap-1"
-                                title="Promote to Admin"
+                                disabled={isRemoving}
+                                className="gap-1 text-destructive hover:text-destructive"
+                                title="Remove Member"
                               >
-                                <ArrowUpIcon className="h-4 w-4" />
+                                <TrashIcon className="h-4 w-4" />
                               </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  changeRole({ userId: member.id, role: "ORGANIZATION_MEMBER" })
-                                }
-                                disabled={isChangingRole}
-                                className="gap-1"
-                                title="Demote to Member"
-                              >
-                                <ArrowDownIcon className="h-4 w-4" />
-                              </Button>
-                            )}
+                            </div>
+                          )}
+                          {canLeave && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeMember(member.id)}
-                              disabled={isRemoving}
-                              className="gap-1 text-destructive hover:text-destructive"
-                              title="Remove Member"
+                              onClick={() =>
+                                setConfirmDialog({
+                                  open: true,
+                                  type: "leave",
+                                })
+                              }
+                              disabled={isLeaving}
+                              className="gap-1 text-destructive hover:text-destructive ml-auto"
+                              title="Leave Organization"
                             >
-                              <TrashIcon className="h-4 w-4" />
+                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                              Leave
                             </Button>
-                          </div>
-                        )}
-                        {!isPersonal && !activeOrganization.isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => leave()}
-                            disabled={isLeaving}
-                            className="gap-1 text-destructive hover:text-destructive ml-auto"
-                            title="Leave Organization"
-                          >
-                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                            Leave
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
@@ -1261,54 +1372,48 @@ export default function ProfilePage() {
                               Expires {new Date(invitation.expiresAt).toLocaleDateString()}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const portalUrl =
-                                  process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL ||
-                                  "http://localhost:3002";
-                                const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(inviteLink);
-                                toast.success("Invitation link copied to clipboard");
-                              }}
-                              className="gap-1"
-                            >
-                              <ClipboardIcon className="h-4 w-4" />
-                              Copy Link
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => resend(invitation.id)}
-                              className="gap-1"
-                            >
-                              Resend
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => revoke(invitation.id)}
-                              className="gap-1 text-destructive"
-                            >
-                              Revoke
-                            </Button>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const portalUrl = process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL || "http://localhost:3001";
+                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+                              navigator.clipboard.writeText(inviteLink);
+                              toast.success("Invitation link copied to clipboard");
+                            }}
+                            className="gap-1"
+                          >
+                            <ClipboardIcon className="h-4 w-4" />
+                            Copy Link
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => resend(invitation.id)}
+                            className="gap-1"
+                          >
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => revoke(invitation.id)}
+                            className="gap-1 text-destructive"
+                          >
+                            Revoke
+                          </Button>
                         </div>
-                      );
+                      </div>
+                    );
                     })}
                   </div>
                 </div>
               )}
 
-              {/* Directors/Shareholders Cards - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <>
-                  <DirectorsListCard organizationId={activeOrganization.id} />
-                  <ShareholdersListCard organizationId={activeOrganization.id} />
-                  <BusinessShareholdersListCard organizationId={activeOrganization.id} />
-                </>
+              {/* Directors/Shareholders Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
+                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
               )}
 
               {/* Invite Member Dialog */}
@@ -1350,22 +1455,49 @@ export default function ProfilePage() {
                         <BanknotesIcon className="h-4 w-4" />
                         Bank name
                       </Label>
-                      <Input
-                        value={bankName || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+                      {isEditingBanking ? (
+                        <Select value={bankName} onValueChange={setBankName}>
+                          <SelectTrigger className="h-11 rounded-xl">
+                            <SelectValue placeholder="Select bank" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MALAYSIAN_BANKS.map((bank) => (
+                              <SelectItem key={bank.value} value={bank.value}>
+                                {bank.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={bankName || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <DocumentTextIcon className="h-4 w-4" />
                         Account type
                       </Label>
-                      <Input
-                        value={accountType || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
+                      {isEditingBanking ? (
+                        <Select value={accountType} onValueChange={setAccountType}>
+                          <SelectTrigger className="h-11 rounded-xl">
+                            <SelectValue placeholder="Select account type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Savings">Savings</SelectItem>
+                            <SelectItem value="Checking">Checking</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={accountType || "—"}
+                          disabled
+                          className="bg-muted h-11 rounded-xl"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label className="flex items-center gap-2">
@@ -1419,6 +1551,93 @@ export default function ProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Confirmation Dialogs */}
+      {confirmDialog.type === "remove" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Remove Member"
+          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organization? This action cannot be undone.`}
+          confirmText="Remove"
+          cancelText="Cancel"
+          variant="destructive"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              removeMember(confirmDialog.memberId);
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isRemoving}
+        />
+      )}
+
+      {confirmDialog.type === "leave" && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Leave Organization"
+          description="Are you sure you want to leave this organization? You will lose access to all organization data and will need to be re-invited to regain access."
+          confirmText="Leave"
+          cancelText="Cancel"
+          variant="destructive"
+          onConfirm={async () => {
+            try {
+              await leave();
+              setConfirmDialog({ open: false, type: null });
+            } catch (error) {
+              // Error is handled by the hook
+            }
+          }}
+          isLoading={isLeaving}
+        />
+      )}
+
+      {confirmDialog.type === "promote" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Promote to Admin"
+          description={`Are you sure you want to promote ${confirmDialog.memberName} to Organization Admin? They will be able to manage members and organization settings.`}
+          confirmText="Promote"
+          cancelText="Cancel"
+          variant="default"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_ADMIN" });
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isChangingRole}
+        />
+      )}
+
+      {confirmDialog.type === "demote" && confirmDialog.memberId && (
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) =>
+            setConfirmDialog({ ...confirmDialog, open })
+          }
+          title="Demote to Member"
+          description={`Are you sure you want to demote ${confirmDialog.memberName} to Organization Member? They will lose admin privileges.`}
+          confirmText="Demote"
+          cancelText="Cancel"
+          variant="default"
+          onConfirm={async () => {
+            if (confirmDialog.memberId) {
+              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_MEMBER" });
+              setConfirmDialog({ open: false, type: null });
+            }
+          }}
+          isLoading={isChangingRole}
+        />
+      )}
     </>
   );
 }

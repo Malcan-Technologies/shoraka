@@ -507,6 +507,7 @@ export class AuthService {
    * Get current user profile with session info
    */
   async getCurrentUser(userId: string): Promise<{
+    userId: string;
     user: User & { admin: { status: string; role_description: string | null } | null };
     activeRole: UserRole | null;
     sessions: {
@@ -539,6 +540,7 @@ export class AuthService {
     const recentLogins = await this.repository.findRecentLogins(user.user_id, 3);
 
     return {
+      userId: user.user_id,
       user,
       activeRole: activeSession?.active_role || null,
       sessions: {
