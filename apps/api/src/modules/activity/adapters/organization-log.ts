@@ -1,6 +1,6 @@
 import { prisma } from "../../../lib/prisma";
 import { OnboardingLog } from "@prisma/client";
-import { ACTIVITY_EVENT_CONFIG } from "@cashsouk/types";
+import activityEvents from "@cashsouk/types/src/activity-events.json";
 import {
   AuditLogAdapter,
   UnifiedActivity,
@@ -8,6 +8,8 @@ import {
   ActivityCategory,
   buildDateFilter,
 } from "./base";
+
+const ACTIVITY_EVENT_CONFIG = activityEvents as Record<string, { label: string; dotColor: string }>;
 
 export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   public readonly name = "OrganizationLogAdapter";
@@ -44,13 +46,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     // Pre-calculate which event types match the search string via their shared labels
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
-          const config = ACTIVITY_EVENT_CONFIG[et];
-          const label = config?.label.toLowerCase() || "";
-          const description = this.buildDescription(et, {}).toLowerCase();
-          const searchTerm = search.toLowerCase();
+        const config = ACTIVITY_EVENT_CONFIG[et];
+        const label = config?.label.toLowerCase() || "";
+        const description = this.buildDescription(et, {}).toLowerCase();
+        const searchTerm = search.toLowerCase();
 
-          return label.includes(searchTerm) || description.includes(searchTerm);
-        })
+        return label.includes(searchTerm) || description.includes(searchTerm);
+      })
       : [];
 
     if (search) {
@@ -122,13 +124,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
 
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
-          const config = ACTIVITY_EVENT_CONFIG[et];
-          const label = config?.label.toLowerCase() || "";
-          const description = this.buildDescription(et, {}).toLowerCase();
-          const searchTerm = search.toLowerCase();
+        const config = ACTIVITY_EVENT_CONFIG[et];
+        const label = config?.label.toLowerCase() || "";
+        const description = this.buildDescription(et, {}).toLowerCase();
+        const searchTerm = search.toLowerCase();
 
-          return label.includes(searchTerm) || description.includes(searchTerm);
-        })
+        return label.includes(searchTerm) || description.includes(searchTerm);
+      })
       : [];
 
     if (search) {

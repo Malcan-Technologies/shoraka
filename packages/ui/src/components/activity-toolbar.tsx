@@ -62,10 +62,7 @@ export function ActivityToolbar({
 
   const isAllEvents = eventTypeFilters.length === 0;
 
-  const hasFilters =
-    searchQuery !== "" ||
-    !isAllEvents ||
-    dateRangeFilter !== "all";
+  const hasFilters = searchQuery !== "" || !isAllEvents || dateRangeFilter !== "all";
 
   const activeEventFilterCount = eventTypeFilters.length;
 

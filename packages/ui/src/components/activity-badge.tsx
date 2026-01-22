@@ -51,7 +51,15 @@ const COLOR_MAP: Record<string, string> = {
   "bg-purple-500": "rgb(168 85 247)",
 };
 
-export function ActivityBadge({ category, eventType, label, dotColor, className, variant, ...props }: ActivityBadgeProps) {
+export function ActivityBadge({
+  category,
+  eventType,
+  label,
+  dotColor,
+  className,
+  variant,
+  ...props
+}: ActivityBadgeProps) {
   // If we have an event type, get its config
   const eventConfig = eventType ? getEventConfig(eventType) : null;
 
