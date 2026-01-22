@@ -39,6 +39,8 @@ model User {
   regtank_onboarding            RegTankOnboarding[]
   security_logs                 SecurityLog[]
   sessions                      UserSession[]
+  notifications                 Notification[]
+  notification_preferences      UserNotificationPreference[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -560,4 +562,75 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
+}
+
+enum NotificationCategory {
+  AUTHENTICATION
+  SYSTEM
+  MARKETING
+}
+
+enum NotificationPriority {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model NotificationType {
+  id                String                     @id
+  name              String
+  description       String?
+  category          NotificationCategory
+  default_priority  NotificationPriority       @default(INFO)
+  enabled_platform  Boolean                    @default(true)
+  enabled_email     Boolean                    @default(true)
+  user_configurable Boolean                    @default(true)
+  retention_days    Int?
+  created_at        DateTime                   @default(now())
+  updated_at        DateTime                   @updatedAt
+  notifications     Notification[]
+  user_preferences  UserNotificationPreference[]
+
+  @@map("notification_types")
+}
+
+model Notification {
+  id                   String               @id @default(cuid())
+  user_id              String
+  notification_type_id String
+  idempotency_key      String?              @unique
+  priority             NotificationPriority
+  title                String
+  message              String
+  read_at              DateTime?
+  email_sent_at        DateTime?
+  link_path            String?
+  metadata             Json?
+  created_at           DateTime             @default(now())
+  expires_at           DateTime?
+  user                 User                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  notification_type    NotificationType     @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@index([notification_type_id])
+  @@index([expires_at])
+  @@index([idempotency_key])
+  @@map("notifications")
+}
+
+model UserNotificationPreference {
+  id                   String           @id @default(cuid())
+  user_id              String
+  notification_type_id String
+  enabled_platform     Boolean
+  enabled_email        Boolean
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  user                 User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, notification_type_id])
+  @@index([user_id])
+  @@map("user_notification_preferences")
 }
