@@ -381,7 +381,7 @@ export default function SupportingDocumentsStep({
                 <ChevronDownIcon 
                   className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? '' : '-rotate-90'}`} 
                 />
-                <h3 className="font-semibold">{category.name}</h3>
+                <h3 className="font-semibold text-xl">{category.name}</h3>
               </button>
               <div className="flex items-center gap-1">
                 {isComplete && (

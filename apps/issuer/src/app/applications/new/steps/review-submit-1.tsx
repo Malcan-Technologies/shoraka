@@ -139,7 +139,7 @@ export default function ReviewSubmitStep({
         {/* Financing details skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Financing details</h3>
+            <h3 className="font-semibold text-xl">Financing details</h3>
           </div>
           <div className="mt-4">
             <div className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card">
@@ -172,7 +172,7 @@ export default function ReviewSubmitStep({
         {/* Company info skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Company info</h3>
+            <h3 className="font-semibold text-xl">Company info</h3>
           </div>
           <div className="grid grid-cols-2 gap-6 mt-6">
             <div className="text-[17px] leading-7 text-muted-foreground pl-6">Company name</div>
@@ -193,7 +193,7 @@ export default function ReviewSubmitStep({
         {/* Director & Shareholders skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Director & Shareholders</h3>
+            <h3 className="font-semibold text-xl">Director & Shareholders</h3>
           </div>
           <div className="grid grid-cols-2 gap-6 mt-6">
             <Skeleton className="h-5 w-24 pl-6" />
@@ -208,7 +208,7 @@ export default function ReviewSubmitStep({
         {/* Banking details skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Banking details</h3>
+            <h3 className="font-semibold text-xl">Banking details</h3>
           </div>
           <div className="grid grid-cols-2 gap-6 mt-6">
             <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank name</div>
@@ -221,7 +221,7 @@ export default function ReviewSubmitStep({
         {/* Address skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Address</h3>
+            <h3 className="font-semibold text-xl">Address</h3>
           </div>
           <div className="grid grid-cols-2 gap-6 mt-6">
             <div className="text-[17px] leading-7 text-muted-foreground pl-6">Business address</div>
@@ -234,7 +234,7 @@ export default function ReviewSubmitStep({
         {/* Contact Person skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Contact Person</h3>
+            <h3 className="font-semibold text-xl">Contact Person</h3>
           </div>
           <div className="grid grid-cols-2 gap-6 mt-6">
             <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant name</div>
@@ -251,7 +251,7 @@ export default function ReviewSubmitStep({
         {/* Legal docs skeleton */}
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Legal docs</h3>
+            <h3 className="font-semibold text-xl">Legal docs</h3>
           </div>
           <div className="mt-6">
             <ul className="space-y-4">
@@ -453,7 +453,7 @@ export default function ReviewSubmitStep({
       {supportingDocumentsData && supportingDocumentsData.length > 0 && (
         <section>
           <div className="flex justify-between items-center border-b border-border pb-2">
-            <h3 className="font-semibold">Legal docs</h3>
+            <h3 className="font-semibold text-xl">Legal docs</h3>
           </div>
           <div className={cn("mt-6 opacity-60")}>
             <ul className="space-y-4">

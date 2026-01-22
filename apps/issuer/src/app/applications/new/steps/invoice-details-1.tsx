@@ -105,7 +105,7 @@ export default function InvoiceDetailsStep({
     <div className="space-y-12">
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Invoices</h3>
+          <h3 className="font-semibold text-xl">Invoices</h3>
           <Button
             onClick={handleAddInvoice}
             className="bg-primary text-white text-[17px] leading-7 font-medium px-4 py-1.5 rounded-lg hover:opacity-90"

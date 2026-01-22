@@ -87,7 +87,7 @@ export default function VerifyCompanyInfoStep({
     <div className="space-y-12">
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Company info</h3>
+          <h3 className="font-semibold text-xl">Company info</h3>
           {!isLoadingCompanyInfo && (
             <Button
               variant="ghost"
@@ -137,7 +137,7 @@ export default function VerifyCompanyInfoStep({
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Address</h3>
+          <h3 className="font-semibold text-xl">Address</h3>
           {!isLoadingCompanyInfo && (
             <Button
               variant="ghost"
@@ -171,7 +171,7 @@ export default function VerifyCompanyInfoStep({
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Director & Shareholders</h3>
+          <h3 className="font-semibold text-xl">Director & Shareholders</h3>
         </div>
         <div className="grid grid-cols-2 gap-6 mt-6">
           {isLoadingCompanyInfo ? (
@@ -213,7 +213,7 @@ export default function VerifyCompanyInfoStep({
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Banking details</h3>
+          <h3 className="font-semibold text-xl">Banking details</h3>
           {!isLoadingCompanyInfo && (
             <Button
               variant="ghost"
@@ -247,7 +247,7 @@ export default function VerifyCompanyInfoStep({
 
       <div>
         <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold">Contact Person</h3>
+          <h3 className="font-semibold text-xl">Contact Person</h3>
           {!isLoadingCompanyInfo && (
             <Button
               variant="ghost"
