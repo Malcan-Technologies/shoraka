@@ -576,10 +576,10 @@ export default function AccountPage() {
                         key={i}
                         className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 text-sm"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-4">
                           <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-medium truncate" title={login.device || "Unknown Device"}>
+                            <p className="text-sm truncate" title={login.device || "Unknown Device"}>
                               {login.device || "Unknown Device"}
                             </p>
                             <p className="text-xs text-muted-foreground">IP: {login.ip || "Unknown"}</p>
