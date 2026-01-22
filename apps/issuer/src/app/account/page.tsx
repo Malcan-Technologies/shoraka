@@ -405,7 +405,7 @@ export default function AccountPage() {
                           <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">
                             <p
-                              className="font-medium truncate"
+                              className="text-sm truncate font-medium"
                               title={login.device || "Unknown Device"}
                             >
                               {login.device || "Unknown Device"}
