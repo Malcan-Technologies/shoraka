@@ -71,7 +71,7 @@ export default function NewApplicationPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                 Select financing type
               </h1>
-              <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+              <p className="text-lg leading-7 text-muted-foreground mt-1">
                 Browse and invest in verified loan opportunities from your dashboard
               </p>
             </div>

@@ -85,13 +85,13 @@ export function FinancingTypeCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base mb-1">{name}</h3>
+            <h3 className="font-medium text-2xl mb-1">{name}</h3>
             {description ? (
-              <p className="text-sm text-muted-foreground line-clamp-2 truncate">
+              <p className="text-lg text-muted-foreground line-clamp-2 truncate">
                 {description}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground line-clamp-2 opacity-0">
+              <p className="text-lg text-muted-foreground line-clamp-2 opacity-0">
                 &nbsp;
               </p>
             )}

@@ -199,7 +199,7 @@ export default function ApplicationWizardPage() {
                   ? "Review and submit"
                   : currentStepName}
               </h1>
-              <p className="text-[17px] leading-7 text-muted-foreground mt-1">
+              <p className="text-lg leading-7 text-muted-foreground mt-1">
                 {currentStep === 1
                   ? "Browse and invest in verified loan opportunities from your dashboard"
                   : currentStepId === "verify_company_info_1" || currentStepId === "company_info_1"
