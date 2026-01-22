@@ -64,7 +64,7 @@ export default function FinancingTypeStep({
             <div className="flex justify-between items-center border-b border-border pb-2">
               <Skeleton className="h-6 w-40" />
             </div>
-            <div className="grid grid-cols-1 gap-4 mt-6">
+            <div className="grid grid-cols-1 gap-4 mt-6 pl-6">
               {[1, 2].map((cardIndex) => (
                 <div
                   key={cardIndex}
@@ -104,7 +104,7 @@ export default function FinancingTypeStep({
           <div className="flex justify-between items-center border-b border-border pb-2">
             <h3 className="font-semibold text-xl">{category}</h3>
           </div>
-          <div className="grid grid-cols-1 gap-4 mt-6">
+          <div className="grid grid-cols-1 gap-4 mt-6 pl-6">
             {types.map((type) => (
               <FinancingTypeCard
                 key={type.id}

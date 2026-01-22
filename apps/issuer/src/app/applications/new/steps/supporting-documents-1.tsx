@@ -338,10 +338,10 @@ export default function SupportingDocumentsStep({
                 <Skeleton className="h-4 w-20" />
               </div>
             </div>
-            <ul className="space-y-4 mt-6">
+            <ul className="space-y-4 mt-6 pl-6">
               {[1, 2, 3].map((docIndex) => (
                 <li key={docIndex} className="flex items-center justify-between text-[17px] leading-7 min-h-[2rem]">
-                  <Skeleton className="h-3.5 w-48 pl-6" />
+                  <Skeleton className="h-3.5 w-48" />
                   <Skeleton className="h-8 w-28" />
                 </li>
               ))}
@@ -395,7 +395,7 @@ export default function SupportingDocumentsStep({
               </div>
             </div>
             {isExpanded && (
-              <ul className="space-y-4 mt-6">
+              <ul className="space-y-4 mt-6 pl-6">
                 {category.documents.map((document, documentIndex) => {
                   const key = getDocumentKey(categoryIndex, documentIndex);
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);

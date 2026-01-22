@@ -100,35 +100,35 @@ export default function VerifyCompanyInfoStep({
             </Button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           {isLoadingCompanyInfo ? (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Company name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Company name</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Type of entity</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Type of entity</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">SSM no</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">SSM no</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Industry</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Industry</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Nature of business</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Nature of business</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Number of employees</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Number of employees</div>
               <Skeleton className="h-10 rounded-xl" />
             </>
           ) : (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Company name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Company name</div>
               <Input value={companyData.companyName} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Type of entity</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Type of entity</div>
               <Input value={companyData.entityType} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">SSM no</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">SSM no</div>
               <Input value={companyData.registrationNumber} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Industry</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Industry</div>
               <Input value={companyData.industry} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Nature of business</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Nature of business</div>
               <Input value={companyData.natureOfBusiness} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Number of employees</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Number of employees</div>
               <Input value={companyData.numberOfEmployees} disabled className={inputClassName} />
             </>
           )}
@@ -150,19 +150,19 @@ export default function VerifyCompanyInfoStep({
             </Button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           {isLoadingCompanyInfo ? (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Business address</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Business address</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Registered address</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Registered address</div>
               <Skeleton className="h-10 rounded-xl" />
             </>
           ) : (
             <>
               <div className="text-[17px] leading-7 text-muted-foreground pl-6">Business address</div>
               <Input value={formatAddress(companyData.businessAddress)} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Registered address</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Registered address</div>
               <Input value={formatAddress(companyData.registeredAddress)} disabled className={inputClassName} />
             </>
           )}
@@ -173,10 +173,10 @@ export default function VerifyCompanyInfoStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold text-xl">Director & Shareholders</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           {isLoadingCompanyInfo ? (
             <>
-              <Skeleton className="h-5 w-24 pl-6" />
+              <Skeleton className="h-5 w-24" />
               <Skeleton className="h-5 rounded" />
               <Skeleton className="h-5 w-24 pl-6" />
               <Skeleton className="h-5 rounded" />
@@ -226,19 +226,19 @@ export default function VerifyCompanyInfoStep({
             </Button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           {isLoadingCompanyInfo ? (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Bank name</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank account number</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Bank account number</div>
               <Skeleton className="h-10 rounded-xl" />
             </>
           ) : (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Bank name</div>
               <Input value={companyData.bankName} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Bank account number</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Bank account number</div>
               <Input value={companyData.bankAccountNumber} disabled className={inputClassName} />
             </>
           )}
@@ -260,27 +260,27 @@ export default function VerifyCompanyInfoStep({
             </Button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           {isLoadingCompanyInfo ? (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant name</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant position</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant position</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant IC no</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant IC no</div>
               <Skeleton className="h-10 rounded-xl" />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant contact</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant contact</div>
               <Skeleton className="h-10 rounded-xl" />
             </>
           ) : (
             <>
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant name</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant name</div>
               <Input value={companyData.contactPerson.name} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant position</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant position</div>
               <Input value={companyData.contactPerson.position} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant IC no</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant IC no</div>
               <Input value={companyData.contactPerson.icNo} disabled className={inputClassName} />
-              <div className="text-[17px] leading-7 text-muted-foreground pl-6">Applicant contact</div>
+              <div className="text-[17px] leading-7 text-muted-foreground">Applicant contact</div>
               <Input value={companyData.contactPerson.contact} disabled className={inputClassName} />
             </>
           )}

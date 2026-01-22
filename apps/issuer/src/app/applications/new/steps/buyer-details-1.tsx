@@ -53,7 +53,7 @@ export default function BuyerDetailsStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold text-xl">Buyer details</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           <div>
             <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Buyer name</Label>
             <Input
@@ -130,7 +130,7 @@ export default function BuyerDetailsStep({
         <div className="flex justify-between items-center border-b border-border pb-2">
           <h3 className="font-semibold text-xl">Contract details</h3>
         </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-2 gap-6 mt-6 pl-6">
           <div>
             <Label className="block text-[17px] leading-7 text-muted-foreground mb-1">Contract title</Label>
             <Input

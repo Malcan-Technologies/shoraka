@@ -114,7 +114,7 @@ export default function InvoiceDetailsStep({
             Add invoice
           </Button>
         </div>
-        <div className="bg-white border border-border rounded-xl overflow-hidden mt-6">
+        <div className="bg-white border border-border rounded-xl overflow-hidden mt-6 pl-6">
           <div className="overflow-x-auto">
           <table className="min-w-full text-[17px] leading-7 text-left border-t border-border">
             <thead className="bg-muted text-muted-foreground font-medium">
