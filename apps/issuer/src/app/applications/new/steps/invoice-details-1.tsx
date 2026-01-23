@@ -3,9 +3,15 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilIcon, CheckIcon, TrashIcon, XMarkIcon, CloudArrowUpIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
+import { useS3Upload } from "@/hooks/use-s3-upload";
+import { toast } from "sonner";
+import { format, parse, isValid } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface InvoiceRow {
   id: string;
@@ -15,14 +21,69 @@ interface InvoiceRow {
   duration: string;
   maxFinancingAmount: string;
   estimatedFees: string;
-  documents: string | null;
+  documents: { fileName: string; s3Key: string } | null;
 }
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_FILE_TYPE = "application/pdf";
+
+function formatDate(dateString: string): string {
+  if (!dateString) return "";
+  try {
+    const date = parse(dateString, "yyyy-MM-dd", new Date());
+    if (isValid(date)) {
+      return format(date, "d MMM, yyyy");
+    }
+    const date2 = new Date(dateString);
+    if (isValid(date2)) {
+      return format(date2, "d MMM, yyyy");
+    }
+    return dateString;
+  } catch {
+    try {
+      const date = new Date(dateString);
+      if (isValid(date)) {
+        return format(date, "d MMM, yyyy");
+      }
+    } catch {
+      return dateString;
+    }
+    return dateString;
+  }
+}
+
+function formatDateForInput(dateString: string): string {
+  if (!dateString) return "";
+  try {
+    const date = parse(dateString, "yyyy-MM-dd", new Date());
+    if (isValid(date)) {
+      return format(date, "d MMM, yyyy");
+    }
+    const date2 = new Date(dateString);
+    if (isValid(date2)) {
+      return format(date2, "d MMM, yyyy");
+    }
+    return dateString;
+  } catch {
+    try {
+      const date = new Date(dateString);
+      if (isValid(date)) {
+        return format(date, "d MMM, yyyy");
+      }
+    } catch {
+      return dateString;
+    }
+    return dateString;
+  }
+}
+
 
 export default function InvoiceDetailsStep({
   applicationId,
   onDataChange,
 }: StepComponentProps) {
   const { data: application } = useApplication(applicationId);
+  const { uploadFile, isUploading } = useS3Upload(applicationId);
 
   const [invoices, setInvoices] = React.useState<InvoiceRow[]>([
     {
@@ -33,7 +94,7 @@ export default function InvoiceDetailsStep({
       duration: "60 days",
       maxFinancingAmount: "8,000",
       estimatedFees: "XXX",
-      documents: "Invoice.pdf",
+      documents: { fileName: "Invoice.pdf", s3Key: "invoice-1" },
     },
     {
       id: "2",
@@ -43,19 +104,24 @@ export default function InvoiceDetailsStep({
       duration: "90 days",
       maxFinancingAmount: "16,000",
       estimatedFees: "XXX",
-      documents: "Invoice.pdf",
+      documents: { fileName: "Invoice.pdf", s3Key: "invoice-2" },
     },
     {
       id: "3",
       invoice: "#3064",
-      invoiceValue: "42000",
-      maturityDate: "",
-      duration: "",
-      maxFinancingAmount: "",
-      estimatedFees: "",
+      invoiceValue: "30,000",
+      maturityDate: "2025-07-29",
+      duration: "120 days",
+      maxFinancingAmount: "24,000",
+      estimatedFees: "XXX",
       documents: null,
     },
   ]);
+
+  const [editingIds, setEditingIds] = React.useState<Set<string>>(new Set());
+  const [tempValues, setTempValues] = React.useState<Record<string, Partial<InvoiceRow>>>({});
+  const [datePickerOpen, setDatePickerOpen] = React.useState<Record<string, boolean>>({});
+  const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
 
   React.useEffect(() => {
     if (application?.invoiceDetails) {
@@ -66,10 +132,113 @@ export default function InvoiceDetailsStep({
     }
   }, [application]);
 
-  const handleInvoiceChange = (id: string, field: keyof InvoiceRow, value: string) => {
+  const handleStartEdit = (id: string) => {
+    const invoice = invoices.find((inv) => inv.id === id);
+    if (invoice) {
+      setEditingIds((prev) => new Set(prev).add(id));
+      setTempValues((prev) => ({
+        ...prev,
+        [id]: {
+          invoiceValue: invoice.invoiceValue,
+          maturityDate: invoice.maturityDate,
+          duration: invoice.duration,
+          maxFinancingAmount: invoice.maxFinancingAmount,
+          estimatedFees: invoice.estimatedFees,
+        },
+      }));
+    }
+  };
+
+  const handleCancelEdit = (id: string) => {
+    setEditingIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(id);
+      return newSet;
+    });
+    setTempValues((prev) => {
+      const newValues = { ...prev };
+      delete newValues[id];
+      return newValues;
+    });
+  };
+
+  const handleSaveEdit = (id: string) => {
+    const tempValue = tempValues[id];
+    if (tempValue) {
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === id
+            ? {
+                ...inv,
+                ...tempValue,
+              }
+            : inv
+        )
+      );
+    }
+    handleCancelEdit(id);
+  };
+
+  const handleTempChange = (id: string, field: keyof InvoiceRow, value: string) => {
+    setTempValues((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleFileUpload = async (id: string, file: File) => {
+    if (file.type !== ALLOWED_FILE_TYPE) {
+      toast.error("Only PDF files are allowed");
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File size must be under 5MB");
+      return;
+    }
+
+    const fileKey = `invoice-${id}-${Date.now()}`;
+    const result = await uploadFile(file, fileKey);
+
+    if (result) {
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === id
+            ? {
+                ...inv,
+                documents: {
+                  fileName: result.file_name,
+                  s3Key: result.s3_key,
+                },
+              }
+            : inv
+        )
+      );
+      toast.success("File uploaded successfully");
+    }
+  };
+
+  const handleFileInputChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(id, file);
+    }
+    if (fileInputRefs.current[id]) {
+      fileInputRefs.current[id]!.value = "";
+    }
+  };
+
+  const handleRemoveFile = (id: string) => {
     setInvoices((prev) =>
-      prev.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv))
+      prev.map((inv) => (inv.id === id ? { ...inv, documents: null } : inv))
     );
+  };
+
+  const handleDeleteInvoice = (id: string) => {
+    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
   };
 
   const handleAddInvoice = () => {
@@ -104,8 +273,13 @@ export default function InvoiceDetailsStep({
   return (
     <div className="space-y-12">
       <div>
-        <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold text-xl">Invoices</h3>
+        <div className="flex justify-between items-start border-b border-border pb-2 mb-4">
+          <div>
+            <h3 className="font-semibold text-xl">Invoices</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+              You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+            </p>
+          </div>
           <Button
             onClick={handleAddInvoice}
             className="bg-primary text-white text-[17px] leading-7 font-medium px-4 py-1.5 rounded-lg hover:opacity-90"
@@ -114,126 +288,268 @@ export default function InvoiceDetailsStep({
             Add invoice
           </Button>
         </div>
-        <div className="bg-white border border-border rounded-xl overflow-hidden mt-6 pl-6">
+        <div className="rounded-2xl border bg-card shadow-sm overflow-hidden mt-6">
           <div className="overflow-x-auto">
-          <table className="min-w-full text-[17px] leading-7 text-left border-t border-border">
-            <thead className="bg-muted text-muted-foreground font-medium">
-              <tr>
-                <th className="py-3 px-4">Invoice</th>
-                <th className="py-3 px-4">Invoice value</th>
-                <th className="py-3 px-4">Maturity date</th>
-                <th className="py-3 px-4">Duration</th>
-                <th className="py-3 px-4">Max financing amount (80%)</th>
-                <th className="py-3 px-4">Estimated Fees</th>
-                <th className="py-3 px-4">Documents</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-t border-border">
-                  <td className="py-3 px-4 font-medium text-foreground">{invoice.invoice}</td>
-                  <td className="py-3 px-4">
-                    {invoice.invoiceValue && invoice.documents ? (
-                      invoice.invoiceValue
-                    ) : (
-                      <Input
-                        type="number"
-                        value={invoice.invoiceValue}
-                        onChange={(e) =>
-                          handleInvoiceChange(invoice.id, "invoiceValue", e.target.value)
-                        }
-                        className="w-full h-10 px-3 border border-border rounded-lg"
-                      />
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    {invoice.maturityDate && invoice.documents ? (
-                      invoice.maturityDate
-                    ) : (
-                      <Input
-                        type="date"
-                        value={invoice.maturityDate}
-                        onChange={(e) =>
-                          handleInvoiceChange(invoice.id, "maturityDate", e.target.value)
-                        }
-                        className="w-full h-10 px-3 border border-border rounded-lg"
-                      />
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    {invoice.duration && invoice.documents ? (
-                      invoice.duration
-                    ) : (
-                      <Input
-                        type="text"
-                        placeholder="e.g. 120"
-                        value={invoice.duration}
-                        onChange={(e) =>
-                          handleInvoiceChange(invoice.id, "duration", e.target.value)
-                        }
-                        className="w-full h-10 px-3 border border-border rounded-lg"
-                      />
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    {invoice.maxFinancingAmount && invoice.documents ? (
-                      invoice.maxFinancingAmount
-                    ) : (
-                      <Input
-                        type="text"
-                        placeholder="e.g. 33,600"
-                        value={invoice.maxFinancingAmount}
-                        onChange={(e) =>
-                          handleInvoiceChange(invoice.id, "maxFinancingAmount", e.target.value)
-                        }
-                        className="w-full h-10 px-3 border border-border rounded-lg"
-                      />
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    {invoice.estimatedFees && invoice.documents ? (
-                      invoice.estimatedFees
-                    ) : (
-                      <Input
-                        type="text"
-                        placeholder="e.g. 150"
-                        value={invoice.estimatedFees}
-                        onChange={(e) =>
-                          handleInvoiceChange(invoice.id, "estimatedFees", e.target.value)
-                        }
-                        className="w-full h-10 px-3 border border-border rounded-lg"
-                      />
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {invoice.documents ? (
-                      <span className="text-green-600">✔ {invoice.documents}</span>
-                    ) : (
-                      <button className="text-accent text-[17px] leading-7 font-medium hover:underline">
-                        📤 Upload file
-                      </button>
-                    )}
-                  </td>
+            <table className="w-full caption-bottom text-[17px] leading-7">
+              <thead className="[&_tr]:border-b">
+                <tr className="border-b bg-muted/50">
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Invoice</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Invoice value</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Maturity date</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Duration</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Max financing amount (80%)</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Estimated Fees</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Documents</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="[&_tr:last-child]:border-0">
+                {invoices.map((invoice) => {
+                  const isEditing = editingIds.has(invoice.id);
+                  const tempValue = tempValues[invoice.id] || {};
+                  const isUploadingFile = isUploading(`invoice-${invoice.id}`);
 
-        <div className="p-4 border-t border-border text-[17px] leading-7 flex justify-between">
-          <div className="text-muted-foreground italic">
-            Estimated fees based on 15% p.a., but exact amount will only be decided in offer letter
-          </div>
-          <div className="text-right">
-            <div>
-              Total financing amount: <strong>{totalFinancing.toLocaleString()}</strong>
-            </div>
-            <div>
-              Total fees: <strong>XXX</strong>
-            </div>
+                  return (
+                    <tr key={invoice.id} className={`border-b transition-colors ${isEditing ? "bg-muted/30" : "hover:bg-muted/50"}`}>
+                      <td className="px-6 py-4 align-middle font-semibold text-foreground">{invoice.invoice}</td>
+                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={tempValue.invoiceValue || ""}
+                            onChange={(e) => handleTempChange(invoice.id, "invoiceValue", e.target.value)}
+                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (document.activeElement !== e.currentTarget) {
+                                e.currentTarget.style.border = "0";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-foreground">{invoice.invoiceValue || "-"}</span>
+                        )}
+                      </td>
+                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
+                        {isEditing ? (
+                          <div className="absolute inset-0 w-full h-full flex items-center">
+                            <Popover open={datePickerOpen[invoice.id]} onOpenChange={(open) => setDatePickerOpen((prev) => ({ ...prev, [invoice.id]: open }))}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="absolute inset-0 w-full h-full px-6 py-4 justify-start text-left font-normal !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.border = "1px solid hsl(var(--primary))";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (document.activeElement !== e.currentTarget) {
+                                      e.currentTarget.style.border = "0";
+                                    }
+                                  }}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {tempValue.maturityDate ? (
+                                    formatDateForInput(tempValue.maturityDate)
+                                  ) : (
+                                    <span className="text-muted-foreground">Enter date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={tempValue.maturityDate ? parse(tempValue.maturityDate, "yyyy-MM-dd", new Date()) : undefined}
+                                  onSelect={(date) => {
+                                    if (date && isValid(date)) {
+                                      handleTempChange(invoice.id, "maturityDate", format(date, "yyyy-MM-dd"));
+                                      setDatePickerOpen((prev) => ({ ...prev, [invoice.id]: false }));
+                                    }
+                                  }}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : (
+                          <span className="text-foreground">{invoice.maturityDate ? formatDate(invoice.maturityDate) : "-"}</span>
+                        )}
+                      </td>
+                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={tempValue.duration || ""}
+                            onChange={(e) => handleTempChange(invoice.id, "duration", e.target.value)}
+                            placeholder="Enter duration"
+                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (document.activeElement !== e.currentTarget) {
+                                e.currentTarget.style.border = "0";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-foreground">{invoice.duration || "-"}</span>
+                        )}
+                      </td>
+                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={tempValue.maxFinancingAmount || ""}
+                            onChange={(e) => handleTempChange(invoice.id, "maxFinancingAmount", e.target.value)}
+                            placeholder="Enter Financing amount"
+                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (document.activeElement !== e.currentTarget) {
+                                e.currentTarget.style.border = "0";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-foreground">{invoice.maxFinancingAmount || "-"}</span>
+                        )}
+                      </td>
+                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={tempValue.estimatedFees || ""}
+                            onChange={(e) => handleTempChange(invoice.id, "estimatedFees", e.target.value)}
+                            placeholder="Enter fees"
+                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (document.activeElement !== e.currentTarget) {
+                                e.currentTarget.style.border = "0";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-foreground">{invoice.estimatedFees || "-"}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 align-middle">
+                        {isEditing ? (
+                          <div className="flex items-center gap-3">
+                            {invoice.documents && !isUploadingFile ? (
+                              <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
+                                <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
+                                  <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                </div>
+                                <span className="text-foreground">{invoice.documents.fileName}</span>
+                                <button
+                                  onClick={() => handleRemoveFile(invoice.id)}
+                                  className="hover:text-destructive transition-colors cursor-pointer"
+                                  type="button"
+                                  aria-label="Remove file"
+                                >
+                                  <XMarkIcon className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`file-input-${invoice.id}`}
+                                className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline min-h-[2rem] text-[17px] leading-7"
+                              >
+                                <CloudArrowUpIcon className="h-4 w-4" />
+                                {isUploadingFile ? "Uploading..." : "Upload file"}
+                                <input
+                                  ref={(el) => {
+                                    fileInputRefs.current[invoice.id] = el;
+                                  }}
+                                  type="file"
+                                  accept=".pdf,application/pdf"
+                                  onChange={(e) => handleFileInputChange(invoice.id, e)}
+                                  className="hidden"
+                                  id={`file-input-${invoice.id}`}
+                                  disabled={isUploadingFile}
+                                />
+                              </label>
+                            )}
+                            <button
+                              onClick={() => handleSaveEdit(invoice.id)}
+                              className="text-green-600 hover:text-green-700"
+                              title="Save"
+                            >
+                              <CheckIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleCancelEdit(invoice.id)}
+                              className="text-muted-foreground hover:text-foreground"
+                              title="Cancel"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : invoice.documents ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
+                              <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
+                                <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                              </div>
+                              <span className="text-foreground">{invoice.documents.fileName}</span>
+                              <button
+                                onClick={() => handleRemoveFile(invoice.id)}
+                                className="hover:text-destructive transition-colors cursor-pointer"
+                                type="button"
+                                aria-label="Remove file"
+                              >
+                                <XMarkIcon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteInvoice(invoice.id)}
+                              className="text-muted-foreground hover:text-destructive"
+                              title="Delete invoice"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleStartEdit(invoice.id)}
+                              className="text-muted-foreground hover:text-foreground"
+                              title="Edit"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleStartEdit(invoice.id)}
+                              className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline min-h-[2rem] text-[17px] leading-7"
+                            >
+                              <CloudArrowUpIcon className="h-4 w-4" />
+                              Upload file
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-t bg-muted/50 font-medium">
+                  <td colSpan={4} className="px-6 py-4 align-middle"></td>
+                  <td className="px-6 py-4 align-middle font-semibold">{totalFinancing.toLocaleString()}</td>
+                  <td className="px-6 py-4 align-middle font-semibold">XXX</td>
+                  <td className="px-6 py-4 align-middle font-semibold">Total fess</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        </div>
+        <p className="text-muted-foreground text-sm italic mt-4 text-center border-b border-dotted border-border pb-2">
+          Estimated fees based on 15% p.a. but exact amount will only be decided in offer letter
+        </p>
       </div>
     </div>
   );
