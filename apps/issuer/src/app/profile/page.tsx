@@ -59,7 +59,6 @@ import {
   ArrowDownTrayIcon,
   UserPlusIcon,
   TrashIcon,
-  ArrowRightOnRectangleIcon,
   ArrowUpIcon,
   ArrowDownIcon,
   ClipboardIcon,
@@ -1244,15 +1243,29 @@ export default function ProfilePage() {
                     {activeOrganization.members?.length || 0})
                   </h2>
                   {!isPersonal && isCurrentUserAdmin && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setInviteDialogOpen(true)}
-                      className="gap-2 rounded-xl"
-                    >
-                      <UserPlusIcon className="h-4 w-4" />
-                      Invite Member
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInviteDialogOpen(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <UserPlusIcon className="h-4 w-4" />
+                        Invite Member
+                      </Button>
+                      {activeOrganization.isOwner && activeOrganization.members && activeOrganization.members.length > 1 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTransferOwnershipOpen(true)}
+                          disabled={isTransferringOwnership}
+                          className="gap-2 rounded-xl text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                        >
+                          <ArrowPathIcon className="h-4 w-4" />
+                          Transfer Ownership
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
                 {activeOrganization.members && activeOrganization.members.length > 0 ? (
@@ -1262,7 +1275,6 @@ export default function ProfilePage() {
                       const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
                       const isOwner = activeOrganization.isOwner && isCurrentUser;
                       const canLeave = !isPersonal && isCurrentUser && !isOwner;
-                      const canTransferOwnership = !isPersonal && isOwner && activeOrganization.members.length > 1;
                       const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
 
                       return (
@@ -1347,21 +1359,7 @@ export default function ProfilePage() {
                               className="gap-1 text-destructive hover:text-destructive ml-auto"
                               title="Leave Organization"
                             >
-                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
                               Leave
-                            </Button>
-                          )}
-                          {canTransferOwnership && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setTransferOwnershipOpen(true)}
-                              disabled={isTransferringOwnership}
-                              className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50 ml-auto"
-                              title="Transfer Ownership"
-                            >
-                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                              Transfer
                             </Button>
                           )}
                         </div>

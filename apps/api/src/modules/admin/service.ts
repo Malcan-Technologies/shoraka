@@ -2555,9 +2555,9 @@ export class AdminService {
 
     // Create onboarding log entries
     // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
-    // For corporate onboarding, use CORPORATE_ONBOARDING_COMPLETED
+    // Use FINAL_APPROVAL_COMPLETED for both corporate and personal onboarding
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-    const eventType = isCorporateOnboarding ? "CORPORATE_ONBOARDING_COMPLETED" : "FINAL_APPROVAL_COMPLETED";
+    const eventType = "FINAL_APPROVAL_COMPLETED";
     await prisma.onboardingLog.create({
       data: {
         user_id: onboarding.user_id,

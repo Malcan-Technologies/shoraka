@@ -690,7 +690,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "CORPORATE_ONBOARDING_APPROVED",
+                eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: organizationId,
@@ -743,7 +743,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "CORPORATE_ONBOARDING_APPROVED",
+                eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: undefined,
@@ -1419,7 +1419,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: "COD_APPROVED",
+                eventType: statusChangedToPendingAml ? "ONBOARDING_APPROVED" : "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: organizationId,
@@ -1469,7 +1469,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: "COD_APPROVED",
+                eventType: statusChangedToPendingAml ? "ONBOARDING_APPROVED" : "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: undefined,
