@@ -344,18 +344,19 @@ export default function InvoiceDetailsStep({
   return (
     <div className="space-y-12">
       <div>
-        <div className="flex justify-between items-start border-b border-border pb-2 mb-4">
-          <div>
+        <div className="flex justify-between items-center border-b border-border pb-2 mb-4">
+          <div className="flex-1 min-w-0 pr-4">
             <h3 className="font-semibold text-xl">Invoices</h3>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+            <p className="text-sm text-muted-foreground mt-1 break-words">
               You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
             </p>
           </div>
           <Button
+            variant="default"
             onClick={handleAddInvoice}
-            className="bg-primary text-white text-[17px] leading-7 font-medium px-4 py-1.5 rounded-lg hover:opacity-90"
+            className="text-[17px] leading-7"
           >
-            <PlusIcon className="h-4 w-4 mr-1" />
+            <PlusIcon className="h-4 w-4" />
             Add invoice
           </Button>
         </div>
