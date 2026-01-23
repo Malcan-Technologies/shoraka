@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusIcon, PencilIcon, CheckIcon, TrashIcon, XMarkIcon, CloudArrowUpIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilIcon, CheckIcon, TrashIcon, XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
@@ -52,31 +52,101 @@ function formatDate(dateString: string): string {
   }
 }
 
-function formatDateForInput(dateString: string): string {
-  if (!dateString) return "";
-  try {
-    const date = parse(dateString, "yyyy-MM-dd", new Date());
-    if (isValid(date)) {
-      return format(date, "d MMM, yyyy");
-    }
-    const date2 = new Date(dateString);
-    if (isValid(date2)) {
-      return format(date2, "d MMM, yyyy");
-    }
-    return dateString;
-  } catch {
-    try {
-      const date = new Date(dateString);
-      if (isValid(date)) {
-        return format(date, "d MMM, yyyy");
-      }
-    } catch {
-      return dateString;
-    }
-    return dateString;
+
+function EditableCell({
+  isEditing,
+  value,
+  placeholder,
+  onChange,
+  displayValue,
+}: {
+  isEditing: boolean;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  displayValue: string;
+}) {
+  const [isFocused, setIsFocused] = React.useState(false);
+  const showPlaceholder = !value && !isFocused;
+
+  if (!isEditing) {
+    return <span className="text-[17px] leading-7 text-foreground text-left block">{displayValue || "-"}</span>;
   }
+
+  return (
+    <div className="absolute inset-0 w-full h-full flex items-center">
+      {showPlaceholder && (
+        <span className="absolute inset-0 flex items-center justify-start text-muted-foreground pointer-events-none text-sm text-left px-6">
+          {placeholder}
+        </span>
+      )}
+      <Input
+        type="text"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        className="absolute inset-0 w-full h-full px-6 py-4 !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none text-[17px] leading-7 text-left"
+      />
+    </div>
+  );
 }
 
+function DateCell({
+  isEditing,
+  value,
+  placeholder,
+  onChange,
+  displayValue,
+}: {
+  isEditing: boolean;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  displayValue: string;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [isFocused, setIsFocused] = React.useState(false);
+  const showPlaceholder = !value && !isFocused;
+
+  if (!isEditing) {
+    return <span className="text-[17px] leading-7 text-foreground text-left block">{displayValue || "-"}</span>;
+  }
+
+  return (
+    <div className="absolute inset-0 w-full h-full flex items-center">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            className="absolute inset-0 w-full h-full px-6 py-4 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent text-[17px] leading-7"
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          >
+            {value ? (
+              <span className="text-[17px] leading-7 text-left">{formatDate(value)}</span>
+            ) : showPlaceholder ? (
+              <span className="text-muted-foreground text-sm text-left">{placeholder}</span>
+            ) : null}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={value ? parse(value, "yyyy-MM-dd", new Date()) : undefined}
+            onSelect={(date) => {
+              if (date && isValid(date)) {
+                onChange(format(date, "yyyy-MM-dd"));
+                setIsOpen(false);
+              }
+            }}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function InvoiceDetailsStep({
   applicationId,
@@ -120,7 +190,6 @@ export default function InvoiceDetailsStep({
 
   const [editingIds, setEditingIds] = React.useState<Set<string>>(new Set());
   const [tempValues, setTempValues] = React.useState<Record<string, Partial<InvoiceRow>>>({});
-  const [datePickerOpen, setDatePickerOpen] = React.useState<Record<string, boolean>>({});
   const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
 
   React.useEffect(() => {
@@ -166,14 +235,7 @@ export default function InvoiceDetailsStep({
     const tempValue = tempValues[id];
     if (tempValue) {
       setInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === id
-            ? {
-                ...inv,
-                ...tempValue,
-              }
-            : inv
-        )
+        prev.map((inv) => (inv.id === id ? { ...inv, ...tempValue } : inv))
       );
     }
     handleCancelEdit(id);
@@ -242,19 +304,32 @@ export default function InvoiceDetailsStep({
   };
 
   const handleAddInvoice = () => {
-    setInvoices((prev) => [
+    const newId = Date.now().toString();
+    const newInvoice: InvoiceRow = {
+      id: newId,
+      invoice: `#${newId.slice(-4)}`,
+      invoiceValue: "",
+      maturityDate: "",
+      duration: "",
+      maxFinancingAmount: "",
+      estimatedFees: "",
+      documents: null,
+    };
+    
+    setInvoices((prev) => [...prev, newInvoice]);
+    
+    setEditingIds((prev) => new Set(prev).add(newId));
+    
+    setTempValues((prev) => ({
       ...prev,
-      {
-        id: Date.now().toString(),
-        invoice: `#${Date.now().toString().slice(-4)}`,
+      [newId]: {
         invoiceValue: "",
         maturityDate: "",
         duration: "",
         maxFinancingAmount: "",
         estimatedFees: "",
-        documents: null,
       },
-    ]);
+    }));
   };
 
   React.useEffect(() => {
@@ -307,138 +382,64 @@ export default function InvoiceDetailsStep({
                   const isEditing = editingIds.has(invoice.id);
                   const tempValue = tempValues[invoice.id] || {};
                   const isUploadingFile = isUploading(`invoice-${invoice.id}`);
+                  const cellClassName = isEditing
+                    ? "p-0 relative overflow-visible"
+                    : "px-6 py-4 align-middle text-left text-[17px] leading-7 text-foreground";
 
                   return (
-                    <tr key={invoice.id} className={`border-b transition-colors ${isEditing ? "bg-muted/30" : "hover:bg-muted/50"}`}>
-                      <td className="px-6 py-4 align-middle font-semibold text-foreground">{invoice.invoice}</td>
-                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            value={tempValue.invoiceValue || ""}
-                            onChange={(e) => handleTempChange(invoice.id, "invoiceValue", e.target.value)}
-                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (document.activeElement !== e.currentTarget) {
-                                e.currentTarget.style.border = "0";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-foreground">{invoice.invoiceValue || "-"}</span>
-                        )}
+                    <tr
+                      key={invoice.id}
+                      className={`border-b transition-colors ${isEditing ? "bg-muted/30" : "hover:bg-muted/50"}`}
+                    >
+                      <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7 text-foreground">
+                        {invoice.invoice}
                       </td>
-                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
-                        {isEditing ? (
-                          <div className="absolute inset-0 w-full h-full flex items-center">
-                            <Popover open={datePickerOpen[invoice.id]} onOpenChange={(open) => setDatePickerOpen((prev) => ({ ...prev, [invoice.id]: open }))}>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  className="absolute inset-0 w-full h-full px-6 py-4 justify-start text-left font-normal !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.border = "1px solid hsl(var(--primary))";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (document.activeElement !== e.currentTarget) {
-                                      e.currentTarget.style.border = "0";
-                                    }
-                                  }}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {tempValue.maturityDate ? (
-                                    formatDateForInput(tempValue.maturityDate)
-                                  ) : (
-                                    <span className="text-muted-foreground">Enter date</span>
-                                  )}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={tempValue.maturityDate ? parse(tempValue.maturityDate, "yyyy-MM-dd", new Date()) : undefined}
-                                  onSelect={(date) => {
-                                    if (date && isValid(date)) {
-                                      handleTempChange(invoice.id, "maturityDate", format(date, "yyyy-MM-dd"));
-                                      setDatePickerOpen((prev) => ({ ...prev, [invoice.id]: false }));
-                                    }
-                                  }}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        ) : (
-                          <span className="text-foreground">{invoice.maturityDate ? formatDate(invoice.maturityDate) : "-"}</span>
-                        )}
+                      <td className={cellClassName}>
+                        <EditableCell
+                          isEditing={isEditing}
+                          value={tempValue.invoiceValue || ""}
+                          placeholder="Enter invoice value"
+                          onChange={(value) => handleTempChange(invoice.id, "invoiceValue", value)}
+                          displayValue={invoice.invoiceValue}
+                        />
                       </td>
-                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            value={tempValue.duration || ""}
-                            onChange={(e) => handleTempChange(invoice.id, "duration", e.target.value)}
-                            placeholder="Enter duration"
-                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (document.activeElement !== e.currentTarget) {
-                                e.currentTarget.style.border = "0";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-foreground">{invoice.duration || "-"}</span>
-                        )}
+                      <td className={cellClassName}>
+                        <DateCell
+                          isEditing={isEditing}
+                          value={tempValue.maturityDate || ""}
+                          placeholder="Enter date"
+                          onChange={(value) => handleTempChange(invoice.id, "maturityDate", value)}
+                          displayValue={invoice.maturityDate ? formatDate(invoice.maturityDate) : ""}
+                        />
                       </td>
-                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            value={tempValue.maxFinancingAmount || ""}
-                            onChange={(e) => handleTempChange(invoice.id, "maxFinancingAmount", e.target.value)}
-                            placeholder="Enter Financing amount"
-                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (document.activeElement !== e.currentTarget) {
-                                e.currentTarget.style.border = "0";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-foreground">{invoice.maxFinancingAmount || "-"}</span>
-                        )}
+                      <td className={cellClassName}>
+                        <EditableCell
+                          isEditing={isEditing}
+                          value={tempValue.duration || ""}
+                          placeholder="Enter duration"
+                          onChange={(value) => handleTempChange(invoice.id, "duration", value)}
+                          displayValue={invoice.duration}
+                        />
                       </td>
-                      <td className={isEditing ? "p-0 relative group" : "px-6 py-4 align-middle text-foreground"}>
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            value={tempValue.estimatedFees || ""}
-                            onChange={(e) => handleTempChange(invoice.id, "estimatedFees", e.target.value)}
-                            placeholder="Enter fees"
-                            className="absolute inset-0 w-full h-full px-6 py-4 !border-0 group-hover:!border group-hover:!border-primary hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.border = "1px solid hsl(var(--primary))";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (document.activeElement !== e.currentTarget) {
-                                e.currentTarget.style.border = "0";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-foreground">{invoice.estimatedFees || "-"}</span>
-                        )}
+                      <td className={cellClassName}>
+                        <EditableCell
+                          isEditing={isEditing}
+                          value={tempValue.maxFinancingAmount || ""}
+                          placeholder="Enter financing amount"
+                          onChange={(value) => handleTempChange(invoice.id, "maxFinancingAmount", value)}
+                          displayValue={invoice.maxFinancingAmount}
+                        />
                       </td>
-                      <td className="px-6 py-4 align-middle">
+                      <td className={cellClassName}>
+                        <EditableCell
+                          isEditing={isEditing}
+                          value={tempValue.estimatedFees || ""}
+                          placeholder="Enter fees"
+                          onChange={(value) => handleTempChange(invoice.id, "estimatedFees", value)}
+                          displayValue={invoice.estimatedFees}
+                        />
+                      </td>
+                      <td className="px-6 py-4 align-middle text-left">
                         {isEditing ? (
                           <div className="flex items-center gap-3">
                             {invoice.documents && !isUploadingFile ? (
@@ -538,10 +539,10 @@ export default function InvoiceDetailsStep({
                   );
                 })}
                 <tr className="border-t bg-muted/50 font-medium">
-                  <td colSpan={4} className="px-6 py-4 align-middle"></td>
-                  <td className="px-6 py-4 align-middle font-semibold">{totalFinancing.toLocaleString()}</td>
-                  <td className="px-6 py-4 align-middle font-semibold">XXX</td>
-                  <td className="px-6 py-4 align-middle font-semibold">Total fess</td>
+                  <td colSpan={4} className="px-6 py-4 align-middle text-left"></td>
+                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">{totalFinancing.toLocaleString()}</td>
+                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">XXX</td>
+                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">Total fess</td>
                 </tr>
               </tbody>
             </table>
