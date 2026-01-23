@@ -409,18 +409,18 @@ model AmlIdentityMapping {
   organization_id   String   @db.VarChar(255)
   organization_type String   // 'investor' | 'issuer'
   entity_type       String   // 'director' | 'individual_shareholder' | 'business_shareholder'
-  
+
   // Identity fields for matching
   name              String?
   email             String?
   business_name     String? // For business shareholders
-  
+
   // RegTank IDs
   cod_request_id    String? // Parent COD for individuals, own COD for businesses
   eod_request_id    String? // Only for directors/individual shareholders
   kyc_id            String? // For individuals
   kyb_id            String? // For businesses
-  
+
   // Metadata
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
@@ -604,6 +604,8 @@ model Notification {
   message              String
   read_at              DateTime?
   email_sent_at        DateTime?
+  send_to_platform     Boolean              @default(true)
+  send_to_email        Boolean              @default(false)
   link_path            String?
   metadata             Json?
   created_at           DateTime             @default(now())

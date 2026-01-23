@@ -44,6 +44,7 @@ export class NotificationRepository {
   async findManyByUserId(userId: string, filters: NotificationFilters): Promise<[NotificationWithDetails[], number]> {
     const where: Prisma.NotificationWhereInput = {
       user_id: userId,
+      send_to_platform: true,
       ...(filters.read !== undefined && { read_at: filters.read ? { not: null } : null }),
       ...(filters.category && { notification_type: { category: filters.category } }),
       ...(filters.priority && { priority: filters.priority }),
