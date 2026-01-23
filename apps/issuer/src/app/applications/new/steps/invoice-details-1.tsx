@@ -3,8 +3,9 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusIcon, PencilIcon, CheckIcon, TrashIcon, XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import { Save } from "lucide-react";
 import type { StepComponentProps } from "../step-components";
 import { useApplication } from "@/hooks/use-applications";
 import { useS3Upload } from "@/hooks/use-s3-upload";
@@ -70,7 +71,7 @@ function EditableCell({
   const showPlaceholder = !value && !isFocused;
 
   if (!isEditing) {
-    return <span className="text-[17px] leading-7 text-foreground text-left block">{displayValue || "-"}</span>;
+    return <div className="text-[17px] leading-7 text-foreground text-left break-words whitespace-normal" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
   }
 
   return (
@@ -108,7 +109,7 @@ function DateCell({
   const [isOpen, setIsOpen] = React.useState(false);
 
   if (!isEditing) {
-    return <span className="text-[17px] leading-7 text-foreground text-left block">{displayValue || "-"}</span>;
+    return <div className="text-[17px] leading-7 text-foreground text-left break-words whitespace-normal" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
   }
 
   return (
@@ -117,10 +118,10 @@ function DateCell({
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            className="absolute inset-0 w-full h-full px-6 py-4 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent text-[17px] leading-7"
+            className="absolute inset-0 w-full h-full px-6 py-4 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent"
           >
             {value ? (
-              <span className="text-[17px] leading-7 text-left">{formatDate(value)}</span>
+              <span className="text-sm text-left">{formatDate(value)}</span>
             ) : (
               <span className="text-muted-foreground text-sm text-left">{placeholder}</span>
             )}
@@ -299,6 +300,18 @@ export default function InvoiceDetailsStep({
     setInvoices((prev) => prev.filter((inv) => inv.id !== id));
   };
 
+  const isInvoiceComplete = (invoice: InvoiceRow, tempValue?: Partial<InvoiceRow>): boolean => {
+    const value = { ...invoice, ...tempValue };
+    return !!(
+      value.invoiceValue &&
+      value.maturityDate &&
+      value.duration &&
+      value.maxFinancingAmount &&
+      value.estimatedFees &&
+      value.documents
+    );
+  };
+
   const handleAddInvoice = () => {
     const newId = Date.now().toString();
     const newInvoice: InvoiceRow = {
@@ -362,16 +375,16 @@ export default function InvoiceDetailsStep({
         </div>
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden mt-6">
           <div className="overflow-x-auto">
-            <table className="w-full caption-bottom text-[17px] leading-7">
+            <table className="w-full caption-bottom text-[17px] leading-7 table-auto">
               <thead className="[&_tr]:border-b">
                 <tr className="border-b bg-muted/50">
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Invoice</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Invoice value</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Maturity date</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Duration</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Max financing amount (80%)</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Estimated Fees</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold">Documents</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%]">Invoice</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%]">Invoice value</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%]">Maturity date</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%]">Duration</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%]">Max financing amount (80%)</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%]">Estimated Fees</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[26%]">Documents</th>
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
@@ -381,14 +394,14 @@ export default function InvoiceDetailsStep({
                   const isUploadingFile = isUploading(`invoice-${invoice.id}`);
                   const cellClassName = isEditing
                     ? "p-0 relative overflow-visible"
-                    : "px-6 py-4 align-middle text-left text-[17px] leading-7 text-foreground";
+                    : "px-6 py-4 align-middle text-left text-[17px] leading-7 text-foreground break-words";
 
                   return (
                     <tr
                       key={invoice.id}
                       className={`border-b transition-colors ${isEditing ? "bg-muted/30" : "hover:bg-muted/50"}`}
                     >
-                      <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7 text-foreground">
+                      <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7 text-foreground break-words">
                         {invoice.invoice}
                       </td>
                       <td className={cellClassName}>
@@ -440,14 +453,14 @@ export default function InvoiceDetailsStep({
                         {isEditing ? (
                           <div className="flex items-center gap-3">
                             {invoice.documents && !isUploadingFile ? (
-                              <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
-                                <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
+                              <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 h-8 max-w-[200px] min-w-0 flex-1">
+                                <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground flex-shrink-0">
                                   <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                                 </div>
-                                <span className="text-foreground">{invoice.documents.fileName}</span>
+                                <span className="text-foreground truncate">{invoice.documents.fileName}</span>
                                 <button
                                   onClick={() => handleRemoveFile(invoice.id)}
-                                  className="hover:text-destructive transition-colors cursor-pointer"
+                                  className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0"
                                   type="button"
                                   aria-label="Remove file"
                                 >
@@ -457,7 +470,7 @@ export default function InvoiceDetailsStep({
                             ) : (
                               <label
                                 htmlFor={`file-input-${invoice.id}`}
-                                className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline min-h-[2rem] text-[17px] leading-7"
+                                className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline h-8 text-[17px] leading-7"
                               >
                                 <CloudArrowUpIcon className="h-4 w-4" />
                                 {isUploadingFile ? "Uploading..." : "Upload file"}
@@ -474,61 +487,98 @@ export default function InvoiceDetailsStep({
                                 />
                               </label>
                             )}
-                            <button
-                              onClick={() => handleSaveEdit(invoice.id)}
-                              className="text-green-600 hover:text-green-700"
-                              title="Save"
-                            >
-                              <CheckIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleCancelEdit(invoice.id)}
-                              className="text-muted-foreground hover:text-foreground"
-                              title="Cancel"
-                            >
-                              <XMarkIcon className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center gap-2 flex-shrink-0 w-[72px] justify-end">
+                              {isInvoiceComplete(invoice, tempValue) && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteInvoice(invoice.id)}
+                                    className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                    title="Delete invoice"
+                                    aria-label="Delete invoice"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleSaveEdit(invoice.id)}
+                                    className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                    title="Save"
+                                    aria-label="Save invoice"
+                                  >
+                                    <Save className="h-4 w-4" strokeWidth={1.5} />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         ) : invoice.documents ? (
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
-                              <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
+                            <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 h-8 max-w-[200px] min-w-0 flex-1">
+                              <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground flex-shrink-0">
                                 <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                               </div>
-                              <span className="text-foreground">{invoice.documents.fileName}</span>
+                              <span className="text-foreground truncate">{invoice.documents.fileName}</span>
                               <button
                                 onClick={() => handleRemoveFile(invoice.id)}
-                                className="hover:text-destructive transition-colors cursor-pointer"
+                                className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0"
                                 type="button"
                                 aria-label="Remove file"
                               >
                                 <XMarkIcon className="h-3.5 w-3.5" />
                               </button>
                             </div>
-                            <button
-                              onClick={() => handleDeleteInvoice(invoice.id)}
-                              className="text-muted-foreground hover:text-destructive"
-                              title="Delete invoice"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleStartEdit(invoice.id)}
-                              className="text-muted-foreground hover:text-foreground"
-                              title="Edit"
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center gap-2 flex-shrink-0 w-[72px] justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteInvoice(invoice.id)}
+                                className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                title="Delete invoice"
+                                aria-label="Delete invoice"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleStartEdit(invoice.id)}
+                                className="text-muted-foreground hover:text-foreground h-8 w-8"
+                                title="Edit"
+                                aria-label="Edit invoice"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleStartEdit(invoice.id)}
-                              className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline min-h-[2rem] text-[17px] leading-7"
+                          <div className="flex items-center gap-3">
+                            <label
+                              htmlFor={`file-input-${invoice.id}`}
+                              className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline h-8 text-[17px] leading-7"
                             >
                               <CloudArrowUpIcon className="h-4 w-4" />
                               Upload file
-                            </button>
+                              <input
+                                ref={(el) => {
+                                  fileInputRefs.current[invoice.id] = el;
+                                }}
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                onChange={(e) => {
+                                  if (!isEditing) {
+                                    handleStartEdit(invoice.id);
+                                  }
+                                  handleFileInputChange(invoice.id, e);
+                                }}
+                                className="hidden"
+                                id={`file-input-${invoice.id}`}
+                              />
+                            </label>
+                            <div className="flex items-center gap-2 flex-shrink-0 w-[72px] justify-end">
+                            </div>
                           </div>
                         )}
                       </td>
@@ -545,7 +595,7 @@ export default function InvoiceDetailsStep({
             </table>
           </div>
         </div>
-        <p className="text-muted-foreground text-sm italic mt-4 text-center border-b border-dotted border-border pb-2">
+        <p className="text-muted-foreground text-sm italic mt-4 text-right border-b border-dotted border-border pb-2">
           Estimated fees based on 15% p.a. but exact amount will only be decided in offer letter
         </p>
       </div>
