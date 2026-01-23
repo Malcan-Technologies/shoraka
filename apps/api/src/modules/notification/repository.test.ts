@@ -1,6 +1,6 @@
 import { NotificationRepository } from "./repository";
 import { prisma } from "../../lib/prisma";
-import { NotificationPriority } from "@prisma/client";
+import { NotificationPriority, Prisma } from "@prisma/client";
 
 // 1. Mock the Prisma client
 jest.mock("../../lib/prisma", () => ({
@@ -28,9 +28,18 @@ describe("NotificationRepository", () => {
   let repository: NotificationRepository;
   const userId = "user_123";
 
+  const MOCK_DATE = new Date("2026-01-23T00:00:00.000Z");
+
   beforeEach(() => {
     repository = new NotificationRepository();
     jest.clearAllMocks();
+
+    jest.useFakeTimers();
+    jest.setSystemTime(MOCK_DATE);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe("create", () => {
@@ -45,7 +54,7 @@ describe("NotificationRepository", () => {
         user: { connect: { user_id: userId } },
         notification_type: { connect: { id: "1" } },
       };
-      const result = await repository.create(createData as any);
+      const result = await repository.create(createData);
 
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: createData,
@@ -97,14 +106,26 @@ describe("NotificationRepository", () => {
 
       const filters = { limit: 10, offset: 0, read: false };
       const [items, total] = await repository.findManyByUserId(userId, filters);
+      const expectedWhere = {
+        user_id: userId,
+        send_to_platform: true,
+        read_at: null,
+        OR: [
+          { expires_at: null },
+          { expires_at: { gt: MOCK_DATE } },
+        ],
+      };
 
-      expect(prisma.notification.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ user_id: userId, read_at: null }),
+      expect(prisma.notification.findMany).toHaveBeenCalledWith({
+          where: expectedWhere,
           take: 10,
           skip: 0,
-        })
-      );
+          include: { notification_type: true },
+          orderBy: [
+            { priority: "desc" },
+            { created_at: "desc" },
+          ],
+        });
       expect(items).toEqual(mockNotifications);
       expect(total).toBe(1);
     });
@@ -134,7 +155,7 @@ describe("NotificationRepository", () => {
 
       expect(prisma.notification.update).toHaveBeenCalledWith({
         where: { id: "1", user_id: userId },
-        data: { read_at: expect.any(Date) },
+        data: { read_at: MOCK_DATE },
       });
       expect(result).toEqual(mockResult);
     });
@@ -149,7 +170,7 @@ describe("NotificationRepository", () => {
 
       expect(prisma.notification.updateMany).toHaveBeenCalledWith({
         where: { user_id: userId, read_at: null },
-        data: { read_at: expect.any(Date) },
+        data: { read_at: MOCK_DATE },
       });
       expect(result).toEqual(mockBatch);
     });
@@ -206,7 +227,7 @@ describe("NotificationRepository", () => {
       const result = await repository.deleteExpired();
 
       expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
-        where: { expires_at: { lt: expect.any(Date) } },
+        where: { expires_at: { lt: MOCK_DATE } },
       });
       expect(result).toEqual(mockBatch);
     });
@@ -219,10 +240,12 @@ describe("NotificationRepository", () => {
 
       const result = await repository.deleteOldNotifications("type_1", 30);
 
+      const expectedCutoff = new Date(MOCK_DATE.getTime() - 30 * 24 * 60 * 60 * 1000);
+
       expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
         where: {
           notification_type_id: "type_1",
-          created_at: { lt: expect.any(Date) },
+          created_at: { lt: expectedCutoff },
         },
       });
       expect(result).toEqual(mockBatch);
