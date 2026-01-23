@@ -106,8 +106,6 @@ function DateCell({
   displayValue: string;
 }) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [isFocused, setIsFocused] = React.useState(false);
-  const showPlaceholder = !value && !isFocused;
 
   if (!isEditing) {
     return <span className="text-[17px] leading-7 text-foreground text-left block">{displayValue || "-"}</span>;
@@ -120,14 +118,12 @@ function DateCell({
           <Button
             variant="ghost"
             className="absolute inset-0 w-full h-full px-6 py-4 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent text-[17px] leading-7"
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
           >
             {value ? (
               <span className="text-[17px] leading-7 text-left">{formatDate(value)}</span>
-            ) : showPlaceholder ? (
+            ) : (
               <span className="text-muted-foreground text-sm text-left">{placeholder}</span>
-            ) : null}
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
