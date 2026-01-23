@@ -60,18 +60,20 @@ function EditableCell({
   placeholder,
   onChange,
   displayValue,
+  className,
 }: {
   isEditing: boolean;
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   displayValue: string;
+  className?: string;
 }) {
   const [isFocused, setIsFocused] = React.useState(false);
   const showPlaceholder = !value && !isFocused;
 
   if (!isEditing) {
-    return <div className="text-[17px] leading-7 text-foreground text-left break-words whitespace-normal" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
+    return <div className={`text-base leading-7 text-foreground text-left break-words whitespace-normal ${className || ""}`} style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
   }
 
   return (
@@ -87,7 +89,7 @@ function EditableCell({
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        className="absolute inset-0 w-full h-full px-6 py-4 !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none text-[17px] leading-7 text-left"
+        className={`absolute inset-0 w-full h-full px-6 py-6 !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground bg-transparent shadow-none text-base leading-7 text-left ${className || ""}`}
       />
     </div>
   );
@@ -109,7 +111,7 @@ function DateCell({
   const [isOpen, setIsOpen] = React.useState(false);
 
   if (!isEditing) {
-    return <div className="text-[17px] leading-7 text-foreground text-left break-words whitespace-normal" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
+    return <div className="text-base leading-7 text-foreground text-left break-words whitespace-normal" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{displayValue || "-"}</div>;
   }
 
   return (
@@ -118,7 +120,7 @@ function DateCell({
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            className="absolute inset-0 w-full h-full px-6 py-4 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent"
+            className="absolute inset-0 w-full h-full px-6 py-6 flex items-center justify-start text-left font-normal !border-0 hover:!border hover:!border-primary rounded-none focus:outline-none focus:ring-0 focus:!border focus:!border-primary text-foreground hover:text-foreground bg-transparent shadow-none hover:bg-transparent"
           >
             {value ? (
               <span className="text-sm text-left">{formatDate(value)}</span>
@@ -205,6 +207,7 @@ export default function InvoiceDetailsStep({
       setTempValues((prev) => ({
         ...prev,
         [id]: {
+          invoice: invoice.invoice,
           invoiceValue: invoice.invoiceValue,
           maturityDate: invoice.maturityDate,
           duration: invoice.duration,
@@ -332,6 +335,7 @@ export default function InvoiceDetailsStep({
     setTempValues((prev) => ({
       ...prev,
       [newId]: {
+        invoice: newInvoice.invoice,
         invoiceValue: "",
         maturityDate: "",
         duration: "",
@@ -357,7 +361,7 @@ export default function InvoiceDetailsStep({
   return (
     <div className="space-y-12">
       <div>
-        <div className="flex justify-between items-center border-b border-border pb-2 mb-4">
+        <div className="flex justify-between items-center border-b border-border pb-2">
           <div className="flex-1 min-w-0 pr-4">
             <h3 className="font-semibold text-xl">Invoices</h3>
             <p className="text-sm text-muted-foreground mt-1 break-words">
@@ -367,7 +371,6 @@ export default function InvoiceDetailsStep({
           <Button
             variant="default"
             onClick={handleAddInvoice}
-            className="text-[17px] leading-7"
           >
             <PlusIcon className="h-4 w-4" />
             Add invoice
@@ -375,16 +378,16 @@ export default function InvoiceDetailsStep({
         </div>
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden mt-6">
           <div className="overflow-x-auto">
-            <table className="w-full caption-bottom text-[17px] leading-7 table-auto">
+            <table className="w-full caption-bottom text-base leading-7 table-auto">
               <thead className="[&_tr]:border-b">
                 <tr className="border-b bg-muted/50">
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%]">Invoice</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%]">Invoice value</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%]">Maturity date</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%]">Duration</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%]">Max financing amount (80%)</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%]">Estimated Fees</th>
-                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[26%]">Documents</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%] text-base whitespace-nowrap">Invoice</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%] text-base whitespace-nowrap">Invoice value</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[12%] text-base whitespace-nowrap">Maturity date</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[10%] text-base whitespace-nowrap">Duration</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%] text-base whitespace-nowrap">Max financing amount (80%)</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[15%] text-base whitespace-nowrap">Estimated Fees</th>
+                  <th className="h-12 px-6 py-3 text-left align-middle font-medium text-muted-foreground font-semibold w-[26%] text-base whitespace-nowrap">Documents</th>
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
@@ -393,16 +396,23 @@ export default function InvoiceDetailsStep({
                   const tempValue = tempValues[invoice.id] || {};
                   const isUploadingFile = isUploading(`invoice-${invoice.id}`);
                   const cellClassName = isEditing
-                    ? "p-0 relative overflow-visible"
-                    : "px-6 py-4 align-middle text-left text-[17px] leading-7 text-foreground break-words";
+                    ? "px-6 py-6 relative overflow-visible"
+                    : "px-6 py-6 align-middle text-left text-base leading-7 text-foreground break-words";
 
                   return (
                     <tr
                       key={invoice.id}
                       className={`border-b transition-colors ${isEditing ? "bg-muted/30" : "hover:bg-muted/50"}`}
                     >
-                      <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7 text-foreground break-words">
-                        {invoice.invoice}
+                      <td className={cellClassName}>
+                        <EditableCell
+                          isEditing={isEditing}
+                          value={tempValue.invoice || ""}
+                          placeholder="Enter invoice number"
+                          onChange={(value) => handleTempChange(invoice.id, "invoice", value)}
+                          displayValue={invoice.invoice}
+                          className="font-semibold"
+                        />
                       </td>
                       <td className={cellClassName}>
                         <EditableCell
@@ -449,18 +459,18 @@ export default function InvoiceDetailsStep({
                           displayValue={invoice.estimatedFees}
                         />
                       </td>
-                      <td className="px-6 py-4 align-middle text-left">
+                      <td className="px-6 py-6 align-middle text-left">
                         {isEditing ? (
                           <div className="flex items-center gap-3">
                             {invoice.documents && !isUploadingFile ? (
-                              <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 h-8 max-w-[200px] min-w-0 flex-1">
+                              <div className="flex items-center gap-2 bg-background text-foreground border border-border text-base leading-7 rounded-sm px-2 py-1 h-8 max-w-[200px] min-w-0 flex-1">
                                 <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground flex-shrink-0">
                                   <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                                 </div>
-                                <span className="text-foreground truncate">{invoice.documents.fileName}</span>
+                                <span className="text-foreground truncate flex-1 min-w-0">{invoice.documents.fileName}</span>
                                 <button
                                   onClick={() => handleRemoveFile(invoice.id)}
-                                  className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0"
+                                  className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0 ml-auto"
                                   type="button"
                                   aria-label="Remove file"
                                 >
@@ -470,7 +480,7 @@ export default function InvoiceDetailsStep({
                             ) : (
                               <label
                                 htmlFor={`file-input-${invoice.id}`}
-                                className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline h-8 text-[17px] leading-7"
+                                className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline h-8 text-base leading-7"
                               >
                                 <CloudArrowUpIcon className="h-4 w-4" />
                                 {isUploadingFile ? "Uploading..." : "Upload file"}
@@ -520,10 +530,10 @@ export default function InvoiceDetailsStep({
                               <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground flex-shrink-0">
                                 <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                               </div>
-                              <span className="text-foreground truncate">{invoice.documents.fileName}</span>
+                              <span className="text-foreground truncate flex-1 min-w-0">{invoice.documents.fileName}</span>
                               <button
                                 onClick={() => handleRemoveFile(invoice.id)}
-                                className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0"
+                                className="hover:text-destructive transition-colors cursor-pointer flex-shrink-0 ml-auto"
                                 type="button"
                                 aria-label="Remove file"
                               >
@@ -585,11 +595,17 @@ export default function InvoiceDetailsStep({
                     </tr>
                   );
                 })}
-                <tr className="border-t bg-muted/50 font-medium">
+                <tr className="border-t bg-background font-medium">
                   <td colSpan={4} className="px-6 py-4 align-middle text-left"></td>
-                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">{totalFinancing.toLocaleString()}</td>
-                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">XXX</td>
-                  <td className="px-6 py-4 align-middle text-left font-semibold text-[17px] leading-7">Total fess</td>
+                  <td className="px-6 py-4 align-middle text-left">
+                    <div className="font-semibold text-base leading-6">{totalFinancing.toLocaleString()}</div>
+                    <div className="text-sm leading-5 text-muted-foreground mt-0.5">Total financing amount</div>
+                  </td>
+                  <td className="px-6 py-4 align-middle text-left">
+                    <div className="font-semibold text-base leading-6">XXX</div>
+                    <div className="text-sm leading-5 text-muted-foreground mt-0.5">Total fees</div>
+                  </td>
+                  <td className="px-6 py-4 align-middle text-left"></td>
                 </tr>
               </tbody>
             </table>
