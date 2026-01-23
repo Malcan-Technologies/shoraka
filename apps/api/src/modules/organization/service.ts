@@ -80,6 +80,22 @@ export class OrganizationService {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
     }
 
+    // Check if a corporate organization with the same name already exists
+    if (orgType === OrganizationType.COMPANY && input.name) {
+      const nameExists =
+        portalType === "investor"
+          ? await this.repository.investorOrganizationNameExists(input.name)
+          : await this.repository.issuerOrganizationNameExists(input.name);
+
+      if (nameExists) {
+        throw new AppError(
+          400,
+          "ORGANIZATION_NAME_EXISTS",
+          "An organization with this name already exists. Please use a different name."
+        );
+      }
+    }
+
     logger.info({ userId, portalType, orgType, name: input.name }, "Creating organization");
 
     // Create the organization
