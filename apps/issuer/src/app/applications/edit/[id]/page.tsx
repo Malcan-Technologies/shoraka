@@ -94,7 +94,7 @@ export default function EditApplicationPage() {
     }
   };
 
-  // Handle unsaved changes warning
+  // Handle unsaved changes warning for browser navigation (reload, close tab)
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
@@ -106,13 +106,69 @@ export default function EditApplicationPage() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const handleBack = () => {
-    if (currentStepDisplay > 1) {
+  // Handle unsaved changes for internal navigation (sidebar, back button, etc.)
+  React.useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+
+      if (anchor && anchor.href && !anchor.href.includes(window.location.pathname)) {
+        e.preventDefault();
+        setIsUnsavedChangesModalOpen(true);
+        // Store the destination to navigate after user confirms
+        (window as any)._pendingNavigation = anchor.href;
+      }
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [hasUnsavedChanges]);
+
+  const handleConfirmLeave = () => {
+    setHasUnsavedChanges(false);
+    setIsUnsavedChangesModalOpen(false);
+    const pendingNav = (window as any)._pendingNavigation;
+    if (pendingNav) {
+      router.push(pendingNav);
+      (window as any)._pendingNavigation = null;
+    } else if (currentStepDisplay > 1) {
       router.push(`/applications/edit/${id}?step=${currentStepDisplay - 1}`);
     } else {
       router.push("/dashboard");
     }
   };
+
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      setIsUnsavedChangesModalOpen(true);
+    } else if (currentStepDisplay > 1) {
+      router.push(`/applications/edit/${id}?step=${currentStepDisplay - 1}`);
+    } else {
+      router.push("/dashboard");
+    }
+  };
+
+  // Handle browser back button
+  React.useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    // Push a dummy state to the history so we can catch the popstate event
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If there are unsaved changes, prevent the back navigation
+      if (hasUnsavedChanges) {
+        // Re-push the dummy state to keep the user on the current page
+        window.history.pushState(null, "", window.location.href);
+        setIsUnsavedChangesModalOpen(true);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [hasUnsavedChanges]);
 
   const handleSaveAndContinue = async (data: any) => {
     try {
@@ -280,10 +336,7 @@ export default function EditApplicationPage() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                setHasUnsavedChanges(false);
-                setIsUnsavedChangesModalOpen(false);
-              }}
+              onClick={handleConfirmLeave}
             >
               Leave
             </Button>
