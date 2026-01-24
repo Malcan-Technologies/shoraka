@@ -63,8 +63,6 @@ export default function EditApplicationPage() {
     return steps;
   }, [product]);
 
-  const isLoading = isLoadingApp || isLoadingProduct;
-
   // Sync selectedProductId with application data
   React.useEffect(() => {
     if (application?.financing_type?.product_id) {
