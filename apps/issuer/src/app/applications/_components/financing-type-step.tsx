@@ -8,16 +8,20 @@ import { useProducts } from "@/hooks/use-products";
 interface FinancingTypeStepProps {
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
+  isLoading?: boolean;
 }
 
 export function FinancingTypeStep({
   selectedProductId,
   onProductSelect,
+  isLoading: externalIsLoading,
 }: FinancingTypeStepProps) {
-  const { data: productsData, isLoading } = useProducts({
+  const { data: productsData, isLoading: internalIsLoading } = useProducts({
     page: 1,
     pageSize: 100,
   });
+
+  const isLoading = externalIsLoading ?? internalIsLoading;
 
   const products = productsData?.products || [];
 

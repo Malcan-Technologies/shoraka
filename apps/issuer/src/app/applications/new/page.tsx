@@ -97,6 +97,7 @@ export default function NewApplicationPage() {
             <FinancingTypeStep 
               selectedProductId={selectedProductId}
               onProductSelect={handleProductSelect}
+              isLoading={isLoadingProducts}
             />
           </div>
         </div>

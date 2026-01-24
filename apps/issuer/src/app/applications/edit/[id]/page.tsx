@@ -181,7 +181,7 @@ export default function EditApplicationPage() {
             <ProgressIndicator
               steps={workflowSteps}
               currentStep={currentStepDisplay}
-              isLoading={false}
+              isLoading={isLoading}
             />
           </div>
 
@@ -195,6 +195,7 @@ export default function EditApplicationPage() {
                   setSelectedProductId(pid);
                   setHasUnsavedChanges(pid !== application.financing_type?.product_id);
                 }}
+                isLoading={isLoading}
               />
             ) : (
               <StepPlaceholder title={workflowSteps[currentStepIndex]} />
