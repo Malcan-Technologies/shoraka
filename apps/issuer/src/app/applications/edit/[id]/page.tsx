@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useApplication, useUpdateApplicationStep } from "@/hooks/use-applications";
+import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
+import { useProduct } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
@@ -18,9 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FinancingTypeStep } from "../../_components/financing-type-step";
-import { VersionMismatchModal } from "../../_components/version-mismatch-modal";
-import { useArchiveApplication } from "@/hooks/use-applications";
+import { FinancingTypeStep } from "../../steps/financing-type-step";
+import { VersionMismatchModal } from "../../components/version-mismatch-modal";
+
 
 // We'll implement these step components next
 // For now, we'll use placeholders
@@ -41,7 +42,14 @@ export default function EditApplicationPage() {
   // Code uses 0-based indexing for arrays (0, 1, 2, etc.)
   const currentStepIndex = currentStepDisplay - 1;
 
-  const { data: application, isLoading, isError } = useApplication(id);
+  const { data: application, isLoading: isLoadingApp, isError } = useApplication(id);
+  
+  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+
+  // Use selectedProductId if user changed it, otherwise use from DB
+  const effectiveProductId = selectedProductId || application?.financing_type?.product_id;
+  const { data: product, isLoading: isLoadingProduct } = useProduct(effectiveProductId || "");
+
   const updateStepMutation = useUpdateApplicationStep();
   const archiveApplicationMutation = useArchiveApplication();
 
@@ -49,13 +57,13 @@ export default function EditApplicationPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
   
-  // Local state for product selection in Step 1
-  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-
   // Workflow steps from the application's product
   const workflowSteps = React.useMemo(() => {
-    return (application as any)?.product?.workflow?.map((step: any) => step.name) || [];
-  }, [application]);
+    const steps = (product as any)?.workflow?.map((step: any) => step.name) || [];
+    return steps;
+  }, [product]);
+
+  const isLoading = isLoadingApp || isLoadingProduct;
 
   // Sync selectedProductId with application data
   React.useEffect(() => {
@@ -136,21 +144,48 @@ export default function EditApplicationPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoadingApp) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <Skeleton className="h-8 w-8" />
+          <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Skeleton className="h-6 w-32" />
         </header>
-        <main className="flex-1 p-4">
-          <div className="max-w-7xl mx-auto w-full space-y-8">
-            <Skeleton className="h-12 w-3/4 mx-auto" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-[400px] w-full rounded-xl" />
+
+        <main className="flex-1 overflow-y-auto p-4 pt-0">
+          <div className="flex flex-1 flex-col gap-4">
+            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8">
+              <div className="mb-6">
+                <Skeleton className="h-9 w-64 mb-2" />
+                <Skeleton className="h-5 w-96" />
+              </div>
+
+              <ProgressIndicator
+                steps={Array(7).fill("")}
+                currentStep={1}
+                isLoading={true}
+              />
+            </div>
+
+            <div className="h-px bg-border w-full -mx-4" />
+
+            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6">
+              <FinancingTypeStep 
+                selectedProductId=""
+                onProductSelect={() => {}}
+                isLoading={true}
+              />
+            </div>
           </div>
         </main>
+
+        <footer className="sticky bottom-0 border-t bg-background z-10 mt-auto">
+          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-4 flex justify-between gap-4">
+            <Skeleton className="h-12 w-24 rounded-xl" />
+            <Skeleton className="h-12 w-40 rounded-xl" />
+          </div>
+        </footer>
       </div>
     );
   }
@@ -172,7 +207,7 @@ export default function EditApplicationPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">
-          {(application as any).product?.workflow?.[0]?.config?.type?.name || "Application"}
+          {product?.name || "Application"}
         </h1>
       </header>
 
@@ -188,7 +223,7 @@ export default function EditApplicationPage() {
             <ProgressIndicator
               steps={workflowSteps.length > 0 ? workflowSteps : Array(7).fill("")}
               currentStep={currentStepDisplay}
-              isLoading={isLoading}
+              isLoading={isLoadingProduct}
             />
           </div>
 
@@ -202,7 +237,7 @@ export default function EditApplicationPage() {
                   setSelectedProductId(pid);
                   setHasUnsavedChanges(pid !== application.financing_type?.product_id);
                 }}
-                isLoading={isLoading}
+                isLoading={false}
               />
             ) : (
               <StepPlaceholder title={workflowSteps[currentStepIndex]} />

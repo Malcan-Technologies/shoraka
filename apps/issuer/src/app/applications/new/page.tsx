@@ -11,7 +11,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
-import { FinancingTypeStep } from "../_components/financing-type-step";
+import { FinancingTypeStep } from "../steps/financing-type-step";
 
 export default function NewApplicationPage() {
   const router = useRouter();
@@ -87,7 +87,7 @@ export default function NewApplicationPage() {
             <ProgressIndicator
               steps={workflowSteps}
               currentStep={1}
-              isLoading={isLoadingProducts}
+              isLoading={true}
             />
           </div>
 
@@ -97,7 +97,7 @@ export default function NewApplicationPage() {
             <FinancingTypeStep 
               selectedProductId={selectedProductId}
               onProductSelect={handleProductSelect}
-              isLoading={isLoadingProducts}
+              isLoading={true}
             />
           </div>
         </div>

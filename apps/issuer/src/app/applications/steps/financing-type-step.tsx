@@ -61,12 +61,12 @@ export function FinancingTypeStep({
           {[1, 2].map((i) => (
             <div
               key={i}
-              className="relative flex items-start gap-4 border rounded-xl p-4"
+              className="relative flex items-start gap-4 border rounded-xl p-4 min-h-[88px]"
             >
               <Skeleton className="w-14 h-14 shrink-0 rounded-lg" />
-              <div className="flex-1 pr-8 md:pr-10 space-y-2">
-                <Skeleton className="h-6 w-64" />
-                <Skeleton className="h-4 w-full max-w-md" />
+              <div className="flex-1 pr-8 md:pr-10 space-y-2 py-0.5">
+                <Skeleton className="h-7 w-64" />
+                <Skeleton className="h-5 w-full max-w-md" />
               </div>
               <div className="absolute top-4 right-4">
                 <Skeleton className="h-5 w-5 rounded" />
