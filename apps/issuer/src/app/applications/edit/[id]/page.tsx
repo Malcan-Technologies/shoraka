@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
+import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
 import { VersionMismatchModal } from "../../components/version-mismatch-modal";
 
 
@@ -30,6 +31,12 @@ const StepPlaceholder = ({ title }: { title: string }) => (
     {title} implementation coming soon...
   </div>
 );
+
+const STEP_MAP: Record<string, React.ComponentType<any>> = {
+  "financing_type": FinancingTypeStep,
+  "verify_company_info": VerifyCompanyInfoStep,
+    "company_info": VerifyCompanyInfoStep, // delete later
+};
 
 export default function EditApplicationPage() {
   const router = useRouter();
@@ -71,6 +78,21 @@ export default function EditApplicationPage() {
   const workflowSteps = React.useMemo(() => {
     return (selectedProduct as any)?.workflow?.map((step: any) => step.name) || [];
   }, [selectedProduct]);
+
+  // Helper to get the base step ID (strips unique suffixes like _abc)
+  const getBaseStepId = (stepId: string) => {
+    if (!stepId) return "";
+    // If the ID has underscores, we take everything except the last part
+    const parts = stepId.split("_");
+    if (parts.length > 1) {
+      return parts.slice(0, -1).join("_");
+    }
+    return stepId;
+  };
+
+  const currentStepId = (selectedProduct as any)?.workflow?.[currentStepIndex]?.id;
+  const baseStepId = getBaseStepId(currentStepId);
+  const StepComponent = STEP_MAP[baseStepId];
 
   // Sync selectedProductId with application data
   React.useEffect(() => {
@@ -293,10 +315,11 @@ export default function EditApplicationPage() {
           <div className="h-px bg-border w-full -mx-4" />
 
           <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6">
-            {currentStepDisplay === 1 ? (
-              <FinancingTypeStep 
+            {StepComponent ? (
+              <StepComponent 
+                // Step 1 props
                 selectedProductId={selectedProductId}
-                onProductSelect={(pid) => {
+                onProductSelect={(pid: string) => {
                   setSelectedProductId(pid);
                   setHasUnsavedChanges(pid !== application.financing_type?.product_id);
                 }}
@@ -321,7 +344,10 @@ export default function EditApplicationPage() {
           </Button>
           <Button
             onClick={() => handleSaveAndContinue({})}
-            disabled={updateStepMutation.isPending || (currentStepDisplay === 1 && !selectedProductId)}
+            disabled={
+              updateStepMutation.isPending || 
+              (currentStepDisplay === 1 && !selectedProductId)
+            }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and continue"}
