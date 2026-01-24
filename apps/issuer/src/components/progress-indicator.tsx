@@ -74,14 +74,22 @@ export function ProgressIndicator({
                     </div>
                   )}
                 </div>
-                <div className={`text-xs md:text-sm mt-1.5 md:mt-2 text-center px-1 ${isCurrent ? "text-foreground font-semibold" : "text-muted-foreground/70"}`}>
+                <div
+                  className={`text-xs md:text-sm mt-1.5 md:mt-2 text-center px-1 ${
+                    isCurrent
+                      ? "text-foreground font-semibold"
+                      : isCompleted
+                      ? "text-foreground"
+                      : "text-muted-foreground/70"
+                  }`}
+                >
                   {step}
                 </div>
               </div>
               {index < steps.length - 1 && (
                 <div
                   className={`hidden md:block absolute top-3 md:top-4 z-0 ${
-                    nextIsCompleted ? "bg-foreground" : "bg-muted-foreground/30"
+                    stepNumber < currentStep ? "bg-foreground" : "bg-muted-foreground/30"
                   }`}
                   style={{
                     left: `calc(${(index + 0.5) * (100 / steps.length)}% + 12px)`,

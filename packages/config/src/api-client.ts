@@ -58,6 +58,11 @@ import type {
   RequestProductImageReplaceUrlResponse,
   GetActivitiesParams,
   ActivitiesResponse,
+  Product,
+  GetProductsResponse,
+  Application,
+  CreateApplicationInput,
+  UpdateApplicationStepInput,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -937,6 +942,33 @@ export class ApiClient {
     if (params.portalType) queryParams.append("portalType", params.portalType);
 
     return this.get<ActivitiesResponse>(`/v1/activities?${queryParams.toString()}`);
+  }
+
+  // Products
+  async getProducts(params: { page: number; pageSize: number; search?: string }): Promise<ApiResponse<GetProductsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+
+    return this.get<GetProductsResponse>(`/v1/products?${queryParams.toString()}`);
+  }
+
+  async getProduct(id: string): Promise<ApiResponse<Product> | ApiError> {
+    return this.get<Product>(`/v1/products/${id}`);
+  }
+
+  // Applications
+  async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications`, data);
+  }
+
+  async getApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.get<Application>(`/v1/applications/${id}`);
+  }
+
+  async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {
+    return this.patch<Application>(`/v1/applications/${id}/step`, data);
   }
 }
 
