@@ -106,6 +106,21 @@ export class ApplicationService {
 
     return this.repository.update(id, updateData);
   }
+
+  /**
+   * Archive an application
+   */
+  async archiveApplication(id: string): Promise<Application> {
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    return this.repository.update(id, {
+      status: "ARCHIVED",
+      updated_at: new Date(),
+    });
+  }
 }
 
 export const applicationService = new ApplicationService();

@@ -66,6 +66,25 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
 }
 
 /**
+ * Archive an application
+ * POST /v1/applications/:id/archive
+ */
+async function archiveApplication(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const application = await applicationService.archiveApplication(id);
+
+    res.json({
+      success: true,
+      data: application,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Create router for application routes
  */
 export function createApplicationRouter(): Router {
@@ -74,6 +93,7 @@ export function createApplicationRouter(): Router {
   router.post("/", requireAuth, createApplication);
   router.get("/:id", requireAuth, getApplication);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
+  router.post("/:id/archive", requireAuth, archiveApplication);
 
   return router;
 }

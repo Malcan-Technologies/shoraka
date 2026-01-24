@@ -19,6 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FinancingTypeStep } from "../../_components/financing-type-step";
+import { VersionMismatchModal } from "../../_components/version-mismatch-modal";
+import { useArchiveApplication } from "@/hooks/use-applications";
 
 // We'll implement these step components next
 // For now, we'll use placeholders
@@ -41,19 +43,18 @@ export default function EditApplicationPage() {
 
   const { data: application, isLoading, isError } = useApplication(id);
   const updateStepMutation = useUpdateApplicationStep();
+  const archiveApplicationMutation = useArchiveApplication();
 
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
   
   // Local state for product selection in Step 1
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
 
   // Workflow steps from the application's product
   const workflowSteps = React.useMemo(() => {
-    if (!application || !(application as any).product?.workflow) {
-      return ["Financing Type", "Invoice Details", "Buyer Details", "Verify Company Info", "Supporting Documents", "Declaration", "Review & Submit"];
-    }
-    return (application as any).product.workflow.map((step: any) => step.name);
+    return (application as any)?.product?.workflow?.map((step: any) => step.name) || [];
   }, [application]);
 
   // Sync selectedProductId with application data
@@ -74,12 +75,18 @@ export default function EditApplicationPage() {
   // Handle version mismatch
   React.useEffect(() => {
     if (application?.isVersionMismatch) {
-      toast.warning("Product Updated", {
-        description: "The product for this application has been updated. Please review your configuration.",
-        duration: 0,
-      });
+      setIsVersionMismatchModalOpen(true);
     }
   }, [application?.isVersionMismatch]);
+
+  const handleRestart = async () => {
+    try {
+      await archiveApplicationMutation.mutateAsync(id);
+      router.push("/applications/new");
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
 
   // Handle unsaved changes warning
   React.useEffect(() => {
@@ -179,7 +186,7 @@ export default function EditApplicationPage() {
             </div>
 
             <ProgressIndicator
-              steps={workflowSteps}
+              steps={workflowSteps.length > 0 ? workflowSteps : Array(7).fill("")}
               currentStep={currentStepDisplay}
               isLoading={isLoading}
             />
@@ -250,6 +257,13 @@ export default function EditApplicationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Version Mismatch Modal */}
+      <VersionMismatchModal
+        open={isVersionMismatchModalOpen}
+        onConfirm={handleRestart}
+        isPending={archiveApplicationMutation.isPending}
+      />
     </div>
   );
 }

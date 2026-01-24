@@ -970,6 +970,10 @@ export class ApiClient {
   async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {
     return this.patch<Application>(`/v1/applications/${id}/step`, data);
   }
+
+  async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${id}/archive`, {});
+  }
 }
 
 export function createApiClient(

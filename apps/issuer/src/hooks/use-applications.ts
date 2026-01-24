@@ -36,7 +36,7 @@ export function useCreateApplication() {
       }
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
@@ -60,11 +60,35 @@ export function useUpdateApplicationStep() {
       }
       return response.data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
     },
     onError: (error: Error) => {
       toast.error("Failed to save progress", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useArchiveApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.archiveApplication(id);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to archive application", {
         description: error.message,
       });
     },
