@@ -4,11 +4,38 @@ import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProducts } from "@/hooks/use-products";
+import { useS3ViewUrl } from "@/hooks/use-s3";
 
 interface FinancingTypeStepProps {
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
   isLoading?: boolean;
+}
+
+function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
+  const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
+
+  if (isLoading) {
+    return <Skeleton className="w-full h-full" />;
+  }
+
+  if (!imageUrl) {
+    return (
+      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+        Image
+        <br />
+        512x512
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={alt}
+      className="w-full h-full object-contain"
+    />
+  );
 }
 
 export function FinancingTypeStep({
@@ -107,19 +134,7 @@ export function FinancingTypeStep({
                   onClick={() => onProductSelect(product.id)}
                 >
                   <div className="w-14 h-14 shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                        Image
-                        <br />
-                        512x512
-                      </div>
-                    )}
+                    <ProductImage s3Key={product.imageUrl} alt={product.name} />
                   </div>
                   <div className="flex-1 pr-8 md:pr-10">
                     <div className="font-semibold text-lg md:text-xl leading-7">

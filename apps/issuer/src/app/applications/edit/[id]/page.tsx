@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProgressIndicator } from "@/components/progress-indicator";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
-import { useProduct } from "@/hooks/use-products";
+import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
@@ -43,12 +43,22 @@ export default function EditApplicationPage() {
   const currentStepIndex = currentStepDisplay - 1;
 
   const { data: application, isLoading: isLoadingApp, isError } = useApplication(id);
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+    page: 1,
+    pageSize: 100,
+  });
   
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
 
+  const products = productsData?.products || [];
+
   // Use selectedProductId if user changed it, otherwise use from DB
   const effectiveProductId = selectedProductId || application?.financing_type?.product_id;
-  const { data: product, isLoading: isLoadingProduct } = useProduct(effectiveProductId || "");
+  
+  // Find the selected product from the list
+  const selectedProduct = React.useMemo(() => {
+    return products.find((p: any) => p.id === effectiveProductId);
+  }, [products, effectiveProductId]);
 
   const updateStepMutation = useUpdateApplicationStep();
   const archiveApplicationMutation = useArchiveApplication();
@@ -59,9 +69,8 @@ export default function EditApplicationPage() {
   
   // Workflow steps from the application's product
   const workflowSteps = React.useMemo(() => {
-    const steps = (product as any)?.workflow?.map((step: any) => step.name) || [];
-    return steps;
-  }, [product]);
+    return (selectedProduct as any)?.workflow?.map((step: any) => step.name) || [];
+  }, [selectedProduct]);
 
   // Sync selectedProductId with application data
   React.useEffect(() => {
@@ -198,7 +207,7 @@ export default function EditApplicationPage() {
     }
   };
 
-  if (isLoadingApp) {
+  if (isLoadingApp || isLoadingProducts) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -261,7 +270,7 @@ export default function EditApplicationPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">
-          {product?.name || "Application"}
+          {selectedProduct?.name || "Application"}
         </h1>
       </header>
 
@@ -277,7 +286,7 @@ export default function EditApplicationPage() {
             <ProgressIndicator
               steps={workflowSteps.length > 0 ? workflowSteps : Array(7).fill("")}
               currentStep={currentStepDisplay}
-              isLoading={isLoadingProduct}
+              isLoading={false}
             />
           </div>
 

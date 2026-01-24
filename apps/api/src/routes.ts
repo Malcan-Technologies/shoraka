@@ -18,6 +18,7 @@ import { logger } from "./lib/logger";
 import { createProductRouter } from "./modules/products/controller";
 import { createApplicationRouter } from "./modules/applications/controller";
 import { activityRouter } from "./modules/activity/controller";
+import { createS3Router } from "./modules/s3/controller";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -104,6 +105,9 @@ export function registerRoutes(app: Application): void {
 
   // Activity routes
   v1Router.use("/activities", requireAuth, activityRouter);
+
+  // S3 routes
+  v1Router.use("/s3", createS3Router());
 
   app.use("/v1", v1Router);
 }

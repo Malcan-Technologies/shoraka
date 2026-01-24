@@ -12,6 +12,7 @@ import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
 import { FinancingTypeStep } from "../steps/financing-type-step";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function NewApplicationPage() {
   const router = useRouter();
@@ -64,6 +65,51 @@ export default function NewApplicationPage() {
     return selectedProduct.workflow.map((step: any) => step.name);
   }, [products, selectedProductId]);
 
+  if (isLoadingProducts) {
+    return (
+      <div className="flex flex-col h-full">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Skeleton className="h-6 w-32" />
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4 pt-0">
+          <div className="flex flex-1 flex-col gap-4">
+            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8">
+              <div className="mb-6">
+                <Skeleton className="h-9 w-64 mb-2" />
+                <Skeleton className="h-5 w-96" />
+              </div>
+
+              <ProgressIndicator
+                steps={Array(7).fill("")}
+                currentStep={1}
+                isLoading={true}
+              />
+            </div>
+
+            <div className="h-px bg-border w-full -mx-4" />
+
+            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6">
+              <FinancingTypeStep 
+                selectedProductId=""
+                onProductSelect={() => {}}
+                isLoading={true}
+              />
+            </div>
+          </div>
+        </main>
+
+        <footer className="sticky bottom-0 border-t bg-background z-10 mt-auto">
+          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-4 flex justify-end">
+            <Skeleton className="h-12 w-40 rounded-xl" />
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -87,7 +133,7 @@ export default function NewApplicationPage() {
             <ProgressIndicator
               steps={workflowSteps}
               currentStep={1}
-              isLoading={true}
+              isLoading={false}
             />
           </div>
 
@@ -97,7 +143,7 @@ export default function NewApplicationPage() {
             <FinancingTypeStep 
               selectedProductId={selectedProductId}
               onProductSelect={handleProductSelect}
-              isLoading={true}
+              isLoading={false}
             />
           </div>
         </div>
