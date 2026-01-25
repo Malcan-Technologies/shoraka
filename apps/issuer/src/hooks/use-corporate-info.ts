@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, type BankAccountDetails } from "@cashsouk/config";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -18,7 +18,28 @@ export function useCorporateInfo(organizationId: string | undefined) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<{
+    corporateOnboardingData?: {
+      basicInfo?: {
+        tinNumber?: string;
+        industry?: string;
+        entityType?: string;
+        businessName?: string;
+        numberOfEmployees?: number;
+        ssmRegisterNumber?: string;
+      };
+      addresses?: {
+        business?: Address;
+        registered?: Address;
+      };
+    };
+    bankAccountDetails?: BankAccountDetails | null;
+    firstName?: string | null;
+    middleName?: string | null;
+    lastName?: string | null;
+    documentNumber?: string | null;
+    phoneNumber?: string | null;
+  } | null>({
     queryKey: ["corporate-info", organizationId],
     queryFn: async () => {
       if (!organizationId) return null;
@@ -38,11 +59,25 @@ export function useCorporateInfo(organizationId: string | undefined) {
             registered?: Address;
           };
         };
+        bankAccountDetails?: BankAccountDetails | null;
+        firstName?: string | null;
+        middleName?: string | null;
+        lastName?: string | null;
+        documentNumber?: string | null;
+        phoneNumber?: string | null;
       }>(`/v1/organizations/issuer/${organizationId}`);
       if (!result.success) {
         throw new Error(result.error.message);
       }
-      return result.data.corporateOnboardingData;
+      return {
+        corporateOnboardingData: result.data.corporateOnboardingData,
+        bankAccountDetails: result.data.bankAccountDetails ?? null,
+        firstName: result.data.firstName ?? null,
+        middleName: result.data.middleName ?? null,
+        lastName: result.data.lastName ?? null,
+        documentNumber: result.data.documentNumber ?? null,
+        phoneNumber: result.data.phoneNumber ?? null,
+      };
     },
     enabled: !!organizationId,
   });
@@ -79,7 +114,13 @@ export function useCorporateInfo(organizationId: string | undefined) {
   });
 
   return {
-    corporateInfo: data,
+    corporateInfo: data?.corporateOnboardingData ?? undefined,
+    bankAccountDetails: data?.bankAccountDetails ?? null,
+    firstName: data?.firstName ?? null,
+    middleName: data?.middleName ?? null,
+    lastName: data?.lastName ?? null,
+    documentNumber: data?.documentNumber ?? null,
+    phoneNumber: data?.phoneNumber ?? null,
     isLoading,
     error,
     update: updateMutation.mutate,

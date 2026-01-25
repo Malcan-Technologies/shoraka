@@ -1361,7 +1361,7 @@ export class OrganizationService {
   }
 
   /**
-   * Get corporate entities (directors, shareholders)
+   * Get corporate entities (directors, shareholders) and director KYC status
    */
   async getCorporateEntities(
     userId: string,
@@ -1371,29 +1371,66 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
+    directorKycStatus?: {
+      directors: Array<{
+        name: string;
+        email: string;
+        role: string;
+        kycStatus: string;
+        kycId?: string;
+        lastUpdated: string;
+        eodRequestId?: string;
+        shareholderEodRequestId?: string;
+      }>;
+      lastSyncedAt: string;
+      corpIndvDirectorCount: number;
+      corpIndvShareholderCount: number;
+      corpBizShareholderCount: number;
+    } | null;
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
 
-    let organization;
+    let organization: { corporate_entities: unknown; director_kyc_status?: unknown } | null;
     if (portalType === "investor") {
       organization = await prisma.investorOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true },
+        select: { corporate_entities: true, director_kyc_status: true },
       });
     } else {
       organization = await prisma.issuerOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true },
+        select: { corporate_entities: true, director_kyc_status: true },
       });
     }
 
-    const entities = (organization?.corporate_entities as any) || {};
+    const entities = (organization?.corporate_entities as Record<string, unknown>) || {};
+    const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
+    const directorKyc =
+      raw && typeof raw === "object" && Array.isArray(raw.directors)
+        ? (raw as {
+            directors: Array<{
+              name: string;
+              email: string;
+              role: string;
+              kycStatus: string;
+              kycId?: string;
+              lastUpdated: string;
+              eodRequestId?: string;
+              shareholderEodRequestId?: string;
+            }>;
+            lastSyncedAt: string;
+            corpIndvDirectorCount: number;
+            corpIndvShareholderCount: number;
+            corpBizShareholderCount: number;
+          })
+        : null;
 
     return {
-      directors: entities.directors || [],
-      shareholders: entities.shareholders || [],
-      corporateShareholders: entities.corporateShareholders || [],
+      directors: (entities.directors as Array<Record<string, unknown>>) || [],
+      shareholders: (entities.shareholders as Array<Record<string, unknown>>) || [],
+      corporateShareholders: (entities.corporateShareholders as Array<Record<string, unknown>>) || [],
+      directorKycStatus: directorKyc,
     };
   }
 

@@ -16,45 +16,42 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
   const { corporateInfo, isLoading, update, isUpdating } = useCorporateInfo(organizationId);
   const [isEditing, setIsEditing] = React.useState(false);
 
-  // Form state
-  const [tinNumber, setTinNumber] = React.useState("");
   const [industry, setIndustry] = React.useState("");
   const [entityType, setEntityType] = React.useState("");
   const [businessName, setBusinessName] = React.useState("");
+  const [natureOfBusiness, setNatureOfBusiness] = React.useState("");
   const [numberOfEmployees, setNumberOfEmployees] = React.useState("");
   const [ssmRegisterNumber, setSsmRegisterNumber] = React.useState("");
 
-  // Initialize form values
   React.useEffect(() => {
     if (corporateInfo) {
-      setTinNumber(corporateInfo.basicInfo?.tinNumber || "");
       setIndustry(corporateInfo.basicInfo?.industry || "");
       setEntityType(corporateInfo.basicInfo?.entityType || "");
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
+      setNatureOfBusiness((corporateInfo.basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
     }
   }, [corporateInfo]);
 
   const handleSave = () => {
-    // Only save editable fields (Industry and Number of Employees)
     update({
-      tinNumber: corporateInfo?.basicInfo?.tinNumber || null, // Keep existing value
+      tinNumber: (corporateInfo?.basicInfo as { tinNumber?: string })?.tinNumber || null,
       industry: industry || null,
-      entityType: corporateInfo?.basicInfo?.entityType || null, // Keep existing value
-      businessName: corporateInfo?.basicInfo?.businessName || null, // Keep existing value
+      entityType: corporateInfo?.basicInfo?.entityType || null,
+      businessName: corporateInfo?.basicInfo?.businessName || null,
       numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees, 10) : null,
-      ssmRegisterNumber: corporateInfo?.basicInfo?.ssmRegisterNumber || null, // Keep existing value
+      ssmRegisterNumber: corporateInfo?.basicInfo?.ssmRegisterNumber || null,
     });
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     if (corporateInfo) {
-      setTinNumber(corporateInfo.basicInfo?.tinNumber || "");
       setIndustry(corporateInfo.basicInfo?.industry || "");
       setEntityType(corporateInfo.basicInfo?.entityType || "");
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
+      setNatureOfBusiness((corporateInfo.basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
     }
@@ -95,12 +92,18 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       <div className="p-6 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label className="text-muted-foreground">TIN Number</Label>
-            <Input
-              value={tinNumber}
-              disabled={true}
-              className="bg-muted cursor-not-allowed opacity-60"
-            />
+            <Label className="text-muted-foreground">Company Name</Label>
+            <Input value={businessName} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Type of Entity</Label>
+            <Input value={entityType} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">SSM No</Label>
+            <Input value={ssmRegisterNumber} disabled className="bg-muted cursor-not-allowed opacity-60" />
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
@@ -113,21 +116,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-muted-foreground">Entity Type</Label>
-            <Input
-              value={entityType}
-              disabled={true}
-              className="bg-muted cursor-not-allowed opacity-60"
-            />
-            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Business Name</Label>
-            <Input
-              value={businessName}
-              disabled={true}
-              className="bg-muted cursor-not-allowed opacity-60"
-            />
+            <Label className="text-muted-foreground">Nature of Business</Label>
+            <Input value={natureOfBusiness || "—"} disabled className="bg-muted cursor-not-allowed opacity-60" />
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
@@ -139,15 +129,6 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
               disabled={!isEditing}
               className={!isEditing ? "bg-muted" : ""}
             />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">SSM Register Number</Label>
-            <Input
-              value={ssmRegisterNumber}
-              disabled={true}
-              className="bg-muted cursor-not-allowed opacity-60"
-            />
-            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
         </div>
         {isEditing && (
