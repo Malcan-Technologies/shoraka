@@ -23,16 +23,20 @@ export class ApplicationService {
   }
 
   /**
-   * Map step index to database field name
+   * Map step ID to database field name
    */
-  private getFieldNameForStep(index: number): keyof Application | null {
-    const stepFields: (keyof Application)[] = [
-      "financing_type",
-      "verify_company_info",
-      "supporting_documents",
-      "declarations",
-    ];
-    return stepFields[index] || null;
+  private getFieldNameForStepId(stepId: string): keyof Application | null {
+    const stepIdToColumn: Record<string, keyof Application> = {
+      // step id: field name in application column
+      "financing_type": "financing_type",
+      "verify_company_info": "verify_company_info",
+      "company_info_1": "verify_company_info",
+      "supporting_documents": "supporting_documents",
+      "declarations": "declarations",
+      "declaration_1": "declarations",
+    };
+    
+    return stepIdToColumn[stepId] || null;
   }
 
   /**
@@ -95,9 +99,9 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    const fieldName = this.getFieldNameForStep(input.stepIndex);
+    const fieldName = this.getFieldNameForStepId(input.stepId);
     if (!fieldName) {
-      throw new AppError(400, "INVALID_STEP_INDEX", "Invalid step index");
+      throw new AppError(400, "INVALID_STEP_ID", `Invalid step ID: ${input.stepId}`);
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {
@@ -106,8 +110,8 @@ export class ApplicationService {
     };
 
     // Update last_completed_step if this is a new step
-    if (input.stepIndex >= application.last_completed_step) {
-      updateData.last_completed_step = input.stepIndex + 1;
+    if (input.stepNumber >= application.last_completed_step) {
+      updateData.last_completed_step = input.stepNumber;
     }
 
     return this.repository.update(id, updateData);

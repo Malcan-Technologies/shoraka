@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useOrganization } from "@cashsouk/config";
+import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
@@ -16,18 +18,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@cashsouk/ui";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
+/**
+ * VERIFY COMPANY INFO STEP
+ * 
+ * Read-only display of organization information.
+ * User reviews their company details before submitting application.
+ * 
+ * Data Flow:
+ * 1. Load organization data from database using hooks
+ * 2. Display in read-only format
+ * 3. Pass organization ID to parent for saving
+ * 
+ * Database format: { issuer_organization_id: "clx123" }
+ */
+
+interface VerifyCompanyInfoStepProps {
+  applicationId: string;
+  onDataChange?: (data: any) => void;
+}
+
+/**
+ * Helper function to get bank field value from bank details object
+ */
 function getBankField(bankDetails: any, fieldName: string): string {
   if (!bankDetails?.content) return "";
   const field = bankDetails.content.find((f: any) => f.fieldName === fieldName);
   return field?.fieldValue || "";
 }
 
+/**
+ * Helper function to format address object into a single string
+ */
 function formatAddress(addr: any): string {
   if (!addr) return "—";
   const parts = [
@@ -41,38 +65,61 @@ function formatAddress(addr: any): string {
   return parts.length ? parts.join(", ") : "—";
 }
 
-
+/**
+ * Helper function to normalize name for deduplication
+ */
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 const inputClassName = "bg-muted rounded-xl border border-border";
 const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
 const sectionHeaderClassName = "text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6";
 const sectionGridClassName = "grid grid-cols-2 gap-6 mt-6 pl-4 md:pl-6";
-const editButtonClassName = "h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm";
 
-export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: any) => void }) {
+export function VerifyCompanyInfoStep({
+  applicationId,
+  onDataChange,
+}: VerifyCompanyInfoStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
-  
-  // Memoize apiClient to prevent recreation on every render
+
   const apiClient = React.useMemo(
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
     [getAccessToken]
   );
 
+  /**
+   * MODAL OPEN/CLOSE STATES
+   */
   const [isEditCompanyInfoOpen, setIsEditCompanyInfoOpen] = React.useState(false);
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
   const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
 
-  // Store pending edits in local state (not saved to API yet)
+  /**
+   * PENDING CHANGES STATES
+   * 
+   * Store edits locally until user clicks "Save and Continue".
+   * These are NOT saved to database yet.
+   */
   const [pendingCompanyInfo, setPendingCompanyInfo] = React.useState<{ industry?: string; numberOfEmployees?: string } | null>(null);
   const [pendingAddress, setPendingAddress] = React.useState<{ businessAddress?: any; registeredAddress?: any } | null>(null);
   const [pendingBanking, setPendingBanking] = React.useState<{ bankName?: string; bankAccountNumber?: string } | null>(null);
   const [pendingContact, setPendingContact] = React.useState<{ firstName?: string; middleName?: string; lastName?: string; phoneNumber?: string } | null>(null);
 
+  /**
+   * LOAD CORPORATE INFO
+   * 
+   * useCorporateInfo loads:
+   * - basicInfo (company name, entity type, SSM, industry, employees)
+   * - addresses (business and registered)
+   * - bankAccountDetails
+   * - contact person (first/middle/last name, IC, phone)
+   */
   const {
     corporateInfo,
     bankAccountDetails,
@@ -83,35 +130,46 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
     phoneNumber,
     isLoading: isLoadingInfo,
   } = useCorporateInfo(organizationId);
+
+  /**
+   * LOAD CORPORATE ENTITIES
+   * 
+   * useCorporateEntities loads:
+   * - directorsDisplay (directors with KYC status and ownership)
+   * - shareholdersDisplay (shareholders with KYC status and ownership)
+   * - corporateShareholders (corporate entities with KYB status and ownership)
+   */
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoading = isLoadingInfo || isLoadingEntities;
 
-  // Save all pending changes to API (called when "Save and Continue" is clicked)
-  // MUST be before any early returns to maintain hook order
+  /**
+   * SAVE ALL PENDING CHANGES TO DATABASE
+   * 
+   * This function is called by the parent when user clicks "Save and Continue".
+   * It updates the issuer organization table with all pending changes.
+   */
   const saveAllPendingChanges = React.useCallback(async () => {
     if (!organizationId) {
-      return {
-        verify_company_info: {
-          issuerOrganization: null,
-        },
-      };
+      return;
     }
-    
+
     try {
       const updates: any = {};
-      
+
       // Save company info if there are pending changes
       if (pendingCompanyInfo) {
         updates.industry = pendingCompanyInfo.industry || null;
-        updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10) : null;
+        updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
+          ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
+          : null;
       }
-      
+
       // Save address if there are pending changes
       if (pendingAddress) {
         updates.businessAddress = pendingAddress.businessAddress;
         updates.registeredAddress = pendingAddress.registeredAddress;
       }
-      
+
       // Only make API call if there are updates
       if (Object.keys(updates).length > 0) {
         const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, updates);
@@ -120,7 +178,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         }
         queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
       }
-      
+
       // Save banking if there are pending changes
       if (pendingBanking) {
         const bankAccountDetails = {
@@ -139,7 +197,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
         queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
       }
-      
+
       // Save contact if there are pending changes
       if (pendingContact) {
         const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
@@ -154,20 +212,12 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
         queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
       }
-      
+
       // Clear all pending changes after successful save
       setPendingCompanyInfo(null);
       setPendingAddress(null);
       setPendingBanking(null);
       setPendingContact(null);
-      
-      // Return reference to organization for application data
-      // Similar to how financing_type saves product_id
-      return {
-        verify_company_info: {
-          issuerOrganization: organizationId,
-        },
-      };
     } catch (error) {
       toast.error("Failed to save changes", {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -176,27 +226,33 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
     }
   }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking, pendingContact]);
 
-  // Notify parent of pending changes whenever they update
-  // MUST be before any early returns to maintain hook order
+  /**
+   * PASS ORGANIZATION ID AND SAVE FUNCTION TO PARENT
+   * 
+   * Parent will call saveFunction when user clicks "Save and Continue".
+   */
   React.useEffect(() => {
-    if (!onDataChange) return;
-    const hasPendingChanges = pendingCompanyInfo || pendingAddress || pendingBanking || pendingContact;
+    if (!onDataChange || !organizationId) return;
+
     onDataChange({
-      hasPendingChanges: !!hasPendingChanges,
-      pendingCompanyInfo,
-      pendingAddress,
-      pendingBanking,
-      pendingContact,
+      issuer_organization_id: organizationId,
       saveFunction: saveAllPendingChanges,
     });
-  }, [pendingCompanyInfo, pendingAddress, pendingBanking, pendingContact, onDataChange, saveAllPendingChanges]);
+  }, [organizationId, onDataChange, saveAllPendingChanges]);
 
-  const normalizeName = (name: string): string => {
-    return name.trim().toLowerCase().replace(/\s+/g, " ");
-  };
-
+  /**
+   * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
+   * 
+   * Logic:
+   * 1. Show directors first
+   * 2. If a director has ownership (not "—"), label them as "Director, Shareholder"
+   * 3. Show shareholders who are NOT already shown as directors
+   * 4. Show corporate shareholders with KYB status instead of KYC
+   * 5. Deduplicate by normalized name
+   */
   const directorsDisplay = entitiesData?.directorsDisplay ?? [];
   const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
+  const corporateShareholders = entitiesData?.corporateShareholders ?? [];
   
   const combinedList = React.useMemo(() => {
     const seen = new Set<string>();
@@ -216,7 +272,8 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
           name: d.name,
           roleLabel: isAlsoShareholder ? "Director, Shareholder" : "Director",
           ownership: d.ownershipLabel,
-          kycStatus: d.kycVerified,
+          statusType: "kyc",
+          statusVerified: d.kycVerified,
           key: `dir-${normalized}`,
         });
       }
@@ -232,17 +289,46 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
           name: s.name,
           roleLabel: "Shareholder",
           ownership: s.ownershipLabel,
-          kycStatus: s.kycVerified,
+          statusType: "kyc",
+          statusVerified: s.kycVerified,
           key: `sh-${normalized}`,
         });
       }
     });
 
+    // Process corporate shareholders
+    corporateShareholders.forEach((corp: any) => {
+      // Extract ownership percentage from formContent
+      const shareField = corp.formContent?.displayAreas?.[0]?.content?.find(
+        (f: any) => f.fieldName === "% of Shares"
+      );
+      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
+      const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
+      
+      // Check KYB approval status
+      const kybApproved = corp.approveStatus === "APPROVED";
+      
+      result.push({
+        type: "corporate_shareholder",
+        name: corp.businessName || corp.companyName || "—",
+        roleLabel: "Corporate Shareholder",
+        ownership: ownershipLabel,
+        statusType: "kyb",
+        statusVerified: kybApproved,
+        key: `corp-${corp.requestId}`,
+      });
+    });
+
     return result;
-  }, [directorsDisplay, shareholdersDisplay]);
+  }, [directorsDisplay, shareholdersDisplay, corporateShareholders]);
 
   const hasDirectorsOrShareholders = combinedList.length > 0;
 
+  /**
+   * LOADING STATE
+   * 
+   * Show skeleton loaders while data is being fetched
+   */
   if (isLoading) {
     return (
       <div className="space-y-6 md:space-y-8">
@@ -260,8 +346,6 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
             <Skeleton className="h-10 rounded-xl" />
             <div className={labelClassName}>Industry</div>
             <Skeleton className="h-10 rounded-xl" />
-            {/* <div className={labelClassName}>Nature of business</div>
-            <Skeleton className="h-10 rounded-xl" /> */}
             <div className={labelClassName}>Number of employees</div>
             <Skeleton className="h-10 rounded-xl" />
           </div>
@@ -309,8 +393,6 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
           <div className={gridClassName}>
             <div className={labelClassName}>Applicant name</div>
             <Skeleton className="h-10 rounded-xl" />
-            {/* <div className={labelClassName}>Applicant position</div>
-            <Skeleton className="h-10 rounded-xl" /> */}
             <div className={labelClassName}>Applicant IC no</div>
             <Skeleton className="h-10 rounded-xl" />
             <div className={labelClassName}>Applicant contact</div>
@@ -321,6 +403,9 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
     );
   }
 
+  /**
+   * NO ORGANIZATION SELECTED STATE
+   */
   if (!organizationId) {
     return (
       <div className="text-center py-20 text-muted-foreground">
@@ -329,14 +414,21 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
     );
   }
 
+  /**
+   * EXTRACT DATA FROM HOOKS
+   * 
+   * Get all the data we need to display from the hooks
+   */
   const basicInfo = corporateInfo?.basicInfo;
   const businessAddress = corporateInfo?.addresses?.business;
   const registeredAddress = corporateInfo?.addresses?.registered;
   const bankDetails: any = bankAccountDetails || null;
   const bankName = getBankField(bankDetails, "Bank");
   const accountNumber = getBankField(bankDetails, "Bank account number");
-  
-  // Use pending values if they exist, otherwise use original values
+
+  /**
+   * DISPLAY VALUES - show pending changes if they exist, otherwise show original data
+   */
   const displayIndustry = pendingCompanyInfo?.industry !== undefined ? pendingCompanyInfo.industry : basicInfo?.industry;
   const displayNumberOfEmployees = pendingCompanyInfo?.numberOfEmployees !== undefined ? pendingCompanyInfo.numberOfEmployees : basicInfo?.numberOfEmployees;
   const displayBusinessAddress = pendingAddress?.businessAddress || businessAddress;
@@ -348,10 +440,10 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
   const displayLastName = pendingContact?.lastName !== undefined ? pendingContact.lastName : lastName;
   const displayPhoneNumber = pendingContact?.phoneNumber !== undefined ? pendingContact.phoneNumber : phoneNumber;
   const displayApplicantName = [displayFirstName, displayMiddleName, displayLastName].filter(Boolean).join(" ").trim() || "—";
-  const applicantPosition = "—";
-  // const natureOfBusiness = (basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "—";
 
-  // Store edits in local state (don't save to API yet)
+  /**
+   * EDIT HANDLERS - store changes in pending state
+   */
   const handleSaveCompanyInfo = (industry: string, numberOfEmployees: string) => {
     setPendingCompanyInfo({ industry, numberOfEmployees });
     setIsEditCompanyInfoOpen(false);
@@ -367,13 +459,19 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
     setIsEditBankingOpen(false);
   };
 
-  const handleSaveContact = (firstName: string, middleName: string, lastName: string, phoneNumber: string, _position: string) => {
+  const handleSaveContact = (firstName: string, middleName: string, lastName: string, phoneNumber: string) => {
     setPendingContact({ firstName, middleName, lastName, phoneNumber });
     setIsEditContactOpen(false);
   };
 
+  /**
+   * MAIN UI
+   * 
+   * Display all company information in read-only format
+   */
   return (
     <div className="space-y-6 md:space-y-8">
+      {/* Company Info Section */}
       <div className="space-y-4">
         <div>
           <div className="flex justify-between items-center">
@@ -382,7 +480,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
               variant="ghost"
               size="sm"
               onClick={() => setIsEditCompanyInfoOpen(true)}
-              className={editButtonClassName}
+              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
             >
               Edit
               <PencilIcon className="h-4 w-4" />
@@ -415,12 +513,6 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
             disabled
             className={inputClassName}
           />
-          {/* <div className={labelClassName}>Nature of business</div>
-          <Input
-            value={natureOfBusiness}
-            disabled
-            className={inputClassName}
-          /> */}
           <div className={labelClassName}>Number of employees</div>
           <Input
             value={displayNumberOfEmployees?.toString() || "—"}
@@ -430,6 +522,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
+      {/* Address Section */}
       <div className="space-y-4">
         <div>
           <div className="flex justify-between items-center">
@@ -438,7 +531,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
               variant="ghost"
               size="sm"
               onClick={() => setIsEditAddressOpen(true)}
-              className={editButtonClassName}
+              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
             >
               Edit
               <PencilIcon className="h-4 w-4" />
@@ -462,30 +555,37 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
+      {/* Directors & Shareholders Section */}
       <div className="space-y-4">
         <div>
-          <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-          </div>
+          <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={sectionGridClassName}>
           {!hasDirectorsOrShareholders ? (
-            <p className="text-[17px] leading-7 text-muted-foreground col-span-2">No directors or shareholders found</p>
+            <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
+              No directors or shareholders found
+            </p>
           ) : (
             <>
               {combinedList.map((item) => (
                 <React.Fragment key={item.key}>
                   <div className={labelClassName}>{item.roleLabel}</div>
                   <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{item.name}</div>
+                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
+                      {item.name}
+                    </div>
                     <div className="h-4 w-px bg-border" />
-                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{item.ownership}</div>
+                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                      {item.ownership}
+                    </div>
                     <div className="h-4 w-px bg-border" />
-                    {item.kycStatus ? (
+                    {item.statusVerified ? (
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-[17px] leading-7 text-green-600">KYC</span>
+                        <span className="text-[17px] leading-7 text-green-600">
+                          {item.statusType === "kyb" ? "KYB" : "KYC"}
+                        </span>
                       </div>
                     ) : (
                       <div />
@@ -498,6 +598,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
+      {/* Banking Details Section */}
       <div className="space-y-4">
         <div>
           <div className="flex justify-between items-center">
@@ -506,7 +607,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
               variant="ghost"
               size="sm"
               onClick={() => setIsEditBankingOpen(true)}
-              className={editButtonClassName}
+              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
             >
               Edit
               <PencilIcon className="h-4 w-4" />
@@ -522,6 +623,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
+      {/* Contact Person Section */}
       <div className="space-y-4">
         <div>
           <div className="flex justify-between items-center">
@@ -530,7 +632,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
               variant="ghost"
               size="sm"
               onClick={() => setIsEditContactOpen(true)}
-              className={editButtonClassName}
+              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
             >
               Edit
               <PencilIcon className="h-4 w-4" />
@@ -541,8 +643,6 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         <div className={gridClassName}>
           <div className={labelClassName}>Applicant name</div>
           <Input value={displayApplicantName} disabled className={inputClassName} />
-          {/* <div className={labelClassName}>Applicant position</div>
-          <Input value={applicantPosition} disabled className={inputClassName} /> */}
           <div className={labelClassName}>Applicant IC no</div>
           <Input value={documentNumber || "—"} disabled className={inputClassName} />
           <div className={labelClassName}>Applicant contact</div>
@@ -550,6 +650,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
+      {/* Edit Dialogs */}
       <EditCompanyInfoDialog
         open={isEditCompanyInfoOpen}
         onOpenChange={setIsEditCompanyInfoOpen}
@@ -595,14 +696,25 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         middleName={displayMiddleName || ""}
         lastName={displayLastName || ""}
         phoneNumber={displayPhoneNumber || ""}
-        position={applicantPosition}
         onSave={handleSaveContact}
       />
     </div>
   );
 }
 
-function EditCompanyInfoDialog({ open, onOpenChange, industry: initialIndustry, numberOfEmployees: initialNumberOfEmployees, onSave }: any) {
+/**
+ * EDIT COMPANY INFO DIALOG
+ * 
+ * Modal to edit industry and number of employees.
+ * Shows pending values if they exist, otherwise original values.
+ */
+function EditCompanyInfoDialog({
+  open,
+  onOpenChange,
+  industry: initialIndustry,
+  numberOfEmployees: initialNumberOfEmployees,
+  onSave,
+}: any) {
   const [industry, setIndustry] = React.useState(initialIndustry);
   const [numberOfEmployees, setNumberOfEmployees] = React.useState(initialNumberOfEmployees);
 
@@ -665,7 +777,19 @@ function EditCompanyInfoDialog({ open, onOpenChange, industry: initialIndustry, 
   );
 }
 
-function EditAddressDialog({ open, onOpenChange, businessAddress: initialBusinessAddress, registeredAddress: initialRegisteredAddress, onSave }: any) {
+/**
+ * EDIT ADDRESS DIALOG
+ * 
+ * Modal to edit business and registered addresses.
+ * Shows pending values if they exist, otherwise original values.
+ */
+function EditAddressDialog({
+  open,
+  onOpenChange,
+  businessAddress: initialBusinessAddress,
+  registeredAddress: initialRegisteredAddress,
+  onSave,
+}: any) {
   const [businessAddress, setBusinessAddress] = React.useState(initialBusinessAddress);
   const [registeredAddress, setRegisteredAddress] = React.useState(initialRegisteredAddress);
   const [registeredAddressSameAsBusiness, setRegisteredAddressSameAsBusiness] = React.useState(
@@ -676,7 +800,9 @@ function EditAddressDialog({ open, onOpenChange, businessAddress: initialBusines
     if (open) {
       setBusinessAddress({ ...initialBusinessAddress, country: initialBusinessAddress.country || "Malaysia" });
       setRegisteredAddress({ ...initialRegisteredAddress, country: initialRegisteredAddress.country || "Malaysia" });
-      setRegisteredAddressSameAsBusiness(JSON.stringify(initialBusinessAddress) === JSON.stringify(initialRegisteredAddress));
+      setRegisteredAddressSameAsBusiness(
+        JSON.stringify(initialBusinessAddress) === JSON.stringify(initialRegisteredAddress)
+      );
     }
   }, [open, initialBusinessAddress, initialRegisteredAddress]);
 
@@ -694,7 +820,9 @@ function EditAddressDialog({ open, onOpenChange, businessAddress: initialBusines
   const handleCancel = () => {
     setBusinessAddress(initialBusinessAddress);
     setRegisteredAddress(initialRegisteredAddress);
-    setRegisteredAddressSameAsBusiness(JSON.stringify(initialBusinessAddress) === JSON.stringify(initialRegisteredAddress));
+    setRegisteredAddressSameAsBusiness(
+      JSON.stringify(initialBusinessAddress) === JSON.stringify(initialRegisteredAddress)
+    );
     onOpenChange(false);
   };
 
@@ -880,7 +1008,19 @@ function EditAddressDialog({ open, onOpenChange, businessAddress: initialBusines
   );
 }
 
-function EditBankingDialog({ open, onOpenChange, bankName: initialBankName, bankAccountNumber: initialBankAccountNumber, onSave }: any) {
+/**
+ * EDIT BANKING DIALOG
+ * 
+ * Modal to edit bank name and account number.
+ * Shows pending values if they exist, otherwise original values.
+ */
+function EditBankingDialog({
+  open,
+  onOpenChange,
+  bankName: initialBankName,
+  bankAccountNumber: initialBankAccountNumber,
+  onSave,
+}: any) {
   const [bankName, setBankName] = React.useState(initialBankName);
   const [bankAccountNumber, setBankAccountNumber] = React.useState(initialBankAccountNumber);
 
@@ -943,12 +1083,25 @@ function EditBankingDialog({ open, onOpenChange, bankName: initialBankName, bank
   );
 }
 
-function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, middleName: initialMiddleName, lastName: initialLastName, phoneNumber: initialPhoneNumber, position: initialPosition, onSave }: any) {
+/**
+ * EDIT CONTACT DIALOG
+ * 
+ * Modal to edit contact person information.
+ * Shows pending values if they exist, otherwise original values.
+ */
+function EditContactDialog({
+  open,
+  onOpenChange,
+  firstName: initialFirstName,
+  middleName: initialMiddleName,
+  lastName: initialLastName,
+  phoneNumber: initialPhoneNumber,
+  onSave,
+}: any) {
   const [firstName, setFirstName] = React.useState(initialFirstName);
   const [middleName, setMiddleName] = React.useState(initialMiddleName);
   const [lastName, setLastName] = React.useState(initialLastName);
   const [phoneNumber, setPhoneNumber] = React.useState(initialPhoneNumber);
-  const [position, setPosition] = React.useState(initialPosition);
 
   React.useEffect(() => {
     if (open) {
@@ -956,12 +1109,11 @@ function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, mi
       setMiddleName(initialMiddleName);
       setLastName(initialLastName);
       setPhoneNumber(initialPhoneNumber);
-      setPosition(initialPosition);
     }
-  }, [open, initialFirstName, initialMiddleName, initialLastName, initialPhoneNumber, initialPosition]);
+  }, [open, initialFirstName, initialMiddleName, initialLastName, initialPhoneNumber]);
 
   const handleSave = () => {
-    onSave(firstName, middleName, lastName, phoneNumber, position);
+    onSave(firstName, middleName, lastName, phoneNumber);
   };
 
   const handleCancel = () => {
@@ -969,7 +1121,6 @@ function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, mi
     setMiddleName(initialMiddleName);
     setLastName(initialLastName);
     setPhoneNumber(initialPhoneNumber);
-    setPosition(initialPosition);
     onOpenChange(false);
   };
 
@@ -979,7 +1130,7 @@ function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, mi
         <DialogHeader>
           <DialogTitle>Edit Contact</DialogTitle>
           <DialogDescription className="text-[15px]">
-            Update the applicant&apos;s name, position, and contact information.
+            Update the applicant&apos;s name and contact information.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
@@ -1013,16 +1164,6 @@ function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, mi
               className="h-11 rounded-xl"
             />
           </div>
-          {/* <div className="space-y-2">
-            <Label htmlFor="applicant-position">Applicant Position</Label>
-            <Input
-              id="applicant-position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Enter position"
-              className="h-11 rounded-xl"
-            />
-          </div> */}
           <div className="space-y-2">
             <Label htmlFor="applicant-phone">Applicant Contact</Label>
             <Input

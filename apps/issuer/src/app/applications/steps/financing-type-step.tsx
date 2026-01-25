@@ -1,166 +1,100 @@
 "use client";
 
 import * as React from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useProducts } from "@/hooks/use-products";
-import { useS3ViewUrl } from "@/hooks/use-s3";
+import { ProductList } from "../components/product-list";
 
+/**
+ * FINANCING TYPE STEP
+ * 
+ * This step component shows product selection in the edit flow.
+ * 
+ * Different from /new page:
+ * - Loads selected product from database
+ * - User can change their selection
+ * - Passes selected product ID to parent for saving
+ * 
+ * Props:
+ * - applicationId: to identify the application
+ * - initialProductId: product saved in DB (from application.financing_type.product_id)
+ * - onDataChange: callback to pass selected product ID to parent
+ */
 interface FinancingTypeStepProps {
-  selectedProductId: string;
-  onProductSelect: (productId: string) => void;
-  isLoading?: boolean;
-}
-
-function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
-  const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
-
-  if (isLoading) {
-    return <Skeleton className="w-full h-full" />;
-  }
-
-  if (!imageUrl) {
-    return (
-      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-        Image
-        <br />
-        512x512
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={imageUrl}
-      alt={alt}
-      className="w-full h-full object-contain"
-    />
-  );
+  applicationId: string;
+  initialProductId?: string;
+  onDataChange?: (data: any) => void;
 }
 
 export function FinancingTypeStep({
-  selectedProductId,
-  onProductSelect,
-  isLoading: externalIsLoading,
+  applicationId,
+  initialProductId,
+  onDataChange,
 }: FinancingTypeStepProps) {
-  const { data: productsData, isLoading: internalIsLoading } = useProducts({
+  // Load all products
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
-
-  const isLoading = externalIsLoading ?? internalIsLoading;
-
+  
   const products = productsData?.products || [];
-
-  // Group products by category
-  const productsByCategory = React.useMemo(() => {
-    const grouped: Record<string, any[]> = {};
-    products.forEach((product: any) => {
-      const workflow = product.workflow || [];
-      
-      const financingStep = workflow.find(
-        (step: any) => step.name?.toLowerCase().includes("financing type")
-      );
-      const config = financingStep?.config || {};
-
-      const category = config.category || "Other";
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
-      grouped[category].push({
-        id: product.id,
-        name: config.name || "Unnamed Product",
-        description: config.description || "",
-        imageUrl: config.s3_key || "", 
+  
+  // Track which product is selected
+  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  
+  /**
+   * Initialize with product from database
+   * 
+   * When page loads, set the product that's already saved.
+   * User selected this in /new page, it's now in the database.
+   */
+  React.useEffect(() => {
+    if (initialProductId && !selectedProductId) {
+      setSelectedProductId(initialProductId);
+    }
+  }, [initialProductId, selectedProductId]);
+  
+  /**
+   * When user selects a different product
+   * 
+   * Updates local state and notifies parent component.
+   * Parent will save this when user clicks "Save and Continue".
+   */
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    
+    // Pass data to parent for saving
+    if (onDataChange) {
+      onDataChange({
+        product_id: productId,
       });
-    });
-    return grouped;
-  }, [products]);
-
-  if (isLoading) {
+    }
+  };
+  
+  // Show loading state
+  if (isLoadingProducts) {
     return (
-      <div className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-40 mb-2" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className="space-y-4 pl-4 md:pl-6">
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="relative flex items-start gap-4 border rounded-xl p-4 min-h-[88px]"
-            >
-              <Skeleton className="w-14 h-14 shrink-0 rounded-lg" />
-              <div className="flex-1 pr-8 md:pr-10 space-y-2 py-0.5">
-                <Skeleton className="h-7 w-64" />
-                <Skeleton className="h-5 w-full max-w-md" />
-              </div>
-              <div className="absolute top-4 right-4">
-                <Skeleton className="h-5 w-5 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="text-center py-12 text-muted-foreground">
+        Loading products...
       </div>
     );
   }
-
-  if (Object.keys(productsByCategory).length === 0) {
+  
+  // Show empty state
+  if (products.length === 0) {
     return (
-      <div className="text-center py-20 text-muted-foreground">
-        No products found
+      <div className="text-center py-12 text-muted-foreground">
+        No financing products available
       </div>
     );
   }
-
+  
   return (
-    <div className="space-y-6 md:space-y-8">
-      {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
-        <div key={category} className="space-y-4">
-          <div>
-            <h2 className="text-lg md:text-xl font-semibold">{category}</h2>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-
-          <div className="space-y-4 pl-4 md:pl-6">
-            {categoryProducts.map((product) => {
-              const isSelected = selectedProductId === product.id;
-              return (
-                <label
-                  key={product.id}
-                  className={`relative flex items-start gap-4 border rounded-xl p-4 cursor-pointer transition-colors ${
-                    isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                  }`}
-                  onClick={() => onProductSelect(product.id)}
-                >
-                  <div className="w-14 h-14 shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
-                    <ProductImage s3Key={product.imageUrl} alt={product.name} />
-                  </div>
-                  <div className="flex-1 pr-8 md:pr-10">
-                    <div className="font-semibold text-lg md:text-xl leading-7">
-                      {product.name}
-                    </div>
-                    <div className="text-muted-foreground text-sm md:text-base leading-6">
-                      {product.description}
-                    </div>
-                  </div>
-                  <div className="absolute top-4 right-4">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          onProductSelect(product.id);
-                        }
-                      }}
-                      className="rounded"
-                    />
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+    <div>
+      <ProductList
+        products={products}
+        selectedProductId={selectedProductId}
+        onProductSelect={handleProductSelect}
+      />
     </div>
   );
 }

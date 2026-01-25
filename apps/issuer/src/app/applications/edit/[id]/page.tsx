@@ -5,12 +5,15 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ProgressIndicator } from "@/components/progress-indicator";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
+import { useApplication, useUpdateApplicationStep } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { ProgressIndicator } from "../../components/progress-indicator";
+import { FinancingTypeStep } from "../../steps/financing-type-step";
+import { DeclarationsStep } from "../../steps/declarations-step";
+import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
 import {
   Dialog,
   DialogContent,
@@ -19,132 +22,259 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FinancingTypeStep } from "../../steps/financing-type-step";
-import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
-import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
-import { DeclarationsStep } from "../../steps/declarations-step";
-import { VersionMismatchModal } from "../../components/version-mismatch-modal";
 
-
-// We'll implement these step components next
-// For now, we'll use placeholders
-const StepPlaceholder = ({ title }: { title: string }) => (
-  <div className="text-center py-20 text-muted-foreground">
-    {title} implementation coming soon...
-  </div>
-);
-
-const STEP_MAP: Record<string, React.ComponentType<any>> = {
-  "financing_type": FinancingTypeStep,
-  "verify_company_info": VerifyCompanyInfoStep,
-  "company_info": VerifyCompanyInfoStep, // delete later
-  "supporting_documents": SupportingDocumentsStep,
-  "declaration": DeclarationsStep,
-  "declarations": DeclarationsStep,
-};
-
+/**
+ * EDIT APPLICATION PAGE
+ * 
+ * This is where users complete their application after creating it.
+ * 
+ * URL Format: /applications/edit/[id]?step=2
+ * - [id] = application ID
+ * - ?step= = which step to show (1, 2, 3, etc.)
+ * 
+ * Flow:
+ * 1. Load application from DB
+ * 2. Check which step user wants to see
+ * 3. Validate user can access that step (can't skip ahead)
+ * 4. Show the step content
+ * 5. User clicks "Save and Continue"
+ * 6. Save data to DB and go to next step
+ */
 export default function EditApplicationPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const id = params.id as string;
   
-  // URL uses 1-based indexing for users (step=1, step=2, etc.)
-  const currentStepDisplay = parseInt(searchParams.get("step") || "1");
-  // Code uses 0-based indexing for arrays (0, 1, 2, etc.)
-  const currentStepIndex = currentStepDisplay - 1;
-
-  const { data: application, isLoading: isLoadingApp, isError } = useApplication(id);
+  // Get application ID from URL
+  const applicationId = params.id as string;
+  
+  // Get which step user wants to see from URL
+  // URL uses ?step=1, ?step=2, etc. (1-based for users)
+  const stepFromUrl = parseInt(searchParams.get("step") || "1");
+  
+  // Load application from DB
+  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  
+  // Load products to get workflow steps
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
   
-  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-
-  const products = productsData?.products || [];
-
-  // Use selectedProductId if user changed it, otherwise use from DB
-  const effectiveProductId = selectedProductId || application?.financing_type?.product_id;
-  
-  // Find the selected product from the list
-  const selectedProduct = React.useMemo(() => {
-    return products.find((p: any) => p.id === effectiveProductId);
-  }, [products, effectiveProductId]);
-
+  // Hook to update application step
   const updateStepMutation = useUpdateApplicationStep();
-  const archiveApplicationMutation = useArchiveApplication();
-
-  const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
+  
+  // Track if user has unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
-  const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
-  const [areAllFilesUploaded, setAreAllFilesUploaded] = React.useState(true);
-  const [areAllDeclarationsChecked, setAreAllDeclarationsChecked] = React.useState(true);
-  const [declarationsData, setDeclarationsData] = React.useState<any>(null);
-  const declarationsDataRef = React.useRef<any>(null);
+  
+  // Track if modal is open
+  const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
+  
+  // Track where user wanted to go (for modal)
+  const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
+  
+  // Store step data from child components
+  const stepDataRef = React.useRef<any>(null);
+  
+  /**
+   * GET WORKFLOW STEPS
+   * 
+   * Get the list of steps from the product workflow.
+   * Each product defines its own workflow steps.
+   * 
+   * Example workflow:
+   * [
+   *   { name: "Financing Type", id: "financing_type" },
+   *   { name: "Company Info", id: "verify_company_info" },
+   *   { name: "Documents", id: "supporting_documents" },
+   *   { name: "Declarations", id: "declarations" }
+   * ]
+   */
+  const workflowSteps = React.useMemo(() => {
+    if (!application || !productsData) return [];
+    
+    // Get product ID from application
+    const financingType = application.financing_type as any;
+    const productId = financingType?.product_id;
+    
+    if (!productId) return [];
+    
+    // Find the product
+    const products = productsData.products || [];
+    const product = products.find((p: any) => p.id === productId);
+    
+    if (!product || !product.workflow) return [];
+    
+    // Return step names
+    return product.workflow.map((step: any) => step.name);
+  }, [application, productsData]);
+  
+  const isLoading = isLoadingApp || isLoadingProducts;
+  
+  /**
+   * GET CURRENT STEP INFO
+   * 
+   * Get the workflow step configuration for the current step.
+   * This tells us which component to render and what config to pass.
+   */
+  const currentStepConfig = React.useMemo(() => {
+    if (!application || !productsData) return null;
+    
+    // Get product
+    const financingType = application.financing_type as any;
+    const productId = financingType?.product_id;
+    if (!productId) return null;
+    
+    const products = productsData.products || [];
+    const product = products.find((p: any) => p.id === productId);
+    if (!product || !product.workflow) return null;
+    
+    // Get current step from workflow (0-based index)
+    const stepIndex = stepFromUrl - 1;
+    const step = product.workflow[stepIndex];
+    
+    return step || null;
+  }, [application, productsData, stepFromUrl]);
+  
+  // Get the step ID (e.g., "financing_type", "verify_company_info")
+  const currentStepId = currentStepConfig?.id || "";
+  
+  /**
+   * RENDER STEP COMPONENT
+   * 
+   * Based on the step ID, render the appropriate component.
+   * Each step component handles its own data and passes it to parent via onDataChange.
+   */
+  const renderStepComponent = () => {
+    // Get product ID from application
+    const financingType = application?.financing_type as any;
+    const savedProductId = financingType?.product_id;
+    
+    // Match step ID to component
+    if (currentStepId === "financing_type") {
+      return (
+        <FinancingTypeStep
+          applicationId={applicationId}
+          initialProductId={savedProductId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+    
+    if (currentStepId === "verify_company_info" || currentStepId === "company_info_1") {
+      return (
+        <VerifyCompanyInfoStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+    
+    if (currentStepId === "declarations" || currentStepId === "declaration_1") {
+      return (
+        <DeclarationsStep
+          applicationId={applicationId}
+          stepConfig={currentStepConfig?.config}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+    
+    // Placeholder for other steps
+    return (
+      <div className="border rounded-xl p-8 bg-card">
+        <p className="text-muted-foreground">
+          Step component for "{currentStepId}" coming soon...
+        </p>
+        <p className="text-sm text-muted-foreground mt-4">
+          Application ID: {applicationId}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Last completed step: {application?.last_completed_step}
+        </p>
+        
+        {/* Test input to simulate data changes */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium mb-2">
+            Test Input (simulates step data):
+          </label>
+          <input
+            type="text"
+            placeholder="Type something..."
+            className="border rounded px-3 py-2 w-full"
+            onChange={(e) => handleDataChange({ test_field: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Try typing and then clicking Back - you'll see the unsaved changes modal!
+          </p>
+        </div>
+      </div>
+    );
+  };
+  
+  /**
+   * RESUME LOGIC
+   * 
+   * If user visits /applications/edit/123 without ?step=
+   * Redirect them to their last completed step
+   */
+  React.useEffect(() => {
+    if (!application || isLoadingApp) return;
+    
+    // If no step in URL, go to last completed step
+    if (!searchParams.get("step")) {
+      const lastCompleted = application.last_completed_step || 1;
+      router.replace(`/applications/edit/${applicationId}?step=${lastCompleted}`);
+    }
+  }, [application, applicationId, router, searchParams, isLoadingApp]);
+  
+  /**
+   * STEP VALIDATION
+   * 
+   * Prevent users from skipping steps by typing URL manually
+   * 
+   * Rules:
+   * - User can only access steps 1 through (last_completed_step + 1)
+   * - Example: If last_completed_step = 2, user can access steps 1, 2, or 3
+   * - Trying to access step 5 → redirect to step 3 with error
+   * 
+   * Why? We want users to complete steps in order.
+   */
+  React.useEffect(() => {
+    if (!application || isLoadingApp) return;
+    
+    const lastCompleted = application.last_completed_step || 1;
+    const maxAllowedStep = lastCompleted + 1;
+    
+    // User is trying to skip ahead
+    if (stepFromUrl > maxAllowedStep) {
+      toast.error("Please complete steps in order");
+      router.replace(`/applications/edit/${applicationId}?step=${maxAllowedStep}`);
+    }
+    
+    // User typed invalid step number (less than 1)
+    if (stepFromUrl < 1) {
+      toast.error("Invalid step number");
+      router.replace(`/applications/edit/${applicationId}?step=${lastCompleted}`);
+    }
+  }, [application, applicationId, stepFromUrl, router, isLoadingApp]);
+  
+  /**
+   * UNSAVED CHANGES WARNING
+   * 
+   * If user has unsaved changes and tries to leave:
+   * - Browser back → show modal
+   * - Browser refresh/close → show browser warning
+   * - Click links → show modal
+   */
   
   // Reset unsaved changes when step changes
   React.useEffect(() => {
     setHasUnsavedChanges(false);
-    setAreAllFilesUploaded(true);
-    setAreAllDeclarationsChecked(true);
-    setDeclarationsData(null);
-    declarationsDataRef.current = null;
-  }, [currentStepDisplay]);
+    stepDataRef.current = null; // Clear step data when changing steps
+  }, [stepFromUrl]);
   
-  // Workflow steps from the application's product
-  const workflowSteps = React.useMemo(() => {
-    return (selectedProduct as any)?.workflow?.map((step: any) => step.name) || [];
-  }, [selectedProduct]);
-
-  // Helper to get the base step ID (strips unique suffixes like _abc)
-  const getBaseStepId = (stepId: string) => {
-    if (!stepId) return "";
-    // If the ID has underscores, we take everything except the last part
-    const parts = stepId.split("_");
-    if (parts.length > 1) {
-      return parts.slice(0, -1).join("_");
-    }
-    return stepId;
-  };
-
-  const currentStepId = (selectedProduct as any)?.workflow?.[currentStepIndex]?.id;
-  const baseStepId = getBaseStepId(currentStepId);
-  const StepComponent = STEP_MAP[baseStepId];
-  const currentStepConfig = (selectedProduct as any)?.workflow?.[currentStepIndex]?.config;
-
-  // Sync selectedProductId with application data
-  React.useEffect(() => {
-    if (application?.financing_type?.product_id) {
-      setSelectedProductId(application.financing_type.product_id);
-    }
-  }, [application]);
-
-  // Handle resume logic
-  React.useEffect(() => {
-    if (application && !searchParams.get("step")) {
-      const resumeStep = application.last_completed_step || 1;
-      router.replace(`/applications/edit/${id}?step=${resumeStep}`);
-    }
-  }, [application, id, router, searchParams]);
-
-  // Handle version mismatch
-  React.useEffect(() => {
-    if (application?.isVersionMismatch) {
-      setIsVersionMismatchModalOpen(true);
-    }
-  }, [application?.isVersionMismatch]);
-
-  const handleRestart = async () => {
-    try {
-      await archiveApplicationMutation.mutateAsync(id);
-      router.push("/applications/new");
-    } catch (error) {
-      // Error handled by mutation
-    }
-  };
-
-  // Handle unsaved changes warning for browser navigation (reload, close tab)
+  // Browser refresh/close warning
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
@@ -152,184 +282,197 @@ export default function EditApplicationPage() {
         e.returnValue = "";
       }
     };
+    
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
-
-  // Handle unsaved changes for internal navigation (sidebar, back button, etc.)
+  
+  // Browser back button
   React.useEffect(() => {
     if (!hasUnsavedChanges) return;
-
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const anchor = target.closest("a");
-
-      if (anchor && anchor.href && !anchor.href.includes(window.location.pathname)) {
-        e.preventDefault();
-        setIsUnsavedChangesModalOpen(true);
-        // Store the destination to navigate after user confirms
-        (window as any)._pendingNavigation = anchor.href;
-      }
-    };
-
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
-  }, [hasUnsavedChanges]);
-
-  const handleConfirmLeave = () => {
-    setHasUnsavedChanges(false);
-    setIsUnsavedChangesModalOpen(false);
-    const pendingNav = (window as any)._pendingNavigation;
-    setTimeout(() => {
-    if (pendingNav) {
-      router.push(pendingNav);
-      (window as any)._pendingNavigation = null;
-    } else if (currentStepDisplay > 1) {
-      router.push(`/applications/edit/${id}?step=${currentStepDisplay - 1}`);
-    } else {
-      router.push("/dashboard");
-    }
-  }, 0)
-  };
-
-  const handleBack = () => {
-    if (hasUnsavedChanges) {
-      setIsUnsavedChangesModalOpen(true);
-    } else if (currentStepDisplay > 1) {
-      router.push(`/applications/edit/${id}?step=${currentStepDisplay - 1}`);
-    } else {
-      router.push("/dashboard");
-    }
-  };
-
-  // Handle browser back button
-  React.useEffect(() => {
-    if (!hasUnsavedChanges) return;
-
-    // Push a dummy state to the history so we can catch the popstate event
+    
+    // Push dummy state to catch back button
     window.history.pushState(null, "", window.location.href);
-
+    
     const handlePopState = () => {
-      // If there are unsaved changes, prevent the back navigation
       if (hasUnsavedChanges) {
-        // Re-push the dummy state to keep the user on the current page
         window.history.pushState(null, "", window.location.href);
         setIsUnsavedChangesModalOpen(true);
       }
     };
-
+    
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [hasUnsavedChanges]);
-
-  const handleSaveAndContinue = async (data: any) => {
-    try {
-      // If there's a step-specific save function (for verify_company_info or supporting_documents step), call it first
-      const stepSaveFunction = (window as any)._stepSaveFunction;
-      if (stepSaveFunction) {
-        const stepData = await stepSaveFunction();
-        // stepData can be null (for verify_company_info which saves directly to organization)
-        // or an object (for supporting_documents which returns { categories: [...] } directly)
-        if (stepData && typeof stepData === 'object') {
-          // The step returns dataToSave directly (e.g., { categories: [...] })
-          // The backend will save it to the supporting_documents field
-          await updateStepMutation.mutateAsync({
-            id,
-            stepData: {
-              stepIndex: currentStepIndex,
-              data: stepData,
-            },
-          });
-        }
-        (window as any)._stepSaveFunction = null;
-      } else {
-        // Get the base step ID to determine which field to save to
-        const baseStepId = getBaseStepId(workflowSteps[currentStepIndex]);
-        
-        console.log("Save and continue clicked:", {
-          baseStepId,
-          currentStepDisplay,
-          currentStepIndex,
-          declarationsData,
-          workflowStep: workflowSteps[currentStepIndex],
-          workflowStepsLength: workflowSteps.length,
-        });
-        
-        let finalData;
-        if (currentStepDisplay === 1) {
-          // Step 1: Save product_id
-          finalData = { product_id: selectedProductId };
-        } else if (baseStepId.toLowerCase() === "declaration" || baseStepId.toLowerCase() === "declarations") {
-          // Declaration step: Save declarations data
-          const currentDeclarationsData = declarationsData || declarationsDataRef.current;
-          
-          console.log("Declaration step - preparing to save:", {
-            declarationsData,
-            declarationsDataRef: declarationsDataRef.current,
-            currentDeclarationsData,
-            currentStepIndex,
-            currentStepConfig,
-          });
-          
-          if (currentDeclarationsData && currentDeclarationsData.declarations) {
-            console.log("Saving declarations to DB:", currentDeclarationsData);
-            finalData = currentDeclarationsData;
-          } else {
-            // If no data from component, build it from stepConfig with all unchecked
-            const declarations = currentStepConfig?.declarations || [];
-            finalData = {
-              declarations: declarations.map(() => ({ checked: false })),
-            };
-            console.log("Built declarations data from stepConfig (fallback):", finalData);
-          }
-        } else {
-          // Other steps
-          finalData = data;
-        }
-        
-        if (!finalData) {
-          console.error("No data to save for step:", baseStepId);
-          return;
-        }
-        
-        console.log("Final data being saved:", {
-          stepIndex: currentStepIndex,
-          data: finalData,
-          baseStepId,
-        });
-        
-        await updateStepMutation.mutateAsync({
-          id,
-          stepData: {
-            stepIndex: currentStepIndex,
-            data: finalData,
-          },
-        });
-        
-        console.log("Save completed successfully");
+  
+  // Link clicks
+  React.useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      
+      if (anchor && anchor.href && !anchor.href.includes(window.location.pathname)) {
+        e.preventDefault();
+        setPendingNavigation(anchor.href);
+        setIsUnsavedChangesModalOpen(true);
       }
-      
-      setHasUnsavedChanges(false);
-      
-      console.log("Navigation check:", {
-        currentStepDisplay,
-        workflowStepsLength: workflowSteps.length,
-        willNavigate: currentStepDisplay < workflowSteps.length,
-        nextStep: currentStepDisplay < workflowSteps.length ? currentStepDisplay + 1 : null,
-      });
-      
-      if (currentStepDisplay < workflowSteps.length) {
-        router.push(`/applications/edit/${id}?step=${currentStepDisplay + 1}`);
+    };
+    
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [hasUnsavedChanges]);
+  
+  /**
+   * When user confirms they want to leave (in modal)
+   */
+  const handleConfirmLeave = () => {
+    setHasUnsavedChanges(false);
+    setIsUnsavedChangesModalOpen(false);
+    
+    // Navigate to where they wanted to go
+    setTimeout(() => {
+      if (pendingNavigation) {
+        router.push(pendingNavigation);
+        setPendingNavigation(null);
+      } else if (stepFromUrl === 1) {
+        // First step - go to dashboard
+        router.push("/");
+      } else if (stepFromUrl > 1) {
+        // Any other step - go to previous step
+        router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
       } else {
-        toast.success("Application submitted successfully!");
-        router.push("/dashboard");
+        // Fallback
+        router.push("/");
       }
-    } catch (error) {
-      console.error("Error in handleSaveAndContinue:", error);
+    }, 0);
+  };
+  
+  /**
+   * Handle back button click
+   * 
+   * Logic:
+   * - If on step 1 (first step) → go to dashboard
+   * - If on step 2+ → go to previous step (step 1 shows financing type with DB data)
+   * - Always check for unsaved changes first
+   */
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      setIsUnsavedChangesModalOpen(true);
+      return;
+    }
+    
+    if (stepFromUrl === 1) {
+      // First step - go back to dashboard
+      router.push("/");
+    } else if (stepFromUrl > 1) {
+      // Any other step - go to previous step
+      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
+    } else {
+      // Fallback - go to dashboard
+      router.push("/");
     }
   };
-
-  if (isLoadingApp || isLoadingProducts) {
+  
+  /**
+   * SAVE AND CONTINUE
+   * 
+   * This is called when user clicks "Save and Continue" button.
+   * 
+   * Flow:
+   * 1. Get data from current step
+   * 2. Call API to save data
+   * 3. Clear unsaved changes flag
+   * 4. Navigate to next step
+   * 
+   * The data is stored in stepDataRef by child step components.
+   */
+  const handleSaveAndContinue = async () => {
+    try {
+      // Get the data from the current step
+      const dataToSave = stepDataRef.current;
+      
+      /**
+       * STEP-SPECIFIC SAVE FUNCTIONS
+       * 
+       * Some steps need to save additional data before saving the application.
+       * For example, verify_company_info updates organization data first.
+       */
+      if (dataToSave?.saveFunction) {
+        await dataToSave.saveFunction();
+      }
+      
+      /**
+       * DECLARATIONS VALIDATION
+       * 
+       * For declarations step, check if all boxes are checked.
+       * We check the declarations array directly.
+       */
+      if (currentStepId === "declarations" || currentStepId === "declaration_1") {
+        const declarations = dataToSave?.declarations || [];
+        const allChecked = declarations.every((d: any) => d.checked === true);
+        
+        if (!allChecked || declarations.length === 0) {
+          toast.error("Please check all declarations to continue");
+          return;
+        }
+      }
+      
+      // For now, we're using placeholder data
+      // Later, step components will update stepDataRef with real data
+      if (!dataToSave) {
+        // No data yet - just navigate for now
+        toast.success("Step completed");
+        setHasUnsavedChanges(false);
+        router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        return;
+      }
+      
+      // Call API to save
+      // API endpoint: PATCH /v1/applications/:id/step
+      // Body: { stepNumber: 1, stepId: "financing_type", data: {...} }
+      await updateStepMutation.mutateAsync({
+        id: applicationId,
+        stepData: {
+          stepNumber: stepFromUrl,
+          stepId: currentStepId,
+          data: dataToSave,
+        },
+      });
+      
+      // Success! Clear unsaved changes and navigate
+      setHasUnsavedChanges(false);
+      toast.success("Saved successfully");
+      
+      // Go to next step
+      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+      
+    } catch (error) {
+      // Error already shown by mutation hook
+      toast.error("Failed to save. Please try again.");
+    }
+  };
+  
+  /**
+   * Callback for step components to pass data to parent
+   * 
+   * Step components will call this when data changes:
+   * onDataChange({ company_name: "ABC Corp", ... })
+   * 
+   * We store it in a ref so we always have the latest data
+   */
+  const handleDataChange = (data: any) => {
+    stepDataRef.current = data;
+    
+    // Mark as having unsaved changes
+    if (data) {
+      setHasUnsavedChanges(true);
+    }
+  };
+  
+  // Show loading state while fetching application
+  if (isLoading || !application) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -337,182 +480,114 @@ export default function EditApplicationPage() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Skeleton className="h-6 w-32" />
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 pt-0">
-          <div className="flex flex-1 flex-col gap-4">
-            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8">
-              <div className="mb-6">
-                <Skeleton className="h-9 w-64 mb-2" />
-                <Skeleton className="h-5 w-96" />
-              </div>
-
-              <ProgressIndicator
-                steps={Array(7).fill("")}
-                currentStep={1}
-                isLoading={true}
-              />
-            </div>
-
-            <div className="h-px bg-border w-full -mx-4" />
-
-            <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6">
-              <FinancingTypeStep 
-                selectedProductId=""
-                onProductSelect={() => {}}
-                isLoading={true}
-              />
-            </div>
+        
+        <main className="flex-1 overflow-y-auto p-4">
+          <div className="max-w-7xl mx-auto w-full px-4 py-8">
+            <Skeleton className="h-9 w-64 mb-2" />
+            <Skeleton className="h-5 w-96 mb-8" />
+            <Skeleton className="h-96 w-full" />
           </div>
         </main>
-
-        <footer className="sticky bottom-0 border-t bg-background z-10 mt-auto">
-          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-4 flex justify-between gap-4">
-            <Skeleton className="h-12 w-24 rounded-xl" />
-            <Skeleton className="h-12 w-40 rounded-xl" />
+        
+        <footer className="sticky bottom-0 border-t bg-background">
+          <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
+            <Skeleton className="h-12 w-32 rounded-xl" />
+            <Skeleton className="h-12 w-48 rounded-xl" />
           </div>
         </footer>
       </div>
     );
   }
-
-  if (isError || !application) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center p-4">
-        <h2 className="text-2xl font-bold">Application not found</h2>
-        <Button onClick={() => router.push("/dashboard")} className="mt-4">
-          Back to Dashboard
-        </Button>
-      </div>
-    );
-  }
-
+  
   return (
     <div className="flex flex-col h-full">
+      {/* Top navigation bar */}
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">
-          {(selectedProduct as any)?.name || "Application"}
-        </h1>
+        <h1 className="text-lg font-semibold">Edit Application</h1>
       </header>
-
-      <main className="flex-1 overflow-y-auto p-4 pt-0">
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8">
-            <div className="mb-6">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                {workflowSteps[currentStepIndex]}
-              </h1>
-            </div>
-
-            <ProgressIndicator
-              steps={workflowSteps.length > 0 ? workflowSteps : Array(7).fill("")}
-              currentStep={currentStepDisplay}
-              isLoading={false}
-            />
+      
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-7xl mx-auto w-full px-4 py-8">
+          {/* Page Title */}
+          <div className="mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Step {stepFromUrl}: {workflowSteps[stepFromUrl - 1] || "Loading..."}
+            </h1>
+            <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+              Complete your application
+            </p>
           </div>
-
-          <div className="h-px bg-border w-full -mx-4" />
-
-          <div className="max-w-7xl mx-auto w-full px-2 md:px-4 pt-6">
-            {StepComponent ? (
-              <StepComponent 
-                // Step 1 props
-                selectedProductId={selectedProductId}
-                onProductSelect={(pid: string) => {
-                  setSelectedProductId(pid);
-                  setHasUnsavedChanges(pid !== application.financing_type?.product_id);
-                }}
-                isLoading={false}
-                // Supporting documents props
-                applicationId={id}
-                stepConfig={currentStepConfig}
-                // Step data change handler
-                onDataChange={(data: any) => {
-                  if (data?.hasPendingChanges) {
-                    setHasUnsavedChanges(true);
-                  }
-                  if (data?.saveFunction) {
-                    (window as any)._stepSaveFunction = data.saveFunction;
-                  }
-                  if (data?.areAllFilesUploaded !== undefined) {
-                    setAreAllFilesUploaded(data.areAllFilesUploaded);
-                  }
-                  if (data?.areAllDeclarationsChecked !== undefined) {
-                    setAreAllDeclarationsChecked(data.areAllDeclarationsChecked);
-                  }
-                  if (data?.declarations !== undefined) {
-                    setDeclarationsData(data.declarations);
-                    declarationsDataRef.current = data.declarations;
-                  }
-                }}
-              />
-            ) : (
-              <StepPlaceholder title={workflowSteps[currentStepIndex]} />
-            )}
-          </div>
+          
+          {/* Progress Indicator */}
+          <ProgressIndicator
+            steps={workflowSteps}
+            currentStep={stepFromUrl}
+            isLoading={false}
+          />
+        </div>
+        
+        {/* Divider */}
+        <div className="h-px bg-border w-full" />
+        
+        {/* Step Content */}
+        <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+          {renderStepComponent()}
         </div>
       </main>
-
-      <footer className="sticky bottom-0 border-t bg-background z-10 mt-auto">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-4 flex justify-between gap-4">
+      
+      {/* Bottom buttons */}
+      <footer className="sticky bottom-0 border-t bg-background">
+        <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
+          {/* Back button */}
           <Button
             variant="outline"
             onClick={handleBack}
-            className="text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl"
+            className="text-base font-semibold px-6 py-3 rounded-xl"
           >
-            <ArrowLeftIcon className="h-4 w-4 mr-1" />
+            <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
           </Button>
+          
+          {/* Continue button */}
           <Button
-            onClick={() => handleSaveAndContinue({})}
-            disabled={
-              updateStepMutation.isPending || 
-              (currentStepDisplay === 1 && !selectedProductId) ||
-              (baseStepId === "supporting_documents" && !areAllFilesUploaded) ||
-              ((baseStepId.toLowerCase() === "declaration" || baseStepId.toLowerCase() === "declarations") && !areAllDeclarationsChecked)
-            }
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleSaveAndContinue}
+            disabled={updateStepMutation.isPending}
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base font-semibold px-6 py-3 rounded-xl"
           >
-            {updateStepMutation.isPending 
-              ? "Saving..." 
-              : currentStepDisplay === workflowSteps.length 
-                ? "Submit Application" 
-                : "Save and continue"}
-            <ArrowRightIcon className="h-4 w-4 ml-1" />
+            {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
+            <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
       </footer>
-
-      {/* Unsaved Changes Dialog */}
+      
+      {/* Unsaved Changes Modal */}
       <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Unsaved Changes</DialogTitle>
+            <DialogTitle>Unsaved changes</DialogTitle>
             <DialogDescription>
               You have unsaved changes. Are you sure you want to leave? Your changes will be lost.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUnsavedChangesModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsUnsavedChangesModalOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmLeave}
             >
-              Leave
+              Leave without saving
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Version Mismatch Modal */}
-      <VersionMismatchModal
-        open={isVersionMismatchModalOpen}
-        onConfirm={handleRestart}
-        isPending={archiveApplicationMutation.isPending}
-      />
     </div>
   );
 }

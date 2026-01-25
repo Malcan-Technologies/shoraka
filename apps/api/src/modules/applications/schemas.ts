@@ -12,7 +12,8 @@ export const createApplicationSchema = z.object({
  * Schema for updating an application step
  */
 export const updateApplicationStepSchema = z.object({
-  stepIndex: z.number().int().min(0),
+  stepNumber: z.number().int().min(1),
+  stepId: z.string(),
   data: z.record(z.unknown()),
 });
 

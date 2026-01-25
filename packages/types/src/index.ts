@@ -135,7 +135,8 @@ export interface CreateApplicationInput {
 }
 
 export interface UpdateApplicationStepInput {
-  stepIndex: number;
+  stepNumber: number;
+  stepId: string;
   data: Record<string, any>;
 }
 

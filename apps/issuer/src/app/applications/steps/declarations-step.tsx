@@ -5,6 +5,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApplication } from "@/hooks/use-applications";
 
+/**
+ * DECLARATIONS STEP
+ * 
+ * Shows legal declarations from product workflow.
+ * User must check all boxes before they can save.
+ * 
+ * Data Flow:
+ * 1. Load declarations text from stepConfig
+ * 2. Check DB for saved checkbox states
+ * 3. Show checkboxes with text
+ * 4. When user toggles, pass data to parent
+ * 5. Parent saves to DB when clicking "Save and Continue"
+ * 
+ * Database format: { declarations: [{checked: true}, {checked: false}] }
+ */
 interface DeclarationsStepProps {
   applicationId: string;
   stepConfig?: any;
@@ -18,75 +33,112 @@ export function DeclarationsStep({
 }: DeclarationsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
+  /**
+   * Get declarations array from config
+   * 
+   * The product workflow has: config.declarations = ["text 1", "text 2", ...]
+   * We use useMemo to avoid re-creating the array on every render.
+   */
   const declarations = React.useMemo(() => {
     const decls = stepConfig?.declarations;
     return Array.isArray(decls) ? decls : [];
   }, [stepConfig?.declarations]);
-  const [checkedDeclarations, setCheckedDeclarations] = React.useState<Record<number, boolean>>({});
-  const onDataChangeRef = React.useRef(onDataChange);
 
+  /**
+   * Track which checkboxes are checked
+   * 
+   * Format: { 0: true, 1: false, 2: true }
+   * The number is the index in the declarations array.
+   */
+  const [checkedDeclarations, setCheckedDeclarations] = React.useState<Record<number, boolean>>({});
+
+  /**
+   * Stable reference for onDataChange callback
+   * 
+   * We use a ref so the effect below doesn't re-run
+   * every time the parent passes a new callback function.
+   */
+  const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
 
+  /**
+   * Track if we loaded data from DB yet
+   * 
+   * We only want to load once when the component first mounts.
+   * This prevents overwriting user's changes if the application data refreshes.
+   */
   const [isInitialized, setIsInitialized] = React.useState(false);
 
+  /**
+   * LOAD SAVED DATA FROM DATABASE
+   * 
+   * When the page loads, check if user already checked some boxes.
+   * If yes, restore those checkbox states.
+   * If no, start with all unchecked.
+   */
   React.useEffect(() => {
+    // Wait until we have data
     if (!application || declarations.length === 0) {
       return;
     }
 
+    // Only initialize once
+    if (isInitialized) {
+      return;
+    }
+
     const savedDeclarations = application.declarations as any;
-    
-    console.log("Loading declarations from DB:", {
-      savedDeclarations,
-      declarationsLength: declarations.length,
-      hasSavedData: !!savedDeclarations,
-    });
-    
     const initialState: Record<number, boolean> = {};
-    
+
     if (savedDeclarations?.declarations && Array.isArray(savedDeclarations.declarations)) {
+      // Load from DB
       savedDeclarations.declarations.forEach((item: any, index: number) => {
         if (index < declarations.length) {
           initialState[index] = item.checked || false;
         }
       });
-      console.log("Loaded from saved data:", initialState);
     } else {
+      // No saved data - start with all unchecked
       declarations.forEach((_: any, index: number) => {
         initialState[index] = false;
       });
-      console.log("Initialized with false values:", initialState);
     }
-    
+
     setCheckedDeclarations(initialState);
     setIsInitialized(true);
-  }, [application, declarations]);
+  }, [application, declarations, isInitialized]);
 
+  /**
+   * NOTIFY PARENT WHEN DATA CHANGES
+   * 
+   * Every time the user checks/unchecks a box, we tell the parent.
+   * The parent stores this in a ref and saves it when user clicks "Save and Continue".
+   */
   React.useEffect(() => {
-    if (!onDataChangeRef.current || declarations.length === 0 || !isInitialized) return;
+    if (!onDataChangeRef.current || declarations.length === 0 || !isInitialized) {
+      return;
+    }
 
+    // Build the data to save
     const dataToSave = declarations.map((_: any, index: number) => ({
       checked: checkedDeclarations[index] || false,
     }));
-
-    const allChecked = declarations.every((_: any, index: number) => 
-      checkedDeclarations[index] === true
-    );
 
     const saveData = {
       declarations: dataToSave,
     };
 
-    console.log("Sending declarations data to parent:", saveData);
-
-    onDataChangeRef.current({
-      areAllDeclarationsChecked: allChecked,
-      declarations: saveData,
-    });
+    // Pass to parent (parent will validate)
+    onDataChangeRef.current(saveData);
   }, [checkedDeclarations, declarations, isInitialized]);
 
+  /**
+   * HANDLE CHECKBOX TOGGLE
+   * 
+   * When user clicks a checkbox, update the state.
+   */
   const handleToggle = React.useCallback((index: number, checked: boolean) => {
     setCheckedDeclarations((prev) => ({
       ...prev,
@@ -94,6 +146,9 @@ export function DeclarationsStep({
     }));
   }, []);
 
+  /**
+   * LOADING STATE
+   */
   if (isLoadingApp || !stepConfig) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
@@ -132,6 +187,9 @@ export function DeclarationsStep({
     );
   }
 
+  /**
+   * EMPTY STATE
+   */
   if (declarations.length === 0) {
     return (
       <div className="space-y-4">
@@ -142,6 +200,12 @@ export function DeclarationsStep({
     );
   }
 
+  /**
+   * MAIN UI
+   * 
+   * Left side: Checkboxes with declaration text
+   * Right side: Info panel about what happens next
+   */
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       <div>
