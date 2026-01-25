@@ -38,20 +38,6 @@ function formatAddress(addr: {
   return parts.length ? parts.join(", ") : "—";
 }
 
-function formatOwnership(role: string | null | undefined): string {
-  if (!role) return "—";
-  const match = role.match(/\((\d+)%\)/);
-  if (match) {
-    return `${match[1]}% ownership`;
-  }
-  return "—";
-}
-
-function getRoleLabel(role: string | null | undefined): string {
-  if (!role) return "Director";
-  const beforeParen = role.split("(")[0].trim();
-  return beforeParen || "Director";
-}
 
 interface VerifyCompanyInfoStepProps {
   onDataChange?: (data: unknown) => void;
@@ -83,8 +69,7 @@ export function VerifyCompanyInfoStep(_props: VerifyCompanyInfoStepProps) {
     return name.trim().toLowerCase().replace(/\s+/g, " ");
   };
 
-  const directorKycStatus = entitiesData?.directorKycStatus ?? null;
-  const directorsFromKyc = directorKycStatus?.directors ?? [];
+  const directorsDisplay = entitiesData?.directorsDisplay ?? [];
   const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
   
   const combinedList = React.useMemo(() => {
@@ -98,21 +83,27 @@ export function VerifyCompanyInfoStep(_props: VerifyCompanyInfoStepProps) {
       key: string;
     }> = [];
 
-    directorsFromKyc.forEach((d) => {
+    // Process directors first
+    directorsDisplay.forEach((d) => {
       const normalized = normalizeName(d.name);
       if (!seen.has(normalized)) {
         seen.add(normalized);
+        
+        // If director has ownership (not "—"), they're also a shareholder
+        const isAlsoShareholder = d.ownershipLabel !== "—";
+        
         result.push({
           type: "director",
           name: d.name,
-          roleLabel: getRoleLabel(d.role),
-          ownership: formatOwnership(d.role),
-          kycStatus: d.kycStatus === "APPROVED",
+          roleLabel: isAlsoShareholder ? "Director, Shareholder" : "Director",
+          ownership: d.ownershipLabel,
+          kycStatus: d.kycVerified,
           key: `dir-${normalized}`,
         });
       }
     });
 
+    // Process shareholders who are NOT directors
     shareholdersDisplay.forEach((s) => {
       const normalized = normalizeName(s.name);
       if (!seen.has(normalized)) {
@@ -129,7 +120,7 @@ export function VerifyCompanyInfoStep(_props: VerifyCompanyInfoStepProps) {
     });
 
     return result;
-  }, [directorsFromKyc, shareholdersDisplay]);
+  }, [directorsDisplay, shareholdersDisplay]);
 
   const hasDirectorsOrShareholders = combinedList.length > 0;
 
