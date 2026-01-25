@@ -23,7 +23,6 @@ import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
-import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
 import { VersionMismatchModal } from "../../components/version-mismatch-modal";
 
 
@@ -42,8 +41,6 @@ const STEP_MAP: Record<string, React.ComponentType<any>> = {
   "supporting_documents": SupportingDocumentsStep,
   "declaration": DeclarationsStep,
   "declarations": DeclarationsStep,
-  "review_and_submit": ReviewAndSubmitStep,
-  "review_submit": ReviewAndSubmitStep, // temporary - same as review_and_submit
 };
 
 export default function EditApplicationPage() {

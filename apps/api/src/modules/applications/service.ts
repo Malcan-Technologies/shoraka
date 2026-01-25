@@ -28,12 +28,9 @@ export class ApplicationService {
   private getFieldNameForStep(index: number): keyof Application | null {
     const stepFields: (keyof Application)[] = [
       "financing_type",
-      "invoice_details",
-      "buyer_details",
       "verify_company_info",
       "supporting_documents",
       "declarations",
-      "review_submit",
     ];
     return stepFields[index] || null;
   }
