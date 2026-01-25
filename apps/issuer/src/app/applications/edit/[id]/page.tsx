@@ -203,6 +203,13 @@ export default function EditApplicationPage() {
 
   const handleSaveAndContinue = async (data: any) => {
     try {
+      // If there's a step-specific save function (for verify_company_info step), call it first
+      const stepSaveFunction = (window as any)._stepSaveFunction;
+      if (stepSaveFunction) {
+        await stepSaveFunction();
+        (window as any)._stepSaveFunction = null;
+      }
+      
       // If we are on Step 1, we save the product_id
       const finalData = currentStepDisplay === 1 
         ? { product_id: selectedProductId }
@@ -324,6 +331,15 @@ export default function EditApplicationPage() {
                   setHasUnsavedChanges(pid !== application.financing_type?.product_id);
                 }}
                 isLoading={false}
+                // Step data change handler
+                onDataChange={(data: any) => {
+                  if (data?.hasPendingChanges) {
+                    setHasUnsavedChanges(true);
+                  }
+                  if (data?.saveFunction) {
+                    (window as any)._stepSaveFunction = data.saveFunction;
+                  }
+                }}
               />
             ) : (
               <StepPlaceholder title={workflowSteps[currentStepIndex]} />

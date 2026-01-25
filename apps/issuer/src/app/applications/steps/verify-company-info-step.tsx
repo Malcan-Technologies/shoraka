@@ -50,17 +50,28 @@ const gridClassName = "grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6";
 const sectionGridClassName = "grid grid-cols-2 gap-6 mt-6 pl-4 md:pl-6";
 const editButtonClassName = "h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10";
 
-export function VerifyCompanyInfoStep(_props: any) {
+export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: any) => void }) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken);
   const queryClient = useQueryClient();
+  
+  // Memoize apiClient to prevent recreation on every render
+  const apiClient = React.useMemo(
+    () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
+    [getAccessToken]
+  );
 
   const [isEditCompanyInfoOpen, setIsEditCompanyInfoOpen] = React.useState(false);
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
   const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
+
+  // Store pending edits in local state (not saved to API yet)
+  const [pendingCompanyInfo, setPendingCompanyInfo] = React.useState<{ industry?: string; numberOfEmployees?: string } | null>(null);
+  const [pendingAddress, setPendingAddress] = React.useState<{ businessAddress?: any; registeredAddress?: any } | null>(null);
+  const [pendingBanking, setPendingBanking] = React.useState<{ bankName?: string; bankAccountNumber?: string } | null>(null);
+  const [pendingContact, setPendingContact] = React.useState<{ firstName?: string; middleName?: string; lastName?: string; phoneNumber?: string } | null>(null);
 
   const {
     corporateInfo,
@@ -74,6 +85,100 @@ export function VerifyCompanyInfoStep(_props: any) {
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoading = isLoadingInfo || isLoadingEntities;
+
+  // Save all pending changes to API (called when "Save and Continue" is clicked)
+  // MUST be before any early returns to maintain hook order
+  const saveAllPendingChanges = React.useCallback(async () => {
+    if (!organizationId) return;
+    
+    try {
+      const updates: any = {};
+      
+      // Save company info if there are pending changes
+      if (pendingCompanyInfo) {
+        updates.industry = pendingCompanyInfo.industry || null;
+        updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10) : null;
+      }
+      
+      // Save address if there are pending changes
+      if (pendingAddress) {
+        updates.businessAddress = pendingAddress.businessAddress;
+        updates.registeredAddress = pendingAddress.registeredAddress;
+      }
+      
+      // Only make API call if there are updates
+      if (Object.keys(updates).length > 0) {
+        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, updates);
+        if (!result.success) {
+          throw new Error(result.error.message);
+        }
+        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
+      }
+      
+      // Save banking if there are pending changes
+      if (pendingBanking) {
+        const bankAccountDetails = {
+          content: [
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: pendingBanking.bankName },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: pendingBanking.bankAccountNumber },
+          ],
+          displayArea: "Operational Information",
+        };
+        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
+          bankAccountDetails,
+        });
+        if (!result.success) {
+          throw new Error(result.error.message);
+        }
+        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
+        queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      }
+      
+      // Save contact if there are pending changes
+      if (pendingContact) {
+        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
+          firstName: pendingContact.firstName || null,
+          middleName: pendingContact.middleName || null,
+          lastName: pendingContact.lastName || null,
+          phoneNumber: pendingContact.phoneNumber || null,
+        });
+        if (!result.success) {
+          throw new Error(result.error.message);
+        }
+        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
+        queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      }
+      
+      // Clear all pending changes after successful save
+      setPendingCompanyInfo(null);
+      setPendingAddress(null);
+      setPendingBanking(null);
+      setPendingContact(null);
+      
+      return true;
+    } catch (error) {
+      toast.error("Failed to save changes", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
+      throw error;
+    }
+  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking, pendingContact]);
+
+  // Notify parent of pending changes whenever they update
+  // MUST be before any early returns to maintain hook order
+  React.useEffect(() => {
+    if (!onDataChange) return;
+    const hasPendingChanges = pendingCompanyInfo || pendingAddress || pendingBanking || pendingContact;
+    onDataChange({
+      hasPendingChanges: !!hasPendingChanges,
+      pendingCompanyInfo,
+      pendingAddress,
+      pendingBanking,
+      pendingContact,
+      saveFunction: saveAllPendingChanges,
+    });
+  }, [pendingCompanyInfo, pendingAddress, pendingBanking, pendingContact, onDataChange, saveAllPendingChanges]);
+
   const normalizeName = (name: string): string => {
     return name.trim().toLowerCase().replace(/\s+/g, " ");
   };
@@ -218,101 +323,41 @@ export function VerifyCompanyInfoStep(_props: any) {
   const bankDetails: any = bankAccountDetails || null;
   const bankName = getBankField(bankDetails, "Bank");
   const accountNumber = getBankField(bankDetails, "Bank account number");
-  const applicantName = [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "—";
+  
+  // Use pending values if they exist, otherwise use original values
+  const displayIndustry = pendingCompanyInfo?.industry !== undefined ? pendingCompanyInfo.industry : basicInfo?.industry;
+  const displayNumberOfEmployees = pendingCompanyInfo?.numberOfEmployees !== undefined ? pendingCompanyInfo.numberOfEmployees : basicInfo?.numberOfEmployees;
+  const displayBusinessAddress = pendingAddress?.businessAddress || businessAddress;
+  const displayRegisteredAddress = pendingAddress?.registeredAddress || registeredAddress;
+  const displayBankName = pendingBanking?.bankName !== undefined ? pendingBanking.bankName : bankName;
+  const displayAccountNumber = pendingBanking?.bankAccountNumber !== undefined ? pendingBanking.bankAccountNumber : accountNumber;
+  const displayFirstName = pendingContact?.firstName !== undefined ? pendingContact.firstName : firstName;
+  const displayMiddleName = pendingContact?.middleName !== undefined ? pendingContact.middleName : middleName;
+  const displayLastName = pendingContact?.lastName !== undefined ? pendingContact.lastName : lastName;
+  const displayPhoneNumber = pendingContact?.phoneNumber !== undefined ? pendingContact.phoneNumber : phoneNumber;
+  const displayApplicantName = [displayFirstName, displayMiddleName, displayLastName].filter(Boolean).join(" ").trim() || "—";
   const applicantPosition = "—";
   // const natureOfBusiness = (basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "—";
 
-  const handleSaveCompanyInfo = async (industry: string, numberOfEmployees: string) => {
-    if (!organizationId) return;
-    try {
-      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, {
-        industry: industry || null,
-        numberOfEmployees: numberOfEmployees ? Number.parseInt(numberOfEmployees, 10) : null,
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      toast.success("Company info updated successfully");
-      setIsEditCompanyInfoOpen(false);
-    } catch (error) {
-      toast.error("Failed to update company info", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
-    }
+  // Store edits in local state (don't save to API yet)
+  const handleSaveCompanyInfo = (industry: string, numberOfEmployees: string) => {
+    setPendingCompanyInfo({ industry, numberOfEmployees });
+    setIsEditCompanyInfoOpen(false);
   };
 
-  const handleSaveAddress = async (
-    businessAddress: { line1: string; line2: string; city: string; postalCode: string; state: string; country: string },
-    registeredAddress: { line1: string; line2: string; city: string; postalCode: string; state: string; country: string }
-  ) => {
-    if (!organizationId) return;
-    try {
-      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, {
-        businessAddress,
-        registeredAddress,
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      toast.success("Address updated successfully");
-      setIsEditAddressOpen(false);
-    } catch (error) {
-      toast.error("Failed to update address", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
-    }
+  const handleSaveAddress = (businessAddress: any, registeredAddress: any) => {
+    setPendingAddress({ businessAddress, registeredAddress });
+    setIsEditAddressOpen(false);
   };
 
-  const handleSaveBanking = async (bankName: string, bankAccountNumber: string) => {
-    if (!organizationId) return;
-    try {
-      const bankAccountDetails = {
-        content: [
-          { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: bankName },
-          { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: bankAccountNumber },
-        ],
-        displayArea: "Operational Information",
-      };
-      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-        bankAccountDetails,
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
-      toast.success("Banking details updated successfully");
-      setIsEditBankingOpen(false);
-    } catch (error) {
-      toast.error("Failed to update banking details", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
-    }
+  const handleSaveBanking = (bankName: string, bankAccountNumber: string) => {
+    setPendingBanking({ bankName, bankAccountNumber });
+    setIsEditBankingOpen(false);
   };
 
-  const handleSaveContact = async (firstName: string, middleName: string, lastName: string, phoneNumber: string, _position: string) => {
-    if (!organizationId) return;
-    try {
-      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-        firstName: firstName || null,
-        middleName: middleName || null,
-        lastName: lastName || null,
-        phoneNumber: phoneNumber || null,
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
-      toast.success("Contact info updated successfully");
-      setIsEditContactOpen(false);
-    } catch (error) {
-      toast.error("Failed to update contact info", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
-    }
+  const handleSaveContact = (firstName: string, middleName: string, lastName: string, phoneNumber: string, _position: string) => {
+    setPendingContact({ firstName, middleName, lastName, phoneNumber });
+    setIsEditContactOpen(false);
   };
 
   return (
@@ -354,7 +399,7 @@ export function VerifyCompanyInfoStep(_props: any) {
           />
           <div className={labelClassName}>Industry</div>
           <Input
-            value={basicInfo?.industry || "—"}
+            value={displayIndustry || "—"}
             disabled
             className={inputClassName}
           />
@@ -366,7 +411,7 @@ export function VerifyCompanyInfoStep(_props: any) {
           /> */}
           <div className={labelClassName}>Number of employees</div>
           <Input
-            value={basicInfo?.numberOfEmployees?.toString() || "—"}
+            value={displayNumberOfEmployees?.toString() || "—"}
             disabled
             className={inputClassName}
           />
@@ -392,13 +437,13 @@ export function VerifyCompanyInfoStep(_props: any) {
         <div className={sectionGridClassName}>
           <div className={labelClassName}>Business address</div>
           <Input
-            value={formatAddress(businessAddress)}
+            value={formatAddress(displayBusinessAddress)}
             disabled
             className={inputClassName}
           />
           <div className={labelClassName}>Registered address</div>
           <Input
-            value={formatAddress(registeredAddress)}
+            value={formatAddress(displayRegisteredAddress)}
             disabled
             className={inputClassName}
           />
@@ -480,13 +525,13 @@ export function VerifyCompanyInfoStep(_props: any) {
         </div>
         <div className={gridClassName}>
           <div className={labelClassName}>Applicant name</div>
-          <Input value={applicantName} disabled className={inputClassName} />
+          <Input value={displayApplicantName} disabled className={inputClassName} />
           {/* <div className={labelClassName}>Applicant position</div>
           <Input value={applicantPosition} disabled className={inputClassName} /> */}
           <div className={labelClassName}>Applicant IC no</div>
           <Input value={documentNumber || "—"} disabled className={inputClassName} />
           <div className={labelClassName}>Applicant contact</div>
-          <Input value={phoneNumber || "—"} disabled className={inputClassName} />
+          <Input value={displayPhoneNumber || "—"} disabled className={inputClassName} />
         </div>
       </div>
 
@@ -502,20 +547,20 @@ export function VerifyCompanyInfoStep(_props: any) {
         open={isEditAddressOpen}
         onOpenChange={setIsEditAddressOpen}
         businessAddress={{
-          line1: businessAddress?.line1 || "",
-          line2: businessAddress?.line2 || "",
-          city: businessAddress?.city || "",
-          postalCode: businessAddress?.postalCode || "",
-          state: businessAddress?.state || "",
-          country: businessAddress?.country || "Malaysia",
+          line1: displayBusinessAddress?.line1 || "",
+          line2: displayBusinessAddress?.line2 || "",
+          city: displayBusinessAddress?.city || "",
+          postalCode: displayBusinessAddress?.postalCode || "",
+          state: displayBusinessAddress?.state || "",
+          country: displayBusinessAddress?.country || "Malaysia",
         }}
         registeredAddress={{
-          line1: registeredAddress?.line1 || "",
-          line2: registeredAddress?.line2 || "",
-          city: registeredAddress?.city || "",
-          postalCode: registeredAddress?.postalCode || "",
-          state: registeredAddress?.state || "",
-          country: registeredAddress?.country || "Malaysia",
+          line1: displayRegisteredAddress?.line1 || "",
+          line2: displayRegisteredAddress?.line2 || "",
+          city: displayRegisteredAddress?.city || "",
+          postalCode: displayRegisteredAddress?.postalCode || "",
+          state: displayRegisteredAddress?.state || "",
+          country: displayRegisteredAddress?.country || "Malaysia",
         }}
         onSave={handleSaveAddress}
       />
@@ -536,7 +581,6 @@ export function VerifyCompanyInfoStep(_props: any) {
         lastName={lastName || ""}
         phoneNumber={phoneNumber || ""}
         position={applicantPosition}
-        documentNumber={documentNumber || ""}
         onSave={handleSaveContact}
       />
     </div>
@@ -884,7 +928,7 @@ function EditBankingDialog({ open, onOpenChange, bankName: initialBankName, bank
   );
 }
 
-function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, middleName: initialMiddleName, lastName: initialLastName, phoneNumber: initialPhoneNumber, position: initialPosition, documentNumber, onSave }: any) {
+function EditContactDialog({ open, onOpenChange, firstName: initialFirstName, middleName: initialMiddleName, lastName: initialLastName, phoneNumber: initialPhoneNumber, position: initialPosition, onSave }: any) {
   const [firstName, setFirstName] = React.useState(initialFirstName);
   const [middleName, setMiddleName] = React.useState(initialMiddleName);
   const [lastName, setLastName] = React.useState(initialLastName);
