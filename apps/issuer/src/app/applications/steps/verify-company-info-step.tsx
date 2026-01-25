@@ -89,7 +89,13 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
   // Save all pending changes to API (called when "Save and Continue" is clicked)
   // MUST be before any early returns to maintain hook order
   const saveAllPendingChanges = React.useCallback(async () => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      return {
+        verify_company_info: {
+          issuerOrganization: null,
+        },
+      };
+    }
     
     try {
       const updates: any = {};
@@ -155,7 +161,13 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
       setPendingBanking(null);
       setPendingContact(null);
       
-      return true;
+      // Return reference to organization for application data
+      // Similar to how financing_type saves product_id
+      return {
+        verify_company_info: {
+          issuerOrganization: organizationId,
+        },
+      };
     } catch (error) {
       toast.error("Failed to save changes", {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -501,9 +513,9 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
         <div className={gridClassName}>
           <div className={labelClassName}>Bank name</div>
-          <Input value={bankName || "—"} disabled className={inputClassName} />
+          <Input value={displayBankName || "—"} disabled className={inputClassName} />
           <div className={labelClassName}>Bank account number</div>
-          <Input value={accountNumber || "—"} disabled className={inputClassName} />
+          <Input value={displayAccountNumber || "—"} disabled className={inputClassName} />
         </div>
       </div>
 
