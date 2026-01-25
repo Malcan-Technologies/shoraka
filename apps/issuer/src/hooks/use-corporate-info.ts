@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken, type BankAccountDetails } from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -18,28 +18,7 @@ export function useCorporateInfo(organizationId: string | undefined) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery<{
-    corporateOnboardingData?: {
-      basicInfo?: {
-        tinNumber?: string;
-        industry?: string;
-        entityType?: string;
-        businessName?: string;
-        numberOfEmployees?: number;
-        ssmRegisterNumber?: string;
-      };
-      addresses?: {
-        business?: Address;
-        registered?: Address;
-      };
-    };
-    bankAccountDetails?: BankAccountDetails | null;
-    firstName?: string | null;
-    middleName?: string | null;
-    lastName?: string | null;
-    documentNumber?: string | null;
-    phoneNumber?: string | null;
-  } | null>({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["corporate-info", organizationId],
     queryFn: async () => {
       if (!organizationId) return null;
@@ -59,7 +38,7 @@ export function useCorporateInfo(organizationId: string | undefined) {
             registered?: Address;
           };
         };
-        bankAccountDetails?: BankAccountDetails | null;
+        bankAccountDetails?: unknown;
         firstName?: string | null;
         middleName?: string | null;
         lastName?: string | null;
@@ -114,7 +93,7 @@ export function useCorporateInfo(organizationId: string | undefined) {
   });
 
   return {
-    corporateInfo: data?.corporateOnboardingData ?? undefined,
+    corporateInfo: data?.corporateOnboardingData ?? null,
     bankAccountDetails: data?.bankAccountDetails ?? null,
     firstName: data?.firstName ?? null,
     middleName: data?.middleName ?? null,

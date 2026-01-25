@@ -1361,7 +1361,7 @@ export class OrganizationService {
   }
 
   /**
-   * Get corporate entities (directors, shareholders) and director KYC status
+   * Get corporate entities (directors, shareholders)
    */
   async getCorporateEntities(
     userId: string,
@@ -1404,7 +1404,7 @@ export class OrganizationService {
       });
     }
 
-    const entities = (organization?.corporate_entities as Record<string, unknown>) || {};
+    const entities = (organization?.corporate_entities as any) || {};
     const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
     const directorKyc =
       raw && typeof raw === "object" && Array.isArray(raw.directors)
@@ -1427,9 +1427,9 @@ export class OrganizationService {
         : null;
 
     return {
-      directors: (entities.directors as Array<Record<string, unknown>>) || [],
-      shareholders: (entities.shareholders as Array<Record<string, unknown>>) || [],
-      corporateShareholders: (entities.corporateShareholders as Array<Record<string, unknown>>) || [],
+      directors: entities.directors || [],
+      shareholders: entities.shareholders || [],
+      corporateShareholders: entities.corporateShareholders || [],
       directorKycStatus: directorKyc,
     };
   }
