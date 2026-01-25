@@ -21,9 +21,11 @@ export function SupportingDocumentsStep({
   onDataChange?: (data: any) => void;
 }) {
   const { getAccessToken } = useAuthToken();
-  const { data: application } = useApplication(applicationId);
+  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   const categories = stepConfig?.categories || [];
+  
+  // All hooks must be called before any early returns
   const [uploadedFiles, setUploadedFiles] = React.useState({});
   const [selectedFiles, setSelectedFiles] = React.useState({});
   const [expandedCategories, setExpandedCategories] = React.useState({});
@@ -31,6 +33,40 @@ export function SupportingDocumentsStep({
   const [documentCuids, setDocumentCuids] = React.useState({});
   const [lastS3Keys, setLastS3Keys] = React.useState({});
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState({});
+  
+  if (isLoadingApp || !stepConfig) {
+    return (
+      <div className="space-y-8 md:space-y-12">
+        {[1, 2].map((categoryIndex) => (
+          <div key={categoryIndex} className="space-y-4">
+            <div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-6 w-40" />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-5 w-24" />
+                </div>
+              </div>
+              <div className="mt-2 h-px bg-border" />
+            </div>
+            <div className="grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6">
+              {[1, 2, 3].map((docIndex) => (
+                <React.Fragment key={docIndex}>
+                  <Skeleton className="h-5 w-48" />
+                  <div className="flex justify-end">
+                    <Skeleton className="h-8 w-28" />
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Helper to build data structure
   const buildDataToSave = (files, uploadResults = new Map()) => {
@@ -368,28 +404,6 @@ export function SupportingDocumentsStep({
     return { uploadedCount, totalCount };
   };
 
-  if (!stepConfig) {
-    return (
-      <div className="space-y-12">
-        {[1, 2].map((categoryIndex) => (
-          <div key={categoryIndex}>
-            <div className="flex justify-between items-center border-b border-border pb-2">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-            <ul className="space-y-4 mt-6 pl-6">
-              {[1, 2, 3].map((docIndex) => (
-                <li key={docIndex} className="flex items-center justify-between text-[17px] leading-7 min-h-[2rem]">
-                  <Skeleton className="h-3.5 w-48" />
-                  <Skeleton className="h-8 w-28" />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   if (categories.length === 0) {
     return (
