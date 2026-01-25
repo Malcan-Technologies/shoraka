@@ -318,26 +318,22 @@ export function SupportingDocumentsStep({
     return initialKeys.some((key) => !currentKeys.includes(key));
   }, [uploadedFiles, initialUploadedFiles]);
 
-  // Notify parent of changes
+  // Notify parent of changes - consolidated to prevent multiple calls
   React.useEffect(() => {
-    if (onDataChange) {
-      onDataChange({
-        hasPendingChanges: Object.keys(selectedFiles).length > 0 || hasRemovedFiles,
-        saveFunction: uploadFilesToS3,
-        areAllFilesUploaded: areAllFilesUploaded,
-      });
-    }
-  }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, onDataChange, areAllFilesUploaded]);
-
-  // Save data when uploaded files change
-  React.useEffect(() => {
-    if (!applicationId || !onDataChange) return;
+    if (!onDataChange) return;
+    
     const dataToSave = buildDataToSave(uploadedFiles);
+    const hasPendingChanges = Object.keys(selectedFiles).length > 0 || hasRemovedFiles;
+    
     onDataChange({
+      hasPendingChanges: hasPendingChanges,
+      saveFunction: uploadFilesToS3,
+      areAllFilesUploaded: areAllFilesUploaded,
       supporting_documents: dataToSave,
       _uploadFiles: uploadFilesRef.current,
     });
-  }, [uploadedFiles, categories, applicationId, onDataChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
 
   // Remove file
   const handleRemoveFile = (categoryIndex, documentIndex) => {

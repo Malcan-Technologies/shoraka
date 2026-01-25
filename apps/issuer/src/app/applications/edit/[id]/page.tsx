@@ -77,6 +77,11 @@ export default function EditApplicationPage() {
   const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
   const [areAllFilesUploaded, setAreAllFilesUploaded] = React.useState(true);
   
+  // Reset unsaved changes when step changes
+  React.useEffect(() => {
+    setHasUnsavedChanges(false);
+  }, [currentStepDisplay]);
+  
   // Workflow steps from the application's product
   const workflowSteps = React.useMemo(() => {
     return (selectedProduct as any)?.workflow?.map((step: any) => step.name) || [];
@@ -165,6 +170,7 @@ export default function EditApplicationPage() {
     setHasUnsavedChanges(false);
     setIsUnsavedChangesModalOpen(false);
     const pendingNav = (window as any)._pendingNavigation;
+    setTimeout(() => {
     if (pendingNav) {
       router.push(pendingNav);
       (window as any)._pendingNavigation = null;
@@ -173,6 +179,7 @@ export default function EditApplicationPage() {
     } else {
       router.push("/dashboard");
     }
+  }, 0)
   };
 
   const handleBack = () => {
