@@ -22,6 +22,8 @@ import {
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
+import { DeclarationsStep } from "../../steps/declarations-step";
+import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
 import { VersionMismatchModal } from "../../components/version-mismatch-modal";
 
 
@@ -38,6 +40,10 @@ const STEP_MAP: Record<string, React.ComponentType<any>> = {
   "verify_company_info": VerifyCompanyInfoStep,
   "company_info": VerifyCompanyInfoStep, // delete later
   "supporting_documents": SupportingDocumentsStep,
+  "declaration": DeclarationsStep,
+  "declarations": DeclarationsStep,
+  "review_and_submit": ReviewAndSubmitStep,
+  "review_submit": ReviewAndSubmitStep, // temporary - same as review_and_submit
 };
 
 export default function EditApplicationPage() {
@@ -76,10 +82,17 @@ export default function EditApplicationPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
   const [areAllFilesUploaded, setAreAllFilesUploaded] = React.useState(true);
+  const [areAllDeclarationsChecked, setAreAllDeclarationsChecked] = React.useState(true);
+  const [declarationsData, setDeclarationsData] = React.useState<any>(null);
+  const declarationsDataRef = React.useRef<any>(null);
   
   // Reset unsaved changes when step changes
   React.useEffect(() => {
     setHasUnsavedChanges(false);
+    setAreAllFilesUploaded(true);
+    setAreAllDeclarationsChecked(true);
+    setDeclarationsData(null);
+    declarationsDataRef.current = null;
   }, [currentStepDisplay]);
   
   // Workflow steps from the application's product
@@ -233,10 +246,60 @@ export default function EditApplicationPage() {
         }
         (window as any)._stepSaveFunction = null;
       } else {
-        // If we are on Step 1, we save the product_id
-        const finalData = currentStepDisplay === 1 
-          ? { product_id: selectedProductId }
-          : data;
+        // Get the base step ID to determine which field to save to
+        const baseStepId = getBaseStepId(workflowSteps[currentStepIndex]);
+        
+        console.log("Save and continue clicked:", {
+          baseStepId,
+          currentStepDisplay,
+          currentStepIndex,
+          declarationsData,
+          workflowStep: workflowSteps[currentStepIndex],
+          workflowStepsLength: workflowSteps.length,
+        });
+        
+        let finalData;
+        if (currentStepDisplay === 1) {
+          // Step 1: Save product_id
+          finalData = { product_id: selectedProductId };
+        } else if (baseStepId.toLowerCase() === "declaration" || baseStepId.toLowerCase() === "declarations") {
+          // Declaration step: Save declarations data
+          const currentDeclarationsData = declarationsData || declarationsDataRef.current;
+          
+          console.log("Declaration step - preparing to save:", {
+            declarationsData,
+            declarationsDataRef: declarationsDataRef.current,
+            currentDeclarationsData,
+            currentStepIndex,
+            currentStepConfig,
+          });
+          
+          if (currentDeclarationsData && currentDeclarationsData.declarations) {
+            console.log("Saving declarations to DB:", currentDeclarationsData);
+            finalData = currentDeclarationsData;
+          } else {
+            // If no data from component, build it from stepConfig with all unchecked
+            const declarations = currentStepConfig?.declarations || [];
+            finalData = {
+              declarations: declarations.map(() => ({ checked: false })),
+            };
+            console.log("Built declarations data from stepConfig (fallback):", finalData);
+          }
+        } else {
+          // Other steps
+          finalData = data;
+        }
+        
+        if (!finalData) {
+          console.error("No data to save for step:", baseStepId);
+          return;
+        }
+        
+        console.log("Final data being saved:", {
+          stepIndex: currentStepIndex,
+          data: finalData,
+          baseStepId,
+        });
         
         await updateStepMutation.mutateAsync({
           id,
@@ -245,9 +308,18 @@ export default function EditApplicationPage() {
             data: finalData,
           },
         });
+        
+        console.log("Save completed successfully");
       }
       
       setHasUnsavedChanges(false);
+      
+      console.log("Navigation check:", {
+        currentStepDisplay,
+        workflowStepsLength: workflowSteps.length,
+        willNavigate: currentStepDisplay < workflowSteps.length,
+        nextStep: currentStepDisplay < workflowSteps.length ? currentStepDisplay + 1 : null,
+      });
       
       if (currentStepDisplay < workflowSteps.length) {
         router.push(`/applications/edit/${id}?step=${currentStepDisplay + 1}`);
@@ -256,7 +328,7 @@ export default function EditApplicationPage() {
         router.push("/dashboard");
       }
     } catch (error) {
-      // Error handled by mutation
+      console.error("Error in handleSaveAndContinue:", error);
     }
   };
 
@@ -369,6 +441,13 @@ export default function EditApplicationPage() {
                   if (data?.areAllFilesUploaded !== undefined) {
                     setAreAllFilesUploaded(data.areAllFilesUploaded);
                   }
+                  if (data?.areAllDeclarationsChecked !== undefined) {
+                    setAreAllDeclarationsChecked(data.areAllDeclarationsChecked);
+                  }
+                  if (data?.declarations !== undefined) {
+                    setDeclarationsData(data.declarations);
+                    declarationsDataRef.current = data.declarations;
+                  }
                 }}
               />
             ) : (
@@ -393,11 +472,16 @@ export default function EditApplicationPage() {
             disabled={
               updateStepMutation.isPending || 
               (currentStepDisplay === 1 && !selectedProductId) ||
-              (baseStepId === "supporting_documents" && !areAllFilesUploaded)
+              (baseStepId === "supporting_documents" && !areAllFilesUploaded) ||
+              ((baseStepId.toLowerCase() === "declaration" || baseStepId.toLowerCase() === "declarations") && !areAllDeclarationsChecked)
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {updateStepMutation.isPending ? "Saving..." : "Save and continue"}
+            {updateStepMutation.isPending 
+              ? "Saving..." 
+              : currentStepDisplay === workflowSteps.length 
+                ? "Submit Application" 
+                : "Save and continue"}
             <ArrowRightIcon className="h-4 w-4 ml-1" />
           </Button>
         </div>
