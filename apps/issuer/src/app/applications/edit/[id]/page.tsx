@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
+import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import { VersionMismatchModal } from "../../components/version-mismatch-modal";
 
 
@@ -35,7 +36,8 @@ const StepPlaceholder = ({ title }: { title: string }) => (
 const STEP_MAP: Record<string, React.ComponentType<any>> = {
   "financing_type": FinancingTypeStep,
   "verify_company_info": VerifyCompanyInfoStep,
-    "company_info": VerifyCompanyInfoStep, // delete later
+  "company_info": VerifyCompanyInfoStep, // delete later
+  "supporting_documents": SupportingDocumentsStep,
 };
 
 export default function EditApplicationPage() {
@@ -73,6 +75,7 @@ export default function EditApplicationPage() {
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [isVersionMismatchModalOpen, setIsVersionMismatchModalOpen] = React.useState(false);
+  const [areAllFilesUploaded, setAreAllFilesUploaded] = React.useState(true);
   
   // Workflow steps from the application's product
   const workflowSteps = React.useMemo(() => {
@@ -93,6 +96,7 @@ export default function EditApplicationPage() {
   const currentStepId = (selectedProduct as any)?.workflow?.[currentStepIndex]?.id;
   const baseStepId = getBaseStepId(currentStepId);
   const StepComponent = STEP_MAP[baseStepId];
+  const currentStepConfig = (selectedProduct as any)?.workflow?.[currentStepIndex]?.config;
 
   // Sync selectedProductId with application data
   React.useEffect(() => {
@@ -188,7 +192,7 @@ export default function EditApplicationPage() {
     // Push a dummy state to the history so we can catch the popstate event
     window.history.pushState(null, "", window.location.href);
 
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       // If there are unsaved changes, prevent the back navigation
       if (hasUnsavedChanges) {
         // Re-push the dummy state to keep the user on the current page
@@ -203,25 +207,35 @@ export default function EditApplicationPage() {
 
   const handleSaveAndContinue = async (data: any) => {
     try {
-      // If there's a step-specific save function (for verify_company_info step), call it first
+      // If there's a step-specific save function (for verify_company_info or supporting_documents step), call it first
       const stepSaveFunction = (window as any)._stepSaveFunction;
       if (stepSaveFunction) {
-        await stepSaveFunction();
+        const stepData = await stepSaveFunction();
+        if (stepData) {
+          // Use the data returned from the step's save function
+          await updateStepMutation.mutateAsync({
+            id,
+            stepData: {
+              stepIndex: currentStepIndex,
+              data: stepData,
+            },
+          });
+        }
         (window as any)._stepSaveFunction = null;
+      } else {
+        // If we are on Step 1, we save the product_id
+        const finalData = currentStepDisplay === 1 
+          ? { product_id: selectedProductId }
+          : data;
+        
+        await updateStepMutation.mutateAsync({
+          id,
+          stepData: {
+            stepIndex: currentStepIndex,
+            data: finalData,
+          },
+        });
       }
-      
-      // If we are on Step 1, we save the product_id
-      const finalData = currentStepDisplay === 1 
-        ? { product_id: selectedProductId }
-        : data;
-
-      await updateStepMutation.mutateAsync({
-        id,
-        stepData: {
-          stepIndex: currentStepIndex,
-          data: finalData,
-        },
-      });
       
       setHasUnsavedChanges(false);
       
@@ -299,7 +313,7 @@ export default function EditApplicationPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">
-          {selectedProduct?.name || "Application"}
+          {(selectedProduct as any)?.name || "Application"}
         </h1>
       </header>
 
@@ -331,6 +345,9 @@ export default function EditApplicationPage() {
                   setHasUnsavedChanges(pid !== application.financing_type?.product_id);
                 }}
                 isLoading={false}
+                // Supporting documents props
+                applicationId={id}
+                stepConfig={currentStepConfig}
                 // Step data change handler
                 onDataChange={(data: any) => {
                   if (data?.hasPendingChanges) {
@@ -338,6 +355,9 @@ export default function EditApplicationPage() {
                   }
                   if (data?.saveFunction) {
                     (window as any)._stepSaveFunction = data.saveFunction;
+                  }
+                  if (data?.areAllFilesUploaded !== undefined) {
+                    setAreAllFilesUploaded(data.areAllFilesUploaded);
                   }
                 }}
               />
@@ -362,9 +382,10 @@ export default function EditApplicationPage() {
             onClick={() => handleSaveAndContinue({})}
             disabled={
               updateStepMutation.isPending || 
-              (currentStepDisplay === 1 && !selectedProductId)
+              (currentStepDisplay === 1 && !selectedProductId) ||
+              (baseStepId === "supporting_documents" && !areAllFilesUploaded)
             }
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl"
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base md:text-[17px] font-semibold px-4 md:px-6 py-2.5 md:py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and continue"}
             <ArrowRightIcon className="h-4 w-4 ml-1" />
