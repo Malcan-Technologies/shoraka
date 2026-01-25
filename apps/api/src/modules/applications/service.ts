@@ -3,6 +3,15 @@ import { ProductRepository } from "../products/repository";
 import { CreateApplicationInput, UpdateApplicationStepInput } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
+import {
+  generateApplicationDocumentKey,
+  generateApplicationDocumentKeyWithVersion,
+  parseApplicationDocumentKey,
+  generatePresignedUploadUrl,
+  getFileExtension,
+  deleteS3Object,
+} from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -120,6 +129,97 @@ export class ApplicationService {
       status: "ARCHIVED",
       updated_at: new Date(),
     });
+  }
+
+  /**
+   * Generate a simple cuid-like string for S3 keys
+   */
+  private generateCuid(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 10);
+    return `${timestamp}${random}`;
+  }
+
+  /**
+   * Request presigned URL for uploading application document
+   */
+  async requestUploadUrl(params: {
+    applicationId: string;
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+    existingS3Key?: string;
+  }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
+    // Validate file type (PNG only)
+    if (params.contentType !== "image/png") {
+      throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PNG files only.");
+    }
+
+    // Validate file size (max 5MB)
+    const maxSizeInBytes = 5 * 1024 * 1024;
+    if (params.fileSize > maxSizeInBytes) {
+      throw new AppError(400, "VALIDATION_ERROR", "File size must be less than 5MB");
+    }
+
+    // Get file extension
+    const extension = getFileExtension(params.fileName) || "png";
+
+    let s3Key: string;
+
+    if (params.existingS3Key) {
+      // Parse existing key to get version and cuid
+      const parsed = parseApplicationDocumentKey(params.existingS3Key);
+      if (!parsed) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid existing S3 key format");
+      }
+
+      // Generate new key with incremented version
+      const newKey = generateApplicationDocumentKeyWithVersion({
+        existingS3Key: params.existingS3Key,
+        extension,
+      });
+
+      if (!newKey) {
+        throw new AppError(400, "VALIDATION_ERROR", "Failed to generate new S3 key");
+      }
+
+      s3Key = newKey;
+    } else {
+      // Generate new cuid and create v1 key
+      const cuid = this.generateCuid();
+      s3Key = generateApplicationDocumentKey({
+        applicationId: params.applicationId,
+        cuid,
+        extension,
+        version: 1,
+      });
+    }
+
+    // Generate presigned upload URL
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: s3Key,
+      contentType: params.contentType,
+      contentLength: params.fileSize,
+    });
+
+    return {
+      uploadUrl,
+      s3Key,
+      expiresIn,
+    };
+  }
+
+  /**
+   * Delete an application document from S3
+   */
+  async deleteDocument(s3Key: string): Promise<void> {
+    try {
+      await deleteS3Object(s3Key);
+      logger.info({ s3Key }, "Deleted application document from S3");
+    } catch (error) {
+      logger.warn({ s3Key, error }, "Failed to delete application document from S3");
+      throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
+    }
   }
 }
 

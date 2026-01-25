@@ -11,144 +11,136 @@ import { useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-type Document = {
-  title: string;
-};
-
-type Category = {
-  name: string;
-  documents: Document[];
-};
-
-type UploadedFile = {
-  name: string;
-  size: number;
-  uploadedAt: string;
-  s3_key?: string;
-};
-
-interface SupportingDocumentsStepProps {
-  applicationId: string;
-  stepConfig?: {
-    categories?: Category[];
-  };
-  onDataChange?: (data: any) => void;
-}
-
-function getDocumentKey(categoryIndex: number, documentIndex: number): string {
-  return `${categoryIndex}-${documentIndex}`;
-}
-
 export function SupportingDocumentsStep({
   applicationId,
   stepConfig,
   onDataChange,
-}: SupportingDocumentsStepProps) {
+}: {
+  applicationId: string;
+  stepConfig?: any;
+  onDataChange?: (data: any) => void;
+}) {
   const { getAccessToken } = useAuthToken();
-
-  const categories: Category[] = React.useMemo(() => {
-    if (!stepConfig?.categories || !Array.isArray(stepConfig.categories)) {
-      return [];
-    }
-    return stepConfig.categories as Category[];
-  }, [stepConfig]);
-
   const { data: application } = useApplication(applicationId);
 
-  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadedFile>>({});
-  const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
-  const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
-  const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
+  const categories = stepConfig?.categories || [];
+  const [uploadedFiles, setUploadedFiles] = React.useState({});
+  const [selectedFiles, setSelectedFiles] = React.useState({});
+  const [expandedCategories, setExpandedCategories] = React.useState({});
+  const [uploadingKeys, setUploadingKeys] = React.useState(new Set());
+  const [documentCuids, setDocumentCuids] = React.useState({});
+  const [lastS3Keys, setLastS3Keys] = React.useState({});
+  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState({});
 
+  // Helper to build data structure
+  const buildDataToSave = (files, uploadResults = new Map()) => {
+    return {
+      categories: categories.map((category, categoryIndex) => ({
+        name: category.name,
+        documents: category.documents.map((document, documentIndex) => {
+          const key = `${categoryIndex}-${documentIndex}`;
+          const uploadResult = uploadResults.get(key);
+          const existingFile = files[key];
+          const s3_key = uploadResult?.s3_key || existingFile?.s3_key;
+          const fileName = uploadResult?.file_name || existingFile?.name;
+          if (s3_key && fileName) {
+            return {
+              title: document.title,
+              file: { file_name: fileName, s3_key: s3_key },
+            };
+          }
+          return { title: document.title };
+        }),
+      })),
+    };
+  };
+
+  // Expand all categories by default
   React.useEffect(() => {
-    const allExpanded: Record<number, boolean> = {};
+    const allExpanded = {};
     categories.forEach((_, index) => {
       allExpanded[index] = true;
     });
     setExpandedCategories(allExpanded);
   }, [categories]);
 
+  // Load existing files from database
   React.useEffect(() => {
-    if (!application?.supporting_documents) {
+    if (!application?.supporting_documents || categories.length === 0) {
       return;
     }
 
-    const savedData = application.supporting_documents as {
-      categories?: Array<{
-        name: string;
-        documents: Array<{
-          title: string;
-          file?: {
-            file_name?: string;
-            name?: string;
-            s3_key?: string;
-            size?: number;
-            uploadedAt?: string;
+    let data = application.supporting_documents;
+    if (typeof data === "string") {
+      data = JSON.parse(data);
+    }
+    if (data?.supporting_documents) {
+      data = data.supporting_documents;
+    }
+
+    if (!data?.categories) {
+      return;
+    }
+
+    const loadedFiles = {};
+    const loadedCuids = {};
+    const loadedS3Keys = {};
+
+    data.categories.forEach((savedCategory) => {
+      const categoryIndex = categories.findIndex((cat) => cat.name === savedCategory.name);
+      if (categoryIndex === -1) return;
+
+      savedCategory.documents.forEach((savedDocument) => {
+        const documentIndex = categories[categoryIndex].documents.findIndex(
+          (doc) => doc.title === savedDocument.title
+        );
+        if (documentIndex === -1) return;
+
+        if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
+          const key = `${categoryIndex}-${documentIndex}`;
+          loadedFiles[key] = {
+            name: savedDocument.file.file_name,
+            size: 0,
+            uploadedAt: new Date().toISOString().split("T")[0],
+            s3_key: savedDocument.file.s3_key,
           };
-        }>;
-      }>;
-    };
 
-    if (!savedData?.categories) {
-      return;
-    }
-
-    const loadedFiles: Record<string, UploadedFile> = {};
-
-    savedData.categories.forEach((category, categoryIndex) => {
-      category.documents.forEach((document, documentIndex) => {
-        if (document.file) {
-          const file = document.file;
-          const s3_key = file.s3_key;
-          const fileName = file.file_name || file.name;
-
-          if (s3_key && fileName) {
-            const key = getDocumentKey(categoryIndex, documentIndex);
-            loadedFiles[key] = {
-              name: fileName,
-              size: file.size || 0,
-              uploadedAt: file.uploadedAt || new Date().toISOString().split("T")[0],
-              s3_key: s3_key,
-            };
+          const cuidMatch = savedDocument.file.s3_key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
+          if (cuidMatch) {
+            loadedCuids[key] = cuidMatch[2];
+            loadedS3Keys[key] = savedDocument.file.s3_key;
           }
         }
       });
     });
 
-    setUploadedFiles(loadedFiles);
-  }, [application]);
-
-  const handleFileChange = (
-    categoryIndex: number,
-    documentIndex: number,
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
+    if (Object.keys(loadedFiles).length > 0) {
+      setUploadedFiles(loadedFiles);
+      setDocumentCuids(loadedCuids);
+      setLastS3Keys(loadedS3Keys);
+      setInitialUploadedFiles(loadedFiles);
     }
+  }, [application, categories]);
 
-    const maxSizeInBytes = 5 * 1024 * 1024;
-    if (file.size > maxSizeInBytes) {
+  // Handle file selection
+  const handleFileChange = (categoryIndex, documentIndex, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
       toast.error("File size must be less than 5MB");
       return;
     }
 
-    const allowedExtensions = [".png"];
-    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!allowedExtensions.includes(fileExtension)) {
-      toast.error("File type not allowed. Please upload PNG files only.");
+    if (!file.name.toLowerCase().endsWith(".png")) {
+      toast.error("Please upload PNG files only");
       return;
     }
 
-    const key = getDocumentKey(categoryIndex, documentIndex);
+    const key = `${categoryIndex}-${documentIndex}`;
     const today = new Date().toISOString().split("T")[0];
 
-    setSelectedFiles((prev) => ({
-      ...prev,
-      [key]: file,
-    }));
-
+    setSelectedFiles((prev) => ({ ...prev, [key]: file }));
     setUploadedFiles((prev) => ({
       ...prev,
       [key]: {
@@ -161,43 +153,92 @@ export function SupportingDocumentsStep({
     toast.success("File selected. Click 'Save and continue' to upload.");
   };
 
-  const uploadFilesToS3 = React.useCallback(async (): Promise<{ supporting_documents: unknown } | null> => {
+  // Upload files to S3
+  const uploadFilesToS3 = React.useCallback(async () => {
     if (!applicationId || Object.keys(selectedFiles).length === 0) {
       return null;
     }
 
-    const uploadResults = new Map<string, { s3_key: string; file_name: string }>();
+    const uploadResults = new Map();
 
     for (const [key, file] of Object.entries(selectedFiles)) {
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("applicationId", applicationId);
-
+        // Check if this is a replacement (file was previously uploaded)
+        // Use lastS3Keys if file was removed, or uploadedFiles if still there
+        const existingS3Key = uploadedFiles[key]?.s3_key || lastS3Keys[key];
+        
         const token = await getAccessToken();
-        const response = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document`, {
+
+        // Get presigned URL
+        // If existingS3Key exists, backend will increment version (v1 -> v2, etc.)
+        const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
-          body: formData,
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type,
+            fileSize: file.size,
+            existingS3Key: existingS3Key || undefined,
+          }),
         });
 
-        if (!response.ok) {
+        const urlResult = await urlResponse.json();
+        if (!urlResult.success) {
+          throw new Error("Failed to get upload URL");
+        }
+
+        const { uploadUrl, s3Key } = urlResult.data;
+
+        // Upload to S3
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
           throw new Error("Failed to upload file");
         }
 
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error(result.error?.message || "Failed to upload file");
+        // Delete old file if this is a replacement
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            const deleteResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                s3Key: existingS3Key,
+              }),
+            });
+
+            if (!deleteResponse.ok) {
+              console.warn("Failed to delete old file, but upload succeeded");
+            }
+          } catch (deleteError) {
+            console.warn("Error deleting old file:", deleteError);
+          }
         }
 
         uploadResults.set(key, {
-          s3_key: result.data.s3_key || result.data.s3Key,
+          s3_key: s3Key,
           file_name: file.name,
         });
+
+        const cuidMatch = s3Key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
+        if (cuidMatch) {
+          setDocumentCuids((prev) => ({ ...prev, [key]: cuidMatch[2] }));
+          setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
+        }
       } catch (error) {
         toast.error(`Failed to upload ${file.name}`);
         throw error;
@@ -212,42 +253,29 @@ export function SupportingDocumentsStep({
 
     setSelectedFiles({});
 
+    // Update uploadedFiles with new s3_keys
     const updatedFiles = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
+      const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
         updatedFiles[key] = {
           ...updatedFiles[key],
           s3_key: result.s3_key,
         };
+      } else {
+        updatedFiles[key] = {
+          name: result.file_name,
+          size: originalFile?.size || 0,
+          uploadedAt: new Date().toISOString().split("T")[0],
+          s3_key: result.s3_key,
+        };
       }
     });
+
     setUploadedFiles(updatedFiles);
+    setInitialUploadedFiles(updatedFiles);
 
-    const dataToSave = {
-      categories: categories.map((category, categoryIndex) => ({
-        name: category.name,
-        documents: category.documents.map((document, documentIndex) => {
-          const key = getDocumentKey(categoryIndex, documentIndex);
-          const uploadResult = uploadResults.get(key);
-          const existingFile = uploadedFiles[key];
-
-          const s3_key = uploadResult?.s3_key || existingFile?.s3_key;
-          const fileName = uploadResult?.file_name || existingFile?.name;
-
-          if (s3_key && fileName) {
-            return {
-              title: document.title,
-              file: {
-                file_name: fileName,
-                s3_key: s3_key,
-              },
-            };
-          }
-
-          return { title: document.title };
-        }),
-      })),
-    };
+    const dataToSave = buildDataToSave(updatedFiles, uploadResults);
 
     if (onDataChange) {
       onDataChange({
@@ -256,25 +284,25 @@ export function SupportingDocumentsStep({
       });
     }
 
-    return { supporting_documents: dataToSave };
-  }, [applicationId, selectedFiles, categories, uploadedFiles, getAccessToken, onDataChange]);
+    return dataToSave;
+  }, [applicationId, selectedFiles, categories, uploadedFiles, documentCuids, lastS3Keys, getAccessToken, onDataChange]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
   React.useEffect(() => {
     uploadFilesRef.current = uploadFilesToS3;
   }, [uploadFilesToS3]);
 
-  const isDocumentUploaded = (categoryIndex: number, documentIndex: number): boolean => {
-    const key = getDocumentKey(categoryIndex, documentIndex);
+  // Check if document has file
+  const isDocumentUploaded = (categoryIndex, documentIndex) => {
+    const key = `${categoryIndex}-${documentIndex}`;
     return key in uploadedFiles;
   };
 
+  // Check if all files uploaded
   const areAllFilesUploaded = React.useMemo(() => {
     if (categories.length === 0) return true;
-    
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
-      const category = categories[categoryIndex];
-      for (let documentIndex = 0; documentIndex < category.documents.length; documentIndex++) {
+      for (let documentIndex = 0; documentIndex < categories[categoryIndex].documents.length; documentIndex++) {
         if (!isDocumentUploaded(categoryIndex, documentIndex)) {
           return false;
         }
@@ -283,74 +311,54 @@ export function SupportingDocumentsStep({
     return true;
   }, [categories, uploadedFiles]);
 
+  // Check if files were removed (compare current with initial)
+  const hasRemovedFiles = React.useMemo(() => {
+    const initialKeys = Object.keys(initialUploadedFiles);
+    const currentKeys = Object.keys(uploadedFiles);
+    return initialKeys.some((key) => !currentKeys.includes(key));
+  }, [uploadedFiles, initialUploadedFiles]);
+
+  // Notify parent of changes
   React.useEffect(() => {
     if (onDataChange) {
       onDataChange({
-        hasPendingChanges: Object.keys(selectedFiles).length > 0,
+        hasPendingChanges: Object.keys(selectedFiles).length > 0 || hasRemovedFiles,
         saveFunction: uploadFilesToS3,
         areAllFilesUploaded: areAllFilesUploaded,
       });
     }
-  }, [selectedFiles, uploadFilesToS3, onDataChange, areAllFilesUploaded]);
+  }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, onDataChange, areAllFilesUploaded]);
 
+  // Save data when uploaded files change
   React.useEffect(() => {
-    if (!applicationId || !onDataChange) {
-      return;
-    }
-
-    const dataToSave = {
-      categories: categories.map((category, categoryIndex) => ({
-        name: category.name,
-        documents: category.documents.map((document, documentIndex) => {
-          const key = getDocumentKey(categoryIndex, documentIndex);
-          const file = uploadedFiles[key];
-
-          if (file?.s3_key) {
-            return {
-              title: document.title,
-              file: {
-                file_name: file.name,
-                s3_key: file.s3_key,
-              },
-            };
-          }
-
-          return {
-            title: document.title,
-          };
-        }),
-      })),
-    };
-
+    if (!applicationId || !onDataChange) return;
+    const dataToSave = buildDataToSave(uploadedFiles);
     onDataChange({
       supporting_documents: dataToSave,
       _uploadFiles: uploadFilesRef.current,
     });
   }, [uploadedFiles, categories, applicationId, onDataChange]);
 
-  const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
-    const key = getDocumentKey(categoryIndex, documentIndex);
-
+  // Remove file
+  const handleRemoveFile = (categoryIndex, documentIndex) => {
+    const key = `${categoryIndex}-${documentIndex}`;
     setUploadedFiles((prev) => {
       const newFiles = { ...prev };
       delete newFiles[key];
       return newFiles;
     });
-
     setSelectedFiles((prev) => {
       const newFiles = { ...prev };
       delete newFiles[key];
       return newFiles;
     });
-
     toast.success("File removed");
   };
 
-  const getCategoryStatus = (categoryIndex: number) => {
+  // Get category status
+  const getCategoryStatus = (categoryIndex) => {
     const category = categories[categoryIndex];
-    if (!category) {
-      return { uploadedCount: 0, totalCount: 0 };
-    }
+    if (!category) return { uploadedCount: 0, totalCount: 0 };
 
     let uploadedCount = 0;
     const totalCount = category.documents.length;
@@ -370,14 +378,8 @@ export function SupportingDocumentsStep({
         {[1, 2].map((categoryIndex) => (
           <div key={categoryIndex}>
             <div className="flex justify-between items-center border-b border-border pb-2">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-4" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <div className="flex items-center gap-1">
-                <Skeleton className="h-4 w-4 rounded" />
-                <Skeleton className="h-4 w-20" />
-              </div>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-20" />
             </div>
             <ul className="space-y-4 mt-6 pl-6">
               {[1, 2, 3].map((docIndex) => (
@@ -396,9 +398,7 @@ export function SupportingDocumentsStep({
   if (categories.length === 0) {
     return (
       <div className="space-y-4">
-        <p className="text-muted-foreground text-center py-8">
-          No documents required for this application.
-        </p>
+        <p className="text-muted-foreground text-center py-8">No documents required for this application.</p>
       </div>
     );
   }
@@ -414,12 +414,12 @@ export function SupportingDocumentsStep({
           <div key={categoryIndex}>
             <div className="flex justify-between items-center border-b border-border pb-2">
               <button
-                onClick={() => setExpandedCategories(prev => ({ ...prev, [categoryIndex]: !isExpanded }))}
+                onClick={() => setExpandedCategories((prev) => ({ ...prev, [categoryIndex]: !isExpanded }))}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 type="button"
               >
-                <ChevronDownIcon 
-                  className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? '' : '-rotate-90'}`} 
+                <ChevronDownIcon
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`}
                 />
                 <h3 className="font-semibold text-xl">{category.name}</h3>
               </button>
@@ -437,7 +437,7 @@ export function SupportingDocumentsStep({
             {isExpanded && (
               <ul className="space-y-4 mt-6 pl-6">
                 {category.documents.map((document, documentIndex) => {
-                  const key = getDocumentKey(categoryIndex, documentIndex);
+                  const key = `${categoryIndex}-${documentIndex}`;
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
                   const fileIsUploading = uploadingKeys.has(key);
                   const file = uploadedFiles[key];
@@ -455,7 +455,6 @@ export function SupportingDocumentsStep({
                             onClick={() => handleRemoveFile(categoryIndex, documentIndex)}
                             className="hover:text-destructive transition-colors cursor-pointer"
                             type="button"
-                            aria-label="Remove file"
                           >
                             <XMarkIcon className="h-3.5 w-3.5" />
                           </button>
@@ -468,9 +467,7 @@ export function SupportingDocumentsStep({
                             id={`file-${key}`}
                             type="file"
                             accept=".png"
-                            onChange={(e) =>
-                              handleFileChange(categoryIndex, documentIndex, e)
-                            }
+                            onChange={(e) => handleFileChange(categoryIndex, documentIndex, e)}
                             className="hidden"
                             disabled={fileIsUploading}
                           />

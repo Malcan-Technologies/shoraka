@@ -6,6 +6,8 @@ import {
   applicationIdParamSchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
+import { z } from "zod";
+
 
 /**
  * Create a new application
@@ -84,6 +86,65 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
   }
 }
 
+const requestUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.literal("image/png"),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
+  existingS3Key: z.string().optional(),
+});
+
+/**
+ * Request presigned URL for uploading application document
+ * POST /v1/applications/:id/upload-document-url
+ */
+async function requestUploadUrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const input = requestUploadUrlSchema.parse(req.body);
+
+    const result = await applicationService.requestUploadUrl({
+      applicationId: id,
+      fileName: input.fileName,
+      contentType: input.contentType,
+      fileSize: input.fileSize,
+      existingS3Key: input.existingS3Key,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const deleteDocumentSchema = z.object({
+  s3Key: z.string().min(1),
+});
+
+/**
+ * Delete an application document from S3
+ * DELETE /v1/applications/:id/document
+ */
+async function deleteDocument(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const input = deleteDocumentSchema.parse(req.body);
+
+    await applicationService.deleteDocument(input.s3Key);
+
+    res.json({
+      success: true,
+      data: { message: "Document deleted successfully" },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Create router for application routes
  */
@@ -91,9 +152,19 @@ export function createApplicationRouter(): Router {
   const router = Router();
 
   router.post("/", requireAuth, createApplication);
-  router.get("/:id", requireAuth, getApplication);
+  
+  // More specific routes must come before parameterized routes
+  router.post(
+    "/:id/upload-document-url",
+    requireAuth,
+    requestUploadUrl
+  );
+  router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
   router.post("/:id/archive", requireAuth, archiveApplication);
+  
+  // Parameterized route comes last
+  router.get("/:id", requireAuth, getApplication);
 
   return router;
 }

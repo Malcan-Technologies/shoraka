@@ -211,8 +211,11 @@ export default function EditApplicationPage() {
       const stepSaveFunction = (window as any)._stepSaveFunction;
       if (stepSaveFunction) {
         const stepData = await stepSaveFunction();
-        if (stepData) {
-          // Use the data returned from the step's save function
+        // stepData can be null (for verify_company_info which saves directly to organization)
+        // or an object (for supporting_documents which returns { categories: [...] } directly)
+        if (stepData && typeof stepData === 'object') {
+          // The step returns dataToSave directly (e.g., { categories: [...] })
+          // The backend will save it to the supporting_documents field
           await updateStepMutation.mutateAsync({
             id,
             stepData: {
