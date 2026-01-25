@@ -550,8 +550,8 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
       <EditCompanyInfoDialog
         open={isEditCompanyInfoOpen}
         onOpenChange={setIsEditCompanyInfoOpen}
-        industry={basicInfo?.industry || ""}
-        numberOfEmployees={basicInfo?.numberOfEmployees?.toString() || ""}
+        industry={displayIndustry || ""}
+        numberOfEmployees={displayNumberOfEmployees?.toString() || ""}
         onSave={handleSaveCompanyInfo}
       />
 
@@ -580,18 +580,18 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
       <EditBankingDialog
         open={isEditBankingOpen}
         onOpenChange={setIsEditBankingOpen}
-        bankName={bankName || ""}
-        bankAccountNumber={accountNumber || ""}
+        bankName={displayBankName || ""}
+        bankAccountNumber={displayAccountNumber || ""}
         onSave={handleSaveBanking}
       />
 
       <EditContactDialog
         open={isEditContactOpen}
         onOpenChange={setIsEditContactOpen}
-        firstName={firstName || ""}
-        middleName={middleName || ""}
-        lastName={lastName || ""}
-        phoneNumber={phoneNumber || ""}
+        firstName={displayFirstName || ""}
+        middleName={displayMiddleName || ""}
+        lastName={displayLastName || ""}
+        phoneNumber={displayPhoneNumber || ""}
         position={applicantPosition}
         onSave={handleSaveContact}
       />
