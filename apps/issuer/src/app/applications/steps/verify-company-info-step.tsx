@@ -48,7 +48,7 @@ const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
 const sectionHeaderClassName = "text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6";
 const sectionGridClassName = "grid grid-cols-2 gap-6 mt-6 pl-4 md:pl-6";
-const editButtonClassName = "h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10";
+const editButtonClassName = "h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm";
 
 export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: any) => void }) {
   const { activeOrganization } = useOrganization();
@@ -462,9 +462,12 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
         </div>
       </div>
 
-      <div>
-        <div className="flex justify-between items-center border-b border-border pb-2">
-          <h3 className="font-semibold text-xl">Director & Shareholders</h3>
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between items-center">
+            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+          </div>
+          <div className="mt-2 h-px bg-border" />
         </div>
         <div className={sectionGridClassName}>
           {!hasDirectorsOrShareholders ? (
@@ -473,7 +476,7 @@ export function VerifyCompanyInfoStep({ onDataChange }: { onDataChange?: (data: 
             <>
               {combinedList.map((item) => (
                 <React.Fragment key={item.key}>
-                  <div className="text-[17px] leading-7 text-muted-foreground">{item.roleLabel}</div>
+                  <div className={labelClassName}>{item.roleLabel}</div>
                   <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
                     <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{item.name}</div>
                     <div className="h-4 w-px bg-border" />

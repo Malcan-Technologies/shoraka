@@ -400,38 +400,41 @@ export function SupportingDocumentsStep({
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8 md:space-y-12">
       {categories.map((category, categoryIndex) => {
         const status = getCategoryStatus(categoryIndex);
         const isComplete = status.uploadedCount === status.totalCount && status.totalCount > 0;
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
         return (
-          <div key={categoryIndex}>
-            <div className="flex justify-between items-center border-b border-border pb-2">
-              <button
-                onClick={() => setExpandedCategories((prev) => ({ ...prev, [categoryIndex]: !isExpanded }))}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                type="button"
-              >
-                <ChevronDownIcon
-                  className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`}
-                />
-                <h3 className="font-semibold text-xl">{category.name}</h3>
-              </button>
-              <div className="flex items-center gap-1">
-                {isComplete && (
-                  <div className="w-4 h-4 rounded flex items-center justify-center bg-destructive text-destructive-foreground">
-                    <CheckIcon className="h-2.5 w-2.5" />
-                  </div>
-                )}
-                <span className="text-[17px] leading-7 text-muted-foreground">
-                  {status.uploadedCount}/{status.totalCount} files {isComplete ? "uploaded" : "required"}
-                </span>
+          <div key={categoryIndex} className="space-y-4">
+            <div>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={() => setExpandedCategories((prev) => ({ ...prev, [categoryIndex]: !isExpanded }))}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  type="button"
+                >
+                  <ChevronDownIcon
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+                  />
+                  <h3 className="text-lg md:text-xl font-semibold">{category.name}</h3>
+                </button>
+                <div className="flex items-center gap-1">
+                  {isComplete && (
+                    <div className="w-4 h-4 rounded flex items-center justify-center bg-destructive text-destructive-foreground">
+                      <CheckIcon className="h-2.5 w-2.5" />
+                    </div>
+                  )}
+                  <span className="text-[17px] leading-7 text-muted-foreground">
+                    {status.uploadedCount}/{status.totalCount} files {isComplete ? "uploaded" : "required"}
+                  </span>
+                </div>
               </div>
+              <div className="mt-2 h-px bg-border" />
             </div>
             {isExpanded && (
-              <ul className="space-y-4 mt-6 pl-6">
+              <div className="grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6">
                 {category.documents.map((document, documentIndex) => {
                   const key = `${categoryIndex}-${documentIndex}`;
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
@@ -439,40 +442,42 @@ export function SupportingDocumentsStep({
                   const file = uploadedFiles[key];
 
                   return (
-                    <li key={documentIndex} className="flex items-center justify-between text-[17px] leading-7 min-h-[2rem]">
-                      <span className="pl-6">{document.title}</span>
-                      {isUploaded && file && !fileIsUploading ? (
-                        <div className="flex items-center gap-2 bg-background text-foreground border border-border text-[17px] leading-7 rounded-sm px-2 py-1 min-h-[2rem]">
-                          <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground">
-                            <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                    <React.Fragment key={documentIndex}>
+                      <div className="text-sm md:text-base leading-6 text-muted-foreground">{document.title}</div>
+                      <div className="flex justify-end">
+                        {isUploaded && file && !fileIsUploading ? (
+                          <div className="inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1">
+                            <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
+                              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                            </div>
+                            <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                            <button
+                              onClick={() => handleRemoveFile(categoryIndex, documentIndex)}
+                              className="hover:text-destructive transition-colors cursor-pointer shrink-0"
+                              type="button"
+                            >
+                              <XMarkIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <span>{file.name}</span>
-                          <button
-                            onClick={() => handleRemoveFile(categoryIndex, documentIndex)}
-                            className="hover:text-destructive transition-colors cursor-pointer"
-                            type="button"
-                          >
-                            <XMarkIcon className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <label htmlFor={`file-${key}`} className="flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline min-h-[2rem] text-[17px] leading-7">
-                          <CloudArrowUpIcon className="h-4 w-4" />
-                          {fileIsUploading ? "Uploading..." : "Upload file"}
-                          <Input
-                            id={`file-${key}`}
-                            type="file"
-                            accept=".png"
-                            onChange={(e) => handleFileChange(categoryIndex, documentIndex, e)}
-                            className="hidden"
-                            disabled={fileIsUploading}
-                          />
-                        </label>
-                      )}
-                    </li>
+                        ) : (
+                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-[17px] leading-7">
+                            <CloudArrowUpIcon className="h-4 w-4" />
+                            {fileIsUploading ? "Uploading..." : "Upload file"}
+                            <Input
+                              id={`file-${key}`}
+                              type="file"
+                              accept=".png"
+                              onChange={(e) => handleFileChange(categoryIndex, documentIndex, e)}
+                              className="hidden"
+                              disabled={fileIsUploading}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </React.Fragment>
                   );
                 })}
-              </ul>
+              </div>
             )}
           </div>
         );
