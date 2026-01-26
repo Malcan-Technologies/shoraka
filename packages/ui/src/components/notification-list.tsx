@@ -1,0 +1,112 @@
+"use client";
+
+import { useNotifications } from "@cashsouk/config";
+import { format } from "date-fns";
+import { Bell, AlertCircle, Info } from "lucide-react";
+import { Button } from "./button";
+import { Card, CardContent } from "./card";
+import { Badge } from "./badge";
+import { cn } from "../lib/utils";
+import { useRouter } from "next/navigation";
+
+export function NotificationList() {
+  const router = useRouter();
+  const { notifications, isLoading, markAsRead, markAllAsRead, unreadCount } = useNotifications();
+
+  const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+      case "CRITICAL":
+        return <AlertCircle className="h-5 w-5 text-destructive" />;
+      case "WARNING":
+        return <AlertCircle className="h-5 w-5 text-warning" />;
+      case "INFO":
+      default:
+        return <Info className="h-5 w-5 text-blue-500" />;
+    }
+  };
+
+  const handleNotificationClick = (notification: any) => {
+    if (!notification.read_at) {
+      markAsRead(notification.id);
+    }
+    if (notification.link_path) {
+      router.push(notification.link_path);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="p-4">
+              <div className="h-4 w-1/4 bg-muted rounded mb-2" />
+              <div className="h-3 w-3/4 bg-muted rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Recent Notifications</h2>
+        {unreadCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => markAllAsRead()}>
+            Mark all as read
+          </Button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+            <Bell className="mb-4 h-12 w-12 text-muted-foreground/30" />
+            <h3 className="text-lg font-medium">No notifications</h3>
+            <p className="text-sm text-muted-foreground">
+              We'll notify you when something important happens.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {notifications.map((notification: any) => (
+            <Card
+              key={notification.id}
+              className={cn(
+                "cursor-pointer transition-colors hover:bg-accent/50",
+                !notification.read_at && "border-l-4 border-l-primary bg-primary/5"
+              )}
+              onClick={() => handleNotificationClick(notification)}
+            >
+              <CardContent className="flex items-start gap-4 p-4">
+                <div className="mt-1">{getPriorityIcon(notification.priority)}</div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{notification.title}</p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{notification.message}</p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Badge variant="outline" className="text-[10px] uppercase">
+                      {notification.notification_type.category}
+                    </Badge>
+                    {!notification.read_at && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        New
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

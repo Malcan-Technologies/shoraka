@@ -17,6 +17,7 @@ import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createProductRouter } from "./modules/products/controller";
 import { activityRouter } from "./modules/activity/controller";
+import { notificationRouter } from "./modules/notification/controller";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -101,6 +102,9 @@ export function registerRoutes(app: Application): void {
 
   // Activity routes
   v1Router.use("/activities", requireAuth, activityRouter);
+
+  // Notification routes
+  v1Router.use("/notifications", requireAuth, notificationRouter);
 
   app.use("/v1", v1Router);
 }

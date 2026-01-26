@@ -938,6 +938,49 @@ export class ApiClient {
 
     return this.get<ActivitiesResponse>(`/v1/activities?${queryParams.toString()}`);
   }
+
+  // Notifications
+  async getNotifications(params: {
+    read?: boolean;
+    category?: string;
+    priority?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<{ items: any[]; total: number; unreadCount: number }> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (params.read !== undefined) queryParams.append("read", String(params.read));
+    if (params.category) queryParams.append("category", params.category);
+    if (params.priority) queryParams.append("priority", params.priority);
+    if (params.limit) queryParams.append("limit", String(params.limit));
+    if (params.offset) queryParams.append("offset", String(params.offset));
+
+    return this.get<{ items: any[]; total: number; unreadCount: number }>(
+      `/v1/notifications?${queryParams.toString()}`
+    );
+  }
+
+  async getUnreadNotificationsCount(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.get<{ count: number }>("/v1/notifications/unread-count");
+  }
+
+  async markNotificationAsRead(id: string): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/${id}/read`);
+  }
+
+  async markAllNotificationsAsRead(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.patch<{ count: number }>("/v1/notifications/read-all");
+  }
+
+  async getNotificationPreferences(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/preferences");
+  }
+
+  async updateNotificationPreference(
+    typeId: string,
+    data: { enabled_platform: boolean; enabled_email: boolean }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.put<any>(`/v1/notifications/preferences/${typeId}`, data);
+  }
 }
 
 export function createApiClient(

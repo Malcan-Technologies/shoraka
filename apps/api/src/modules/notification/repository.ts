@@ -86,6 +86,7 @@ export class NotificationRepository {
     return prisma.notification.count({
       where: {
         user_id: userId,
+        send_to_platform: true,
         read_at: null,
         OR: [
           { expires_at: null },
