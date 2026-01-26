@@ -88,7 +88,7 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
 
 const requestUploadUrlSchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.literal("image/png"),
+  contentType: z.literal("application/pdf"),
   fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
   existingS3Key: z.string().optional(),
 });

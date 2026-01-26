@@ -32,6 +32,7 @@ export class ApplicationService {
       "verify_company_info": "verify_company_info",
       "company_info_1": "verify_company_info",
       "supporting_documents": "supporting_documents",
+      "supporting_documents_1": "supporting_documents",
       "declarations": "declarations",
       "declaration_1": "declarations",
     };
@@ -151,9 +152,9 @@ export class ApplicationService {
     fileSize: number;
     existingS3Key?: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
-    // Validate file type (PNG only)
-    if (params.contentType !== "image/png") {
-      throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PNG files only.");
+    // Validate file type (PDF only)
+    if (params.contentType !== "application/pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
     }
 
     // Validate file size (max 5MB)
@@ -163,7 +164,7 @@ export class ApplicationService {
     }
 
     // Get file extension
-    const extension = getFileExtension(params.fileName) || "png";
+    const extension = getFileExtension(params.fileName) || "pdf";
 
     let s3Key: string;
 

@@ -14,6 +14,7 @@ import { ProgressIndicator } from "../../components/progress-indicator";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
+import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import {
   Dialog,
   DialogContent,
@@ -175,6 +176,15 @@ export default function EditApplicationPage() {
         <DeclarationsStep
           applicationId={applicationId}
           stepConfig={currentStepConfig?.config}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+    if (currentStepId === "supporting_documents" || currentStepId === "supporting_documents_1") {
+      return (
+        <SupportingDocumentsStep
+          applicationId={applicationId}
+          stepConfig={currentStepConfig}
           onDataChange={handleDataChange}
         />
       );
@@ -391,16 +401,32 @@ export default function EditApplicationPage() {
   const handleSaveAndContinue = async () => {
     try {
       // Get the data from the current step
-      const dataToSave = stepDataRef.current;
+      let dataToSave = stepDataRef.current;
       
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
        * 
        * Some steps need to save additional data before saving the application.
-       * For example, verify_company_info updates organization data first.
+       * For example:
+       * - verify_company_info updates organization data first
+       * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
       if (dataToSave?.saveFunction) {
-        await dataToSave.saveFunction();
+        const returnedData = await dataToSave.saveFunction();
+        
+        // If saveFunction returns data, use it (e.g., supporting documents with S3 keys)
+        if (returnedData) {
+          // For supporting documents, the returned data IS the complete categories structure
+          // We need to wrap it in supporting_documents key
+          if (currentStepId === "supporting_documents" || currentStepId === "supporting_documents_1") {
+            dataToSave = {
+              supporting_documents: returnedData,
+            };
+          } else {
+            // For other steps, merge normally
+            dataToSave = { ...dataToSave, ...returnedData };
+          }
+        }
       }
       
       /**
@@ -455,6 +481,12 @@ export default function EditApplicationPage() {
   };
   
   /**
+   * Track if current step is valid
+   * Some steps (like supporting documents) need all fields filled before saving
+   */
+  const [isCurrentStepValid, setIsCurrentStepValid] = React.useState(true);
+  
+  /**
    * Callback for step components to pass data to parent
    * 
    * Step components will call this when data changes:
@@ -464,6 +496,14 @@ export default function EditApplicationPage() {
    */
   const handleDataChange = (data: any) => {
     stepDataRef.current = data;
+    
+    // Check if step provides validation flag
+    if (data?.areAllFilesUploaded !== undefined) {
+      setIsCurrentStepValid(data.areAllFilesUploaded);
+    } else {
+      // Default to valid if step doesn't provide validation
+      setIsCurrentStepValid(true);
+    }
     
     // Mark as having unsaved changes
     if (data) {
@@ -554,7 +594,7 @@ export default function EditApplicationPage() {
           {/* Continue button */}
           <Button
             onClick={handleSaveAndContinue}
-            disabled={updateStepMutation.isPending}
+            disabled={updateStepMutation.isPending || !isCurrentStepValid}
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base font-semibold px-6 py-3 rounded-xl"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
