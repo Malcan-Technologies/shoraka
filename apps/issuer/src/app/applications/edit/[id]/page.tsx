@@ -130,7 +130,7 @@ export default function EditApplicationPage() {
    * Example workflow:
    * [
    *   { name: "Financing Type", id: "financing_type" },
-   *   { name: "Company Info", id: "verify_company_info" },
+   *   { name: "Verify Company Info", id: "verify_company_info" },
    *   { name: "Documents", id: "supporting_documents" },
    *   { name: "Declarations", id: "declarations" }
    * ]
@@ -191,11 +191,11 @@ export default function EditApplicationPage() {
    * These override the default step names from the workflow.
    */
   const stepTitles: Record<string, { title: string; description: string }> = {
-    "financing_type": {
+    "financing_type_1": {
       title: "Select Financing Type",
       description: "Choose the type of financing that best suits your business needs"
     },
-    "verify_company_info": {
+    "verify_company_info_1": {
       title: "Verify Company Information",
       description: "Review and confirm your company details are accurate"
     },
@@ -203,17 +203,9 @@ export default function EditApplicationPage() {
       title: "Verify Company Information",
       description: "Review and confirm your company details are accurate"
     },
-    "declarations": {
+    "declarations_1": {
       title: "Declarations",
       description: "Please read and accept all declarations to continue"
-    },
-    "declaration_1": {
-      title: "Declarations",
-      description: "Please read and accept all declarations to continue"
-    },
-    "supporting_documents": {
-      title: "Upload Documents",
-      description: "Upload all required supporting documents for your application"
     },
     "supporting_documents_1": {
       title: "Upload Documents",
@@ -239,7 +231,7 @@ export default function EditApplicationPage() {
     const savedProductId = financingType?.product_id;
     
     // Match step ID to component
-    if (currentStepId === "financing_type") {
+    if (currentStepId === "financing_type_1") {
       return (
         <FinancingTypeStep
           applicationId={applicationId}
@@ -249,7 +241,7 @@ export default function EditApplicationPage() {
       );
     }
     
-    if (currentStepId === "verify_company_info" || currentStepId === "company_info_1") {
+    if (currentStepId === "verify_company_info_1" ) {
       return (
         <VerifyCompanyInfoStep
           applicationId={applicationId}
@@ -258,7 +250,7 @@ export default function EditApplicationPage() {
       );
     }
     
-    if (currentStepId === "declarations" || currentStepId === "declaration_1") {
+    if (currentStepId === "declarations_1") {
       return (
         <DeclarationsStep
           applicationId={applicationId}
@@ -267,7 +259,7 @@ export default function EditApplicationPage() {
         />
       );
     }
-    if (currentStepId === "supporting_documents" || currentStepId === "supporting_documents_1") {
+    if (currentStepId === "supporting_documents_1") {
       return (
         <SupportingDocumentsStep
           applicationId={applicationId}

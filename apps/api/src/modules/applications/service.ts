@@ -28,13 +28,10 @@ export class ApplicationService {
   private getFieldNameForStepId(stepId: string): keyof Application | null {
     const stepIdToColumn: Record<string, keyof Application> = {
       // step id: field name in application column
-      "financing_type": "financing_type",
-      "verify_company_info": "verify_company_info",
-      "company_info_1": "verify_company_info",
-      "supporting_documents": "supporting_documents",
+      "financing_type_1": "financing_type",
+      "verify_company_info_1": "verify_company_info",
       "supporting_documents_1": "supporting_documents",
-      "declarations": "declarations",
-      "declaration_1": "declarations",
+      "declarations_1": "declarations",
     };
     
     return stepIdToColumn[stepId] || null;
