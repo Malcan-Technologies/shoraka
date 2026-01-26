@@ -76,8 +76,8 @@ export function NotificationList() {
             <Card
               key={notification.id}
               className={cn(
-                "cursor-pointer transition-colors hover:bg-accent/50",
-                !notification.read_at && "border-l-4 border-l-primary bg-primary/5"
+                "cursor-pointer transition-colors hover:bg-muted/80 hover:text-foreground",
+                !notification.read_at ? "border-l-4 border-l-primary bg-muted/80" : "bg-card"
               )}
               onClick={() => handleNotificationClick(notification)}
             >
@@ -85,7 +85,12 @@ export function NotificationList() {
                 <div className="mt-1">{getPriorityIcon(notification.priority)}</div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">{notification.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold">{notification.title}</p>
+                      {!notification.read_at && (
+                        <span className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
                     <span className="text-[10px] text-muted-foreground">
                       {format(new Date(notification.created_at), "MMM d, h:mm a")}
                     </span>
@@ -95,11 +100,6 @@ export function NotificationList() {
                     <Badge variant="outline" className="text-[10px] uppercase">
                       {notification.notification_type.category}
                     </Badge>
-                    {!notification.read_at && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        New
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </CardContent>

@@ -64,13 +64,18 @@ export function NotificationBell() {
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
-                    "flex flex-col items-start gap-1 p-4 cursor-pointer focus:bg-accent",
-                    !notification.read_at && "bg-accent/40 font-medium"
+                    "flex flex-col items-start gap-1 p-4 cursor-pointer focus:bg-muted/80 focus:text-foreground",
+                    !notification.read_at ? "bg-muted/80 font-medium" : "bg-background"
                   )}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex w-full items-start justify-between gap-2">
-                    <span className="text-sm">{notification.title}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{notification.title}</span>
+                      {!notification.read_at && (
+                        <span className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
                     <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                     </span>
