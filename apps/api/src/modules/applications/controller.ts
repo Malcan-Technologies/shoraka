@@ -130,7 +130,7 @@ const deleteDocumentSchema = z.object({
  */
 async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   try {
-    const { id } = applicationIdParamSchema.parse(req.params);
+    applicationIdParamSchema.parse(req.params); // Validate route param exists
     const input = deleteDocumentSchema.parse(req.body);
 
     await applicationService.deleteDocument(input.s3Key);
