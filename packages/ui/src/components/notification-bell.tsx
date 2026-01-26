@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@cashsouk/config";

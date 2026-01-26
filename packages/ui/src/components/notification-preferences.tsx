@@ -1,12 +1,10 @@
 "use client";
 
-import * as React from "react";
 import { useNotificationPreferences } from "@cashsouk/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
 import { Switch } from "./switch";
 import { Label } from "./label";
 import { Skeleton } from "./skeleton";
-import { cn } from "../lib/utils";
 
 export function NotificationPreferences() {
   const { preferences, isLoading, updatePreference } = useNotificationPreferences();
