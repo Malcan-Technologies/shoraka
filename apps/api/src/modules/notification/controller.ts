@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { NotificationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireAuth } from "../../lib/auth/middleware";
-import { NotificationFiltersSchema, UpdatePreferenceSchema } from "./schemas";
+import { requireAuth, requireRole } from "../../lib/auth/middleware";
+import { NotificationFiltersSchema, UpdatePreferenceSchema, UpdateNotificationTypeSchema, AdminSendNotificationSchema } from "./schemas";
+import { UserRole } from "@prisma/client";
 
 const router = Router();
 const notificationService = new NotificationService();
@@ -201,6 +202,101 @@ router.put("/preferences/:typeId", requireAuth, async (req: Request, res: Respon
     const validated = UpdatePreferenceSchema.parse(req.body);
     const result = await notificationService.updateUserPreference(req.user!.user_id, req.params.typeId, validated);
 
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/notifications/admin/types:
+ *   get:
+ *     summary: Get all notification types (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notification types
+ */
+router.get("/admin/types", requireAuth, requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await notificationService.getAllNotificationTypes();
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/notifications/admin/types/:id:
+ *   patch:
+ *     summary: Update notification type (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateNotificationType'
+ *     responses:
+ *       200:
+ *         description: Notification type updated
+ */
+router.patch("/admin/types/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = UpdateNotificationTypeSchema.parse(req.body);
+    const result = await notificationService.updateNotificationType(req.params.id, validated);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/notifications/admin/send:
+ *   post:
+ *     summary: Send custom notification to users (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AdminSendNotification'
+ *     responses:
+ *       200:
+ *         description: Notifications sent
+ */
+router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = AdminSendNotificationSchema.parse(req.body);
+    const result = await notificationService.sendBulkNotification(validated);
     res.json({
       success: true,
       data: result,

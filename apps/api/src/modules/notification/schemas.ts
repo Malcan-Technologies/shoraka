@@ -26,3 +26,21 @@ export const UpdatePreferenceSchema = z.object({
   enabled_platform: z.boolean(),
   enabled_email: z.boolean(),
 });
+
+export const UpdateNotificationTypeSchema = z.object({
+  enabled_platform: z.boolean().optional(),
+  enabled_email: z.boolean().optional(),
+  user_configurable: z.boolean().optional(),
+  default_priority: z.nativeEnum(NotificationPriority).optional(),
+  retention_days: z.number().int().min(0).nullable().optional(),
+});
+
+export const AdminSendNotificationSchema = z.object({
+  userIds: z.array(z.string()).min(1),
+  typeId: z.string(),
+  priority: z.nativeEnum(NotificationPriority).optional(),
+  title: z.string(),
+  message: z.string(),
+  linkPath: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+});

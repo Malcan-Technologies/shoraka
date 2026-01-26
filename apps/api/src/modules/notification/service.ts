@@ -1,4 +1,4 @@
-import { Notification, Prisma } from '@prisma/client';
+import { Notification, Prisma, NotificationType } from '@prisma/client';
 import { NotificationRepository } from './repository';
 import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from './types';
 import { buildNotificationEmail } from './email-templates';
@@ -150,6 +150,48 @@ export class NotificationService {
     }
 
     return this.repository.upsertUserPreference(userId, typeId, data);
+  }
+
+  /**
+   * Admin: Get all notification types
+   */
+  async getAllNotificationTypes(): Promise<NotificationType[]> {
+    return this.repository.findAllTypes();
+  }
+
+  /**
+   * Admin: Update notification type
+   */
+  async updateNotificationType(id: string, data: Partial<NotificationType>): Promise<NotificationType> {
+    return this.repository.updateType(id, data);
+  }
+
+  /**
+   * Admin: Send notification to multiple users
+   */
+  async sendBulkNotification(params: {
+    userIds: string[];
+    typeId: string;
+    priority?: any;
+    title: string;
+    message: string;
+    linkPath?: string;
+    metadata?: any;
+  }) {
+    const results = [];
+    for (const userId of params.userIds) {
+      try {
+        const result = await this.create({
+          ...params,
+          userId,
+        });
+        results.push({ userId, success: true, id: result.id });
+      } catch (error) {
+        logger.error({ error, userId, typeId: params.typeId }, 'Failed to send bulk notification to user');
+        results.push({ userId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+    return results;
   }
 
   /**

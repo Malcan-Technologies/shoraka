@@ -981,6 +981,19 @@ export class ApiClient {
   ): Promise<ApiResponse<any> | ApiError> {
     return this.put<any>(`/v1/notifications/preferences/${typeId}`, data);
   }
+
+  // Admin Notifications
+  async getAdminNotificationTypes(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/admin/types");
+  }
+
+  async updateAdminNotificationType(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/admin/types/${id}`, data);
+  }
+
+  async sendAdminNotification(data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>("/v1/notifications/admin/send", data);
+  }
 }
 
 export function createApiClient(

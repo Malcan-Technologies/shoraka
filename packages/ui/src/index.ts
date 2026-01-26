@@ -88,3 +88,15 @@ export { ActivityToolbar } from "./components/activity-toolbar";
 export { NotificationBell } from "./components/notification-bell";
 export { NotificationList } from "./components/notification-list";
 export { NotificationPreferences } from "./components/notification-preferences";
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
+} from "./components/select";

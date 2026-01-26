@@ -117,6 +117,25 @@ export class NotificationRepository {
   }
 
   /**
+   * Get all notification types
+   */
+  async findAllTypes(): Promise<NotificationType[]> {
+    return prisma.notificationType.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Update notification type
+   */
+  async updateType(id: string, data: Prisma.NotificationTypeUpdateInput): Promise<NotificationType> {
+    return prisma.notificationType.update({
+      where: { id },
+      data,
+    });
+  }
+
+  /**
    * Get notification type by ID
    */
   async findTypeById(id: string): Promise<NotificationType | null> {

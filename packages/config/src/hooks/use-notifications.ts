@@ -110,3 +110,46 @@ export function useNotificationPreferences() {
     updatePreference: updatePreferenceMutation.mutate,
   };
 }
+
+export function useAdminNotifications() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(undefined, getAccessToken);
+
+  const { data: types, isLoading: isLoadingTypes } = useQuery({
+    queryKey: ["admin-notification-types"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminNotificationTypes();
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: !!getAccessToken,
+  });
+
+  const updateTypeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.updateAdminNotificationType(id, data);
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-types"] });
+    },
+  });
+
+  const sendNotificationMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.sendAdminNotification(data);
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+
+  return {
+    types: types ?? [],
+    isLoadingTypes,
+    updateType: updateTypeMutation.mutate,
+    sendNotification: sendNotificationMutation.mutate,
+    isSending: sendNotificationMutation.isPending,
+  };
+}
