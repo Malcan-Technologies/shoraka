@@ -62,7 +62,7 @@ export default function NewApplicationPage() {
    * Get the list of steps from the selected product.
    * This shows users what the complete journey will look like.
    * 
-   * Example: ["Financing Type", "Company Info", "Documents", "Declarations"]
+   * Example: ["Financing Type", "Verify Company Info", "Documents", "Declarations"]
    */
   const workflowSteps = React.useMemo(() => {
     if (!selectedProductId || products.length === 0) {
