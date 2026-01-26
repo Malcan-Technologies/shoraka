@@ -35,28 +35,28 @@ export function SupportingDocumentsStep({
   
   if (isLoadingApp || !stepConfig) {
     return (
-      <div className="space-y-8 md:space-y-12">
+      <div className="space-y-6 sm:space-y-8 md:space-y-12">
         {[1, 2].map((categoryIndex) => (
-          <div key={categoryIndex} className="space-y-4">
+          <div key={categoryIndex} className="space-y-3 sm:space-y-4">
             <div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-4 w-4" />
-                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-5 sm:h-6 w-32 sm:w-40" />
                 </div>
                 <div className="flex items-center gap-1">
                   <Skeleton className="h-4 w-4 rounded" />
-                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-4 sm:h-5 w-20 sm:w-24" />
                 </div>
               </div>
               <div className="mt-2 h-px bg-border" />
             </div>
-            <div className="grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-3 sm:mt-4 pl-3 sm:pl-4 md:pl-6">
               {[1, 2, 3].map((docIndex) => (
                 <React.Fragment key={docIndex}>
-                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-5 w-40 sm:w-48" />
                   <div className="flex justify-end">
-                    <Skeleton className="h-8 w-28" />
+                    <Skeleton className="h-8 w-24 sm:w-28" />
                   </div>
                 </React.Fragment>
               ))}
@@ -406,41 +406,41 @@ export function SupportingDocumentsStep({
   }
 
   return (
-    <div className="space-y-8 md:space-y-12">
+    <div className="space-y-6 sm:space-y-8 md:space-y-12">
       {categories.map((category, categoryIndex) => {
         const status = getCategoryStatus(categoryIndex);
         const isComplete = status.uploadedCount === status.totalCount && status.totalCount > 0;
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
         return (
-          <div key={categoryIndex} className="space-y-4">
+          <div key={categoryIndex} className="space-y-3 sm:space-y-4">
             <div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <button
                   onClick={() => setExpandedCategories((prev) => ({ ...prev, [categoryIndex]: !isExpanded }))}
-                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity p-1 -m-1 min-w-0 flex-1"
                   type="button"
                 >
                   <ChevronDownIcon
-                    className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+                    className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
                   />
-                  <h3 className="text-lg md:text-xl font-semibold">{category.name}</h3>
+                  <h3 className="text-base sm:text-lg md:text-xl font-semibold truncate">{category.name}</h3>
                 </button>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   {isComplete && (
                     <div className="w-4 h-4 rounded flex items-center justify-center bg-destructive text-destructive-foreground">
                       <CheckIcon className="h-2.5 w-2.5" />
                     </div>
                   )}
-                  <span className="text-[17px] leading-7 text-muted-foreground">
-                    {status.uploadedCount}/{status.totalCount} files {isComplete ? "uploaded" : "required"}
+                  <span className="text-sm sm:text-base md:text-[17px] leading-5 sm:leading-6 md:leading-7 text-muted-foreground whitespace-nowrap">
+                    {status.uploadedCount}/{status.totalCount} <span className="hidden sm:inline">files </span>{isComplete ? "uploaded" : "required"}
                   </span>
                 </div>
               </div>
               <div className="mt-2 h-px bg-border" />
             </div>
             {isExpanded && (
-              <div className="grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-3 sm:mt-4 pl-3 sm:pl-4 md:pl-6">
                 {category.documents.map((document, documentIndex) => {
                   const key = `${categoryIndex}-${documentIndex}`;
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
@@ -449,14 +449,14 @@ export function SupportingDocumentsStep({
 
                   return (
                     <React.Fragment key={documentIndex}>
-                      <div className="text-sm md:text-base leading-6 text-muted-foreground">{document.title}</div>
+                      <div className="text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">{document.title}</div>
                       <div className="flex justify-end">
                         {isUploaded && file && !fileIsUploading ? (
-                          <div className="inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1">
+                          <div className="inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full">
                             <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
                               <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                             </div>
-                            <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                            <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">{file.name}</span>
                             <button
                               onClick={() => handleRemoveFile(categoryIndex, documentIndex)}
                               className="hover:text-destructive transition-colors cursor-pointer shrink-0"
@@ -466,9 +466,10 @@ export function SupportingDocumentsStep({
                             </button>
                           </div>
                         ) : (
-                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-[17px] leading-7">
-                            <CloudArrowUpIcon className="h-4 w-4" />
-                            {fileIsUploading ? "Uploading..." : "Upload file"}
+                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-base sm:text-[17px] leading-6 sm:leading-7">
+                            <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                            <span className="hidden sm:inline">{fileIsUploading ? "Uploading..." : "Upload file"}</span>
+                            <span className="sm:hidden">{fileIsUploading ? "Uploading..." : "Upload"}</span>
                             <Input
                               id={`file-${key}`}
                               type="file"

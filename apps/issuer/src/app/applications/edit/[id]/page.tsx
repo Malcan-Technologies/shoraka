@@ -620,24 +620,24 @@ export default function EditApplicationPage() {
   if (isLoading || !application) {
     return (
       <div className="flex flex-col h-full">
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-5 sm:h-6 w-28 sm:w-32" />
         </header>
         
-        <main className="flex-1 overflow-y-auto p-4">
-          <div className="max-w-7xl mx-auto w-full px-4 py-8">
-            <Skeleton className="h-9 w-64 mb-2" />
-            <Skeleton className="h-5 w-96 mb-8" />
-            <Skeleton className="h-96 w-full" />
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
+            <Skeleton className="h-7 sm:h-9 w-48 sm:w-64 mb-2" />
+            <Skeleton className="h-4 sm:h-5 w-64 sm:w-96 mb-6 sm:mb-8" />
+            <Skeleton className="h-64 sm:h-96 w-full" />
           </div>
         </main>
         
         <footer className="sticky bottom-0 border-t bg-background">
-          <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
-            <Skeleton className="h-12 w-32 rounded-xl" />
-            <Skeleton className="h-12 w-48 rounded-xl" />
+          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
+            <Skeleton className="h-11 sm:h-12 w-full sm:w-32 rounded-xl order-2 sm:order-1" />
+            <Skeleton className="h-11 sm:h-12 w-full sm:w-48 rounded-xl order-1 sm:order-2" />
           </div>
         </footer>
       </div>
@@ -647,21 +647,21 @@ export default function EditApplicationPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Top navigation bar */}
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+      <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Edit Application</h1>
+        <h1 className="text-base sm:text-lg font-semibold">Edit Application</h1>
       </header>
       
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-7xl mx-auto w-full px-4 py-8">
+      <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {/* Page Title */}
-          <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
               {currentStepInfo.title}
             </h1>
-            <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+            <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
               {currentStepInfo.description}
             </p>
           </div>
@@ -678,19 +678,19 @@ export default function EditApplicationPage() {
         <div className="h-px bg-border w-full" />
         
         {/* Step Content */}
-        <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
           {renderStepComponent()}
         </div>
       </main>
       
       {/* Bottom buttons */}
       <footer className="sticky bottom-0 border-t bg-background">
-        <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
+        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
           {/* Back button */}
           <Button
             variant="outline"
             onClick={handleBack}
-            className="text-base font-semibold px-6 py-3 rounded-xl"
+            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
@@ -700,7 +700,7 @@ export default function EditApplicationPage() {
           <Button
             onClick={handleSaveAndContinue}
             disabled={updateStepMutation.isPending || !isCurrentStepValid}
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-base font-semibold px-6 py-3 rounded-xl"
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />

@@ -74,9 +74,9 @@ function normalizeName(name: string): string {
 
 const inputClassName = "bg-muted rounded-xl border border-border";
 const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
-const sectionHeaderClassName = "text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-2 gap-6 mt-4 pl-4 md:pl-6";
-const sectionGridClassName = "grid grid-cols-2 gap-6 mt-6 pl-4 md:pl-6";
+const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 pl-3 sm:pl-4 md:pl-6";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 sm:mt-6 pl-3 sm:pl-4 md:pl-6";
 
 export function VerifyCompanyInfoStep({
   applicationId,
@@ -867,7 +867,7 @@ function EditAddressDialog({
                   className="h-11 rounded-xl"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="business-city">City</Label>
                   <Input
@@ -889,7 +889,7 @@ function EditAddressDialog({
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="business-state">State</Label>
                   <Input
@@ -949,7 +949,7 @@ function EditAddressDialog({
                     className="h-11 rounded-xl"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="registered-city">City</Label>
                     <Input
@@ -971,7 +971,7 @@ function EditAddressDialog({
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="registered-state">State</Label>
                     <Input

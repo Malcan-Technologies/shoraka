@@ -61,29 +61,29 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }
   return (
     <label
       className={`
-        relative flex items-start gap-4 border rounded-xl p-4 cursor-pointer 
+        relative flex items-start gap-3 sm:gap-4 border rounded-xl p-3 sm:p-4 cursor-pointer 
         transition-colors
         ${isSelected ? "border-primary" : "border-border hover:border-primary/50"}
       `}
       onClick={() => onSelect(id)}
     >
       {/* Product Image */}
-      <div className="w-14 h-14 shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
+      <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
         <ProductImage s3Key={imageS3Key} alt={name} />
       </div>
       
       {/* Product Info */}
-      <div className="flex-1 pr-10">
-        <div className="font-semibold text-lg leading-7">
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-base sm:text-lg leading-6 sm:leading-7">
           {name}
         </div>
-        <div className="text-muted-foreground text-base leading-6">
+        <div className="text-muted-foreground text-sm sm:text-base leading-5 sm:leading-6">
           {description}
         </div>
       </div>
       
       {/* Checkbox */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
         <Checkbox
           checked={isSelected}
           className="rounded"
@@ -153,17 +153,17 @@ export function ProductList({ products, selectedProductId, onProductSelect }: Pr
   }, [products]);
   
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
-        <div key={category} className="space-y-4">
+        <div key={category} className="space-y-3 sm:space-y-4">
           {/* Category Header */}
           <div>
-            <h2 className="text-xl font-semibold">{category}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold">{category}</h2>
             <div className="mt-2 h-px bg-border" />
           </div>
           
           {/* Products in this category */}
-          <div className="space-y-4 pl-6">
+          <div className="space-y-3 sm:space-y-4 pl-3 sm:pl-6">
             {categoryProducts.map((product) => (
               <ProductCard
                 key={product.id}
