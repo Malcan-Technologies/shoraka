@@ -141,6 +141,49 @@ export default function EditApplicationPage() {
   const currentStepId = currentStepConfig?.id || "";
   
   /**
+   * STEP TITLES AND DESCRIPTIONS
+   * 
+   * Custom titles and descriptions for each step ID.
+   * These override the default step names from the workflow.
+   */
+  const stepTitles: Record<string, { title: string; description: string }> = {
+    "financing_type": {
+      title: "Select Financing Type",
+      description: "Choose the type of financing that best suits your business needs"
+    },
+    "verify_company_info": {
+      title: "Verify Company Information",
+      description: "Review and confirm your company details are accurate"
+    },
+    "company_info_1": {
+      title: "Verify Company Information",
+      description: "Review and confirm your company details are accurate"
+    },
+    "declarations": {
+      title: "Declarations",
+      description: "Please read and accept all declarations to continue"
+    },
+    "declaration_1": {
+      title: "Declarations",
+      description: "Please read and accept all declarations to continue"
+    },
+    "supporting_documents": {
+      title: "Upload Documents",
+      description: "Upload all required supporting documents for your application"
+    },
+    "supporting_documents_1": {
+      title: "Upload Documents",
+      description: "Upload all required supporting documents for your application"
+    },
+  };
+  
+  // Get custom title/description or fall back to workflow step name
+  const currentStepInfo = stepTitles[currentStepId] || {
+    title: workflowSteps[stepFromUrl - 1] || "Loading...",
+    description: "Complete this step to continue"
+  };
+  
+  /**
    * RENDER STEP COMPONENT
    * 
    * Based on the step ID, render the appropriate component.
@@ -572,10 +615,10 @@ export default function EditApplicationPage() {
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Step {stepFromUrl}: {workflowSteps[stepFromUrl - 1] || "Loading..."}
+              {currentStepInfo.title}
             </h1>
             <p className="text-[15px] leading-7 text-muted-foreground mt-1">
-              Complete your application
+              {currentStepInfo.description}
             </p>
           </div>
           
