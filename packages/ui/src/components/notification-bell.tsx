@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@cashsouk/config";
 import {
@@ -8,7 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "./dropdown-menu";
 import { Button } from "./button";
 import { Badge } from "./badge";
@@ -44,57 +43,71 @@ export function NotificationBell() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <div className="flex items-center justify-between p-4 pb-2">
-          <h4 className="text-sm font-semibold">Notifications</h4>
-          {unreadCount > 0 && (
-            <span className="text-xs text-muted-foreground">{unreadCount} unread</span>
-          )}
+      <DropdownMenuContent align="end" className="w-80 p-0 overflow-hidden rounded-xl border border-slate-200 shadow-xl bg-white">
+        <div className="flex items-center justify-between p-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-base font-bold text-slate-900">Notifications</h2>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-medium text-slate-600">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-colors">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        <DropdownMenuSeparator />
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[350px]">
           {notifications.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-              <Bell className="mb-2 h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">No notifications yet</p>
+            <div className="flex h-[300px] flex-col items-center justify-center p-6 text-center bg-white">
+              <Bell className="mb-2 h-8 w-8 text-slate-200" />
+              <p className="text-sm text-slate-400">No notifications yet</p>
             </div>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col bg-white">
               {notifications.map((notification: any) => (
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
-                    "flex flex-col items-start gap-1 p-4 cursor-pointer focus:bg-muted/80 focus:text-foreground",
-                    !notification.read_at ? "bg-muted/80 font-medium" : "bg-background"
+                    "flex flex-col items-start gap-0.5 p-3 cursor-pointer border-b border-slate-50 last:border-0 focus:bg-slate-50 focus:text-slate-900 outline-none transition-colors",
+                    !notification.read_at ? "bg-slate-50/30" : "bg-white"
                   )}
                   onClick={() => handleNotificationClick(notification)}
                 >
-                  <div className="flex w-full items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{notification.title}</span>
-                      {!notification.read_at && (
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                      )}
+                  <div className="flex w-full items-start justify-between gap-1">
+                    <div className="flex-1 pr-1">
+                      <div className="flex items-center justify-between w-full mb-0.5">
+                        <span className="text-sm font-bold text-slate-900 leading-tight">
+                          {notification.title}
+                        </span>
+                        <span className="text-[11px] text-slate-400 whitespace-nowrap ml-2">
+                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-slate-500 leading-snug line-clamp-2">
+                        {notification.message}
+                      </p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                    </span>
+                    {!notification.read_at && (
+                      <div className="pt-1 shrink-0">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 block shadow-[0_0_0_2px_rgba(16,185,129,0.1)]" />
+                      </div>
+                    )}
                   </div>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">
-                    {notification.message}
-                  </p>
                 </DropdownMenuItem>
               ))}
             </div>
           )}
         </ScrollArea>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="flex w-full cursor-pointer items-center justify-center p-2 text-xs font-medium text-primary"
-          onClick={() => router.push("/notifications")}
-        >
-          View all notifications
-        </DropdownMenuItem>
+        <div className="p-1.5 border-t border-slate-100 bg-white">
+          <Button
+            variant="ghost"
+            className="w-full h-8 text-sm font-medium text-slate-900 hover:bg-slate-50 hover:text-slate-900 rounded-md transition-colors"
+            onClick={() => router.push("/notifications")}
+          >
+            View all notifications
+          </Button>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
