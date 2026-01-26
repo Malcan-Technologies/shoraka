@@ -124,7 +124,7 @@ const editProductSchema = z.object({
       message: "Financing Type step must be configured with a product name",
     })
     .refine(validateDeclaration, {
-      message: "Declaration step must have at least one declaration",
+      message: "Declarations step must have at least one declaration",
     })
     .refine(validateSupportingDocuments, {
       message: "Supporting Documents step must have at least one document",
@@ -342,7 +342,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
                 s.name.toLowerCase().includes("declaration")
               );
               if (declarationStep && !hasConfiguredContent(declarationStep)) {
-                missingItems.push("Declaration (add at least one)");
+                missingItems.push("Declarations (add at least one)");
               }
               
               // Show missing items if any

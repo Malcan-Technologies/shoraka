@@ -120,12 +120,10 @@ function validateSupportingDocuments(steps: any[]): boolean {
 // Default workflow steps that appear when creating a new product
 const DEFAULT_WORKFLOW = [
   { id: "financing_type_1", name: "Financing Type", config: {} },
-  { id: "financing_terms_1", name: "Financing Terms", config: {} },
-  { id: "invoice_details_1", name: "Invoice Details", config: {} },
-  { id: "company_info_1", name: "Company Info", config: {} },
+  { id: "verify_company_info_1", name: "Verify Company Info", config: {} },
   { id: "supporting_documents_1", name: "Supporting Documents", config: {} },
-  { id: "declaration_1", name: "Declaration", config: {} },
-  { id: "review_submit_1", name: "Review & Submit", config: {} },
+  { id: "declarations_1", name: "Declarations", config: {} },
+  { id: "review_and_submit_1", name: "Review & Submit", config: {} },
 ];
 
 export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogProps) {
@@ -304,7 +302,7 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
                 s.name.toLowerCase().includes("declaration")
               );
               if (declarationStep && !hasConfiguredContent(declarationStep)) {
-                missingItems.push("Declaration (add at least one)");
+                missingItems.push("Declarations (add at least one)");
               }
               
               // Show missing items if any
