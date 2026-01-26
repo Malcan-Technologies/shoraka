@@ -6,7 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useApplication, useUpdateApplicationStep } from "@/hooks/use-applications";
+import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -64,6 +64,50 @@ export default function EditApplicationPage() {
   
   // Hook to update application step
   const updateStepMutation = useUpdateApplicationStep();
+  
+  // Hook to archive application
+  const archiveApplicationMutation = useArchiveApplication();
+  
+  /**
+   * VERSION MISMATCH CHECK
+   * 
+   * Compare application's product version with current product version.
+   * If mismatch, user must restart with latest version.
+   */
+  const versionMismatch = React.useMemo(() => {
+    if (!application || !productsData) return false;
+    
+    const financingType = application.financing_type as any;
+    const productId = financingType?.product_id;
+    
+    if (!productId) return false;
+    
+    const products = productsData.products || [];
+    const currentProduct = products.find((p: any) => p.id === productId);
+    
+    if (!currentProduct) return false;
+    
+    // Compare versions
+    return application.product_version !== currentProduct.version;
+  }, [application, productsData]);
+  
+  /**
+   * HANDLE RESTART APPLICATION
+   * 
+   * Archive current application and redirect to /new
+   */
+  const handleRestartApplication = async () => {
+    try {
+      // Archive current application (silently in background)
+      await archiveApplicationMutation.mutateAsync(applicationId);
+      
+      // Redirect to /new page (it will create new application)
+      router.push("/applications/new");
+    } catch (error) {
+      toast.error("Unable to restart. Please try again.");
+      // Modal stays open, user can retry
+    }
+  };
   
   // Track if user has unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
@@ -663,6 +707,28 @@ export default function EditApplicationPage() {
           </Button>
         </div>
       </footer>
+      
+      {/* Version Mismatch Modal (Blocking) */}
+      <Dialog open={versionMismatch} onOpenChange={() => {}}>
+        <DialogContent className="[&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Product Updated</DialogTitle>
+            <DialogDescription>
+              This product has been updated with new features and requirements.
+              Please restart your application to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              onClick={handleRestartApplication} 
+              className="w-full"
+              disabled={archiveApplicationMutation.isPending}
+            >
+              {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Unsaved Changes Modal */}
       <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
