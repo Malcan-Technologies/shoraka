@@ -29,9 +29,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
+import { NotificationPreferences } from "@cashsouk/ui";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { CopyableField } from "@cashsouk/ui/copyable-field";
+import { BellIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -436,6 +438,24 @@ export default function AccountPage() {
                   This information helps you monitor unauthorized access to your account.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Marketing Notifications Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <BellIcon className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Marketing Notifications</CardTitle>
+                  <CardDescription>Manage your marketing and promotional preferences</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <NotificationPreferences />
             </CardContent>
           </Card>
         </div>

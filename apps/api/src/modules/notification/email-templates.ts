@@ -37,7 +37,7 @@ export function buildNotificationEmail(notification: Notification, user: User): 
         </div>
         <div class="footer">
           <p>You are receiving this because you have notifications enabled for your account.</p>
-          <p><a href="${appUrl}/settings/notifications">Manage notification preferences</a></p>
+          <p><a href="${appUrl}/account">Manage notification preferences</a></p>
           <p>&copy; ${new Date().getFullYear()} CashSouk. All rights reserved.</p>
         </div>
       </div>
@@ -49,6 +49,6 @@ export function buildNotificationEmail(notification: Notification, user: User): 
     to: user.email,
     subject: `[CashSouk] ${notification.title}`,
     html,
-    text: `${notification.title}\n\nHello ${user.first_name || 'there'},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${appUrl}/settings/notifications`,
+    text: `${notification.title}\n\nHello ${user.first_name || 'there'},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${appUrl}/account`,
   };
 }
