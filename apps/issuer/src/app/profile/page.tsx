@@ -123,10 +123,11 @@ function RoleBadge({ role }: { role: OrganizationMemberRole }) {
   );
 }
 
-function MemberCard({ member }: { member: OrganizationMember }) {
+function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?: string }) {
   const fullName = [member.firstName, member.lastName].filter(Boolean).join(" ") || "Unknown";
   const initials =
     [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+  const isOwner = ownerId && member.id === ownerId;
 
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
@@ -134,8 +135,14 @@ function MemberCard({ member }: { member: OrganizationMember }) {
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
+          {isOwner && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200">
+              <ShieldCheckIcon className="h-3 w-3" />
+              Organization Owner
+            </span>
+          )}
           <RoleBadge role={member.role} />
         </div>
         <div className="flex items-center gap-1.5 mt-1 text-muted-foreground">
@@ -1280,7 +1287,7 @@ export default function ProfilePage() {
                       return (
                         <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
                           <div className="flex-1">
-                            <MemberCard member={member} />
+                            <MemberCard member={member} ownerId={activeOrganization.ownerId} />
                           </div>
                           {canManageMembers && (
                             <div className="flex items-center gap-2 ml-auto">

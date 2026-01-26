@@ -26,7 +26,7 @@ interface FinancingTypeStepProps {
 }
 
 export function FinancingTypeStep({
-  applicationId,
+  applicationId: _applicationId,
   initialProductId,
   onDataChange,
 }: FinancingTypeStepProps) {

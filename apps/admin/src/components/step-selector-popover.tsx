@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import {
-  DocumentTextIcon,
-  BanknotesIcon,
   BuildingOfficeIcon,
   ClipboardDocumentCheckIcon,
   CurrencyDollarIcon,
