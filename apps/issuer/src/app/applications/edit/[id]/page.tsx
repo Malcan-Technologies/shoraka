@@ -247,27 +247,38 @@ export default function EditApplicationPage() {
    * - User can only access steps 1 through (last_completed_step + 1)
    * - Example: If last_completed_step = 2, user can access steps 1, 2, or 3
    * - Trying to access step 5 → redirect to step 3 with error
+   * - Step must exist in the current product workflow
    * 
-   * Why? We want users to complete steps in order.
+   * Why? We want users to complete steps in order and ensure steps exist.
    */
   React.useEffect(() => {
-    if (!application || isLoadingApp) return;
+    if (!application || isLoadingApp || isLoadingProducts) return;
     
     const lastCompleted = application.last_completed_step || 1;
     const maxAllowedStep = lastCompleted + 1;
+    
+    // Check if step exists in workflow (workflow might have changed)
+    if (workflowSteps.length > 0 && stepFromUrl > workflowSteps.length) {
+      const redirectStep = Math.min(lastCompleted, workflowSteps.length);
+      toast.error("This step no longer exists in the workflow");
+      router.replace(`/applications/edit/${applicationId}?step=${redirectStep}`);
+      return;
+    }
     
     // User is trying to skip ahead
     if (stepFromUrl > maxAllowedStep) {
       toast.error("Please complete steps in order");
       router.replace(`/applications/edit/${applicationId}?step=${maxAllowedStep}`);
+      return;
     }
     
     // User typed invalid step number (less than 1)
     if (stepFromUrl < 1) {
       toast.error("Invalid step number");
       router.replace(`/applications/edit/${applicationId}?step=${lastCompleted}`);
+      return;
     }
-  }, [application, applicationId, stepFromUrl, router, isLoadingApp]);
+  }, [application, applicationId, stepFromUrl, router, isLoadingApp, isLoadingProducts, workflowSteps]);
   
   /**
    * UNSAVED CHANGES WARNING
