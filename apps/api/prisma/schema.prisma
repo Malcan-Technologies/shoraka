@@ -315,15 +315,12 @@ model Application {
   status                 ApplicationStatus  @default(DRAFT)
   last_completed_step    Int                @default(0)
   financing_type         Json?
-  invoice_details        Json?
-  buyer_details          Json?
   verify_company_info    Json?
   supporting_documents   Json?
   declarations           Json?
-  review_submit          Json?
+  review_and_submit      Json?
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
-  submitted_at           DateTime?
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
 
   @@map("applications")
