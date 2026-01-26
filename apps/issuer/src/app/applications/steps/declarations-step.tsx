@@ -53,6 +53,13 @@ export function DeclarationsStep({
   const [checkedDeclarations, setCheckedDeclarations] = React.useState<Record<number, boolean>>({});
 
   /**
+   * Track initial state loaded from DB
+   * 
+   * We compare current state with this to know if user made changes
+   */
+  const [initialDeclarations, setInitialDeclarations] = React.useState<Record<number, boolean>>({});
+
+  /**
    * Stable reference for onDataChange callback
    * 
    * We use a ref so the effect below doesn't re-run
@@ -107,6 +114,7 @@ export function DeclarationsStep({
     }
 
     setCheckedDeclarations(initialState);
+    setInitialDeclarations(initialState); // Save initial state for comparison
     setIsInitialized(true);
   }, [application, declarations, isInitialized]);
 
@@ -115,6 +123,9 @@ export function DeclarationsStep({
    * 
    * Every time the user checks/unchecks a box, we tell the parent.
    * The parent stores this in a ref and saves it when user clicks "Save and Continue".
+   * 
+   * We also include hasPendingChanges flag to tell parent if user made actual changes
+   * vs just loading existing data from DB.
    */
   React.useEffect(() => {
     if (!onDataChangeRef.current || declarations.length === 0 || !isInitialized) {
@@ -126,13 +137,20 @@ export function DeclarationsStep({
       checked: checkedDeclarations[index] || false,
     }));
 
+    // Check if user made changes from initial state
+    const hasPendingChanges = Object.keys(checkedDeclarations).some((key) => {
+      const index = parseInt(key);
+      return checkedDeclarations[index] !== initialDeclarations[index];
+    });
+
     const saveData = {
       declarations: dataToSave,
+      hasPendingChanges: hasPendingChanges,
     };
 
     // Pass to parent (parent will validate)
     onDataChangeRef.current(saveData);
-  }, [checkedDeclarations, declarations, isInitialized]);
+  }, [checkedDeclarations, declarations, isInitialized, initialDeclarations]);
 
   /**
    * HANDLE CHECKBOX TOGGLE

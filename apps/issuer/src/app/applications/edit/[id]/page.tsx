@@ -503,6 +503,9 @@ export default function EditApplicationPage() {
    * Step components will call this when data changes:
    * onDataChange({ company_name: "ABC Corp", ... })
    * 
+   * Some components (like supporting documents) provide hasPendingChanges flag
+   * to indicate if there are actual unsaved changes vs just initial data load
+   * 
    * We store it in a ref so we always have the latest data
    */
   const handleDataChange = (data: any) => {
@@ -516,8 +519,12 @@ export default function EditApplicationPage() {
       setIsCurrentStepValid(true);
     }
     
-    // Mark as having unsaved changes
-    if (data) {
+    // Check if step provides pending changes flag
+    if (data?.hasPendingChanges !== undefined) {
+      // Use the component's flag (e.g., supporting documents knows if files are selected)
+      setHasUnsavedChanges(data.hasPendingChanges);
+    } else if (data) {
+      // For other steps, mark as unsaved when data is passed
       setHasUnsavedChanges(true);
     }
   };
