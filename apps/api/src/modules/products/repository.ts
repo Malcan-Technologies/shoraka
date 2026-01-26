@@ -93,6 +93,7 @@ export class ProductRepository {
       where: { id },
       data: {
         ...(data.workflow && { workflow: data.workflow }),
+        ...(data.workflow && { version: { increment: 1 } }),
         updated_at: new Date(),
       },
     });

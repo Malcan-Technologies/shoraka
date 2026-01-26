@@ -1,0 +1,100 @@
+"use client";
+
+import * as React from "react";
+import { useProducts } from "@/hooks/use-products";
+import { ProductList } from "../components/product-list";
+
+/**
+ * FINANCING TYPE STEP
+ * 
+ * This step component shows product selection in the edit flow.
+ * 
+ * Different from /new page:
+ * - Loads selected product from database
+ * - User can change their selection
+ * - Passes selected product ID to parent for saving
+ * 
+ * Props:
+ * - applicationId: to identify the application
+ * - initialProductId: product saved in DB (from application.financing_type.product_id)
+ * - onDataChange: callback to pass selected product ID to parent
+ */
+interface FinancingTypeStepProps {
+  applicationId: string;
+  initialProductId?: string;
+  onDataChange?: (data: any) => void;
+}
+
+export function FinancingTypeStep({
+  applicationId,
+  initialProductId,
+  onDataChange,
+}: FinancingTypeStepProps) {
+  // Load all products
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+    page: 1,
+    pageSize: 100,
+  });
+  
+  const products = productsData?.products || [];
+  
+  // Track which product is selected
+  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  
+  /**
+   * Initialize with product from database
+   * 
+   * When page loads, set the product that's already saved.
+   * User selected this in /new page, it's now in the database.
+   */
+  React.useEffect(() => {
+    if (initialProductId && !selectedProductId) {
+      setSelectedProductId(initialProductId);
+    }
+  }, [initialProductId, selectedProductId]);
+  
+  /**
+   * When user selects a different product
+   * 
+   * Updates local state and notifies parent component.
+   * Parent will save this when user clicks "Save and Continue".
+   */
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    
+    // Pass data to parent for saving
+    if (onDataChange) {
+      onDataChange({
+        product_id: productId,
+      });
+    }
+  };
+  
+  // Show loading state
+  if (isLoadingProducts) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Loading products...
+      </div>
+    );
+  }
+  
+  // Show empty state
+  if (products.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        No financing products available
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <ProductList
+        products={products}
+        selectedProductId={selectedProductId}
+        onProductSelect={handleProductSelect}
+      />
+    </div>
+  );
+}

@@ -29,6 +29,7 @@ async function createProduct(
       success: true,
       data: {
         id: product.id,
+        version: product.version,
         workflow: product.workflow,
         createdAt: product.created_at,
         updatedAt: product.updated_at,
@@ -53,6 +54,7 @@ async function getProduct(req: Request, res: Response, next: NextFunction) {
       success: true,
       data: {
         id: product.id,
+        version: product.version,
         workflow: product.workflow,
         createdAt: product.created_at,
         updatedAt: product.updated_at,
@@ -82,6 +84,7 @@ async function listProducts(
       data: {
         products: result.products.map((p) => ({
           id: p.id,
+          version: p.version,
           workflow: p.workflow,
           createdAt: p.created_at,
           updatedAt: p.updated_at,
@@ -113,6 +116,7 @@ async function updateProduct(
       success: true,
       data: {
         id: product.id,
+        version: product.version,
         workflow: product.workflow,
         createdAt: product.created_at,
         updatedAt: product.updated_at,

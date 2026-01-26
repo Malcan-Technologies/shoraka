@@ -106,5 +106,57 @@ export interface ActivitiesResponse {
   };
 }
 
+// Application Types
+export type ApplicationStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+
+export interface Application {
+  id: string;
+  issuer_organization_id: string;
+  product_version: number;
+  status: ApplicationStatus;
+  last_completed_step: number;
+  financing_type?: any;
+  invoice_details?: any;
+  buyer_details?: any;
+  verify_company_info?: any;
+  supporting_documents?: any;
+  declarations?: any;
+  review_submit?: any;
+  created_at: string;
+  updated_at: string;
+  submitted_at?: string | null;
+  isVersionMismatch?: boolean;
+  latestProductVersion?: number;
+}
+
+export interface CreateApplicationInput {
+  productId: string;
+  issuerOrganizationId: string;
+}
+
+export interface UpdateApplicationStepInput {
+  stepNumber: number;
+  stepId: string;
+  data: Record<string, any>;
+}
+
+export interface Product {
+  id: string;
+  version: number;
+  workflow: any[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetProductsResponse {
+  products: Product[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+}
+
 export * from "./activity-config";
 export * from "./admin";
