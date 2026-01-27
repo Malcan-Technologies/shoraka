@@ -15,18 +15,15 @@ import { ProductList } from "../components/product-list";
  * - Passes selected product ID to parent for saving
  * 
  * Props:
- * - applicationId: to identify the application
  * - initialProductId: product saved in DB (from application.financing_type.product_id)
  * - onDataChange: callback to pass selected product ID to parent
  */
 interface FinancingTypeStepProps {
-  applicationId: string;
   initialProductId?: string;
   onDataChange?: (data: any) => void;
 }
 
 export function FinancingTypeStep({
-  applicationId: _applicationId,
   initialProductId,
   onDataChange,
 }: FinancingTypeStepProps) {

@@ -25,13 +25,13 @@ export function SupportingDocumentsStep({
 
   const categories = stepConfig?.config?.categories || [];
   
-  const [uploadedFiles, setUploadedFiles] = React.useState<any>({});
-  const [selectedFiles, setSelectedFiles] = React.useState<any>({});
-  const [expandedCategories, setExpandedCategories] = React.useState<any>({});
+  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
+  const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
+  const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
-  const [documentCuids, setDocumentCuids] = React.useState<any>({});
-  const [lastS3Keys, setLastS3Keys] = React.useState<any>({});
-  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<any>({});
+  const [documentCuids, setDocumentCuids] = React.useState<Record<string, string>>({});
+  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
+  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
   
   if (isLoadingApp || !stepConfig) {
     return (
@@ -67,7 +67,7 @@ export function SupportingDocumentsStep({
     );
   }
 
-  const buildDataToSave = (files: any, uploadResults = new Map()): any => {
+  const buildDataToSave = (files: Record<string, { s3_key?: string; name?: string }>, uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()) => {
     return {
       categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
@@ -90,7 +90,7 @@ export function SupportingDocumentsStep({
   };
 
   React.useEffect(() => {
-    const allExpanded: any = {};
+    const allExpanded: Record<number, boolean> = {};
     categories.forEach((_: any, index: number) => {
       allExpanded[index] = true;
     });
@@ -114,9 +114,9 @@ export function SupportingDocumentsStep({
       return;
     }
 
-    const loadedFiles: any = {};
-    const loadedCuids: any = {};
-    const loadedS3Keys: any = {};
+    const loadedFiles: Record<string, { name: string; size: number; uploadedAt: string; s3_key: string }> = {};
+    const loadedCuids: Record<string, string> = {};
+    const loadedS3Keys: Record<string, string> = {};
 
     data.categories.forEach((savedCategory: any) => {
       const categoryIndex = categories.findIndex((cat: any) => cat.name === savedCategory.name);
@@ -154,7 +154,7 @@ export function SupportingDocumentsStep({
     }
   }, [application, categories]);
 
-  const handleFileChange = (categoryIndex: number, documentIndex: number, event: any) => {
+  const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -195,8 +195,7 @@ export function SupportingDocumentsStep({
 
     const uploadResults = new Map();
 
-    for (const [key, file] of Object.entries(selectedFiles)) {
-      const typedFile = file as File;
+    for (const [key, file] of Object.entries(selectedFiles) as [string, File][]) {
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
 
@@ -282,7 +281,7 @@ export function SupportingDocumentsStep({
 
     setSelectedFiles({});
 
-    const updatedFiles = { ...uploadedFiles };
+    const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
       const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
@@ -365,7 +364,8 @@ export function SupportingDocumentsStep({
     // Save the S3 key before removing, so we can delete it on next upload
     const currentFile = uploadedFiles[key];
     if (currentFile?.s3_key) {
-      setLastS3Keys((prev: any) => ({ ...prev, [key]: currentFile.s3_key }));
+      const s3Key = currentFile.s3_key;
+      setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
     }
     
     setUploadedFiles((prev: any) => {

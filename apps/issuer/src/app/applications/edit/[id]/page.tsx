@@ -234,7 +234,6 @@ export default function EditApplicationPage() {
     if (currentStepId === "financing_type_1") {
       return (
         <FinancingTypeStep
-          applicationId={applicationId}
           initialProductId={savedProductId}
           onDataChange={handleDataChange}
         />
@@ -492,6 +491,7 @@ export default function EditApplicationPage() {
     try {
       // Get the data from the current step
       let dataToSave = stepDataRef.current;
+      console.log(dataToSave)
       
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
@@ -562,7 +562,9 @@ export default function EditApplicationPage() {
       toast.success("Saved successfully");
       
       // Go to next step
+      setTimeout(() => {
       router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+      }, 0)
       
     } catch (error) {
       // Error already shown by mutation hook
