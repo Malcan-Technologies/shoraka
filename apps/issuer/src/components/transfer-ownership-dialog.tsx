@@ -98,14 +98,18 @@ export function TransferOwnershipDialog({
                   const name =
                     [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
                   return (
-                    <SelectItem key={member.id} value={member.id}>
+                    <SelectItem 
+                      key={member.id} 
+                      value={member.id}
+                      className="group focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
                       <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold group-data-[highlighted]:bg-primary/20 group-data-[highlighted]:text-primary-foreground">
                           {member.firstName?.[0] || member.email[0].toUpperCase()}
                         </div>
                         <div>
                           <div className="font-medium">{name}</div>
-                          <div className="text-xs text-muted-foreground">{member.email}</div>
+                          <div className="text-xs text-muted-foreground group-data-[highlighted]:text-primary-foreground group-data-[highlighted]:opacity-90">{member.email}</div>
                         </div>
                       </div>
                     </SelectItem>

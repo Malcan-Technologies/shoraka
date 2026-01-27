@@ -175,8 +175,8 @@ export function SupportingDocumentsStep({
     const key = `${categoryIndex}-${documentIndex}`;
     const today = new Date().toISOString().split("T")[0];
 
-    setSelectedFiles((prev) => ({ ...prev, [key]: file }));
-    setUploadedFiles((prev) => ({
+    setSelectedFiles((prev: any) => ({ ...prev, [key]: file }));
+    setUploadedFiles((prev: any) => ({
       ...prev,
       [key]: {
         name: file.name,
@@ -210,9 +210,9 @@ export function SupportingDocumentsStep({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type,
-            fileSize: file.size,
+            fileName: typedFile.name,
+            contentType: typedFile.type,
+            fileSize: typedFile.size,
             existingS3Key: existingS3Key || undefined,
           }),
         });
@@ -226,9 +226,9 @@ export function SupportingDocumentsStep({
 
         const uploadResponse = await fetch(uploadUrl, {
           method: "PUT",
-          body: file,
+          body: typedFile,
           headers: {
-            "Content-Type": file.type,
+            "Content-Type": typedFile.type,
           },
         });
 
@@ -259,16 +259,16 @@ export function SupportingDocumentsStep({
 
         uploadResults.set(key, {
           s3_key: s3Key,
-          file_name: file.name,
+          file_name: typedFile.name,
         });
 
         const cuidMatch = s3Key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
         if (cuidMatch) {
-          setDocumentCuids((prev) => ({ ...prev, [key]: cuidMatch[2] }));
-          setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
+          setDocumentCuids((prev: any) => ({ ...prev, [key]: cuidMatch[2] }));
+          setLastS3Keys((prev: any) => ({ ...prev, [key]: s3Key }));
         }
       } catch (error) {
-        toast.error(`Failed to upload ${file.name}`);
+        toast.error(`Failed to upload ${typedFile.name}`);
         throw error;
       } finally {
         setUploadingKeys((prev) => {
@@ -368,12 +368,12 @@ export function SupportingDocumentsStep({
       setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
     }
     
-    setUploadedFiles((prev) => {
+    setUploadedFiles((prev: any) => {
       const newFiles = { ...prev };
       delete newFiles[key];
       return newFiles;
     });
-    setSelectedFiles((prev) => {
+    setSelectedFiles((prev: any) => {
       const newFiles = { ...prev };
       delete newFiles[key];
       return newFiles;
@@ -418,7 +418,7 @@ export function SupportingDocumentsStep({
             <div>
               <div className="flex justify-between items-center gap-2">
                 <button
-                  onClick={() => setExpandedCategories((prev) => ({ ...prev, [categoryIndex]: !isExpanded }))}
+                  onClick={() => setExpandedCategories((prev: any) => ({ ...prev, [categoryIndex]: !isExpanded }))}
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity p-1 -m-1 min-w-0 flex-1"
                   type="button"
                 >

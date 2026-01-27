@@ -80,7 +80,7 @@ const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 sm:mt-6 pl-3 sm:pl-4 md:pl-6";
 
 export function VerifyCompanyInfoStep({
-  applicationId,
+  applicationId: _applicationId,
   onDataChange,
 }: VerifyCompanyInfoStepProps) {
   const { activeOrganization } = useOrganization();
