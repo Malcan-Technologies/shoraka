@@ -4,6 +4,7 @@ import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
+import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,39 @@ export function VerifyCompanyInfoStep({
   const [pendingCompanyInfo, setPendingCompanyInfo] = React.useState<{ industry?: string; numberOfEmployees?: string } | null>(null);
   const [pendingAddress, setPendingAddress] = React.useState<{ businessAddress?: any; registeredAddress?: any } | null>(null);
   const [pendingBanking, setPendingBanking] = React.useState<{ bankName?: string; bankAccountNumber?: string } | null>(null);
-  const [pendingContact, setPendingContact] = React.useState<{ firstName?: string; middleName?: string; lastName?: string; phoneNumber?: string } | null>(null);
+
+  /**
+   * CONTACT PERSON STATE
+   * 
+   * Contact person data is stored in application.verify_company_info.contact_person
+   * This is user input, not fetched from organization.
+   */
+  const { data: application } = useApplication(applicationId);
+  const savedContactPerson = (application?.verify_company_info as any)?.contact_person;
+  
+  const [contactPerson, setContactPerson] = React.useState<{
+    name: string;
+    position: string;
+    ic: string;
+    contact: string;
+  }>({
+    name: savedContactPerson?.name || "",
+    position: savedContactPerson?.position || "",
+    ic: savedContactPerson?.ic || "",
+    contact: savedContactPerson?.contact || "",
+  });
+
+  // Load saved contact person data when application loads
+  React.useEffect(() => {
+    if (savedContactPerson) {
+      setContactPerson({
+        name: savedContactPerson.name || "",
+        position: savedContactPerson.position || "",
+        ic: savedContactPerson.ic || "",
+        contact: savedContactPerson.contact || "",
+      });
+    }
+  }, [savedContactPerson]);
 
   /**
    * LOAD CORPORATE INFO
@@ -118,16 +151,10 @@ export function VerifyCompanyInfoStep({
    * - basicInfo (company name, entity type, SSM, industry, employees)
    * - addresses (business and registered)
    * - bankAccountDetails
-   * - contact person (first/middle/last name, IC, phone)
    */
   const {
     corporateInfo,
     bankAccountDetails,
-    firstName,
-    middleName,
-    lastName,
-    documentNumber,
-    phoneNumber,
     isLoading: isLoadingInfo,
   } = useCorporateInfo(organizationId);
 
@@ -198,47 +225,90 @@ export function VerifyCompanyInfoStep({
         queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
       }
 
-      // Save contact if there are pending changes
-      if (pendingContact) {
-        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-          firstName: pendingContact.firstName || null,
-          middleName: pendingContact.middleName || null,
-          lastName: pendingContact.lastName || null,
-          phoneNumber: pendingContact.phoneNumber || null,
-        });
-        if (!result.success) {
-          throw new Error(result.error.message);
-        }
-        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-        queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
-      }
-
       // Clear all pending changes after successful save
       setPendingCompanyInfo(null);
       setPendingAddress(null);
       setPendingBanking(null);
-      setPendingContact(null);
     } catch (error) {
       toast.error("Failed to save changes", {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
       });
       throw error;
     }
-  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking, pendingContact]);
+  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking]);
 
   /**
-   * PASS ORGANIZATION ID AND SAVE FUNCTION TO PARENT
+   * VALIDATE CONTACT PERSON
+   * 
+   * Required fields: name, position, ic, contact
+   */
+  const validateContactPerson = React.useCallback(() => {
+    const errors: string[] = [];
+    
+    if (!contactPerson.name?.trim()) {
+      errors.push("Applicant name is required");
+    }
+    if (!contactPerson.position?.trim()) {
+      errors.push("Applicant position is required");
+    }
+    if (!contactPerson.ic?.trim()) {
+      errors.push("Applicant IC number is required");
+    }
+    if (!contactPerson.contact?.trim()) {
+      errors.push("Applicant contact is required");
+    }
+    
+    return errors;
+  }, [contactPerson]);
+
+  /**
+   * PASS DATA TO PARENT
    * 
    * Parent will call saveFunction when user clicks "Save and Continue".
+   * Contact person data is included in the data structure.
+   * Validation is done in the save function.
    */
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
 
+    const saveFunctionWithValidation = async () => {
+      // Validate contact person before saving
+      const validationErrors = validateContactPerson();
+      if (validationErrors.length > 0) {
+        toast.error("Please fill in all required contact person fields", {
+          description: validationErrors.join(", "),
+        });
+        throw new Error(validationErrors.join(", "));
+      }
+
+      // Save organization changes first
+      await saveAllPendingChanges();
+      
+      // Return contact person data to be saved to application
+      // The data will be saved to verify_company_info field
+      return {
+        contact_person: {
+          name: contactPerson.name.trim(),
+          position: contactPerson.position.trim(),
+          ic: contactPerson.ic.trim(),
+          contact: contactPerson.contact.trim(),
+        },
+      };
+    };
+
+    // Structure data to be saved to verify_company_info field
+    // Include both issuer_organization_id and contact_person
     onDataChange({
       issuer_organization_id: organizationId,
-      saveFunction: saveAllPendingChanges,
+      contact_person: {
+        name: contactPerson.name,
+        position: contactPerson.position,
+        ic: contactPerson.ic,
+        contact: contactPerson.contact,
+      },
+      saveFunction: saveFunctionWithValidation,
     });
-  }, [organizationId, onDataChange, saveAllPendingChanges]);
+  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateContactPerson]);
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
@@ -435,11 +505,6 @@ export function VerifyCompanyInfoStep({
   const displayRegisteredAddress = pendingAddress?.registeredAddress || registeredAddress;
   const displayBankName = pendingBanking?.bankName !== undefined ? pendingBanking.bankName : bankName;
   const displayAccountNumber = pendingBanking?.bankAccountNumber !== undefined ? pendingBanking.bankAccountNumber : accountNumber;
-  const displayFirstName = pendingContact?.firstName !== undefined ? pendingContact.firstName : firstName;
-  const displayMiddleName = pendingContact?.middleName !== undefined ? pendingContact.middleName : middleName;
-  const displayLastName = pendingContact?.lastName !== undefined ? pendingContact.lastName : lastName;
-  const displayPhoneNumber = pendingContact?.phoneNumber !== undefined ? pendingContact.phoneNumber : phoneNumber;
-  const displayApplicantName = [displayFirstName, displayMiddleName, displayLastName].filter(Boolean).join(" ").trim() || "—";
 
   /**
    * EDIT HANDLERS - store changes in pending state
@@ -459,8 +524,8 @@ export function VerifyCompanyInfoStep({
     setIsEditBankingOpen(false);
   };
 
-  const handleSaveContact = (firstName: string, middleName: string, lastName: string, phoneNumber: string) => {
-    setPendingContact({ firstName, middleName, lastName, phoneNumber });
+  const handleSaveContact = (name: string, position: string, ic: string, contact: string) => {
+    setContactPerson({ name, position, ic, contact });
     setIsEditContactOpen(false);
   };
 
@@ -642,11 +707,13 @@ export function VerifyCompanyInfoStep({
         </div>
         <div className={gridClassName}>
           <div className={labelClassName}>Applicant name</div>
-          <Input value={displayApplicantName} disabled className={inputClassName} />
+          <Input value={contactPerson.name || "—"} disabled className={inputClassName} />
+          <div className={labelClassName}>Applicant position</div>
+          <Input value={contactPerson.position || "—"} disabled className={inputClassName} />
           <div className={labelClassName}>Applicant IC no</div>
-          <Input value={documentNumber || "—"} disabled className={inputClassName} />
+          <Input value={contactPerson.ic || "—"} disabled className={inputClassName} />
           <div className={labelClassName}>Applicant contact</div>
-          <Input value={displayPhoneNumber || "—"} disabled className={inputClassName} />
+          <Input value={contactPerson.contact || "—"} disabled className={inputClassName} />
         </div>
       </div>
 
@@ -692,10 +759,10 @@ export function VerifyCompanyInfoStep({
       <EditContactDialog
         open={isEditContactOpen}
         onOpenChange={setIsEditContactOpen}
-        firstName={displayFirstName || ""}
-        middleName={displayMiddleName || ""}
-        lastName={displayLastName || ""}
-        phoneNumber={displayPhoneNumber || ""}
+        name={contactPerson.name || ""}
+        position={contactPerson.position || ""}
+        ic={contactPerson.ic || ""}
+        contact={contactPerson.contact || ""}
         onSave={handleSaveContact}
       />
     </div>
@@ -1087,40 +1154,40 @@ function EditBankingDialog({
  * EDIT CONTACT DIALOG
  * 
  * Modal to edit contact person information.
- * Shows pending values if they exist, otherwise original values.
+ * Shows current values and allows editing.
  */
 function EditContactDialog({
   open,
   onOpenChange,
-  firstName: initialFirstName,
-  middleName: initialMiddleName,
-  lastName: initialLastName,
-  phoneNumber: initialPhoneNumber,
+  name: initialName,
+  position: initialPosition,
+  ic: initialIc,
+  contact: initialContact,
   onSave,
 }: any) {
-  const [firstName, setFirstName] = React.useState(initialFirstName);
-  const [middleName, setMiddleName] = React.useState(initialMiddleName);
-  const [lastName, setLastName] = React.useState(initialLastName);
-  const [phoneNumber, setPhoneNumber] = React.useState(initialPhoneNumber);
+  const [name, setName] = React.useState(initialName);
+  const [position, setPosition] = React.useState(initialPosition);
+  const [ic, setIc] = React.useState(initialIc);
+  const [contact, setContact] = React.useState(initialContact);
 
   React.useEffect(() => {
     if (open) {
-      setFirstName(initialFirstName);
-      setMiddleName(initialMiddleName);
-      setLastName(initialLastName);
-      setPhoneNumber(initialPhoneNumber);
+      setName(initialName);
+      setPosition(initialPosition);
+      setIc(initialIc);
+      setContact(initialContact);
     }
-  }, [open, initialFirstName, initialMiddleName, initialLastName, initialPhoneNumber]);
+  }, [open, initialName, initialPosition, initialIc, initialContact]);
 
   const handleSave = () => {
-    onSave(firstName, middleName, lastName, phoneNumber);
+    onSave(name, position, ic, contact);
   };
 
   const handleCancel = () => {
-    setFirstName(initialFirstName);
-    setMiddleName(initialMiddleName);
-    setLastName(initialLastName);
-    setPhoneNumber(initialPhoneNumber);
+    setName(initialName);
+    setPosition(initialPosition);
+    setIc(initialIc);
+    setContact(initialContact);
     onOpenChange(false);
   };
 
@@ -1128,50 +1195,54 @@ function EditContactDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Edit Contact</DialogTitle>
+          <DialogTitle>Edit Contact Person</DialogTitle>
           <DialogDescription className="text-[15px]">
-            Update the applicant&apos;s name and contact information.
+            Update the applicant&apos;s contact information.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="applicant-first-name">First Name</Label>
+            <Label htmlFor="applicant-name">Applicant name</Label>
             <Input
-              id="applicant-first-name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Enter first name"
+              id="applicant-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter applicant name"
               className="h-11 rounded-xl"
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="applicant-middle-name">Middle Name</Label>
+            <Label htmlFor="applicant-position">Applicant position</Label>
             <Input
-              id="applicant-middle-name"
-              value={middleName}
-              onChange={(e) => setMiddleName(e.target.value)}
-              placeholder="Enter middle name (optional)"
+              id="applicant-position"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              placeholder="Enter position"
               className="h-11 rounded-xl"
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="applicant-last-name">Last Name</Label>
+            <Label htmlFor="applicant-ic">Applicant IC no</Label>
             <Input
-              id="applicant-last-name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Enter last name"
+              id="applicant-ic"
+              value={ic}
+              onChange={(e) => setIc(e.target.value)}
+              placeholder="Enter IC number"
               className="h-11 rounded-xl"
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="applicant-phone">Applicant Contact</Label>
+            <Label htmlFor="applicant-contact">Applicant contact</Label>
             <Input
-              id="applicant-phone"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="Enter phone number"
+              id="applicant-contact"
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              placeholder="Enter contact number"
               className="h-11 rounded-xl"
+              required
             />
           </div>
         </div>

@@ -39,11 +39,6 @@ export function useCorporateInfo(organizationId: string | undefined) {
           };
         };
         bankAccountDetails?: unknown;
-        firstName?: string | null;
-        middleName?: string | null;
-        lastName?: string | null;
-        documentNumber?: string | null;
-        phoneNumber?: string | null;
       }>(`/v1/organizations/issuer/${organizationId}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -51,11 +46,6 @@ export function useCorporateInfo(organizationId: string | undefined) {
       return {
         corporateOnboardingData: result.data.corporateOnboardingData,
         bankAccountDetails: result.data.bankAccountDetails ?? null,
-        firstName: result.data.firstName ?? null,
-        middleName: result.data.middleName ?? null,
-        lastName: result.data.lastName ?? null,
-        documentNumber: result.data.documentNumber ?? null,
-        phoneNumber: result.data.phoneNumber ?? null,
       };
     },
     enabled: !!organizationId,
@@ -95,11 +85,6 @@ export function useCorporateInfo(organizationId: string | undefined) {
   return {
     corporateInfo: data?.corporateOnboardingData ?? null,
     bankAccountDetails: data?.bankAccountDetails ?? null,
-    firstName: data?.firstName ?? null,
-    middleName: data?.middleName ?? null,
-    lastName: data?.lastName ?? null,
-    documentNumber: data?.documentNumber ?? null,
-    phoneNumber: data?.phoneNumber ?? null,
     isLoading,
     error,
     update: updateMutation.mutate,
