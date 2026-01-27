@@ -262,11 +262,57 @@ export function VerifyCompanyInfoStep({
   }, [contactPerson]);
 
   /**
+   * CHECK IF CONTACT PERSON HAS CHANGED FROM SAVED STATE
+   * 
+   * Compare current contactPerson with savedContactPerson to detect changes.
+   * Uses trimmed values for comparison.
+   */
+  const hasContactPersonChanged = React.useMemo(() => {
+    if (!savedContactPerson) {
+      // If no saved data, check if all fields are filled (user has entered data)
+      return !!(
+        contactPerson.name?.trim() ||
+        contactPerson.position?.trim() ||
+        contactPerson.ic?.trim() ||
+        contactPerson.contact?.trim()
+      );
+    }
+    
+    // Compare trimmed values
+    return (
+      (contactPerson.name?.trim() || "") !== (savedContactPerson.name?.trim() || "") ||
+      (contactPerson.position?.trim() || "") !== (savedContactPerson.position?.trim() || "") ||
+      (contactPerson.ic?.trim() || "") !== (savedContactPerson.ic?.trim() || "") ||
+      (contactPerson.contact?.trim() || "") !== (savedContactPerson.contact?.trim() || "")
+    );
+  }, [contactPerson, savedContactPerson]);
+
+  /**
+   * CHECK IF THERE ARE ANY PENDING CHANGES
+   * 
+   * Returns true if:
+   * - There are pending company info changes
+   * - There are pending address changes
+   * - There are pending banking changes
+   * - Contact person has changed from saved state
+   */
+  const hasPendingChanges = React.useMemo(() => {
+    return !!(
+      pendingCompanyInfo ||
+      pendingAddress ||
+      pendingBanking ||
+      hasContactPersonChanged
+    );
+  }, [pendingCompanyInfo, pendingAddress, pendingBanking, hasContactPersonChanged]);
+
+  /**
    * PASS DATA TO PARENT
    * 
    * Parent will call saveFunction when user clicks "Save and Continue".
    * Contact person data is included in the data structure.
    * Validation is done in the save function.
+   * 
+   * We pass hasPendingChanges flag so parent knows if there are actual unsaved changes.
    */
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
@@ -298,6 +344,7 @@ export function VerifyCompanyInfoStep({
 
     // Structure data to be saved to verify_company_info field
     // Include both issuer_organization_id and contact_person
+    // Pass hasPendingChanges flag so parent knows if there are actual unsaved changes
     onDataChange({
       issuer_organization_id: organizationId,
       contact_person: {
@@ -307,8 +354,9 @@ export function VerifyCompanyInfoStep({
         contact: contactPerson.contact,
       },
       saveFunction: saveFunctionWithValidation,
+      hasPendingChanges: hasPendingChanges,
     });
-  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateContactPerson]);
+  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateContactPerson, hasPendingChanges]);
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
