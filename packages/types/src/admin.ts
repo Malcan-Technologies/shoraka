@@ -546,6 +546,36 @@ export interface OrganizationDetailResponse {
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
+
+  // Corporate onboarding data (for COMPANY type)
+  corporateOnboardingData?: {
+    basicInfo?: {
+      tinNumber?: string;
+      industry?: string;
+      entityType?: string;
+      businessName?: string;
+      numberOfEmployees?: number;
+      ssmRegisterNumber?: string;
+    };
+    addresses?: {
+      business?: {
+        line1?: string | null;
+        line2?: string | null;
+        city?: string | null;
+        postalCode?: string | null;
+        state?: string | null;
+        country?: string | null;
+      };
+      registered?: {
+        line1?: string | null;
+        line2?: string | null;
+        city?: string | null;
+        postalCode?: string | null;
+        state?: string | null;
+        country?: string | null;
+      };
+    };
+  };
 }
 
 // Onboarding Applications Types (Admin Approval Queue)

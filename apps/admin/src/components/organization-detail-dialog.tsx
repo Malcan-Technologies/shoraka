@@ -50,6 +50,7 @@ import {
   ClipboardDocumentCheckIcon,
   ShieldExclamationIcon,
   ExclamationTriangleIcon,
+  EnvelopeIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -627,6 +628,27 @@ function JsonDisplay({
   );
 }
 
+// Helper function to format address for display
+function formatAddressDisplay(address?: {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  state?: string | null;
+  country?: string | null;
+}): string {
+  if (!address) return "—";
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.postalCode,
+    address.state,
+    address.country,
+  ].filter((part) => part && part.trim() !== "");
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
 export function OrganizationDetailDialog({
   portal,
   organizationId,
@@ -866,20 +888,77 @@ export function OrganizationDetailDialog({
 
               {/* Company Info (for COMPANY type) */}
               {org.type === "COMPANY" && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <BuildingOffice2Icon className="h-4 w-4" />
-                      Company Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <DetailRow label="Company Name" value={org.name} />
-                      <DetailRow label="Registration Number (SSM)" value={org.registrationNumber} />
-                    </div>
-                  </CardContent>
-                </Card>
+                <>
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        Company Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailRow label="Company Name" value={org.name} />
+                        <DetailRow
+                          label="Registration Number (SSM)"
+                          value={org.registrationNumber || org.corporateOnboardingData?.basicInfo?.ssmRegisterNumber}
+                        />
+                        {org.corporateOnboardingData?.basicInfo?.tinNumber && (
+                          <DetailRow label="TIN Number" value={org.corporateOnboardingData.basicInfo.tinNumber} />
+                        )}
+                        {org.corporateOnboardingData?.basicInfo?.industry && (
+                          <DetailRow label="Industry" value={org.corporateOnboardingData.basicInfo.industry} />
+                        )}
+                        {org.corporateOnboardingData?.basicInfo?.entityType && (
+                          <DetailRow label="Entity Type" value={org.corporateOnboardingData.basicInfo.entityType} />
+                        )}
+                        {org.corporateOnboardingData?.basicInfo?.businessName && (
+                          <DetailRow
+                            label="Business Name"
+                            value={org.corporateOnboardingData.basicInfo.businessName}
+                          />
+                        )}
+                        {org.corporateOnboardingData?.basicInfo?.numberOfEmployees !== undefined && (
+                          <DetailRow
+                            label="Number of Employees"
+                            value={org.corporateOnboardingData.basicInfo.numberOfEmployees?.toString()}
+                          />
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Addresses Section */}
+                  {(org.corporateOnboardingData?.addresses?.business ||
+                    org.corporateOnboardingData?.addresses?.registered) && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <BuildingOffice2Icon className="h-4 w-4" />
+                          Addresses
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {org.corporateOnboardingData.addresses.business && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Business Address</Label>
+                            <p className="text-sm">
+                              {formatAddressDisplay(org.corporateOnboardingData.addresses.business)}
+                            </p>
+                          </div>
+                        )}
+                        {org.corporateOnboardingData.addresses.registered && (
+                          <div className="space-y-2 pt-4 border-t">
+                            <Label className="text-xs text-muted-foreground">Registered Address</Label>
+                            <p className="text-sm">
+                              {formatAddressDisplay(org.corporateOnboardingData.addresses.registered)}
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
 
               {/* Personal Details (from RegTank) */}
@@ -909,18 +988,27 @@ export function OrganizationDetailDialog({
               )}
 
               {/* Contact Info */}
-              {(org.phoneNumber || org.address) && (
+              {(org.phoneNumber || org.address || org.owner.email) && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <PhoneIcon className="h-4 w-4" />
-                      Contact Information
+                      Contact Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 gap-4">
-                      <CopyableField label="Phone Number" value={org.phoneNumber} />
-                      <CopyableField label="Address" value={org.address} />
+                    <div className="grid grid-cols-2 gap-4">
+                      {org.phoneNumber && (
+                        <CopyableField label="Phone Number" value={org.phoneNumber} icon={PhoneIcon} />
+                      )}
+                      {org.owner.email && (
+                        <CopyableField label="Email" value={org.owner.email} icon={EnvelopeIcon} />
+                      )}
+                      {org.address && (
+                        <div className="col-span-2">
+                          <CopyableField label="Address" value={org.address} />
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
