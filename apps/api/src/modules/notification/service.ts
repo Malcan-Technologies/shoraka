@@ -170,7 +170,8 @@ export class NotificationService {
    * Admin: Send notification to multiple users
    */
   async sendBulkNotification(params: {
-    userIds: string[];
+    targetType: string;
+    userIds?: string[];
     typeId: string;
     priority?: any;
     title: string;
@@ -178,8 +179,29 @@ export class NotificationService {
     linkPath?: string;
     metadata?: any;
   }) {
+    let targetUserIds: string[] = [];
+
+    if (params.targetType === 'ALL_USERS') {
+      const users = await prisma.user.findMany({ select: { user_id: true } });
+      targetUserIds = users.map(u => u.user_id);
+    } else if (params.targetType === 'INVESTORS') {
+      const users = await prisma.user.findMany({
+        where: { roles: { has: 'INVESTOR' } },
+        select: { user_id: true }
+      });
+      targetUserIds = users.map(u => u.user_id);
+    } else if (params.targetType === 'ISSUERS') {
+      const users = await prisma.user.findMany({
+        where: { roles: { has: 'ISSUER' } },
+        select: { user_id: true }
+      });
+      targetUserIds = users.map(u => u.user_id);
+    } else if (params.targetType === 'SPECIFIC_USERS') {
+      targetUserIds = params.userIds || [];
+    }
+
     const results = [];
-    for (const userId of params.userIds) {
+    for (const userId of targetUserIds) {
       try {
         const result = await this.create({
           ...params,

@@ -42,10 +42,9 @@ export class NotificationRepository {
    * Get paginated notifications for a user
    */
   async findManyByUserId(userId: string, filters: NotificationFilters): Promise<[NotificationWithDetails[], number]> {
-    const where: Prisma.NotificationWhereInput = {
+    const baseWhere: Prisma.NotificationWhereInput = {
       user_id: userId,
       send_to_platform: true,
-      ...(filters.read !== undefined && { read_at: filters.read ? { not: null } : null }),
       ...(filters.category && { notification_type: { category: filters.category } }),
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.startDate && filters.endDate && {
@@ -60,23 +59,68 @@ export class NotificationRepository {
       ],
     };
 
-    const [items, total] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        include: {
-          notification_type: true,
-        },
-        orderBy: [
-          { priority: 'desc' },
-          { created_at: 'desc' },
-        ],
-        take: filters.limit,
-        skip: filters.offset,
-      }),
-      prisma.notification.count({ where }),
+    // If filter specifically asks for read/unread, use simple prisma query
+    if (filters.read !== undefined) {
+      const where = { ...baseWhere, read_at: filters.read ? { not: null } : null };
+      const [items, total] = await Promise.all([
+        prisma.notification.findMany({
+          where,
+          include: { notification_type: true },
+          orderBy: { created_at: 'desc' },
+          take: filters.limit,
+          skip: filters.offset,
+        }),
+        prisma.notification.count({ where }),
+      ]);
+      return [items as NotificationWithDetails[], total];
+    }
+
+    // Default view: Unread first, then Read, both sorted by created_at desc
+    const unreadWhere = { ...baseWhere, read_at: null };
+    const readWhere = { ...baseWhere, read_at: { not: null } };
+
+    const [unreadCount, totalCount] = await Promise.all([
+      prisma.notification.count({ where: unreadWhere }),
+      prisma.notification.count({ where: baseWhere }),
     ]);
 
-    return [items as NotificationWithDetails[], total];
+    let items: Notification[] = [];
+    const offset = filters.offset ?? 0;
+    const limit = filters.limit ?? 20;
+
+    if (offset < unreadCount) {
+      // 1. Fetch unread notifications
+      items = await prisma.notification.findMany({
+        where: unreadWhere,
+        include: { notification_type: true },
+        orderBy: { created_at: 'desc' },
+        skip: offset,
+        take: limit,
+      });
+
+      // 2. If we need more to fill the limit, fetch read notifications
+      if (items.length < limit) {
+        const readItems = await prisma.notification.findMany({
+          where: readWhere,
+          include: { notification_type: true },
+          orderBy: { created_at: 'desc' },
+          skip: 0,
+          take: limit - items.length,
+        });
+        items = [...items, ...readItems];
+      }
+    } else {
+      // 3. Offset is beyond unread notifications, fetch only read ones
+      items = await prisma.notification.findMany({
+        where: readWhere,
+        include: { notification_type: true },
+        orderBy: { created_at: 'desc' },
+        skip: offset - unreadCount,
+        take: limit,
+      });
+    }
+
+    return [items as NotificationWithDetails[], totalCount];
   }
 
   /**

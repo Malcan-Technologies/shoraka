@@ -35,12 +35,28 @@ export const UpdateNotificationTypeSchema = z.object({
   retention_days: z.number().int().min(0).nullable().optional(),
 });
 
+export enum NotificationTargetType {
+  ALL_USERS = 'ALL_USERS',
+  INVESTORS = 'INVESTORS',
+  ISSUERS = 'ISSUERS',
+  SPECIFIC_USERS = 'SPECIFIC_USERS',
+}
+
 export const AdminSendNotificationSchema = z.object({
-  userIds: z.array(z.string()).min(1),
+  targetType: z.nativeEnum(NotificationTargetType),
+  userIds: z.array(z.string()).optional(),
   typeId: z.string(),
   priority: z.nativeEnum(NotificationPriority).optional(),
   title: z.string(),
   message: z.string(),
   linkPath: z.string().optional(),
   metadata: z.record(z.any()).optional(),
+}).refine(data => {
+  if (data.targetType === NotificationTargetType.SPECIFIC_USERS && (!data.userIds || data.userIds.length === 0)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "User IDs are required when target type is SPECIFIC_USERS",
+  path: ["userIds"],
 });

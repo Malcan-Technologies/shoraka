@@ -72,39 +72,45 @@ export function NotificationList() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {notifications.map((notification: any) => (
-            <Card
-              key={notification.id}
-              className={cn(
-                "cursor-pointer transition-colors hover:bg-muted/80 hover:text-foreground",
-                !notification.read_at ? "border-l-4 border-l-primary bg-muted/80" : "bg-card"
-              )}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <CardContent className="flex items-start gap-4 p-4">
-                <div className="mt-1">{getPriorityIcon(notification.priority)}</div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{notification.title}</p>
-                      {!notification.read_at && (
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                      )}
+            {notifications.map((notification: any) => {
+              const isUnread = !notification.read_at;
+              const isWarning = notification.priority === "WARNING";
+              const isCritical = notification.priority === "CRITICAL";
+
+              return (
+                <Card
+                  key={notification.id}
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-muted/80 hover:text-foreground",
+                    isCritical ? "bg-red-100/100" : isWarning ? "bg-yellow-100/60" : isUnread ? "bg-muted/80" : "bg-card"
+                  )}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <CardContent className="flex items-start gap-4 p-4">
+                    <div className="mt-1">{getPriorityIcon(notification.priority)}</div>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">{notification.title}</p>
+                          {isUnread && (
+                            <span className="h-2 w-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{notification.message}</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {notification.notification_type.category}
+                        </Badge>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {format(new Date(notification.created_at), "MMM d, h:mm a")}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{notification.message}</p>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Badge variant="outline" className="text-[10px] uppercase">
-                      {notification.notification_type.category}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
         </div>
       )}
     </div>

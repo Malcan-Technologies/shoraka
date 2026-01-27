@@ -69,8 +69,8 @@ export function NotificationBell() {
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
-                    "flex flex-col items-start gap-0.5 p-3 cursor-pointer border-b border-slate-50 last:border-0 focus:bg-slate-50 focus:text-slate-900 outline-none transition-colors",
-                    !notification.read_at ? "bg-slate-50/30" : "bg-white"
+                    "flex flex-col items-start gap-0.5 p-3 cursor-pointer border-b border-slate-50 last:border-0 focus:bg-slate-100 focus:text-slate-900 outline-none transition-colors",
+                    notification.priority === "CRITICAL" ? "bg-red-100/100" : notification.priority === "WARNING" ? "bg-yellow-100/60" : !notification.read_at ? "bg-slate-50/30" : "bg-white"
                   )}
                   onClick={() => handleNotificationClick(notification)}
                 >

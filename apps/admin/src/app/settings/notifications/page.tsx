@@ -27,9 +27,11 @@ import { Send, Settings2, Users } from "lucide-react";
 export default function NotificationsAdminPage() {
   const { types, isLoadingTypes, updateType, sendNotification, isSending } = useAdminNotifications();
   const [selectedType, setSelectedType] = useState<string>("");
+  const [targetType, setTargetType] = useState<string>("ALL_USERS");
   const [userIds, setUserIds] = useState<string>("");
   const [title, setTitle] = useState<string>("");
   const [message, setMessage] = useState<string>("");
+  const [linkPath, setLinkPath] = useState<string>("");
 
   const handleTogglePlatform = (typeId: string, enabled: boolean) => {
     updateType({ id: typeId, data: { enabled_platform: enabled } });
@@ -41,8 +43,13 @@ export default function NotificationsAdminPage() {
 
   const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedType || !userIds || !title || !message) {
-      toast.error("Please fill in all fields");
+    if (!selectedType || !title || !message) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (targetType === "SPECIFIC_USERS" && !userIds) {
+      toast.error("Please provide at least one User ID");
       return;
     }
 
@@ -50,10 +57,12 @@ export default function NotificationsAdminPage() {
 
     sendNotification(
       {
-        userIds: ids,
+        targetType,
+        userIds: targetType === "SPECIFIC_USERS" ? ids : undefined,
         typeId: selectedType,
         title,
         message,
+        linkPath: linkPath || undefined,
       },
       {
         onSuccess: () => {
@@ -61,6 +70,7 @@ export default function NotificationsAdminPage() {
           setTitle("");
           setMessage("");
           setUserIds("");
+          setLinkPath("");
         },
         onError: (error: any) => {
           toast.error(error.message || "Failed to send notifications");
@@ -165,17 +175,34 @@ export default function NotificationsAdminPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="userIds" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  User IDs (comma separated)
-                </Label>
-                <Input
-                  id="userIds"
-                  placeholder="USR-123, USR-456"
-                  value={userIds}
-                  onChange={(e) => setUserIds(e.target.value)}
-                />
+                <Label htmlFor="target">Target Recipients</Label>
+                <Select value={targetType} onValueChange={setTargetType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select target" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL_USERS">All Users</SelectItem>
+                    <SelectItem value="INVESTORS">Investors Only</SelectItem>
+                    <SelectItem value="ISSUERS">Issuers Only</SelectItem>
+                    <SelectItem value="SPECIFIC_USERS">Specific User IDs</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {targetType === "SPECIFIC_USERS" && (
+                <div className="space-y-2">
+                  <Label htmlFor="userIds" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    User IDs (comma separated)
+                  </Label>
+                  <Input
+                    id="userIds"
+                    placeholder="USR-123, USR-456"
+                    value={userIds}
+                    onChange={(e) => setUserIds(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
@@ -195,6 +222,19 @@ export default function NotificationsAdminPage() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="linkPath">Redirect Link (Optional)</Label>
+                <Input
+                  id="linkPath"
+                  placeholder="/investments or https://..."
+                  value={linkPath}
+                  onChange={(e) => setLinkPath(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  The page the user will be taken to when they click the notification.
+                </p>
               </div>
 
               <Button type="submit" className="w-full" disabled={isSending}>
