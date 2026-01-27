@@ -53,14 +53,15 @@ export default function EditApplicationPage() {
   // URL uses ?step=1, ?step=2, etc. (1-based for users)
   const stepFromUrl = parseInt(searchParams.get("step") || "1");
   
-  // Load application from DB
-  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   
   // Load products to get workflow steps
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
+  
+  // Load application from DB
+  const { data: application, isLoading: isLoadingApp, refetch: refetchApplication } = useApplication(applicationId);
   
   // Hook to update application step
   const updateStepMutation = useUpdateApplicationStep();
@@ -117,6 +118,10 @@ export default function EditApplicationPage() {
   
   // Track where user wanted to go (for modal)
   const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
+  
+  // Track if we just saved and are navigating to next step
+  // This prevents validation from running with stale data immediately after save
+  const justSavedRef = React.useRef(false);
   
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
@@ -183,6 +188,22 @@ export default function EditApplicationPage() {
   
   // Get the step ID (e.g., "financing_type", "verify_company_info")
   const currentStepId = currentStepConfig?.id || "";
+  
+  /**
+   * Check if current step is mapped to a component
+   * 
+   * If step is not mapped, we show placeholder and disable save button
+   */
+  const isStepMapped = React.useMemo(() => {
+    const mappedStepIds = [
+      "financing_type_1",
+      "verify_company_info_1",
+      "company_info_1",
+      "declarations_1",
+      "supporting_documents_1",
+    ];
+    return mappedStepIds.includes(currentStepId);
+  }, [currentStepId]);
   
   /**
    * STEP TITLES AND DESCRIPTIONS
@@ -268,34 +289,10 @@ export default function EditApplicationPage() {
       );
     }
     
-    // Placeholder for other steps
+    // Placeholder for unmapped steps
     return (
-      <div className="border rounded-xl p-8 bg-card">
-        <p className="text-muted-foreground">
-          Step component for "{currentStepId}" coming soon...
-        </p>
-        <p className="text-sm text-muted-foreground mt-4">
-          Application ID: {applicationId}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Last completed step: {application?.last_completed_step}
-        </p>
-        
-        {/* Test input to simulate data changes */}
-        <div className="mt-4">
-          <label className="block text-sm font-medium mb-2">
-            Test Input (simulates step data):
-          </label>
-          <input
-            type="text"
-            placeholder="Type something..."
-            className="border rounded px-3 py-2 w-full"
-            onChange={(e) => handleDataChange({ test_field: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Try typing and then clicking Back - you'll see the unsaved changes modal!
-          </p>
-        </div>
+      <div className="text-center py-12 text-muted-foreground">
+       Coming soon...
       </div>
     );
   };
@@ -331,6 +328,16 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (!application || isLoadingApp || isLoadingProducts) return;
+    
+    // Skip validation if we just saved and are navigating to next step
+    // This prevents false "complete steps in order" error when data is still updating
+    if (justSavedRef.current) {
+      // Reset the flag after a short delay to allow validation to run normally next time
+      const timer = setTimeout(() => {
+        justSavedRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
     
     const lastCompleted = application.last_completed_step || 1;
     const maxAllowedStep = lastCompleted + 1;
@@ -525,7 +532,7 @@ export default function EditApplicationPage() {
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepId === "declarations" || currentStepId === "declaration_1") {
+      if (currentStepId === "declarations_1") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
         
@@ -557,14 +564,20 @@ export default function EditApplicationPage() {
         },
       });
       
+      // Wait for application data to refetch before navigating
+      // This prevents the validation effect from running with stale data
+      await refetchApplication();
+      
+      // Set flag to skip validation temporarily after save
+      // This prevents false "complete steps in order" error
+      justSavedRef.current = true;
+      
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
       
       // Go to next step
-      setTimeout(() => {
       router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-      }, 0)
       
     } catch (error) {
       // Error already shown by mutation hook
@@ -595,6 +608,9 @@ export default function EditApplicationPage() {
     // Check if step provides validation flag
     if (data?.areAllFilesUploaded !== undefined) {
       setIsCurrentStepValid(data.areAllFilesUploaded);
+    } else if (data?.areAllDeclarationsChecked !== undefined) {
+      // Declarations step provides this flag to indicate if all boxes are checked
+      setIsCurrentStepValid(data.areAllDeclarationsChecked);
     } else {
       // Default to valid if step doesn't provide validation
       setIsCurrentStepValid(true);
@@ -693,7 +709,7 @@ export default function EditApplicationPage() {
           {/* Continue button */}
           <Button
             onClick={handleSaveAndContinue}
-            disabled={updateStepMutation.isPending || !isCurrentStepValid}
+            disabled={updateStepMutation.isPending || !isCurrentStepValid || !isStepMapped}
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
