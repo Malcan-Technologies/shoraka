@@ -256,12 +256,8 @@ export function DeclarationsStep({
         <div className="border rounded-xl p-4 sm:p-6 bg-card">
           <h3 className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4">What happens next?</h3>
           <ul className="pl-4 md:pl-6 text-sm sm:text-base leading-5 sm:leading-6 text-foreground list-disc space-y-2">
-            <li>Your application will be reviewed by our credit team.</li>
-            <li>Documents will be verified for authenticity.</li>
-            <li>You may be contacted for additional information.</li>
           </ul>
           <p className="mt-3 sm:mt-4 text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">
-            Submitting this form legally binds your organization to the financing terms.
           </p>
         </div>
       </div>
