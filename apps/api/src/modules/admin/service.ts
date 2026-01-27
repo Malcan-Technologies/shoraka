@@ -1476,6 +1476,34 @@ export class AdminService {
     sophisticatedInvestorReason: string | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
+    corporateOnboardingData?: {
+      basicInfo?: {
+        tinNumber?: string;
+        industry?: string;
+        entityType?: string;
+        businessName?: string;
+        numberOfEmployees?: number;
+        ssmRegisterNumber?: string;
+      };
+      addresses?: {
+        business?: {
+          line1?: string | null;
+          line2?: string | null;
+          city?: string | null;
+          postalCode?: string | null;
+          state?: string | null;
+          country?: string | null;
+        };
+        registered?: {
+          line1?: string | null;
+          line2?: string | null;
+          city?: string | null;
+          postalCode?: string | null;
+          state?: string | null;
+          country?: string | null;
+        };
+      };
+    };
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -1518,6 +1546,66 @@ export class AdminService {
       documentInfo: org.document_info as Record<string, unknown> | null,
       livenessCheckInfo: org.liveness_check_info as Record<string, unknown> | null,
       kycResponse: org.kyc_response as Record<string, unknown> | null,
+      corporateOnboardingData: (() => {
+        if (!org.corporate_onboarding_data || org.type !== "COMPANY") return undefined;
+        const data = org.corporate_onboarding_data as {
+          basicInfo?: {
+            tin?: string;
+            tinNumber?: string;
+            industry?: string;
+            entityType?: string;
+            businessName?: string;
+            numberOfEmployees?: number | string;
+            ssmRegistrationNumber?: string;
+            ssmRegisterNumber?: string;
+          };
+          addresses?: {
+            business?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
+            registered?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
+            businessAddress?: string;
+            registeredAddress?: string;
+          };
+        };
+
+        return {
+          basicInfo: data.basicInfo
+            ? {
+                tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
+                industry: data.basicInfo.industry,
+                entityType: data.basicInfo.entityType,
+                businessName: data.basicInfo.businessName,
+                numberOfEmployees:
+                  typeof data.basicInfo.numberOfEmployees === "string"
+                    ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
+                    : data.basicInfo.numberOfEmployees,
+                ssmRegisterNumber:
+                  data.basicInfo.ssmRegisterNumber ||
+                  data.basicInfo.ssmRegistrationNumber ||
+                  undefined,
+              }
+            : undefined,
+          addresses: data.addresses
+            ? {
+                business: data.addresses.business || undefined,
+                registered: data.addresses.registered || undefined,
+              }
+            : undefined,
+        };
+      })(),
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,

@@ -1616,6 +1616,7 @@ export class AdminRepository {
     document_info: unknown;
     liveness_check_info: unknown;
     kyc_response: unknown;
+    corporate_onboarding_data: unknown;
     // Sophisticated investor status (only for investor portal)
     is_sophisticated_investor?: boolean;
     sophisticated_investor_reason?: string | null;
