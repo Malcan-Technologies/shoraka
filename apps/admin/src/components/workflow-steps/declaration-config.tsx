@@ -41,7 +41,7 @@ export function DeclarationConfig({ config, onChange }: DeclarationConfigProps) 
     <div className="p-3 sm:p-5 rounded-lg border bg-card">
       <div className="mb-4 sm:mb-5">
         <Label className="text-sm sm:text-base font-semibold">
-          Add Declaration
+          Declarations
         </Label>
         <p className="text-xs text-muted-foreground mt-0.5">
           Borrowers must agree to these declarations before submitting

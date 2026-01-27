@@ -35,7 +35,7 @@ export function CompanyInfoConfig({ config, onChange }: CompanyInfoConfigProps) 
       <div className="mb-4 sm:mb-5 flex items-center justify-between gap-2">
         <div>
           <Label className="text-sm sm:text-base font-semibold">
-            Company Info
+            Verify Company Info
           </Label>
           <p className="text-xs text-muted-foreground mt-0.5">
             All fields and verification steps are required

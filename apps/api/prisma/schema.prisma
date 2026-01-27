@@ -302,11 +302,30 @@ model IssuerOrganization {
   members                      OrganizationMember[]
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
   onboarding_logs              OnboardingLog[]
+  applications                 Application[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
   @@index([onboarding_status])
   @@map("issuer_organizations")
+}
+
+model Application {
+  id                     String             @id @default(cuid())
+  issuer_organization_id String
+  product_version        Int
+  status                 ApplicationStatus  @default(DRAFT)
+  last_completed_step    Int                @default(0)
+  financing_type         Json?
+  verify_company_info    Json?
+  supporting_documents   Json?
+  declarations           Json?
+  review_and_submit      Json?
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+
+  @@map("applications")
 }
 
 model OrganizationMember {
@@ -422,9 +441,9 @@ model AmlIdentityMapping {
   kyb_id            String? // For businesses
 
   // Metadata
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-  last_synced_at    DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  last_synced_at DateTime?
 
   @@index([organization_id])
   @@index([kyc_id])
@@ -498,10 +517,11 @@ model ProductLog {
 }
 
 model Product {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  workflow   Json
+  id           String        @id @default(cuid())
+  version      Int           @default(1)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  workflow     Json
 
   @@map("products")
 }
@@ -562,6 +582,14 @@ enum SiteDocumentType {
   INVESTOR_GUIDE
   ISSUER_GUIDE
   OTHER
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ARCHIVED
 }
 
 enum NotificationCategory {

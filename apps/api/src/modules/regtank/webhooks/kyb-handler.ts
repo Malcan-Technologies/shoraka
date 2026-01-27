@@ -217,7 +217,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.INVESTOR,
-                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: organizationId,
@@ -250,7 +250,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 await this.authRepository.createOnboardingLog({
                   userId: onboarding.user_id,
                   role: UserRole.INVESTOR,
-                  eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                  eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
                   portal: portalType,
                   metadata: {
                     organizationId,
@@ -305,7 +305,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
                 role: UserRole.ISSUER,
-                eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
                 portal: portalType,
                 organizationName: org.name || undefined,
                 investorOrganizationId: undefined,
@@ -337,7 +337,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                 await this.authRepository.createOnboardingLog({
                   userId: onboarding.user_id,
                   role: UserRole.ISSUER,
-                  eventType: isCorporateOnboarding ? "CORPORATE_AML_APPROVED" : "KYB_APPROVED",
+                  eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
                   portal: portalType,
                   metadata: {
                     organizationId,

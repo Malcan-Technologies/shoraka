@@ -426,11 +426,9 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
   const resetOrder = () => {
     const defaultOrder = [
       "Financing Type",
-      "Financing Terms",
-      "Invoice Details",
-      "Company Info",
+      "Verify Company Info",
       "Supporting Documents",
-      "Declaration",
+      "Declarations",
       "Review & Submit",
     ];
 

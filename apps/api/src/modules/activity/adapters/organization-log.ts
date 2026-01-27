@@ -1,5 +1,5 @@
 import { prisma } from "../../../lib/prisma";
-import { OnboardingLog } from "@prisma/client";
+import { OnboardingLog, Prisma } from "@prisma/client";
 import activityEvents from "@cashsouk/types/src/activity-events.json";
 import {
   AuditLogAdapter,
@@ -22,12 +22,12 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     const { search, event_types, startDate, endDate, limit, offset, organizationId, portalType } = filters;
     const supportedTypes = this.getEventTypes();
 
-    let finalEventTypes = event_types
+    const finalEventTypes = event_types
       ? event_types.filter(et => supportedTypes.includes(et))
       : supportedTypes;
 
     // Build the where clause
-    const where: any = {
+    const where: Prisma.OnboardingLogWhereInput = {
       event_type: { in: finalEventTypes },
       created_at: buildDateFilter(startDate, endDate),
     };
@@ -101,12 +101,12 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     const { search, event_types, startDate, endDate, organizationId, portalType } = filters;
     const supportedTypes = this.getEventTypes();
 
-    let finalEventTypes = event_types
+    const finalEventTypes = event_types
       ? event_types.filter((et) => supportedTypes.includes(et))
       : supportedTypes;
 
     // Build the where clause
-    const where: any = {
+    const where: Prisma.OnboardingLogWhereInput = {
       event_type: { in: finalEventTypes },
       created_at: buildDateFilter(startDate, endDate),
     };

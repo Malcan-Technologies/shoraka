@@ -786,4 +786,36 @@ export class OrganizationRepository {
     }
   }
 
+  /**
+   * Check if an investor organization with the same name already exists (case-insensitive, COMPANY type only)
+   */
+  async investorOrganizationNameExists(name: string): Promise<boolean> {
+    const existing = await prisma.investorOrganization.findFirst({
+      where: {
+        type: OrganizationType.COMPANY,
+        name: {
+          equals: name,
+          mode: "insensitive",
+        },
+      },
+    });
+    return !!existing;
+  }
+
+  /**
+   * Check if an issuer organization with the same name already exists (case-insensitive, COMPANY type only)
+   */
+  async issuerOrganizationNameExists(name: string): Promise<boolean> {
+    const existing = await prisma.issuerOrganization.findFirst({
+      where: {
+        type: OrganizationType.COMPANY,
+        name: {
+          equals: name,
+          mode: "insensitive",
+        },
+      },
+    });
+    return !!existing;
+  }
+
 }

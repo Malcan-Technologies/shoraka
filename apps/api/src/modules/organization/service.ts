@@ -51,7 +51,7 @@ export class OrganizationService {
    * Create a new organization for the specified portal type
    */
   async createOrganization(
-    req: Request,
+    _req: Request,
     userId: string,
     portalType: PortalType,
     input: CreateOrganizationInput
@@ -78,6 +78,22 @@ export class OrganizationService {
     // Company organizations require a name
     if (orgType === OrganizationType.COMPANY && !input.name) {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
+    }
+
+    // Check if a corporate organization with the same name already exists
+    if (orgType === OrganizationType.COMPANY && input.name) {
+      const nameExists =
+        portalType === "investor"
+          ? await this.repository.investorOrganizationNameExists(input.name)
+          : await this.repository.issuerOrganizationNameExists(input.name);
+
+      if (nameExists) {
+        throw new AppError(
+          400,
+          "ORGANIZATION_NAME_EXISTS",
+          "An organization with this name already exists. Please use a different name."
+        );
+      }
     }
 
     logger.info({ userId, portalType, orgType, name: input.name }, "Creating organization");
@@ -198,32 +214,6 @@ export class OrganizationService {
         );
       }
     }
-
-    // Determine the role and portal for logging
-    const logRole = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-    const logPortal = getPortalFromRole(logRole);
-
-    // Log ONBOARDING_STARTED when the organization is successfully created (the 'Create' submit action)
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.authRepository.createOnboardingLog({
-      userId,
-      role: logRole,
-      eventType: "ONBOARDING_STARTED",
-      portal: logPortal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      organizationName: organization.name || undefined,
-      investorOrganizationId: portalType === "investor" ? organization.id : undefined,
-      issuerOrganizationId: portalType === "issuer" ? organization.id : undefined,
-      metadata: {
-        organizationId: organization.id,
-        organizationType: organization.type,
-        organizationName: organization.name,
-        role: logRole,
-      },
-    });
 
     return organization;
   }
@@ -1381,29 +1371,66 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
+    directorKycStatus?: {
+      directors: Array<{
+        name: string;
+        email: string;
+        role: string;
+        kycStatus: string;
+        kycId?: string;
+        lastUpdated: string;
+        eodRequestId?: string;
+        shareholderEodRequestId?: string;
+      }>;
+      lastSyncedAt: string;
+      corpIndvDirectorCount: number;
+      corpIndvShareholderCount: number;
+      corpBizShareholderCount: number;
+    } | null;
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
 
-    let organization;
+    let organization: { corporate_entities: unknown; director_kyc_status?: unknown } | null;
     if (portalType === "investor") {
       organization = await prisma.investorOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true },
+        select: { corporate_entities: true, director_kyc_status: true },
       });
     } else {
       organization = await prisma.issuerOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true },
+        select: { corporate_entities: true, director_kyc_status: true },
       });
     }
 
     const entities = (organization?.corporate_entities as any) || {};
+    const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
+    const directorKyc =
+      raw && typeof raw === "object" && Array.isArray(raw.directors)
+        ? (raw as {
+            directors: Array<{
+              name: string;
+              email: string;
+              role: string;
+              kycStatus: string;
+              kycId?: string;
+              lastUpdated: string;
+              eodRequestId?: string;
+              shareholderEodRequestId?: string;
+            }>;
+            lastSyncedAt: string;
+            corpIndvDirectorCount: number;
+            corpIndvShareholderCount: number;
+            corpBizShareholderCount: number;
+          })
+        : null;
 
     return {
       directors: entities.directors || [],
       shareholders: entities.shareholders || [],
       corporateShareholders: entities.corporateShareholders || [],
+      directorKycStatus: directorKyc,
     };
   }
 

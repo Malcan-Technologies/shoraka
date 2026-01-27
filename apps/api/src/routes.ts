@@ -16,7 +16,9 @@ import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createProductRouter } from "./modules/products/controller";
+import { createApplicationRouter } from "./modules/applications/controller";
 import { activityRouter } from "./modules/activity/controller";
+import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
 
 export function registerRoutes(app: Application): void {
@@ -77,6 +79,8 @@ export function registerRoutes(app: Application): void {
 
   v1Router.use("/products", createProductRouter());
 
+  v1Router.use("/applications", createApplicationRouter());
+
   // RegTank routes (require authentication)
   v1Router.use("/regtank", requireAuth, regTankRouter);
 
@@ -102,6 +106,9 @@ export function registerRoutes(app: Application): void {
 
   // Activity routes
   v1Router.use("/activities", requireAuth, activityRouter);
+
+  // S3 routes
+  v1Router.use("/s3", createS3Router());
 
   // Notification routes
   v1Router.use("/notifications", requireAuth, notificationRouter);

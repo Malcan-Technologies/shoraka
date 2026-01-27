@@ -38,11 +38,15 @@ export function useCorporateInfo(organizationId: string | undefined) {
             registered?: Address;
           };
         };
+        bankAccountDetails?: unknown;
       }>(`/v1/organizations/issuer/${organizationId}`);
       if (!result.success) {
         throw new Error(result.error.message);
       }
-      return result.data.corporateOnboardingData;
+      return {
+        corporateOnboardingData: result.data.corporateOnboardingData,
+        bankAccountDetails: result.data.bankAccountDetails ?? null,
+      };
     },
     enabled: !!organizationId,
   });
@@ -79,7 +83,8 @@ export function useCorporateInfo(organizationId: string | undefined) {
   });
 
   return {
-    corporateInfo: data,
+    corporateInfo: data?.corporateOnboardingData ?? null,
+    bankAccountDetails: data?.bankAccountDetails ?? null,
     isLoading,
     error,
     update: updateMutation.mutate,

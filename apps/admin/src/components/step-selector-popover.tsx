@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import {
-  DocumentTextIcon,
-  BanknotesIcon,
   BuildingOfficeIcon,
   ClipboardDocumentCheckIcon,
   CurrencyDollarIcon,
@@ -39,22 +37,8 @@ const AVAILABLE_STEPS: StepType[] = [
     },
   },
   {
-    id: "financing_terms",
-    name: "Financing Terms",
-    description: "Configure loan terms and profit rates",
-    icon: BanknotesIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "invoice_details",
-    name: "Invoice Details",
-    description: "Invoice information and verification",
-    icon: DocumentTextIcon,
-    defaultConfig: {},
-  },
-  {
-    id: "company_info",
-    name: "Company Info",
+    id: "verify_company_info",
+    name: "Verify Company Info",
     description: "Business verification and details",
     icon: BuildingOfficeIcon,
     defaultConfig: {
@@ -71,8 +55,8 @@ const AVAILABLE_STEPS: StepType[] = [
     },
   },
   {
-    id: "declaration",
-    name: "Declaration",
+    id: "declarations",
+    name: "Declarations",
     description: "Terms and conditions agreement",
     icon: CheckCircleIcon,
     defaultConfig: {
@@ -80,7 +64,7 @@ const AVAILABLE_STEPS: StepType[] = [
     },
   },
   {
-    id: "review_submit",
+    id: "review_and_submit",
     name: "Review & Submit",
     description: "Final review before submission",
     icon: CheckCircleIcon,

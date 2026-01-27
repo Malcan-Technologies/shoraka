@@ -380,3 +380,96 @@ export function validateProductImage(params: {
   return { valid: true };
 }
 
+// applications logic
+
+/**
+ * Generate S3 key for application documents
+ * Format: applications/{applicationId}/v{version}-{date}-{cuid}.{ext}
+ * Follows the same pattern as product images: v{version}-{date}-{cuid}.{ext}
+ * 
+ * @param params - Parameters for generating the S3 key
+ * @param params.applicationId - Application ID
+ * @param params.cuid - Unique identifier for the file
+ * @param params.extension - File extension (e.g., "png")
+ * @param params.version - Version number (defaults to 1)
+ */
+export function generateApplicationDocumentKey(params: {
+  applicationId: string;
+  cuid: string;
+  extension: string;
+  version?: number;
+}): string {
+  const date = new Date().toISOString().split("T")[0];
+  const version = params.version ?? 1;
+  return `applications/${params.applicationId}/v${version}-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
+ * Parse application document S3 key to extract version, date, cuid, extension, and application ID
+ * Format: applications/{applicationId}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if format doesn't match
+ */
+export function parseApplicationDocumentKey(s3Key: string): {
+  applicationId: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  const match = s3Key.match(/^applications\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    applicationId: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5],
+  };
+}
+
+/**
+ * Generate application document S3 key with incremented version (for replacements)
+ * Reuses the same cuid and application ID, increments version, updates date
+ */
+export function generateApplicationDocumentKeyWithVersion(params: {
+  existingS3Key: string;
+  extension: string;
+}): string | null {
+  const parsed = parseApplicationDocumentKey(params.existingS3Key);
+  if (!parsed) {
+    return null;
+  }
+  const newVersion = parsed.version + 1;
+  const date = new Date().toISOString().split("T")[0];
+  return `applications/${parsed.applicationId}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
+}
+
+/**
+ * Validate file type and size for application documents
+ * Only PNG images are allowed, max 5MB
+ */
+export function validateApplicationDocument(params: {
+  contentType: string;
+  fileSize: number;
+}): { valid: boolean; error?: string } {
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_CONTENT_TYPES = ["image/png"];
+
+  if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
+    return {
+      valid: false,
+      error: `Invalid content type. Only PNG images are allowed for application documents.`,
+    };
+  }
+
+  if (params.fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+    };
+  }
+
+  return { valid: true };
+}
