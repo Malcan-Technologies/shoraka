@@ -95,18 +95,48 @@ export async function createApp(): Promise<Application> {
    *                   format: date-time
    */
   app.get("/healthz", async (_, res) => {
+    // Set timeout to prevent health check from hanging
+    // If DB query takes longer than 2 seconds, consider it unhealthy
+    const HEALTH_CHECK_TIMEOUT = 2000; // 2 seconds
+    let timeoutId: NodeJS.Timeout | null = null;
+    let responded = false;
+
+    const sendResponse = (status: number, body: Record<string, unknown>) => {
+      if (responded) return;
+      responded = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      res.status(status).json(body);
+    };
+
+    // Set timeout
+    timeoutId = setTimeout(() => {
+      logger.warn("Health check timed out - database query exceeded timeout");
+      sendResponse(503, {
+        status: "error",
+        database: "timeout",
+        error: "Health check timed out - database query exceeded 2 seconds",
+        timestamp: new Date().toISOString(),
+      });
+    }, HEALTH_CHECK_TIMEOUT);
+
     try {
       // Test database connection using shared Prisma client
-      await prisma.$queryRaw`SELECT 1 as health_check`;
+      // Use Promise.race to enforce timeout
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1 as health_check`,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Database query timeout")), HEALTH_CHECK_TIMEOUT)
+        ),
+      ]);
 
-      res.json({
+      sendResponse(200, {
         status: "ok",
         database: "connected",
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error({ error }, "Health check failed");
-      res.status(503).json({
+      sendResponse(503, {
         status: "error",
         database: "disconnected",
         error: error instanceof Error ? error.message : "Unknown error",
