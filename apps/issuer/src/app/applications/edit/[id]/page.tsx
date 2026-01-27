@@ -190,6 +190,22 @@ export default function EditApplicationPage() {
   const currentStepId = currentStepConfig?.id || "";
   
   /**
+   * Check if current step is mapped to a component
+   * 
+   * If step is not mapped, we show placeholder and disable save button
+   */
+  const isStepMapped = React.useMemo(() => {
+    const mappedStepIds = [
+      "financing_type_1",
+      "verify_company_info_1",
+      "company_info_1",
+      "declarations_1",
+      "supporting_documents_1",
+    ];
+    return mappedStepIds.includes(currentStepId);
+  }, [currentStepId]);
+  
+  /**
    * STEP TITLES AND DESCRIPTIONS
    * 
    * Custom titles and descriptions for each step ID.
@@ -273,34 +289,10 @@ export default function EditApplicationPage() {
       );
     }
     
-    // Placeholder for other steps
+    // Placeholder for unmapped steps
     return (
-      <div className="border rounded-xl p-8 bg-card">
-        <p className="text-muted-foreground">
-          Step component for "{currentStepId}" coming soon...
-        </p>
-        <p className="text-sm text-muted-foreground mt-4">
-          Application ID: {applicationId}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Last completed step: {application?.last_completed_step}
-        </p>
-        
-        {/* Test input to simulate data changes */}
-        <div className="mt-4">
-          <label className="block text-sm font-medium mb-2">
-            Test Input (simulates step data):
-          </label>
-          <input
-            type="text"
-            placeholder="Type something..."
-            className="border rounded px-3 py-2 w-full"
-            onChange={(e) => handleDataChange({ test_field: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Try typing and then clicking Back - you'll see the unsaved changes modal!
-          </p>
-        </div>
+      <div className="text-center py-12 text-muted-foreground">
+       Coming soon...
       </div>
     );
   };
@@ -717,7 +709,7 @@ export default function EditApplicationPage() {
           {/* Continue button */}
           <Button
             onClick={handleSaveAndContinue}
-            disabled={updateStepMutation.isPending || !isCurrentStepValid}
+            disabled={updateStepMutation.isPending || !isCurrentStepValid || !isStepMapped}
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
