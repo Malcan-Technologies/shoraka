@@ -525,7 +525,7 @@ export default function EditApplicationPage() {
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepId === "declarations" || currentStepId === "declaration_1") {
+      if (currentStepId === "declarations_1") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
         
@@ -595,6 +595,9 @@ export default function EditApplicationPage() {
     // Check if step provides validation flag
     if (data?.areAllFilesUploaded !== undefined) {
       setIsCurrentStepValid(data.areAllFilesUploaded);
+    } else if (data?.areAllDeclarationsChecked !== undefined) {
+      // Declarations step provides this flag to indicate if all boxes are checked
+      setIsCurrentStepValid(data.areAllDeclarationsChecked);
     } else {
       // Default to valid if step doesn't provide validation
       setIsCurrentStepValid(true);

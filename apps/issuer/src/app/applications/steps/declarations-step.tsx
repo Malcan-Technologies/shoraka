@@ -137,6 +137,12 @@ export function DeclarationsStep({
       checked: checkedDeclarations[index] || false,
     }));
 
+    // Check if all declarations are checked
+    // This is required before user can save and continue
+    const areAllDeclarationsChecked = declarations.every((_: any, index: number) => {
+      return checkedDeclarations[index] === true;
+    });
+
     // Check if user made changes from initial state
     const hasPendingChanges = Object.keys(checkedDeclarations).some((key) => {
       const index = parseInt(key);
@@ -146,6 +152,7 @@ export function DeclarationsStep({
     const saveData = {
       declarations: dataToSave,
       hasPendingChanges: hasPendingChanges,
+      areAllDeclarationsChecked: areAllDeclarationsChecked,
     };
 
     // Pass to parent (parent will validate)
