@@ -1,11 +1,10 @@
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { useAuthToken } from "@cashsouk/config";
 import { useQuery } from "@tanstack/react-query";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useS3ViewUrl(s3Key: string | null) {
   const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
     queryKey: ["s3-view-url", s3Key],

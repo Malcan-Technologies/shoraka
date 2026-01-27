@@ -25,13 +25,13 @@ export function SupportingDocumentsStep({
 
   const categories = stepConfig?.config?.categories || [];
   
-  const [uploadedFiles, setUploadedFiles] = React.useState({});
-  const [selectedFiles, setSelectedFiles] = React.useState({});
-  const [expandedCategories, setExpandedCategories] = React.useState({});
-  const [uploadingKeys, setUploadingKeys] = React.useState(new Set());
-  const [documentCuids, setDocumentCuids] = React.useState({});
-  const [lastS3Keys, setLastS3Keys] = React.useState({});
-  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState({});
+  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
+  const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
+  const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
+  const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
+  const [documentCuids, setDocumentCuids] = React.useState<Record<string, string>>({});
+  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
+  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
   
   if (isLoadingApp || !stepConfig) {
     return (
@@ -67,11 +67,11 @@ export function SupportingDocumentsStep({
     );
   }
 
-  const buildDataToSave = (files, uploadResults = new Map()) => {
+  const buildDataToSave = (files: Record<string, { s3_key?: string; name?: string }>, uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()) => {
     return {
-      categories: categories.map((category, categoryIndex) => ({
+      categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
-        documents: category.documents.map((document, documentIndex) => {
+        documents: category.documents.map((document: any, documentIndex: number) => {
           const key = `${categoryIndex}-${documentIndex}`;
           const uploadResult = uploadResults.get(key);
           const existingFile = files[key];
@@ -90,8 +90,8 @@ export function SupportingDocumentsStep({
   };
 
   React.useEffect(() => {
-    const allExpanded = {};
-    categories.forEach((_, index) => {
+    const allExpanded: Record<number, boolean> = {};
+    categories.forEach((_: any, index: number) => {
       allExpanded[index] = true;
     });
     setExpandedCategories(allExpanded);
@@ -114,17 +114,17 @@ export function SupportingDocumentsStep({
       return;
     }
 
-    const loadedFiles = {};
-    const loadedCuids = {};
-    const loadedS3Keys = {};
+    const loadedFiles: Record<string, { name: string; size: number; uploadedAt: string; s3_key: string }> = {};
+    const loadedCuids: Record<string, string> = {};
+    const loadedS3Keys: Record<string, string> = {};
 
-    data.categories.forEach((savedCategory) => {
-      const categoryIndex = categories.findIndex((cat) => cat.name === savedCategory.name);
+    data.categories.forEach((savedCategory: any) => {
+      const categoryIndex = categories.findIndex((cat: any) => cat.name === savedCategory.name);
       if (categoryIndex === -1) return;
 
-      savedCategory.documents.forEach((savedDocument) => {
+      savedCategory.documents.forEach((savedDocument: any) => {
         const documentIndex = categories[categoryIndex].documents.findIndex(
-          (doc) => doc.title === savedDocument.title
+          (doc: any) => doc.title === savedDocument.title
         );
         if (documentIndex === -1) return;
 
@@ -154,7 +154,7 @@ export function SupportingDocumentsStep({
     }
   }, [application, categories]);
 
-  const handleFileChange = (categoryIndex, documentIndex, event) => {
+  const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -195,7 +195,7 @@ export function SupportingDocumentsStep({
 
     const uploadResults = new Map();
 
-    for (const [key, file] of Object.entries(selectedFiles)) {
+    for (const [key, file] of Object.entries(selectedFiles) as [string, File][]) {
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
 
@@ -281,7 +281,7 @@ export function SupportingDocumentsStep({
 
     setSelectedFiles({});
 
-    const updatedFiles = { ...uploadedFiles };
+    const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
       const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
@@ -319,7 +319,7 @@ export function SupportingDocumentsStep({
     uploadFilesRef.current = uploadFilesToS3;
   }, [uploadFilesToS3]);
 
-  const isDocumentUploaded = (categoryIndex, documentIndex) => {
+  const isDocumentUploaded = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
     return key in uploadedFiles;
   };
@@ -358,13 +358,14 @@ export function SupportingDocumentsStep({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
 
-  const handleRemoveFile = (categoryIndex, documentIndex) => {
+  const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
     
     // Save the S3 key before removing, so we can delete it on next upload
     const currentFile = uploadedFiles[key];
     if (currentFile?.s3_key) {
-      setLastS3Keys((prev) => ({ ...prev, [key]: currentFile.s3_key }));
+      const s3Key = currentFile.s3_key;
+      setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
     }
     
     setUploadedFiles((prev) => {
@@ -380,14 +381,14 @@ export function SupportingDocumentsStep({
     toast.success("File removed");
   };
 
-  const getCategoryStatus = (categoryIndex) => {
+  const getCategoryStatus = (categoryIndex: number) => {
     const category = categories[categoryIndex];
     if (!category) return { uploadedCount: 0, totalCount: 0 };
 
     let uploadedCount = 0;
     const totalCount = category.documents.length;
 
-    category.documents.forEach((_, documentIndex) => {
+    category.documents.forEach((_: any, documentIndex: number) => {
       if (isDocumentUploaded(categoryIndex, documentIndex)) {
         uploadedCount++;
       }
@@ -407,7 +408,7 @@ export function SupportingDocumentsStep({
 
   return (
     <div className="space-y-6 sm:space-y-8 md:space-y-12">
-      {categories.map((category, categoryIndex) => {
+      {categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isComplete = status.uploadedCount === status.totalCount && status.totalCount > 0;
         const isExpanded = expandedCategories[categoryIndex] ?? true;
@@ -441,7 +442,7 @@ export function SupportingDocumentsStep({
             </div>
             {isExpanded && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-3 sm:mt-4 pl-3 sm:pl-4 md:pl-6">
-                {category.documents.map((document, documentIndex) => {
+                {category.documents.map((document: any, documentIndex: number) => {
                   const key = `${categoryIndex}-${documentIndex}`;
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
                   const fileIsUploading = uploadingKeys.has(key);

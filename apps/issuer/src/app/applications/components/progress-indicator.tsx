@@ -52,7 +52,6 @@ export function ProgressIndicator({
           const stepNumber = index + 1;
           const isCompleted = stepNumber < currentStep;
           const isCurrent = stepNumber === currentStep;
-          const nextIsCompleted = stepNumber + 1 < currentStep;
 
           return (
             <React.Fragment key={index}>

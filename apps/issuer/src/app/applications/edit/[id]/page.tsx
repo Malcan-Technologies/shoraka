@@ -234,7 +234,6 @@ export default function EditApplicationPage() {
     if (currentStepId === "financing_type_1") {
       return (
         <FinancingTypeStep
-          applicationId={applicationId}
           initialProductId={savedProductId}
           onDataChange={handleDataChange}
         />
