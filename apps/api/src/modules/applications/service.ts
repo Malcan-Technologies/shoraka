@@ -202,7 +202,10 @@ export class ApplicationService {
     contentType: string;
     fileSize: number;
     existingS3Key?: string;
+    userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(params.applicationId, params.userId);
     // Validate file type (PDF only)
     if (params.contentType !== "application/pdf") {
       throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
@@ -265,7 +268,9 @@ export class ApplicationService {
   /**
    * Delete an application document from S3
    */
-  async deleteDocument(s3Key: string): Promise<void> {
+  async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(applicationId, userId);
     try {
       await deleteS3Object(s3Key);
       logger.info({ s3Key }, "Deleted application document from S3");

@@ -115,6 +115,7 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = requestUploadUrlSchema.parse(req.body);
+    const userId = getUserId(req);
 
     const result = await applicationService.requestUploadUrl({
       applicationId: id,
@@ -122,6 +123,7 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       contentType: input.contentType,
       fileSize: input.fileSize,
       existingS3Key: input.existingS3Key,
+      userId,
     });
 
     res.json({
@@ -144,10 +146,11 @@ const deleteDocumentSchema = z.object({
  */
 async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   try {
-    applicationIdParamSchema.parse(req.params); // Validate route param exists
+    const { id } = applicationIdParamSchema.parse(req.params);
     const input = deleteDocumentSchema.parse(req.body);
+    const userId = getUserId(req);
 
-    await applicationService.deleteDocument(input.s3Key);
+    await applicationService.deleteDocument(id, input.s3Key, userId);
 
     res.json({
       success: true,
