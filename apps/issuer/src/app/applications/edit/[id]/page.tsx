@@ -53,14 +53,15 @@ export default function EditApplicationPage() {
   // URL uses ?step=1, ?step=2, etc. (1-based for users)
   const stepFromUrl = parseInt(searchParams.get("step") || "1");
   
-  // Load application from DB
-  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   
   // Load products to get workflow steps
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
+  
+  // Load application from DB
+  const { data: application, isLoading: isLoadingApp, refetch: refetchApplication } = useApplication(applicationId);
   
   // Hook to update application step
   const updateStepMutation = useUpdateApplicationStep();
@@ -117,6 +118,10 @@ export default function EditApplicationPage() {
   
   // Track where user wanted to go (for modal)
   const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
+  
+  // Track if we just saved and are navigating to next step
+  // This prevents validation from running with stale data immediately after save
+  const justSavedRef = React.useRef(false);
   
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
@@ -331,6 +336,16 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (!application || isLoadingApp || isLoadingProducts) return;
+    
+    // Skip validation if we just saved and are navigating to next step
+    // This prevents false "complete steps in order" error when data is still updating
+    if (justSavedRef.current) {
+      // Reset the flag after a short delay to allow validation to run normally next time
+      const timer = setTimeout(() => {
+        justSavedRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
     
     const lastCompleted = application.last_completed_step || 1;
     const maxAllowedStep = lastCompleted + 1;
@@ -557,14 +572,20 @@ export default function EditApplicationPage() {
         },
       });
       
+      // Wait for application data to refetch before navigating
+      // This prevents the validation effect from running with stale data
+      await refetchApplication();
+      
+      // Set flag to skip validation temporarily after save
+      // This prevents false "complete steps in order" error
+      justSavedRef.current = true;
+      
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
       
       // Go to next step
-      setTimeout(() => {
       router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-      }, 0)
       
     } catch (error) {
       // Error already shown by mutation hook
