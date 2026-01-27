@@ -5,6 +5,7 @@ import { buildNotificationEmail } from './email-templates';
 import { sendEmail } from '../../lib/email/ses-client';
 import { logger } from '../../lib/logger';
 import { prisma } from '../../lib/prisma';
+import { getNotificationContent, NotificationPayloads, NotificationTypeId } from './registry';
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -102,6 +103,28 @@ export class NotificationService {
    */
   async getUnreadCount(userId: string): Promise<number> {
     return this.repository.countUnread(userId);
+  }
+
+  /**
+   * Send a notification using the typed registry
+   */
+  async sendTyped<T extends NotificationTypeId>(
+    userId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencyKey?: string
+  ): Promise<Notification> {
+    const { title, message, linkPath } = getNotificationContent(typeId, payload);
+
+    return this.create({
+      userId,
+      typeId,
+      title,
+      message,
+      linkPath,
+      idempotencyKey,
+      metadata: payload as Record<string, any>,
+    });
   }
 
   /**
