@@ -195,7 +195,7 @@ export function SupportingDocumentsStep({
 
     const uploadResults = new Map();
 
-    for (const [key, file] of Object.entries(selectedFiles) as [string, File][]) {
+    for (const [key, typedFile] of Object.entries(selectedFiles) as [string, File][]) {
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
 
