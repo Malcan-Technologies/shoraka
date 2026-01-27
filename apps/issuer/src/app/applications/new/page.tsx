@@ -42,7 +42,46 @@ export default function NewApplicationPage() {
   // Track which product user selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
   
+  /**
+   * ORGANIZATION VERIFICATION CHECK
+   * 
+   * Only allow access if organization is verified (onboardingStatus === "COMPLETED").
+   * If not verified, redirect to dashboard with error message.
+   */
+  React.useEffect(() => {
+    if (!activeOrganization) {
+      // No organization selected - redirect to dashboard
+      router.push("/");
+      return;
+    }
+    
+    if (activeOrganization.onboardingStatus !== "COMPLETED") {
+      // Organization not verified - redirect to dashboard
+      toast.error("Your organization must be verified before creating applications");
+      router.push("/");
+      return;
+    }
+  }, [activeOrganization, router]);
+  
   const products = productsData?.products || [];
+  
+  // Don't render page content if organization is not verified
+  if (!activeOrganization || activeOrganization.onboardingStatus !== "COMPLETED") {
+    return (
+      <div className="flex flex-col h-full">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Skeleton className="h-6 w-32" />
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-muted-foreground">Verifying organization access...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
   
   /**
    * AUTO-SELECT FIRST PRODUCT
