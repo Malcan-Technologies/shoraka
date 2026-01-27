@@ -2,7 +2,14 @@ import { Router, Request, Response, NextFunction } from "express";
 import { NotificationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireAuth, requireRole } from "../../lib/auth/middleware";
-import { NotificationFiltersSchema, UpdatePreferenceSchema, UpdateNotificationTypeSchema, AdminSendNotificationSchema } from "./schemas";
+import {
+  NotificationFiltersSchema,
+  UpdatePreferenceSchema,
+  UpdateNotificationTypeSchema,
+  AdminSendNotificationSchema,
+  CreateNotificationGroupSchema,
+  UpdateNotificationGroupSchema,
+} from "./schemas";
 import { UserRole } from "@prisma/client";
 
 const router = Router();
@@ -302,8 +309,126 @@ router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req:
       data: result,
       correlationId: res.locals.correlationId,
     });
+    } catch (error) {
+    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/notifications/admin/groups:
+ *   get:
+ *     summary: Get all notification groups (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of groups
+ *   post:
+ *     summary: Create a notification group (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateNotificationGroup'
+ *     responses:
+ *       201:
+ *         description: Group created
+ */
+router.get("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groups = await notificationService.getAllNotificationGroups();
+    res.json({
+      success: true,
+      data: groups,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = CreateNotificationGroupSchema.parse(req.body);
+    const group = await notificationService.createNotificationGroup(validated);
+    res.status(201).json({
+      success: true,
+      data: group,
+      correlationId: res.locals.correlationId,
+    });
   } catch (error) {
     next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+  }
+});
+
+/**
+ * @swagger
+ * /v1/notifications/admin/groups/:id:
+ *   patch:
+ *     summary: Update a notification group (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateNotificationGroup'
+ *     responses:
+ *       200:
+ *         description: Group updated
+ *   delete:
+ *     summary: Delete a notification group (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Group deleted
+ */
+router.patch("/admin/groups/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = UpdateNotificationGroupSchema.parse(req.body);
+    const group = await notificationService.updateNotificationGroup(req.params.id, validated);
+    res.json({
+      success: true,
+      data: group,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+  }
+});
+
+router.delete("/admin/groups/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await notificationService.deleteNotificationGroup(req.params.id);
+    res.json({
+      success: true,
+      message: "Group deleted successfully",
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
   }
 });
 

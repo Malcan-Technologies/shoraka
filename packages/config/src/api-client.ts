@@ -1030,6 +1030,22 @@ export class ApiClient {
   async sendAdminNotification(data: any): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>("/v1/notifications/admin/send", data);
   }
+
+  async getAdminNotificationGroups(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/admin/groups");
+  }
+
+  async createAdminNotificationGroup(data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>("/v1/notifications/admin/groups", data);
+  }
+
+  async updateAdminNotificationGroup(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/admin/groups/${id}`, data);
+  }
+
+  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<any> | ApiError> {
+    return this.delete<any>(`/v1/notifications/admin/groups/${id}`);
+  }
 }
 
 export function createApiClient(

@@ -664,3 +664,14 @@ model UserNotificationPreference {
   @@index([user_id])
   @@map("user_notification_preferences")
 }
+
+model NotificationGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  user_ids    String[] // Array of User.user_id
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("notification_groups")
+}

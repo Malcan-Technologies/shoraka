@@ -1,5 +1,6 @@
 import { Notification, Prisma, NotificationType } from '@prisma/client';
 import { NotificationRepository } from './repository';
+import { NotificationGroupRepository } from './group-repository';
 import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from './types';
 import { buildNotificationEmail } from './email-templates';
 import { sendEmail } from '../../lib/email/ses-client';
@@ -11,9 +12,11 @@ import { PortalContext } from '../../lib/http/portal-context';
 
 export class NotificationService {
   private repository: NotificationRepository;
+  private groupRepository: NotificationGroupRepository;
 
   constructor() {
     this.repository = new NotificationRepository();
+    this.groupRepository = new NotificationGroupRepository();
   }
 
   /**
@@ -211,11 +214,48 @@ export class NotificationService {
   }
 
   /**
+   * Admin: Create notification group
+   */
+  async createNotificationGroup(data: { name: string; description?: string; userIds: string[] }) {
+    return this.groupRepository.create({
+      name: data.name,
+      description: data.description,
+      user_ids: data.userIds,
+    });
+  }
+
+  /**
+   * Admin: Get all notification groups
+   */
+  async getAllNotificationGroups() {
+    return this.groupRepository.findAll();
+  }
+
+  /**
+   * Admin: Update notification group
+   */
+  async updateNotificationGroup(id: string, data: { name?: string; description?: string; userIds?: string[] }) {
+    return this.groupRepository.update(id, {
+      name: data.name,
+      description: data.description,
+      user_ids: data.userIds,
+    });
+  }
+
+  /**
+   * Admin: Delete notification group
+   */
+  async deleteNotificationGroup(id: string) {
+    return this.groupRepository.delete(id);
+  }
+
+  /**
    * Admin: Send notification to multiple users
    */
   async sendBulkNotification(params: {
     targetType: string;
     userIds?: string[];
+    groupId?: string;
     typeId: string;
     priority?: any;
     title: string;
@@ -242,6 +282,11 @@ export class NotificationService {
       targetUserIds = users.map(u => u.user_id);
     } else if (params.targetType === 'SPECIFIC_USERS') {
       targetUserIds = params.userIds || [];
+    } else if (params.targetType === 'GROUP' && params.groupId) {
+      const group = await this.groupRepository.findById(params.groupId);
+      if (group) {
+        targetUserIds = group.user_ids;
+      }
     }
 
     const results = [];

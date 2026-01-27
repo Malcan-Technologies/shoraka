@@ -145,11 +145,60 @@ export function useAdminNotifications() {
     },
   });
 
+  const { data: groups, isLoading: isLoadingGroups } = useQuery({
+    queryKey: ["admin-notification-groups"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminNotificationGroups();
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: !!getAccessToken,
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string; userIds: string[] }) => {
+      const response = await apiClient.createAdminNotificationGroup(data);
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-groups"] });
+    },
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.updateAdminNotificationGroup(id, data);
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-groups"] });
+    },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.deleteAdminNotificationGroup(id);
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-groups"] });
+    },
+  });
+
   return {
     types: types ?? [],
     isLoadingTypes,
     updateType: updateTypeMutation.mutate,
     sendNotification: sendNotificationMutation.mutate,
     isSending: sendNotificationMutation.isPending,
+    groups: groups ?? [],
+    isLoadingGroups,
+    createGroup: createGroupMutation.mutate,
+    isCreatingGroup: createGroupMutation.isPending,
+    updateGroup: updateGroupMutation.mutate,
+    deleteGroup: deleteGroupMutation.mutate,
   };
 }

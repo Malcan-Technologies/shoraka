@@ -40,11 +40,13 @@ export enum NotificationTargetType {
   INVESTORS = 'INVESTORS',
   ISSUERS = 'ISSUERS',
   SPECIFIC_USERS = 'SPECIFIC_USERS',
+  GROUP = 'GROUP',
 }
 
 export const AdminSendNotificationSchema = z.object({
   targetType: z.nativeEnum(NotificationTargetType),
   userIds: z.array(z.string()).optional(),
+  groupId: z.string().optional(),
   typeId: z.string(),
   priority: z.nativeEnum(NotificationPriority).optional(),
   title: z.string(),
@@ -55,8 +57,23 @@ export const AdminSendNotificationSchema = z.object({
   if (data.targetType === NotificationTargetType.SPECIFIC_USERS && (!data.userIds || data.userIds.length === 0)) {
     return false;
   }
+  if (data.targetType === NotificationTargetType.GROUP && !data.groupId) {
+    return false;
+  }
   return true;
 }, {
-  message: "User IDs are required when target type is SPECIFIC_USERS",
-  path: ["userIds"],
+  message: "User IDs are required for SPECIFIC_USERS, and Group ID is required for GROUP",
+  path: ["userIds", "groupId"],
+});
+
+export const CreateNotificationGroupSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  userIds: z.array(z.string()).min(1),
+});
+
+export const UpdateNotificationGroupSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  userIds: z.array(z.string()).min(1).optional(),
 });
