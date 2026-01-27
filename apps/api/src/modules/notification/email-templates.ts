@@ -1,9 +1,15 @@
 import { Notification, User } from '@prisma/client';
 import { EmailOptions } from '../../lib/email/ses-client';
+import { getFullUrl, PortalType } from '../../lib/http/url-utils';
 
 export function buildNotificationEmail(notification: Notification, user: User): EmailOptions {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000';
-  const portalUrl = notification.link_path ? `${appUrl}${notification.link_path}` : appUrl;
+  // Resolve portal from metadata if available, default to investor
+  const metadata = notification.metadata as any;
+  const portal: PortalType = metadata?.portal || 'investor';
+  
+  const portalUrl = notification.link_path 
+    ? getFullUrl(notification.link_path, portal)
+    : getFullUrl('/', portal);
   
   const html = `
     <!DOCTYPE html>
@@ -37,7 +43,7 @@ export function buildNotificationEmail(notification: Notification, user: User): 
         </div>
         <div class="footer">
           <p>You are receiving this because you have notifications enabled for your account.</p>
-          <p><a href="${appUrl}/account">Manage notification preferences</a></p>
+          <p><a href="${getFullUrl('/account', portal)}">Manage notification preferences</a></p>
           <p>&copy; ${new Date().getFullYear()} CashSouk. All rights reserved.</p>
         </div>
       </div>
@@ -49,6 +55,6 @@ export function buildNotificationEmail(notification: Notification, user: User): 
     to: user.email,
     subject: `[CashSouk] ${notification.title}`,
     html,
-    text: `${notification.title}\n\nHello ${user.first_name || 'there'},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${appUrl}/account`,
+    text: `${notification.title}\n\nHello ${user.first_name || 'there'},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${getFullUrl('/account', portal)}`,
   };
 }

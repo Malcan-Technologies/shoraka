@@ -1,3 +1,6 @@
+import { PortalType } from "../../lib/http/url-utils";
+import { PortalContext } from "../../lib/http/portal-context";
+
 /**
  * Registry of all system notification types to ensure type safety
  * when sending notifications from various services.
@@ -66,6 +69,7 @@ export interface NotificationTemplate<T extends NotificationTypeId> {
   title: string | ((data: NotificationPayloads[T]) => string);
   message: (data: NotificationPayloads[T]) => string;
   linkPath: (data: NotificationPayloads[T]) => string;
+  portal?: PortalType | ((data: NotificationPayloads[T]) => PortalType);
 }
 
 /**
@@ -78,8 +82,8 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Onboarding Completed',
     message: (data) =>
       `Congratulations! Your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} has been completed successfully. You now have full access to the platform.`,
-    linkPath: (data) =>
-      data.portalType === 'investor' ? '/dashboard' : '/issuer/dashboard',
+    linkPath: () => '/',
+    portal: (data) => data.portalType,
   },
   [NotificationTypeIds.ORGANIZATION_REJECTED]: {
     title: 'Organization Application Rejected',
@@ -127,9 +131,16 @@ export function getNotificationContent<T extends NotificationTypeId>(
   data: NotificationPayloads[T]
 ) {
   const template = NOTIFICATION_TEMPLATES[typeId];
+
+  // Resolve portal: 1. Template override, 2. Current context
+  const resolvedPortal = (typeof template.portal === 'function'
+    ? (template.portal as Function)(data)
+    : template.portal) || PortalContext.get();
+
   return {
     title: typeof template.title === 'function' ? (template.title as Function)(data) : template.title,
     message: template.message(data),
     linkPath: template.linkPath(data),
+    portal: resolvedPortal,
   };
 }

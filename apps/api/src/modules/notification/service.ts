@@ -6,6 +6,8 @@ import { sendEmail } from '../../lib/email/ses-client';
 import { logger } from '../../lib/logger';
 import { prisma } from '../../lib/prisma';
 import { getNotificationContent, NotificationPayloads, NotificationTypeId } from './registry';
+import { getFullUrl, PortalType } from '../../lib/http/url-utils';
+import { PortalContext } from '../../lib/http/portal-context';
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -91,8 +93,24 @@ export class NotificationService {
     const [items, total] = await this.repository.findManyByUserId(userId, filters);
     const unreadCount = await this.repository.countUnread(userId);
 
+    const currentPortal = PortalContext.get();
+
+    // Transform links to absolute URLs if they belong to a different portal
+    const transformedItems = items.map(item => {
+      const metadata = item.metadata as any;
+      const targetPortal = metadata?.portal as PortalType;
+
+      if (targetPortal && targetPortal !== currentPortal && item.link_path) {
+        return {
+          ...item,
+          link_path: getFullUrl(item.link_path, targetPortal),
+        };
+      }
+      return item;
+    });
+
     return {
-      items,
+      items: transformedItems,
       total,
       unreadCount,
     };
@@ -114,7 +132,7 @@ export class NotificationService {
     payload: NotificationPayloads[T],
     idempotencyKey?: string
   ): Promise<Notification> {
-    const { title, message, linkPath } = getNotificationContent(typeId, payload);
+    const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
 
     return this.create({
       userId,
@@ -123,7 +141,10 @@ export class NotificationService {
       message,
       linkPath,
       idempotencyKey,
-      metadata: payload as Record<string, any>,
+      metadata: { 
+        ...(payload as Record<string, any>),
+        portal 
+      },
     });
   }
 

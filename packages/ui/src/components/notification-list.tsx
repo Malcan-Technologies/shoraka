@@ -30,7 +30,11 @@ export function NotificationList() {
       markAsRead(notification.id);
     }
     if (notification.link_path) {
-      router.push(notification.link_path);
+      if (notification.link_path.startsWith("http")) {
+        window.location.href = notification.link_path;
+      } else {
+        router.push(notification.link_path);
+      }
     }
   };
 
