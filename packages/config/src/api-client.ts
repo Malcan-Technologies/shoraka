@@ -1057,10 +1057,16 @@ export class ApiClient {
   async getAdminNotificationLogs(params: {
     limit?: number;
     offset?: number;
+    search?: string;
+    type?: string;
+    target?: string;
   }): Promise<ApiResponse<{ items: any[]; pagination: any }> | ApiError> {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.append("limit", String(params.limit));
     if (params.offset) queryParams.append("offset", String(params.offset));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.type) queryParams.append("type", params.type);
+    if (params.target) queryParams.append("target", params.target);
 
     return this.get<{ items: any[]; pagination: any }>(
       `/v1/notifications/admin/logs?${queryParams.toString()}`

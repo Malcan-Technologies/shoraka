@@ -78,19 +78,23 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
  *       200:
  *         description: Unread count
  */
-router.get("/unread-count", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const count = await notificationService.getUnreadCount(req.user!.user_id);
+router.get(
+  "/unread-count",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const count = await notificationService.getUnreadCount(req.user!.user_id);
 
-    res.json({
-      success: true,
-      data: { count },
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
+      res.json({
+        success: true,
+        data: { count },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -205,20 +209,28 @@ router.get("/preferences", requireAuth, async (req: Request, res: Response, next
  *       200:
  *         description: Preference updated
  */
-router.put("/preferences/:typeId", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = UpdatePreferenceSchema.parse(req.body);
-    const result = await notificationService.updateUserPreference(req.user!.user_id, req.params.typeId, validated);
+router.put(
+  "/preferences/:typeId",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = UpdatePreferenceSchema.parse(req.body);
+      const result = await notificationService.updateUserPreference(
+        req.user!.user_id,
+        req.params.typeId,
+        validated
+      );
 
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -232,18 +244,23 @@ router.put("/preferences/:typeId", requireAuth, async (req: Request, res: Respon
  *       200:
  *         description: All notification types
  */
-router.get("/admin/types", requireAuth, requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await notificationService.getAllNotificationTypes();
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
+router.get(
+  "/admin/types",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await notificationService.getAllNotificationTypes();
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -269,19 +286,24 @@ router.get("/admin/types", requireAuth, requireRole(UserRole.ADMIN), async (_req
  *       200:
  *         description: Notification type updated
  */
-router.patch("/admin/types/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = UpdateNotificationTypeSchema.parse(req.body);
-    const result = await notificationService.updateNotificationType(req.params.id, validated);
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.patch(
+  "/admin/types/:id",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = UpdateNotificationTypeSchema.parse(req.body);
+      const result = await notificationService.updateNotificationType(req.params.id, validated);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -301,24 +323,29 @@ router.patch("/admin/types/:id", requireAuth, requireRole(UserRole.ADMIN), async
  *       200:
  *         description: Notifications sent
  */
-router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = AdminSendNotificationSchema.parse(req.body);
-    const result = await notificationService.sendBulkNotification(req.user!.user_id, {
-      ...validated,
-      ip_address: req.ip,
-      user_agent: req.get("user-agent"),
-      device_info: getDeviceInfo(req),
-    });
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
+router.post(
+  "/admin/send",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = AdminSendNotificationSchema.parse(req.body);
+      const result = await notificationService.sendBulkNotification(req.user!.user_id, {
+        ...validated,
+        ip_address: req.ip,
+        user_agent: req.get("user-agent"),
+        device_info: getDeviceInfo(req),
+      });
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
     } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -358,49 +385,67 @@ router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req:
  *       200:
  *         description: List of notification logs
  */
-router.get("/admin/logs", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const filters = {
-      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
-      offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
-    };
-    const result = await notificationService.getAdminLogs(filters);
-    res.json({
-      success: true,
-      data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
+router.get(
+  "/admin/logs",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const filters = {
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
+        offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
+        search: req.query.search as string | undefined,
+        type: req.query.type as string | undefined,
+        target: req.query.target as string | undefined,
+      };
+      const result = await notificationService.getAdminLogs(filters);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
-router.get("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const groups = await notificationService.getAllNotificationGroups();
-    res.json({
-      success: true,
-      data: groups,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
+router.get(
+  "/admin/groups",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const groups = await notificationService.getAllNotificationGroups();
+      res.json({
+        success: true,
+        data: groups,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
-router.post("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = CreateNotificationGroupSchema.parse(req.body);
-    const group = await notificationService.createNotificationGroup(validated);
-    res.status(201).json({
-      success: true,
-      data: group,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.post(
+  "/admin/groups",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = CreateNotificationGroupSchema.parse(req.body);
+      const group = await notificationService.createNotificationGroup(validated);
+      res.status(201).json({
+        success: true,
+        data: group,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -440,31 +485,41 @@ router.post("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (re
  *       200:
  *         description: Group deleted
  */
-router.patch("/admin/groups/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = UpdateNotificationGroupSchema.parse(req.body);
-    const group = await notificationService.updateNotificationGroup(req.params.id, validated);
-    res.json({
-      success: true,
-      data: group,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+router.patch(
+  "/admin/groups/:id",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = UpdateNotificationGroupSchema.parse(req.body);
+      const group = await notificationService.updateNotificationGroup(req.params.id, validated);
+      res.json({
+        success: true,
+        data: group,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
   }
-});
+);
 
-router.delete("/admin/groups/:id", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await notificationService.deleteNotificationGroup(req.params.id);
-    res.json({
-      success: true,
-      message: "Group deleted successfully",
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
+router.delete(
+  "/admin/groups/:id",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await notificationService.deleteNotificationGroup(req.params.id);
+      res.json({
+        success: true,
+        message: "Group deleted successfully",
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 export const notificationRouter = router;

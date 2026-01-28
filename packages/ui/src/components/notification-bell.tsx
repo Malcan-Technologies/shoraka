@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Lock, Settings, Megaphone, Info } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@cashsouk/config";
 import {
@@ -21,19 +21,6 @@ export function NotificationBell() {
     limit: 15,
     read: false,
   });
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "AUTHENTICATION":
-        return <Lock className="h-4 w-4 text-blue-500" />;
-      case "SYSTEM":
-        return <Settings className="h-4 w-4 text-slate-500" />;
-      case "MARKETING":
-        return <Megaphone className="h-4 w-4 text-emerald-500" />;
-      default:
-        return <Info className="h-4 w-4 text-slate-400" />;
-    }
-  };
 
   const handleNotificationClick = (notification: any) => {
     if (!notification.read_at) {

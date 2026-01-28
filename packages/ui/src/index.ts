@@ -80,6 +80,7 @@ export { CopyableField } from "./copyable-field";
 export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
 export { Switch } from "./components/switch";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 export { InviteMemberDialog } from "./invite-member-dialog";
 export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-member-dialog";
 export { ActivityBadge } from "./components/activity-badge";

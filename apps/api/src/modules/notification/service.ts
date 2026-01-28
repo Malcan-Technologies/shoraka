@@ -1,14 +1,14 @@
-import { Notification, Prisma, NotificationType } from '@prisma/client';
-import { NotificationRepository } from './repository';
-import { NotificationGroupRepository } from './group-repository';
-import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from './types';
-import { buildNotificationEmail } from './email-templates';
-import { sendEmail } from '../../lib/email/ses-client';
-import { logger } from '../../lib/logger';
-import { prisma } from '../../lib/prisma';
-import { getNotificationContent, NotificationPayloads, NotificationTypeId } from './registry';
-import { getFullUrl, PortalType } from '../../lib/http/url-utils';
-import { PortalContext } from '../../lib/http/portal-context';
+import { Notification, Prisma, NotificationType } from "@prisma/client";
+import { NotificationRepository } from "./repository";
+import { NotificationGroupRepository } from "./group-repository";
+import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from "./types";
+import { buildNotificationEmail } from "./email-templates";
+import { sendEmail } from "../../lib/email/ses-client";
+import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
+import { getNotificationContent, NotificationPayloads, NotificationTypeId } from "./registry";
+import { getFullUrl, PortalType } from "../../lib/http/url-utils";
+import { PortalContext } from "../../lib/http/portal-context";
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -29,7 +29,7 @@ export class NotificationService {
     if (idempotencyKey) {
       const existing = await this.repository.findByIdempotencyKey(idempotencyKey);
       if (existing) {
-        logger.info({ idempotencyKey, userId }, 'Notification already exists (idempotency hit)');
+        logger.info({ idempotencyKey, userId }, "Notification already exists (idempotency hit)");
         return existing;
       }
     }
@@ -47,14 +47,19 @@ export class NotificationService {
     }
 
     const preferences = await this.repository.findUserPreferences(userId);
-    const userPref = preferences.find(p => p.notification_type_id === typeId);
+    const userPref = preferences.find((p) => p.notification_type_id === typeId);
 
-    const shouldDeliverPlatform = type.enabled_platform && (type.user_configurable ? (userPref?.enabled_platform ?? true) : true);
-    const shouldDeliverEmail = type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
+    const shouldDeliverPlatform =
+      type.enabled_platform &&
+      (type.user_configurable ? (userPref?.enabled_platform ?? true) : true);
+    const shouldDeliverEmail =
+      type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
 
     // 4. Create Notification Record
     const finalPriority = priority || type.default_priority;
-    const expiresAt = type.retention_days ? new Date(Date.now() + type.retention_days * 24 * 60 * 60 * 1000) : null;
+    const expiresAt = type.retention_days
+      ? new Date(Date.now() + type.retention_days * 24 * 60 * 60 * 1000)
+      : null;
 
     const notification = await this.repository.create({
       user: { connect: { user_id: userId } },
@@ -82,7 +87,10 @@ export class NotificationService {
           data: { email_sent_at: new Date() },
         });
       } catch (error) {
-        logger.error({ error, notificationId: notification.id }, 'Failed to send notification email');
+        logger.error(
+          { error, notificationId: notification.id },
+          "Failed to send notification email"
+        );
       }
     }
 
@@ -92,14 +100,17 @@ export class NotificationService {
   /**
    * Get paginated notifications for a user
    */
-  async getUserNotifications(userId: string, filters: NotificationFilters): Promise<PaginatedNotifications> {
+  async getUserNotifications(
+    userId: string,
+    filters: NotificationFilters
+  ): Promise<PaginatedNotifications> {
     const [items, total] = await this.repository.findManyByUserId(userId, filters);
     const unreadCount = await this.repository.countUnread(userId);
 
     const currentPortal = PortalContext.get();
 
     // Transform links to absolute URLs if they belong to a different portal
-    const transformedItems = items.map(item => {
+    const transformedItems = items.map((item) => {
       const metadata = item.metadata as any;
       const targetPortal = metadata?.portal as PortalType;
 
@@ -154,7 +165,7 @@ export class NotificationService {
       idempotencyKey,
       metadata: {
         ...(payload as Record<string, any>),
-        portal
+        portal,
       },
     });
   }
@@ -181,12 +192,16 @@ export class NotificationService {
     const allTypes = await prisma.notificationType.findMany();
     const userPrefs = await this.repository.findUserPreferences(userId);
 
-    return allTypes.map(type => {
-      const pref = userPrefs.find(p => p.notification_type_id === type.id);
+    return allTypes.map((type) => {
+      const pref = userPrefs.find((p) => p.notification_type_id === type.id);
       return {
         ...type,
-        enabled_platform: type.user_configurable ? (pref?.enabled_platform ?? type.enabled_platform) : type.enabled_platform,
-        enabled_email: type.user_configurable ? (pref?.enabled_email ?? type.enabled_email) : type.enabled_email,
+        enabled_platform: type.user_configurable
+          ? (pref?.enabled_platform ?? type.enabled_platform)
+          : type.enabled_platform,
+        enabled_email: type.user_configurable
+          ? (pref?.enabled_email ?? type.enabled_email)
+          : type.enabled_email,
       };
     });
   }
@@ -194,7 +209,11 @@ export class NotificationService {
   /**
    * Update user preference
    */
-  async updateUserPreference(userId: string, typeId: string, data: { enabled_platform: boolean; enabled_email: boolean }) {
+  async updateUserPreference(
+    userId: string,
+    typeId: string,
+    data: { enabled_platform: boolean; enabled_email: boolean }
+  ) {
     const type = await this.repository.findTypeById(typeId);
     if (!type) {
       throw new Error(`Notification type ${typeId} not found`);
@@ -217,19 +236,71 @@ export class NotificationService {
   /**
    * Admin: Update notification type
    */
-  async updateNotificationType(id: string, data: Partial<NotificationType>): Promise<NotificationType> {
+  async updateNotificationType(
+    id: string,
+    data: Partial<NotificationType>
+  ): Promise<NotificationType> {
     return this.repository.updateType(id, data);
   }
 
   /**
    * Admin: Get all notification logs
    */
-  async getAdminLogs(filters: { limit?: number; offset?: number } = {}) {
+  async getAdminLogs(
+    filters: {
+      limit?: number;
+      offset?: number;
+      search?: string;
+      type?: string;
+      target?: string;
+    } = {}
+  ) {
     const limit = filters.limit || 20;
     const offset = filters.offset || 0;
+    const { search, type, target } = filters;
+
+    const where: Prisma.NotificationLogWhereInput = {
+      AND: [
+        search
+          ? {
+              OR: [
+                { admin: { first_name: { contains: search, mode: "insensitive" } } },
+                { admin: { last_name: { contains: search, mode: "insensitive" } } },
+                { admin: { email: { contains: search, mode: "insensitive" } } },
+                // Handle combined name search (e.g. "John Doe")
+                ...(search.includes(" ")
+                  ? [
+                      {
+                        admin: {
+                          AND: [
+                            {
+                              first_name: {
+                                contains: search.split(" ")[0],
+                                mode: "insensitive" as Prisma.QueryMode,
+                              },
+                            },
+                            {
+                              last_name: {
+                                contains: search.split(" ").slice(1).join(" "),
+                                mode: "insensitive" as Prisma.QueryMode,
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            }
+          : {},
+        type && type !== "all" ? { notification_type_id: type } : {},
+        target && target !== "all" ? { target_type: target } : {},
+      ],
+    };
 
     const [items, total] = await Promise.all([
       prisma.notificationLog.findMany({
+        where,
         include: {
           admin: {
             select: {
@@ -238,14 +309,15 @@ export class NotificationService {
               email: true,
             },
           },
+          notification_type: true,
         },
         orderBy: {
-          created_at: 'desc',
+          created_at: "desc",
         },
         take: limit,
         skip: offset,
       }),
-      prisma.notificationLog.count(),
+      prisma.notificationLog.count({ where }),
     ]);
 
     return {
@@ -280,7 +352,10 @@ export class NotificationService {
   /**
    * Admin: Update notification group
    */
-  async updateNotificationGroup(id: string, data: { name?: string; description?: string; userIds?: string[] }) {
+  async updateNotificationGroup(
+    id: string,
+    data: { name?: string; description?: string; userIds?: string[] }
+  ) {
     return this.groupRepository.update(id, {
       name: data.name,
       description: data.description,
@@ -298,40 +373,43 @@ export class NotificationService {
   /**
    * Admin: Send notification to multiple users
    */
-  async sendBulkNotification(adminUserId: string, params: {
-    targetType: string;
-    userIds?: string[];
-    groupId?: string;
-    typeId: string;
-    priority?: any;
-    title: string;
-    message: string;
-    linkPath?: string;
-    metadata?: any;
-    ip_address?: string;
-    user_agent?: string;
-    device_info?: string;
-  }) {
+  async sendBulkNotification(
+    adminUserId: string,
+    params: {
+      targetType: string;
+      userIds?: string[];
+      groupId?: string;
+      typeId: string;
+      priority?: any;
+      title: string;
+      message: string;
+      linkPath?: string;
+      metadata?: any;
+      ip_address?: string;
+      user_agent?: string;
+      device_info?: string;
+    }
+  ) {
     let targetUserIds: string[] = [];
 
-    if (params.targetType === 'ALL_USERS') {
+    if (params.targetType === "ALL_USERS") {
       const users = await prisma.user.findMany({ select: { user_id: true } });
-      targetUserIds = users.map(u => u.user_id);
-    } else if (params.targetType === 'INVESTORS') {
+      targetUserIds = users.map((u) => u.user_id);
+    } else if (params.targetType === "INVESTORS") {
       const users = await prisma.user.findMany({
-        where: { roles: { has: 'INVESTOR' } },
-        select: { user_id: true }
+        where: { roles: { has: "INVESTOR" } },
+        select: { user_id: true },
       });
-      targetUserIds = users.map(u => u.user_id);
-    } else if (params.targetType === 'ISSUERS') {
+      targetUserIds = users.map((u) => u.user_id);
+    } else if (params.targetType === "ISSUERS") {
       const users = await prisma.user.findMany({
-        where: { roles: { has: 'ISSUER' } },
-        select: { user_id: true }
+        where: { roles: { has: "ISSUER" } },
+        select: { user_id: true },
       });
-      targetUserIds = users.map(u => u.user_id);
-    } else if (params.targetType === 'SPECIFIC_USERS') {
+      targetUserIds = users.map((u) => u.user_id);
+    } else if (params.targetType === "SPECIFIC_USERS") {
       targetUserIds = params.userIds || [];
-    } else if (params.targetType === 'GROUP' && params.groupId) {
+    } else if (params.targetType === "GROUP" && params.groupId) {
       const group = await this.groupRepository.findById(params.groupId);
       if (group) {
         targetUserIds = group.user_ids;
@@ -347,8 +425,15 @@ export class NotificationService {
         });
         results.push({ userId, success: true, id: result.id });
       } catch (error) {
-        logger.error({ error, userId, typeId: params.typeId }, 'Failed to send bulk notification to user');
-        results.push({ userId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+        logger.error(
+          { error, userId, typeId: params.typeId },
+          "Failed to send bulk notification to user"
+        );
+        results.push({
+          userId,
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
     }
 
@@ -376,11 +461,11 @@ export class NotificationService {
    * Cleanup task
    */
   async runCleanup() {
-    logger.info('Running notification cleanup...');
+    logger.info("Running notification cleanup...");
 
     // 1. Delete expired
     const expiredResult = await this.repository.deleteExpired();
-    logger.info({ count: expiredResult.count }, 'Deleted expired notifications');
+    logger.info({ count: expiredResult.count }, "Deleted expired notifications");
 
     // 2. Delete old based on retention_days
     const typesWithRetention = await prisma.notificationType.findMany({
@@ -389,9 +474,15 @@ export class NotificationService {
 
     for (const type of typesWithRetention) {
       if (type.retention_days) {
-        const oldResult = await this.repository.deleteOldNotifications(type.id, type.retention_days);
+        const oldResult = await this.repository.deleteOldNotifications(
+          type.id,
+          type.retention_days
+        );
         if (oldResult.count > 0) {
-          logger.info({ typeId: type.id, count: oldResult.count }, 'Deleted old notifications for type');
+          logger.info(
+            { typeId: type.id, count: oldResult.count },
+            "Deleted old notifications for type"
+          );
         }
       }
     }

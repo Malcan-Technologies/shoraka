@@ -3,7 +3,9 @@ import { useCallback, useEffect } from "react";
 import { createApiClient } from "../api-client";
 import { useAuthToken } from "../auth-context";
 
-export function useNotifications(options: { limit?: number; offset?: number; read?: boolean } = {}) {
+export function useNotifications(
+  options: { limit?: number; offset?: number; read?: boolean } = {}
+) {
   const { limit = 15, offset = 0, read } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -96,7 +98,13 @@ export function useNotificationPreferences() {
   });
 
   const updatePreferenceMutation = useMutation({
-    mutationFn: async ({ typeId, data }: { typeId: string; data: { enabled_platform: boolean; enabled_email: boolean } }) => {
+    mutationFn: async ({
+      typeId,
+      data,
+    }: {
+      typeId: string;
+      data: { enabled_platform: boolean; enabled_email: boolean };
+    }) => {
       const response = await apiClient.updateNotificationPreference(typeId, data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
@@ -113,8 +121,16 @@ export function useNotificationPreferences() {
   };
 }
 
-export function useAdminNotifications(options: { limit?: number; offset?: number } = {}) {
-  const { limit = 20, offset = 0 } = options;
+export function useAdminNotifications(
+  options: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    type?: string;
+    target?: string;
+  } = {}
+) {
+  const { limit = 20, offset = 0, search, type, target } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -191,10 +207,20 @@ export function useAdminNotifications(options: { limit?: number; offset?: number
     },
   });
 
-  const { data: logsData, isLoading: isLoadingLogs } = useQuery({
-    queryKey: ["admin-notification-logs", limit, offset],
+  const {
+    data: logsData,
+    isLoading: isLoadingLogs,
+    refetch: refetchLogs,
+  } = useQuery({
+    queryKey: ["admin-notification-logs", limit, offset, search, type, target],
     queryFn: async () => {
-      const response = await apiClient.getAdminNotificationLogs({ limit, offset });
+      const response = await apiClient.getAdminNotificationLogs({
+        limit,
+        offset,
+        search,
+        type,
+        target,
+      });
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
@@ -216,5 +242,6 @@ export function useAdminNotifications(options: { limit?: number; offset?: number
     logs: logsData?.items ?? [],
     paginationLogs: logsData?.pagination,
     isLoadingLogs,
+    refetchLogs,
   };
 }

@@ -619,6 +619,7 @@ model NotificationType {
   updated_at        DateTime                   @updatedAt
   notifications     Notification[]
   user_preferences  UserNotificationPreference[]
+  notification_logs NotificationLog[]
 
   @@map("notification_types")
 }
@@ -692,7 +693,8 @@ model NotificationLog {
   device_info          String?
   created_at           DateTime @default(now())
 
-  admin User @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
+  admin             User             @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
+  notification_type NotificationType @relation(fields: [notification_type_id], references: [id])
 
   @@index([admin_user_id])
   @@index([created_at])
