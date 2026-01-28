@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeCheck, ChevronsUpDown, LogOut, ArrowLeftRight, Bell } from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, LogOut, ArrowLeftRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -172,12 +172,6 @@ export function NavUser() {
                   </Link>
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link href="/notifications">
-                  <Bell />
-                  Notifications
-                </Link>
-              </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" onClick={handleSwitchPortal}>
                 <ArrowLeftRight />
                 Switch to Investor Portal

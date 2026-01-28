@@ -35,8 +35,6 @@ import type {
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
-import { NotificationService } from "../notification/service";
-import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
@@ -46,13 +44,11 @@ export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
-  private notificationService: NotificationService;
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
-    this.notificationService = new NotificationService();
   }
 
   /**
@@ -2686,25 +2682,6 @@ export class AdminService {
       },
       "Final approval completed by admin"
     );
-
-    // Send notification to the user
-    try {
-      await this.notificationService.sendTyped(
-        onboarding.user_id,
-        NotificationTypeIds.ONBOARDING_APPROVED,
-        {
-          onboardingType: onboarding.onboarding_type,
-          orgName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || "your organization",
-          portalType: onboarding.portal_type as 'investor' | 'issuer',
-        }
-      );
-    } catch (notificationError) {
-      logger.error(
-        { error: notificationError, userId: onboarding.user_id },
-        "Failed to send onboarding completion notification"
-      );
-      // Don't throw error here to not fail the onboarding completion process
-    }
 
     return {
       success: true,

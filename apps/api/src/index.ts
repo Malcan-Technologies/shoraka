@@ -38,10 +38,8 @@ async function main(): Promise<void> {
 
   // Dynamic import AFTER env setup - this ensures Prisma sees the DATABASE_URL
   const { createApp } = await import("./app");
-  const { initJobs } = await import("./lib/jobs");
 
   const app = await createApp();
-  initJobs();
 
   app.listen(PORT, () => {
     logger.info(`🚀 API server running on http://localhost:${PORT}`);

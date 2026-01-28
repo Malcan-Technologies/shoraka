@@ -15,7 +15,6 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { DepositCard } from "../components/deposit-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
-import { Header } from "../components/header";
 
 function InvestorDashboardContent() {
   const { isAuthenticated } = useAuth();
@@ -169,7 +168,11 @@ function InvestorDashboardContent() {
 
   return (
     <>
-      <Header title="Dashboard" />
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-lg font-semibold">Dashboard</h1>
+      </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
         {/* Grey transparent overlay when account is rejected */}
         {isRejected && (

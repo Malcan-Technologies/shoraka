@@ -43,10 +43,8 @@ import {
   ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { NotificationPreferences } from "@cashsouk/ui";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
-import { BellIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -578,10 +576,10 @@ export default function AccountPage() {
                         key={i}
                         className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 text-sm"
                       >
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                           <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-sm truncate font-medium" title={login.device || "Unknown Device"}>
+                            <p className="font-medium truncate" title={login.device || "Unknown Device"}>
                               {login.device || "Unknown Device"}
                             </p>
                             <p className="text-xs text-muted-foreground">IP: {login.ip || "Unknown"}</p>
@@ -608,24 +606,6 @@ export default function AccountPage() {
                   This information helps you monitor unauthorized access to your account.
                 </p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Marketing Notifications Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <BellIcon className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Marketing Notifications</CardTitle>
-                  <CardDescription>Manage your marketing and promotional preferences</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <NotificationPreferences />
             </CardContent>
           </Card>
         </div>
