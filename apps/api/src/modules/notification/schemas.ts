@@ -18,8 +18,8 @@ export const NotificationFiltersSchema = z.object({
   priority: z.nativeEnum(NotificationPriority).optional(),
   startDate: z.string().datetime().transform(v => new Date(v)).optional(),
   endDate: z.string().datetime().transform(v => new Date(v)).optional(),
-  limit: z.string().transform(v => parseInt(v, 10)).default('20'),
-  offset: z.string().transform(v => parseInt(v, 10)).default('0'),
+  limit: z.string().optional().transform(v => v ? parseInt(v, 10) : 15),
+  offset: z.string().optional().transform(v => v ? parseInt(v, 10) : 0),
 });
 
 export const UpdatePreferenceSchema = z.object({

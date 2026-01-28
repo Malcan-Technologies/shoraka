@@ -3,15 +3,16 @@ import { useCallback, useEffect } from "react";
 import { createApiClient } from "../api-client";
 import { useAuthToken } from "../auth-context";
 
-export function useNotifications() {
+export function useNotifications(options: { limit?: number; offset?: number; read?: boolean } = {}) {
+  const { limit = 15, offset = 0, read } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
 
   const { data, refetch, isLoading } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", limit, offset, read],
     queryFn: async () => {
-      const response = await apiClient.getNotifications({ limit: 20, offset: 0 });
+      const response = await apiClient.getNotifications({ limit, offset, read });
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
@@ -69,7 +70,8 @@ export function useNotifications() {
 
   return {
     notifications: data?.items ?? [],
-    total: data?.total ?? 0,
+    pagination: data?.pagination,
+    total: data?.pagination?.total ?? 0,
     unreadCount: unreadCountData ?? 0,
     isLoading,
     refreshNotifications,
@@ -111,7 +113,8 @@ export function useNotificationPreferences() {
   };
 }
 
-export function useAdminNotifications() {
+export function useAdminNotifications(options: { limit?: number; offset?: number } = {}) {
+  const { limit = 20, offset = 0 } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -188,6 +191,16 @@ export function useAdminNotifications() {
     },
   });
 
+  const { data: logsData, isLoading: isLoadingLogs } = useQuery({
+    queryKey: ["admin-notification-logs", limit, offset],
+    queryFn: async () => {
+      const response = await apiClient.getAdminNotificationLogs({ limit, offset });
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: !!getAccessToken,
+  });
+
   return {
     types: types ?? [],
     isLoadingTypes,
@@ -200,5 +213,8 @@ export function useAdminNotifications() {
     isCreatingGroup: createGroupMutation.isPending,
     updateGroup: updateGroupMutation.mutate,
     deleteGroup: deleteGroupMutation.mutate,
+    logs: logsData?.items ?? [],
+    paginationLogs: logsData?.pagination,
+    isLoadingLogs,
   };
 }

@@ -112,10 +112,18 @@ export class NotificationService {
       return item;
     });
 
+    const limit = filters.limit || 15;
+    const offset = filters.offset || 0;
+
     return {
       items: transformedItems,
-      total,
-      unreadCount,
+      pagination: {
+        total,
+        unreadCount,
+        limit,
+        offset,
+        pages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -144,9 +152,9 @@ export class NotificationService {
       message,
       linkPath,
       idempotencyKey,
-      metadata: { 
+      metadata: {
         ...(payload as Record<string, any>),
-        portal 
+        portal
       },
     });
   }
@@ -214,6 +222,44 @@ export class NotificationService {
   }
 
   /**
+   * Admin: Get all notification logs
+   */
+  async getAdminLogs(filters: { limit?: number; offset?: number } = {}) {
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
+
+    const [items, total] = await Promise.all([
+      prisma.notificationLog.findMany({
+        include: {
+          admin: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.notificationLog.count(),
+    ]);
+
+    return {
+      items,
+      pagination: {
+        total,
+        limit,
+        offset,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * Admin: Create notification group
    */
   async createNotificationGroup(data: { name: string; description?: string; userIds: string[] }) {
@@ -252,7 +298,7 @@ export class NotificationService {
   /**
    * Admin: Send notification to multiple users
    */
-  async sendBulkNotification(params: {
+  async sendBulkNotification(adminUserId: string, params: {
     targetType: string;
     userIds?: string[];
     groupId?: string;
@@ -262,6 +308,9 @@ export class NotificationService {
     message: string;
     linkPath?: string;
     metadata?: any;
+    ip_address?: string;
+    user_agent?: string;
+    device_info?: string;
   }) {
     let targetUserIds: string[] = [];
 
@@ -302,6 +351,24 @@ export class NotificationService {
         results.push({ userId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }
     }
+
+    // Log the admin action
+    await prisma.notificationLog.create({
+      data: {
+        admin_user_id: adminUserId,
+        target_type: params.targetType,
+        target_group_id: params.groupId,
+        notification_type_id: params.typeId,
+        title: params.title,
+        message: params.message,
+        recipient_count: targetUserIds.length,
+        metadata: (params.metadata || {}) as Prisma.InputJsonValue,
+        ip_address: params.ip_address,
+        user_agent: params.user_agent,
+        device_info: params.device_info,
+      },
+    });
+
     return results;
   }
 

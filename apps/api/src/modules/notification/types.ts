@@ -36,6 +36,11 @@ export interface UnreadCountResponse {
 
 export interface PaginatedNotifications {
   items: NotificationWithDetails[];
-  total: number;
-  unreadCount: number;
+  pagination: {
+    total: number;
+    unreadCount: number;
+    limit: number;
+    offset: number;
+    pages: number;
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, X } from "lucide-react";
+import { Bell, Lock, Settings, Megaphone, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@cashsouk/config";
 import {
@@ -17,7 +17,23 @@ import { cn } from "../lib/utils";
 
 export function NotificationBell() {
   const router = useRouter();
-  const { notifications, unreadCount, markAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications({
+    limit: 15,
+    read: false,
+  });
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "AUTHENTICATION":
+        return <Lock className="h-4 w-4 text-blue-500" />;
+      case "SYSTEM":
+        return <Settings className="h-4 w-4 text-slate-500" />;
+      case "MARKETING":
+        return <Megaphone className="h-4 w-4 text-emerald-500" />;
+      default:
+        return <Info className="h-4 w-4 text-slate-400" />;
+    }
+  };
 
   const handleNotificationClick = (notification: any) => {
     if (!notification.read_at) {
@@ -57,15 +73,27 @@ export function NotificationBell() {
               </span>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-colors">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markAllAsRead();
+                }}
+              >
+                Mark all as read
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-[350px]">
           {notifications.length === 0 ? (
             <div className="flex h-[300px] flex-col items-center justify-center p-6 text-center bg-white">
               <Bell className="mb-2 h-8 w-8 text-slate-200" />
-              <p className="text-sm text-slate-400">No notifications yet</p>
+              <p className="text-sm text-slate-400">No new notifications yet</p>
             </div>
           ) : (
             <div className="flex flex-col bg-white">

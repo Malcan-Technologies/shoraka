@@ -2,26 +2,32 @@
 
 import { useNotifications } from "@cashsouk/config";
 import { format } from "date-fns";
-import { Bell, AlertCircle, Info } from "lucide-react";
+import { Bell, Lock, Settings, Megaphone, Info, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
-import { Badge } from "./badge";
 import { cn } from "../lib/utils";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function NotificationList() {
   const router = useRouter();
-  const { notifications, isLoading, markAsRead, markAllAsRead, unreadCount } = useNotifications();
+  const [page, setPage] = useState(1);
+  const limit = 15;
+  const { notifications, isLoading, markAsRead, markAllAsRead, unreadCount, pagination } = useNotifications({
+    limit,
+    offset: (page - 1) * limit,
+  });
 
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case "CRITICAL":
-        return <AlertCircle className="h-5 w-5 text-destructive" />;
-      case "WARNING":
-        return <AlertCircle className="h-5 w-5 text-warning" />;
-      case "INFO":
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "AUTHENTICATION":
+        return <Lock className="h-5 w-5 text-blue-500" />;
+      case "SYSTEM":
+        return <Settings className="h-5 w-5 text-slate-500" />;
+      case "MARKETING":
+        return <Megaphone className="h-5 w-5 text-emerald-500" />;
       default:
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return <Info className="h-5 w-5 text-slate-400" />;
     }
   };
 
@@ -91,7 +97,7 @@ export function NotificationList() {
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <CardContent className="flex items-start gap-4 p-4">
-                    <div className="mt-1">{getPriorityIcon(notification.priority)}</div>
+                    <div className="mt-1">{getCategoryIcon(notification.notification_type.category)}</div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -105,16 +111,75 @@ export function NotificationList() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">{notification.message}</p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <Badge variant="outline" className="text-[10px] uppercase">
-                          {notification.notification_type.category}
-                        </Badge>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
+        </div>
+      )}
+
+      {pagination && pagination.pages > 1 && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <div className="text-sm text-muted-foreground">
+            Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of {pagination.total}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage((p) => Math.max(1, p - 1));
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((p) => {
+                // Show first, last, current, and pages around current
+                if (
+                  p === 1 ||
+                  p === pagination.pages ||
+                  (p >= page - 1 && p <= page + 1)
+                ) {
+                  return (
+                    <Button
+                      key={p}
+                      variant={p === page ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        setPage(p);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      {p}
+                    </Button>
+                  );
+                }
+                // Show ellipses
+                if (p === 2 || p === pagination.pages - 1) {
+                  return <span key={p} className="px-1 text-muted-foreground">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage((p) => Math.min(pagination.pages, p + 1));
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              disabled={page === pagination.pages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

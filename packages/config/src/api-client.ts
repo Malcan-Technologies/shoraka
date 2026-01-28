@@ -982,7 +982,19 @@ export class ApiClient {
     priority?: string;
     limit?: number;
     offset?: number;
-  }): Promise<ApiResponse<{ items: any[]; total: number; unreadCount: number }> | ApiError> {
+  }): Promise<
+    | ApiResponse<{
+        items: any[];
+        pagination: {
+          total: number;
+          unreadCount: number;
+          limit: number;
+          offset: number;
+          pages: number;
+        };
+      }>
+    | ApiError
+  > {
     const queryParams = new URLSearchParams();
     if (params.read !== undefined) queryParams.append("read", String(params.read));
     if (params.category) queryParams.append("category", params.category);
@@ -990,9 +1002,16 @@ export class ApiClient {
     if (params.limit) queryParams.append("limit", String(params.limit));
     if (params.offset) queryParams.append("offset", String(params.offset));
 
-    return this.get<{ items: any[]; total: number; unreadCount: number }>(
-      `/v1/notifications?${queryParams.toString()}`
-    );
+    return this.get<{
+      items: any[];
+      pagination: {
+        total: number;
+        unreadCount: number;
+        limit: number;
+        offset: number;
+        pages: number;
+      };
+    }>(`/v1/notifications?${queryParams.toString()}`);
   }
 
   async getUnreadNotificationsCount(): Promise<ApiResponse<{ count: number }> | ApiError> {
@@ -1033,6 +1052,19 @@ export class ApiClient {
 
   async getAdminNotificationGroups(): Promise<ApiResponse<any[]> | ApiError> {
     return this.get<any[]>("/v1/notifications/admin/groups");
+  }
+
+  async getAdminNotificationLogs(params: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<{ items: any[]; pagination: any }> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append("limit", String(params.limit));
+    if (params.offset) queryParams.append("offset", String(params.offset));
+
+    return this.get<{ items: any[]; pagination: any }>(
+      `/v1/notifications/admin/logs?${queryParams.toString()}`
+    );
   }
 
   async createAdminNotificationGroup(data: any): Promise<ApiResponse<any> | ApiError> {

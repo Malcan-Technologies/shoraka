@@ -11,6 +11,7 @@ import {
   UpdateNotificationGroupSchema,
 } from "./schemas";
 import { UserRole } from "@prisma/client";
+import { getDeviceInfo } from "@/lib/http/request-utils";
 
 const router = Router();
 const notificationService = new NotificationService();
@@ -303,7 +304,12 @@ router.patch("/admin/types/:id", requireAuth, requireRole(UserRole.ADMIN), async
 router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = AdminSendNotificationSchema.parse(req.body);
-    const result = await notificationService.sendBulkNotification(validated);
+    const result = await notificationService.sendBulkNotification(req.user!.user_id, {
+      ...validated,
+      ip_address: req.ip,
+      user_agent: req.get("user-agent"),
+      device_info: getDeviceInfo(req),
+    });
     res.json({
       success: true,
       data: result,
@@ -340,6 +346,35 @@ router.post("/admin/send", requireAuth, requireRole(UserRole.ADMIN), async (req:
  *       201:
  *         description: Group created
  */
+/**
+ * @swagger
+ * /v1/notifications/admin/logs:
+ *   get:
+ *     summary: Get notification logs (Admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of notification logs
+ */
+router.get("/admin/logs", requireAuth, requireRole(UserRole.ADMIN), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const filters = {
+      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
+      offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
+    };
+    const result = await notificationService.getAdminLogs(filters);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/admin/groups", requireAuth, requireRole(UserRole.ADMIN), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const groups = await notificationService.getAllNotificationGroups();
