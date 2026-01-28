@@ -7,6 +7,8 @@ import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
+import { NotificationService } from "../../notification/service";
+import { NotificationTypeIds } from "../../notification/registry";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -18,6 +20,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
   private authRepository: AuthRepository;
+  private notificationService: NotificationService;
 
   constructor() {
     super();
@@ -25,6 +28,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
     this.authRepository = new AuthRepository();
+    this.notificationService = new NotificationService();
   }
 
   protected getWebhookType(): string {
@@ -354,6 +358,16 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               { organizationId, portalType, requestId, previousStatus },
               "Updated investor organization status to REJECTED and logged rejection event"
             );
+
+            // Send platform notification
+            try {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
+                onboardingType: onboarding.onboarding_type,
+                orgName: orgExists.name || "your organization",
+              });
+            } catch (notifError) {
+              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
+            }
           }
         } else {
           const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
@@ -397,6 +411,16 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               { organizationId, portalType, requestId, previousStatus },
               "Updated issuer organization status to REJECTED and logged rejection event"
             );
+
+            // Send platform notification
+            try {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
+                onboardingType: onboarding.onboarding_type,
+                orgName: orgExists.name || "your organization",
+              });
+            } catch (notifError) {
+              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
+            }
           }
         }
       } catch (orgError) {

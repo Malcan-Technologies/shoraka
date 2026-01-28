@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma";
 import { errorHandler } from "../lib/http/error-handler";
 import { notFoundHandler } from "../lib/http/not-found";
 import { correlationIdMiddleware } from "./middleware/cors";
+import { portalContextMiddleware } from "./middleware/portal-context";
 import { registerRoutes } from "../routes";
 import { createSessionMiddleware } from "./session";
 import { initializeOpenIdClient } from "../lib/openid-client";
@@ -119,6 +120,7 @@ export async function createApp(): Promise<Application> {
   app.use(await createSessionMiddleware());
 
   app.use(correlationIdMiddleware);
+  app.use(portalContextMiddleware);
 
   // Initialize OpenID client for OAuth flows
   await initializeOpenIdClient();

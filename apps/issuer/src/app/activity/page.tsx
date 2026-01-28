@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useActivities } from "../../hooks/use-activities";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { ActivityItem, Badge, Skeleton, ActivityToolbar } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { Header } from "../../components/header";
 
 export default function ActivityPage() {
   const [search, setSearch] = useState("");
@@ -50,12 +49,7 @@ export default function ActivityPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-      </header>
-
+      <Header title="Dashboard" />
       <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         <Card className="border-none shadow-none bg-transparent">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
