@@ -55,6 +55,7 @@ export const AdminSendNotificationSchema = z.object({
   metadata: z.record(z.any()).optional(),
   sendToPlatform: z.boolean().optional(),
   sendToEmail: z.boolean().optional(),
+  expiresAt: z.string().datetime().transform(v => new Date(v)).optional(),
 }).refine(data => {
   if (data.targetType === NotificationTargetType.SPECIFIC_USERS && (!data.userIds || data.userIds.length === 0)) {
     return false;
@@ -62,10 +63,14 @@ export const AdminSendNotificationSchema = z.object({
   if (data.targetType === NotificationTargetType.GROUP && !data.groupId) {
     return false;
   }
+  // Ensure at least one delivery channel is selected for custom notifications
+  if (data.sendToPlatform === false && data.sendToEmail === false) {
+    return false;
+  }
   return true;
 }, {
-  message: "User IDs are required for SPECIFIC_USERS, and Group ID is required for GROUP",
-  path: ["userIds", "groupId"],
+  message: "Invalid recipient selection or no delivery channels selected",
+  path: ["userIds", "groupId", "sendToPlatform"],
 });
 
 export const CreateNotificationGroupSchema = z.object({

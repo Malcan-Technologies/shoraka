@@ -125,6 +125,11 @@ export default function NotificationsAdminPage() {
   const [linkPath, setLinkPath] = useState<string>("");
   const [sendToPlatform, setSendToPlatform] = useState<boolean>(true);
   const [sendToEmail, setSendToEmail] = useState<boolean>(false);
+  const [expirationMode, setExpirationType] = useState<"presets" | "custom">("presets");
+  const [retentionDays, setRetentionDays] = useState<string>("30");
+  const [customExpirationDate, setCustomExpirationDate] = useState<string>(
+    format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")
+  );
 
   // Group Management State
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -162,10 +167,22 @@ export default function NotificationsAdminPage() {
       return;
     }
 
+    if (!sendToPlatform && !sendToEmail) {
+      toast.error("Please select at least one delivery channel (Platform or Email)");
+      return;
+    }
+
     const ids = userIds
       .split(",")
       .map((id) => id.trim())
       .filter(Boolean);
+
+    const expiresAt =
+      expirationMode === "presets"
+        ? retentionDays !== "0"
+          ? new Date(Date.now() + parseInt(retentionDays, 10) * 24 * 60 * 60 * 1000)
+          : undefined
+        : new Date(customExpirationDate);
 
     sendNotification(
       {
@@ -178,6 +195,7 @@ export default function NotificationsAdminPage() {
         linkPath: linkPath || undefined,
         sendToPlatform,
         sendToEmail,
+        expiresAt: expiresAt?.toISOString(),
       },
       {
         onSuccess: () => {
@@ -189,6 +207,11 @@ export default function NotificationsAdminPage() {
           setSelectedGroupId("");
           setSendToPlatform(true);
           setSendToEmail(false);
+          setRetentionDays("30");
+          setCustomExpirationDate(
+            format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")
+          );
+          setExpirationType("presets");
         },
         onError: (error: any) => {
           toast.error(error.message || "Failed to send notifications");
@@ -455,6 +478,65 @@ export default function NotificationsAdminPage() {
                     />
                     <p className="text-[10px] text-muted-foreground">
                       The page the user will be taken to when they click the notification.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="retention">Expiration</Label>
+                      <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => setExpirationType("presets")}
+                          className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                            expirationMode === "presets"
+                              ? "bg-white shadow-sm font-medium"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Presets
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpirationType("custom")}
+                          className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                            expirationMode === "custom"
+                              ? "bg-white shadow-sm font-medium"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Custom Date
+                        </button>
+                      </div>
+                    </div>
+
+                    {expirationMode === "presets" ? (
+                      <Select value={retentionDays} onValueChange={setRetentionDays}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Day</SelectItem>
+                          <SelectItem value="7">7 Days</SelectItem>
+                          <SelectItem value="14">14 Days</SelectItem>
+                          <SelectItem value="30">30 Days</SelectItem>
+                          <SelectItem value="90">90 Days</SelectItem>
+                          <SelectItem value="365">1 Year</SelectItem>
+                          <SelectItem value="0">Never (Manual Cleanup)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type="date"
+                        value={customExpirationDate}
+                        onChange={(e) => setCustomExpirationDate(e.target.value)}
+                        min={format(new Date(), "yyyy-MM-dd")}
+                      />
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      {expirationMode === "presets"
+                        ? "Choose a standard retention period."
+                        : "Select a specific date for this notification to expire."}
                     </p>
                   </div>
 

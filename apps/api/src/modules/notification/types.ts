@@ -20,6 +20,7 @@ export interface CreateNotificationParams {
   idempotencyKey?: string;
   sendToPlatform?: boolean;
   sendToEmail?: boolean;
+  expiresAt?: Date;
 }
 
 export interface NotificationFilters {

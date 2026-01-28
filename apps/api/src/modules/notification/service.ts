@@ -22,7 +22,7 @@ export class NotificationService {
   /**
    * Create a notification and handle delivery (platform + email)
    */
-  async create(params: CreateNotificationParams): Promise<Notification> {
+  async create(params: CreateNotificationParams): Promise<Notification | null> {
     const {
       userId,
       typeId,
@@ -34,6 +34,7 @@ export class NotificationService {
       idempotencyKey,
       sendToPlatform,
       sendToEmail,
+      expiresAt: manualExpiresAt,
     } = params;
 
     // 1. Idempotency Check
@@ -72,11 +73,28 @@ export class NotificationService {
         ? sendToEmail
         : type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
 
+    // Safety: If both channels are disabled, skip notification creation
+    if (!shouldDeliverPlatform && !shouldDeliverEmail) {
+      logger.info(
+        { userId, typeId },
+        "Notification skipped: both platform and email channels are disabled"
+      );
+      return null;
+    }
+
     // 4. Create Notification Record
     const finalPriority = priority || type.default_priority;
-    const expiresAt = type.retention_days
-      ? new Date(Date.now() + type.retention_days * 24 * 60 * 60 * 1000)
-      : null;
+
+    // Resolve expiration: Manual override > Type-defined retention > Default 30 days
+    let expiresAt: Date | null = null;
+    if (manualExpiresAt) {
+      expiresAt = manualExpiresAt;
+    } else if (type.retention_days) {
+      expiresAt = new Date(Date.now() + type.retention_days * 24 * 60 * 60 * 1000);
+    } else {
+      // Default 30 days expiration if not specified
+      expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    }
 
     const notification = await this.repository.create({
       user: { connect: { user_id: userId } },
@@ -170,7 +188,7 @@ export class NotificationService {
     typeId: T,
     payload: NotificationPayloads[T],
     idempotencyKey?: string
-  ): Promise<Notification> {
+  ): Promise<Notification | null> {
     const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
 
     return this.create({
@@ -404,6 +422,7 @@ export class NotificationService {
       metadata?: any;
       sendToPlatform?: boolean;
       sendToEmail?: boolean;
+      expiresAt?: Date;
       ip_address?: string;
       user_agent?: string;
       device_info?: string;
@@ -442,7 +461,16 @@ export class NotificationService {
           ...params,
           userId,
         });
-        results.push({ userId, success: true, id: result.id });
+
+        if (result) {
+          results.push({ userId, success: true, id: result.id });
+        } else {
+          results.push({
+            userId,
+            success: false,
+            error: "Notification skipped: no delivery channels enabled",
+          });
+        }
       } catch (error) {
         logger.error(
           { error, userId, typeId: params.typeId },
