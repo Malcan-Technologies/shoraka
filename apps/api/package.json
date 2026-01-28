@@ -16,7 +16,6 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:migrate-onboarding": "tsx prisma/migrate-onboarding-logs.ts",
-    "cleanup-notifications": "tsx scripts/cleanup-notifications.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "clean": "rm -rf dist"
   },
@@ -42,7 +41,6 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.33",
-    "node-cron": "^4.2.1",
     "openid-client": "^5.7.0",
     "pg": "^8.16.3",
     "pino": "^8.17.2",
@@ -63,7 +61,6 @@
     "@types/jest": "^29.5.11",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.10.5",
-    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.15.6",
     "@types/supertest": "^6.0.2",
     "@types/swagger-jsdoc": "^6.0.4",

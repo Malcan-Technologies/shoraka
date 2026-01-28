@@ -79,25 +79,8 @@ export { InfoTooltip } from "./info-tooltip";
 export { CopyableField } from "./copyable-field";
 export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
-export { Switch } from "./components/switch";
-export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 export { InviteMemberDialog } from "./invite-member-dialog";
 export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-member-dialog";
 export { ActivityBadge } from "./components/activity-badge";
 export { ActivityItem } from "./components/activity-item";
 export { ActivityToolbar } from "./components/activity-toolbar";
-export { NotificationBell } from "./components/notification-bell";
-export { NotificationList } from "./components/notification-list";
-export { NotificationPreferences } from "./components/notification-preferences";
-export {
-  Select,
-  SelectGroup,
-  SelectValue,
-  SelectTrigger,
-  SelectContent,
-  SelectLabel,
-  SelectItem,
-  SelectSeparator,
-  SelectScrollUpButton,
-  SelectScrollDownButton,
-} from "./components/select";
