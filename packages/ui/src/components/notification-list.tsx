@@ -21,11 +21,11 @@ export function NotificationList() {
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "AUTHENTICATION":
-        return <Lock className="h-5 w-5 text-blue-500" />;
+        return <Lock className="h-5 w-5 text-primary" />;
       case "SYSTEM":
-        return <Settings className="h-5 w-5 text-slate-500" />;
+        return <Settings className="h-5 w-5 text-primary" />;
       case "MARKETING":
-        return <BadgeDollarSign className="h-5 w-5 text-accent" />;
+        return <BadgeDollarSign className="h-5 w-5 text-primary" />;
       case "ANNOUNCEMENT":
         return <Megaphone className="h-5 w-5 text-primary" />;
       default:
