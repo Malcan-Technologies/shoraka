@@ -53,6 +53,8 @@ export const AdminSendNotificationSchema = z.object({
   message: z.string(),
   linkPath: z.string().optional(),
   metadata: z.record(z.any()).optional(),
+  sendToPlatform: z.boolean().optional(),
+  sendToEmail: z.boolean().optional(),
 }).refine(data => {
   if (data.targetType === NotificationTargetType.SPECIFIC_USERS && (!data.userIds || data.userIds.length === 0)) {
     return false;

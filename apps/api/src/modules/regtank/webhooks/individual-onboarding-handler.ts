@@ -361,7 +361,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: orgExists.name || "your organization",
               });
@@ -414,7 +414,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: orgExists.name || "your organization",
               });

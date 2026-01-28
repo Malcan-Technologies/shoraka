@@ -23,7 +23,18 @@ export class NotificationService {
    * Create a notification and handle delivery (platform + email)
    */
   async create(params: CreateNotificationParams): Promise<Notification> {
-    const { userId, typeId, priority, title, message, linkPath, metadata, idempotencyKey } = params;
+    const {
+      userId,
+      typeId,
+      priority,
+      title,
+      message,
+      linkPath,
+      metadata,
+      idempotencyKey,
+      sendToPlatform,
+      sendToEmail,
+    } = params;
 
     // 1. Idempotency Check
     if (idempotencyKey) {
@@ -49,11 +60,17 @@ export class NotificationService {
     const preferences = await this.repository.findUserPreferences(userId);
     const userPref = preferences.find((p) => p.notification_type_id === typeId);
 
+    // Manual overrides or derived from type/preferences
     const shouldDeliverPlatform =
-      type.enabled_platform &&
-      (type.user_configurable ? (userPref?.enabled_platform ?? true) : true);
+      sendToPlatform !== undefined
+        ? sendToPlatform
+        : type.enabled_platform &&
+          (type.user_configurable ? (userPref?.enabled_platform ?? true) : true);
+
     const shouldDeliverEmail =
-      type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
+      sendToEmail !== undefined
+        ? sendToEmail
+        : type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
 
     // 4. Create Notification Record
     const finalPriority = priority || type.default_priority;
@@ -385,6 +402,8 @@ export class NotificationService {
       message: string;
       linkPath?: string;
       metadata?: any;
+      sendToPlatform?: boolean;
+      sendToEmail?: boolean;
       ip_address?: string;
       user_agent?: string;
       device_info?: string;

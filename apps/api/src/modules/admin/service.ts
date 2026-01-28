@@ -2691,7 +2691,7 @@ export class AdminService {
     try {
       await this.notificationService.sendTyped(
         onboarding.user_id,
-        NotificationTypeIds.ORGANIZATION_APPROVED,
+        NotificationTypeIds.ONBOARDING_APPROVED,
         {
           onboardingType: onboarding.onboarding_type,
           orgName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || "your organization",

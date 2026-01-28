@@ -7,8 +7,8 @@ import { PortalContext } from "../../lib/http/portal-context";
  */
 export const NotificationTypeIds = {
   // System / Onboarding
-  ORGANIZATION_APPROVED: 'organization_approved',
-  ORGANIZATION_REJECTED: 'organization_rejected',
+  ONBOARDING_APPROVED: 'onboarding_approved',
+  ONBOARDING_REJECTED: 'onboarding_rejected',
   KYC_APPROVED: 'kyc_approved',
   KYC_REJECTED: 'kyc_rejected',
 
@@ -27,12 +27,12 @@ export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof Notific
  * Define the payload data required for each notification type
  */
 export interface NotificationPayloads {
-  [NotificationTypeIds.ORGANIZATION_APPROVED]: {
+  [NotificationTypeIds.ONBOARDING_APPROVED]: {
     onboardingType: string;
     orgName: string;
     portalType: 'investor' | 'issuer';
   };
-  [NotificationTypeIds.ORGANIZATION_REJECTED]: {
+  [NotificationTypeIds.ONBOARDING_REJECTED]: {
     onboardingType: string;
     orgName: string;
     reason?: string;
@@ -78,15 +78,15 @@ export interface NotificationTemplate<T extends NotificationTypeId> {
 export const NOTIFICATION_TEMPLATES: {
   [T in NotificationTypeId]: NotificationTemplate<T>;
 } = {
-  [NotificationTypeIds.ORGANIZATION_APPROVED]: {
-    title: 'Onboarding Completed',
+  [NotificationTypeIds.ONBOARDING_APPROVED]: {
+    title: 'Onboarding Application Approved',
     message: (data) =>
       `Congratulations! Your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} has been completed successfully. You now have full access to the platform.`,
     linkPath: () => '/',
     portal: (data) => data.portalType,
   },
-  [NotificationTypeIds.ORGANIZATION_REJECTED]: {
-    title: 'Organization Application Rejected',
+  [NotificationTypeIds.ONBOARDING_REJECTED]: {
+    title: 'Onboarding Application Rejected',
     message: (data) =>
       `Unfortunately, your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} was rejected.${data.reason ? ` Reason: ${data.reason}` : ''}`,
     linkPath: () => '/onboarding',

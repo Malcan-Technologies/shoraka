@@ -9,7 +9,7 @@ const initialTypes = [
     name: "Password Changed",
     description: "Sent when your account password has been successfully changed.",
     category: NotificationCategory.AUTHENTICATION,
-    default_priority: NotificationPriority.WARNING,
+    default_priority: NotificationPriority.CRITICAL,
     user_configurable: false,
     enabled_platform: true,
     enabled_email: true,
@@ -47,9 +47,9 @@ const initialTypes = [
     enabled_email: true,
   },
   {
-    id: "organization_approved",
-    name: "Organization Approved",
-    description: "Sent when your organization application has been approved.",
+    id: "onboarding_approved",
+    name: "Onboarding Approved",
+    description: "Sent when your onboarding application has been approved.",
     category: NotificationCategory.SYSTEM,
     default_priority: NotificationPriority.INFO,
     user_configurable: false,
@@ -57,9 +57,9 @@ const initialTypes = [
     enabled_email: true,
   },
   {
-    id: "organization_rejected",
-    name: "Organization Rejected",
-    description: "Sent when your organization application has been rejected.",
+    id: "onboarding_rejected",
+    name: "Onboarding Rejected",
+    description: "Sent when your onboarding application has been rejected.",
     category: NotificationCategory.SYSTEM,
     default_priority: NotificationPriority.WARNING,
     user_configurable: false,
@@ -67,12 +67,12 @@ const initialTypes = [
     enabled_email: true,
   },
 
-  // Generic / System
+  // Announcement
   {
     id: "system_announcement",
     name: "System Announcement",
     description: "General announcements about platform updates and maintenance.",
-    category: NotificationCategory.SYSTEM,
+    category: NotificationCategory.ANNOUNCEMENT,
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,

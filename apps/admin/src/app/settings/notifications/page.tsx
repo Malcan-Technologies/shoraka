@@ -123,6 +123,8 @@ export default function NotificationsAdminPage() {
   const [title, setTitle] = useState<string>("");
   const [message, setMessage] = useState<string>("");
   const [linkPath, setLinkPath] = useState<string>("");
+  const [sendToPlatform, setSendToPlatform] = useState<boolean>(true);
+  const [sendToEmail, setSendToEmail] = useState<boolean>(false);
 
   // Group Management State
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -174,6 +176,8 @@ export default function NotificationsAdminPage() {
         title,
         message,
         linkPath: linkPath || undefined,
+        sendToPlatform,
+        sendToEmail,
       },
       {
         onSuccess: () => {
@@ -183,6 +187,8 @@ export default function NotificationsAdminPage() {
           setUserIds("");
           setLinkPath("");
           setSelectedGroupId("");
+          setSendToPlatform(true);
+          setSendToEmail(false);
         },
         onError: (error: any) => {
           toast.error(error.message || "Failed to send notifications");
@@ -298,17 +304,16 @@ export default function NotificationsAdminPage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {types.map((type: any) => (
-                      <div
-                        key={type.id}
-                        className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                      >
+                    {types
+                      .filter((type: any) => type.category === "SYSTEM" || type.category === "AUTHENTICATION")
+                      .map((type: any) => (
+                        <div
+                          key={type.id}
+                          className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                        >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{type.name}</span>
-                            <Badge variant="outline" className="text-[10px] uppercase">
-                              {type.category}
-                            </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">{type.description}</p>
                         </div>
@@ -357,11 +362,16 @@ export default function NotificationsAdminPage() {
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        {types.map((type: any) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
+                        {types
+                          .filter(
+                            (type: any) =>
+                              type.category === "MARKETING" || type.category === "ANNOUNCEMENT"
+                          )
+                          .map((type: any) => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -446,6 +456,25 @@ export default function NotificationsAdminPage() {
                     <p className="text-[10px] text-muted-foreground">
                       The page the user will be taken to when they click the notification.
                     </p>
+                  </div>
+
+                  <div className="flex items-center gap-8 py-2 border-y">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="send-platform"
+                        checked={sendToPlatform}
+                        onCheckedChange={setSendToPlatform}
+                      />
+                      <Label htmlFor="send-platform" className="cursor-pointer">
+                        Send to Platform
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch id="send-email" checked={sendToEmail} onCheckedChange={setSendToEmail} />
+                      <Label htmlFor="send-email" className="cursor-pointer">
+                        Send to Email
+                      </Label>
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isSending}>

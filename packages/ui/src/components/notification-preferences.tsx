@@ -25,7 +25,10 @@ export function NotificationPreferences() {
     return (
       <div className="space-y-6">
         {[1].map((i) => (
-          <div key={i} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            key={i}
+            className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div className="space-y-2">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-64" />
@@ -54,21 +57,20 @@ export function NotificationPreferences() {
   return (
     <div className="space-y-6">
       {configurablePrefs.map((type: any) => (
-        <div key={type.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          key={type.id}
+          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
           <div className="space-y-0.5">
             <Label className="text-base font-medium">{type.name}</Label>
-            <p className="text-sm text-muted-foreground">
-              {type.description}
-            </p>
+            <p className="text-sm text-muted-foreground">{type.description}</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center space-x-2 whitespace-nowrap">
               <Switch
                 id={`${type.id}-platform`}
                 checked={type.enabled_platform}
-                onCheckedChange={(checked) =>
-                  handleToggle(type.id, "platform", checked)
-                }
+                onCheckedChange={(checked) => handleToggle(type.id, "platform", checked)}
               />
               <Label htmlFor={`${type.id}-platform`} className="text-sm cursor-pointer">
                 In-app
@@ -78,9 +80,7 @@ export function NotificationPreferences() {
               <Switch
                 id={`${type.id}-email`}
                 checked={type.enabled_email}
-                onCheckedChange={(checked) =>
-                  handleToggle(type.id, "email", checked)
-                }
+                onCheckedChange={(checked) => handleToggle(type.id, "email", checked)}
               />
               <Label htmlFor={`${type.id}-email`} className="text-sm cursor-pointer">
                 Email

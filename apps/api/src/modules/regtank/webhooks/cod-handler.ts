@@ -1701,7 +1701,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: org.name || "your organization",
               });
@@ -1753,7 +1753,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: org.name || "your organization",
               });

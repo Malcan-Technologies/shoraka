@@ -18,6 +18,8 @@ export interface CreateNotificationParams {
   linkPath?: string;
   metadata?: Record<string, any>;
   idempotencyKey?: string;
+  sendToPlatform?: boolean;
+  sendToEmail?: boolean;
 }
 
 export interface NotificationFilters {
