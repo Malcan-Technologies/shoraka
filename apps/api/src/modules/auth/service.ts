@@ -24,6 +24,8 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { createHmac } from "crypto";
 import { getEnv } from "../../config/env";
+import { NotificationService } from "../notification/service";
+import { NotificationTypeIds } from "../notification/registry";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -50,9 +52,11 @@ function computeSecretHash(username: string): string {
 
 export class AuthService {
   private repository: AuthRepository;
+  private notificationService: NotificationService;
 
   constructor() {
     this.repository = new AuthRepository();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -958,6 +962,15 @@ export class AuthService {
           sessionRevoked,
         },
       });
+
+      // Send platform notification
+      try {
+        await this.notificationService.sendTyped(userId, NotificationTypeIds.PASSWORD_CHANGED, {
+          changedAt: new Date(),
+        });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to send password changed notification");
+      }
 
       logger.info({ userId, email: user.email, sessionRevoked }, "Password changed successfully");
 

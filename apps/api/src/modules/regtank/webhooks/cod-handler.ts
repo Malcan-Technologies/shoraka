@@ -11,6 +11,8 @@ import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
+import { NotificationService } from "../../notification/service";
+import { NotificationTypeIds } from "../../notification/registry";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -23,6 +25,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
   private authRepository: AuthRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
+  private notificationService: NotificationService;
 
   constructor() {
     super();
@@ -31,6 +34,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     this.authRepository = new AuthRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
+    this.notificationService = new NotificationService();
   }
 
   protected getWebhookType(): string {
@@ -1694,6 +1698,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               { organizationId, portalType, requestId },
               "Updated investor organization status to REJECTED after COD rejection"
             );
+
+            // Send platform notification
+            try {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+                onboardingType: onboarding.onboarding_type,
+                orgName: org.name || "your organization",
+              });
+            } catch (notifError) {
+              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
+            }
           }
         } else {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
@@ -1736,6 +1750,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               { organizationId, portalType, requestId },
               "Updated issuer organization status to REJECTED after COD rejection"
             );
+
+            // Send platform notification
+            try {
+              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ORGANIZATION_REJECTED, {
+                onboardingType: onboarding.onboarding_type,
+                orgName: org.name || "your organization",
+              });
+            } catch (notifError) {
+              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
+            }
           }
         }
       } catch (error) {
