@@ -2,7 +2,7 @@
 
 import { useNotifications } from "@cashsouk/config";
 import { format } from "date-fns";
-import { Bell, Lock, Settings, Megaphone, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, Lock, Settings, Megaphone, Info, ChevronLeft, ChevronRight, BadgeDollarSign } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
 import { cn } from "../lib/utils";
@@ -25,7 +25,9 @@ export function NotificationList() {
       case "SYSTEM":
         return <Settings className="h-5 w-5 text-slate-500" />;
       case "MARKETING":
-        return <Megaphone className="h-5 w-5 text-emerald-500" />;
+        return <BadgeDollarSign className="h-5 w-5 text-accent" />;
+      case "ANNOUNCEMENT":
+        return <Megaphone className="h-5 w-5 text-primary" />;
       default:
         return <Info className="h-5 w-5 text-slate-400" />;
     }

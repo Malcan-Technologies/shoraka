@@ -366,7 +366,7 @@ export default function NotificationsAdminPage() {
         </TabsContent>
 
         <TabsContent value="custom" className="space-y-6">
-          <div className="grid gap-8 md:grid-cols-2">
+          <div className="grid gap-8 md:grid-cols-2 items-start">
             {/* Custom Notification Form */}
             <Card>
               <CardHeader>
@@ -584,60 +584,62 @@ export default function NotificationsAdminPage() {
                 </Button>
               </CardHeader>
               <CardContent>
-                {isLoadingGroups ? (
-                  <div className="space-y-4">
-                    {[1, 2].map((i) => (
-                      <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
-                    ))}
-                  </div>
-                ) : groups.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                    No saved groups found. Create one to get started.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {groups.map((group: any) => (
-                      <div
-                        key={group.id}
-                        className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{group.name}</span>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {group.user_ids.length} users
-                            </Badge>
+                <div className="max-h-[600px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-200">
+                  {isLoadingGroups ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
+                      ))}
+                    </div>
+                  ) : groups.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                      No saved groups found. Create one to get started.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {groups.map((group: any) => (
+                        <div
+                          key={group.id}
+                          className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{group.name}</span>
+                              <Badge variant="secondary" className="text-[10px]">
+                                {group.user_ids.length} users
+                              </Badge>
+                            </div>
+                            {group.description && (
+                              <p className="text-xs text-muted-foreground">{group.description}</p>
+                            )}
                           </div>
-                          {group.description && (
-                            <p className="text-xs text-muted-foreground">{group.description}</p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEditGroup(group)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this group?")) {
+                                  deleteGroup(group.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEditGroup(group)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => {
-                              if (confirm("Are you sure you want to delete this group?")) {
-                                deleteGroup(group.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

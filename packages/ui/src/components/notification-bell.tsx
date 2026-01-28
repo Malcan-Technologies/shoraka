@@ -65,7 +65,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                className="h-8 px-2 text-xs font-medium text-primary hover:text-accent hover:bg-primary/5"
                 onClick={(e) => {
                   e.stopPropagation();
                   markAllAsRead();
@@ -109,7 +109,7 @@ export function NotificationBell() {
                     </div>
                     {!notification.read_at && (
                       <div className="pt-1 shrink-0">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 block shadow-[0_0_0_2px_rgba(16,185,129,0.1)]" />
+                        <span className="h-2 w-2 rounded-full bg-accent block shadow-[0_0_0_2px_hsl(var(--accent)/0.1)]" />
                       </div>
                     )}
                   </div>
