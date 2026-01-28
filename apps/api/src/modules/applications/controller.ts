@@ -6,7 +6,18 @@ import {
   applicationIdParamSchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
+import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
+
+/**
+ * Get authenticated user ID from request
+ */
+function getUserId(req: Request): string {
+  if (!req.user?.user_id) {
+    throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+  }
+  return req.user.user_id;
+}
 
 
 /**
@@ -35,7 +46,8 @@ async function createApplication(req: Request, res: Response, next: NextFunction
 async function getApplication(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
-    const data = await applicationService.getApplication(id);
+    const userId = getUserId(req);
+    const data = await applicationService.getApplication(id, userId);
 
     res.json({
       success: true,
@@ -55,7 +67,8 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = updateApplicationStepSchema.parse(req.body);
-    const application = await applicationService.updateStep(id, input);
+    const userId = getUserId(req);
+    const application = await applicationService.updateStep(id, input, userId);
 
     res.json({
       success: true,
@@ -74,7 +87,8 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
 async function archiveApplication(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
-    const application = await applicationService.archiveApplication(id);
+    const userId = getUserId(req);
+    const application = await applicationService.archiveApplication(id, userId);
 
     res.json({
       success: true,
@@ -101,6 +115,7 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = requestUploadUrlSchema.parse(req.body);
+    const userId = getUserId(req);
 
     const result = await applicationService.requestUploadUrl({
       applicationId: id,
@@ -108,6 +123,7 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       contentType: input.contentType,
       fileSize: input.fileSize,
       existingS3Key: input.existingS3Key,
+      userId,
     });
 
     res.json({
@@ -130,10 +146,11 @@ const deleteDocumentSchema = z.object({
  */
 async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   try {
-    applicationIdParamSchema.parse(req.params); // Validate route param exists
+    const { id } = applicationIdParamSchema.parse(req.params);
     const input = deleteDocumentSchema.parse(req.body);
+    const userId = getUserId(req);
 
-    await applicationService.deleteDocument(input.s3Key);
+    await applicationService.deleteDocument(id, input.s3Key, userId);
 
     res.json({
       success: true,

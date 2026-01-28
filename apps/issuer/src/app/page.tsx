@@ -232,20 +232,12 @@ function IssuerDashboardContent() {
                   Manage your financing requests and track your applications from your dashboard.
                 </p>
               </div>
-              <div className="flex gap-3">
-                <Button asChild variant="outline" className="gap-2">
-                  <Link href="/loans/new">
-                    <PlusIcon className="h-4 w-4" />
-                    Get Financed
-                  </Link>
-                </Button>
-                <Button asChild className="gap-2">
-                  <Link href="/applications/new">
-                    <PlusIcon className="h-4 w-4" />
-                    Start Application
-                  </Link>
-                </Button>
-              </div>
+              <Button asChild className="gap-2">
+                <Link href="/applications/new">
+                  <PlusIcon className="h-4 w-4" />
+                  Get Financed
+                </Link>
+              </Button>
             </section>
           )}
         </div>

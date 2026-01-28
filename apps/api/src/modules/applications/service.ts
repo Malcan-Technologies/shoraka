@@ -1,5 +1,6 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
+import { OrganizationRepository } from "../organization/repository";
 import { CreateApplicationInput, UpdateApplicationStepInput } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
@@ -16,10 +17,12 @@ import { logger } from "../../lib/logger";
 export class ApplicationService {
   private repository: ApplicationRepository;
   private productRepository: ProductRepository;
+  private organizationRepository: OrganizationRepository;
 
   constructor() {
     this.repository = new ApplicationRepository();
     this.productRepository = new ProductRepository();
+    this.organizationRepository = new OrganizationRepository();
   }
 
   /**
@@ -35,6 +38,48 @@ export class ApplicationService {
     };
     
     return stepIdToColumn[stepId] || null;
+  }
+
+  /**
+   * Verify that user has access to an application
+   * User must be either the owner or a member of the organization that owns the application
+   */
+  private async verifyApplicationAccess(applicationId: string, userId: string): Promise<void> {
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const organizationId = application.issuer_organization_id;
+
+    // Get the organization from the application
+    // The repository includes issuer_organization, but TypeScript doesn't know about it
+    // So we use 'as any' to access it (it's safe because we know it's included)
+    const organization = (application as any).issuer_organization;
+    
+    if (!organization) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this application");
+    }
+    
+    // Check if user is owner of the organization
+    if (organization.owner_user_id === userId) {
+      return; // User is owner, access granted
+    }
+
+    // Check if user is a member of the organization
+    const member = await this.organizationRepository.getOrganizationMember(
+      organizationId,
+      userId,
+      "issuer"
+    );
+
+    if (!member) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You do not have access to this application. You must be a member or owner of the organization."
+      );
+    }
   }
 
   /**
@@ -60,7 +105,10 @@ export class ApplicationService {
   /**
    * Get application and check product version
    */
-  async getApplication(id: string) {
+  async getApplication(id: string, userId: string) {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
@@ -91,7 +139,10 @@ export class ApplicationService {
   /**
    * Update a specific step in the application
    */
-  async updateStep(id: string, input: UpdateApplicationStepInput): Promise<Application> {
+  async updateStep(id: string, input: UpdateApplicationStepInput, userId: string): Promise<Application> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
@@ -118,7 +169,10 @@ export class ApplicationService {
   /**
    * Archive an application
    */
-  async archiveApplication(id: string): Promise<Application> {
+  async archiveApplication(id: string, userId: string): Promise<Application> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
@@ -148,7 +202,10 @@ export class ApplicationService {
     contentType: string;
     fileSize: number;
     existingS3Key?: string;
+    userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(params.applicationId, params.userId);
     // Validate file type (PDF only)
     if (params.contentType !== "application/pdf") {
       throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
@@ -211,7 +268,9 @@ export class ApplicationService {
   /**
    * Delete an application document from S3
    */
-  async deleteDocument(s3Key: string): Promise<void> {
+  async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(applicationId, userId);
     try {
       await deleteS3Object(s3Key);
       logger.info({ s3Key }, "Deleted application document from S3");
