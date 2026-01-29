@@ -20,6 +20,7 @@ import {
   FolderOpenIcon,
   DocumentDuplicateIcon,
   CubeIcon,
+  BoltIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -106,6 +107,8 @@ const navAudit = [
   { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
   { title: "Product Logs", url: "/audit/product-logs", icon: CubeIcon },
 ];
+
+const navTools = [{ title: "Load Test", url: "/load-test", icon: BoltIcon }];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -245,6 +248,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navAudit.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navTools.map((item) => {
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={item.title}>

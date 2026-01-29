@@ -110,6 +110,15 @@ export function registerRoutes(app: Application): void {
   // S3 routes
   v1Router.use("/s3", createS3Router());
 
+  // Internal load-test endpoint: returns given status for ECS crash debugging
+  // GET /v1/internal/load-test?code=200|404|500 (no auth)
+  v1Router.get("/internal/load-test", (req, res) => {
+    const code = Number(req.query.code) || 200;
+    const allowed = [200, 404, 500];
+    const status = allowed.includes(code) ? code : 200;
+    res.status(status).json({ ok: status === 200, status });
+  });
+
   // Notification routes
   v1Router.use("/notifications", requireAuth, notificationRouter);
 
