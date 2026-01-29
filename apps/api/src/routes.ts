@@ -19,6 +19,7 @@ import { createProductRouter } from "./modules/products/controller";
 import { createApplicationRouter } from "./modules/applications/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
+import { notificationRouter } from "./modules/notification/controller";
 
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -108,6 +109,9 @@ export function registerRoutes(app: Application): void {
 
   // S3 routes
   v1Router.use("/s3", createS3Router());
+
+  // Notification routes
+  v1Router.use("/notifications", requireAuth, notificationRouter);
 
   app.use("/v1", v1Router);
 }
