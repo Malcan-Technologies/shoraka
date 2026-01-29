@@ -207,6 +207,17 @@ export function useAdminNotifications(
     },
   });
 
+  const seedTypesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.seedAdminNotificationTypes();
+      if ("error" in response) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-types"] });
+    },
+  });
+
   const {
     data: logsData,
     isLoading: isLoadingLogs,
@@ -243,5 +254,7 @@ export function useAdminNotifications(
     paginationLogs: logsData?.pagination,
     isLoadingLogs,
     refetchLogs,
+    seedTypes: seedTypesMutation.mutate,
+    isSeeding: seedTypesMutation.isPending,
   };
 }

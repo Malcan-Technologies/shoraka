@@ -1084,6 +1084,10 @@ export class ApiClient {
   async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<any> | ApiError> {
     return this.delete<any>(`/v1/notifications/admin/groups/${id}`);
   }
+
+  async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.post<{ count: number }>("/v1/notifications/admin/seed-types");
+  }
 }
 
 export function createApiClient(

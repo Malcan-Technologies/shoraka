@@ -109,6 +109,8 @@ export default function NotificationsAdminPage() {
     isLoadingLogs,
     paginationLogs,
     refetchLogs,
+    seedTypes,
+    isSeeding,
   } = useAdminNotifications({
     limit,
     offset: (page - 1) * limit,
@@ -310,13 +312,41 @@ export default function NotificationsAdminPage() {
             {/* Notification Types Settings */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings2 className="h-5 w-5" />
-                  System Notification Types
-                </CardTitle>
-                <CardDescription>
-                  Enable or disable notifications globally across the platform.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings2 className="h-5 w-5" />
+                      System Notification Types
+                    </CardTitle>
+                    <CardDescription>
+                      Enable or disable notifications globally across the platform.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      if (confirm("This will add any missing notification types. Existing types will not be modified. Continue?")) {
+                        seedTypes(undefined, {
+                          onSuccess: (response: any) => {
+                            const added = response.data?.added || 0;
+                            if (added > 0) {
+                              toast.success(`Successfully added ${added} new notification types`);
+                            } else {
+                              toast.info("All notification types are already up to date");
+                            }
+                          },
+                          onError: (error) => toast.error(error.message || "Failed to seed types"),
+                        });
+                      }
+                    }}
+                    disabled={isSeeding}
+                  >
+                    <RotateCcw className={`h-4 w-4 ${isSeeding ? "animate-spin" : ""}`} />
+                    {isSeeding ? "Seeding..." : "Add Missing Types"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingTypes ? (

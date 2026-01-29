@@ -180,6 +180,19 @@ export class NotificationRepository {
   }
 
   /**
+   * Upsert notification type (only creates if it doesn't exist to avoid overriding custom changes)
+   */
+  async createTypeIfNotExist(data: Prisma.NotificationTypeCreateInput): Promise<NotificationType | null> {
+    const existing = await this.findTypeById(data.id);
+    if (existing) {
+      return null;
+    }
+    return prisma.notificationType.create({
+      data,
+    });
+  }
+
+  /**
    * Get notification type by ID
    */
   async findTypeById(id: string): Promise<NotificationType | null> {

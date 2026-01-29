@@ -522,4 +522,22 @@ router.delete(
   }
 );
 
+router.post(
+  "/admin/seed-types",
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await notificationService.seedNotificationTypes();
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export const notificationRouter = router;
