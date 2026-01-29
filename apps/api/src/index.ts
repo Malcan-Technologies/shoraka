@@ -65,6 +65,17 @@ async function main(): Promise<void> {
         rssMB: (m.rss / 1024 / 1024).toFixed(2),
       }, "Memory usage");
     }, 10000);
+
+    // Additional memory monitoring with external memory tracking
+    // Logs every 5 seconds with heapUsed, rss, and external memory
+    setInterval(() => {
+      const m = process.memoryUsage();
+      logger.info({
+        heapUsed: m.heapUsed / 1024 / 1024,
+        rss: m.rss / 1024 / 1024,
+        external: m.external / 1024 / 1024,
+      }, "MEM");
+    }, 5000);
   });
 }
 
