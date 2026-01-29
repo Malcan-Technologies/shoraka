@@ -9,6 +9,7 @@ import { prisma } from "../../lib/prisma";
 import { getNotificationContent, NotificationPayloads, NotificationTypeId } from "./registry";
 import { getFullUrl, PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
+import { initialNotificationTypes } from "./seed-data";
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -276,6 +277,23 @@ export class NotificationService {
     data: Partial<NotificationType>
   ): Promise<NotificationType> {
     return this.repository.updateType(id, data);
+  }
+
+  /**
+   * Admin: Seed notification types
+   */
+  async seedNotificationTypes(): Promise<{ count: number; added: number }> {
+    let count = 0;
+    let added = 0;
+    for (const type of initialNotificationTypes) {
+      const result = await this.repository.createTypeIfNotExist(type);
+      if (result) {
+        added++;
+      }
+      count++;
+    }
+    logger.info({ count, added }, "Notification types seeded via Admin API");
+    return { count, added };
   }
 
   /**
