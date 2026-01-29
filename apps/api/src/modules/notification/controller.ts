@@ -11,7 +11,7 @@ import {
   UpdateNotificationGroupSchema,
 } from "./schemas";
 import { UserRole } from "@prisma/client";
-import { getDeviceInfo } from "@/lib/http/request-utils";
+import { getDeviceInfo } from "../../lib/http/request-utils";
 
 const router = Router();
 const notificationService = new NotificationService();

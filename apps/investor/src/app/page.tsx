@@ -7,8 +7,6 @@ import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import { useOrganization } from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
-import { SidebarTrigger } from "../components/ui/sidebar";
-import { Separator } from "../components/ui/separator";
 import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";

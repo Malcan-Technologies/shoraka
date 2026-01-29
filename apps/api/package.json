@@ -17,6 +17,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:migrate-onboarding": "tsx prisma/migrate-onboarding-logs.ts",
     "cleanup-notifications": "tsx scripts/cleanup-notifications.ts",
+    "seed-notifications": "tsx prisma/seed-notification-types.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "clean": "rm -rf dist"
   },
