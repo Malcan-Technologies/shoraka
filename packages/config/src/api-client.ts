@@ -974,6 +974,120 @@ export class ApiClient {
   async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
+
+  // Notifications
+  async getNotifications(params: {
+    read?: boolean;
+    category?: string;
+    priority?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<
+    | ApiResponse<{
+        items: any[];
+        pagination: {
+          total: number;
+          unreadCount: number;
+          limit: number;
+          offset: number;
+          pages: number;
+        };
+      }>
+    | ApiError
+  > {
+    const queryParams = new URLSearchParams();
+    if (params.read !== undefined) queryParams.append("read", String(params.read));
+    if (params.category) queryParams.append("category", params.category);
+    if (params.priority) queryParams.append("priority", params.priority);
+    if (params.limit) queryParams.append("limit", String(params.limit));
+    if (params.offset) queryParams.append("offset", String(params.offset));
+
+    return this.get<{
+      items: any[];
+      pagination: {
+        total: number;
+        unreadCount: number;
+        limit: number;
+        offset: number;
+        pages: number;
+      };
+    }>(`/v1/notifications?${queryParams.toString()}`);
+  }
+
+  async getUnreadNotificationsCount(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.get<{ count: number }>("/v1/notifications/unread-count");
+  }
+
+  async markNotificationAsRead(id: string): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/${id}/read`);
+  }
+
+  async markAllNotificationsAsRead(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.patch<{ count: number }>("/v1/notifications/read-all");
+  }
+
+  async getNotificationPreferences(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/preferences");
+  }
+
+  async updateNotificationPreference(
+    typeId: string,
+    data: { enabled_platform: boolean; enabled_email: boolean }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.put<any>(`/v1/notifications/preferences/${typeId}`, data);
+  }
+
+  // Admin Notifications
+  async getAdminNotificationTypes(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/admin/types");
+  }
+
+  async updateAdminNotificationType(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/admin/types/${id}`, data);
+  }
+
+  async sendAdminNotification(data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>("/v1/notifications/admin/send", data);
+  }
+
+  async getAdminNotificationGroups(): Promise<ApiResponse<any[]> | ApiError> {
+    return this.get<any[]>("/v1/notifications/admin/groups");
+  }
+
+  async getAdminNotificationLogs(params: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    type?: string;
+    target?: string;
+  }): Promise<ApiResponse<{ items: any[]; pagination: any }> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append("limit", String(params.limit));
+    if (params.offset) queryParams.append("offset", String(params.offset));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.type) queryParams.append("type", params.type);
+    if (params.target) queryParams.append("target", params.target);
+
+    return this.get<{ items: any[]; pagination: any }>(
+      `/v1/notifications/admin/logs?${queryParams.toString()}`
+    );
+  }
+
+  async createAdminNotificationGroup(data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>("/v1/notifications/admin/groups", data);
+  }
+
+  async updateAdminNotificationGroup(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/notifications/admin/groups/${id}`, data);
+  }
+
+  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<any> | ApiError> {
+    return this.delete<any>(`/v1/notifications/admin/groups/${id}`);
+  }
+
+  async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
+    return this.post<{ count: number }>("/v1/notifications/admin/seed-types");
+  }
 }
 
 export function createApiClient(

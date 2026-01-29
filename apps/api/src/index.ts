@@ -20,12 +20,12 @@ function ensureDatabaseUrl(): void {
   // This allows ECS to pass secrets as separate variables
   if (process.env.DB_HOST) {
     const { DB_HOST, DB_PORT = "5432", DB_USERNAME, DB_PASSWORD, DB_NAME = "cashsouk" } = process.env;
-    
+
     // Use SSL in production, prefer SSL otherwise
     const sslMode = process.env.NODE_ENV === "production" ? "sslmode=require" : "sslmode=prefer";
-    
+
     process.env.DATABASE_URL = `postgresql://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=public&connection_limit=5&${sslMode}`;
-    
+
     logger.info(`📊 Database URL constructed from environment variables`);
     logger.info(`🔌 Connecting to: ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
   }
@@ -38,8 +38,10 @@ async function main(): Promise<void> {
 
   // Dynamic import AFTER env setup - this ensures Prisma sees the DATABASE_URL
   const { createApp } = await import("./app");
+  const { initJobs } = await import("./lib/jobs");
 
   const app = await createApp();
+  initJobs();
 
   app.listen(PORT, () => {
     logger.info(`🚀 API server running on http://localhost:${PORT}`);

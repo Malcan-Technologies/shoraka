@@ -7,14 +7,13 @@ import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import { useOrganization } from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
-import { SidebarTrigger } from "../components/ui/sidebar";
-import { Separator } from "../components/ui/separator";
 import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { DepositCard } from "../components/deposit-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
+import { Header } from "../components/header";
 
 function InvestorDashboardContent() {
   const { isAuthenticated } = useAuth();
@@ -168,11 +167,7 @@ function InvestorDashboardContent() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-      </header>
+      <Header title="Dashboard" />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
         {/* Grey transparent overlay when account is rejected */}
         {isRejected && (
