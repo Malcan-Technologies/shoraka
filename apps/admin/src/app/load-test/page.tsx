@@ -8,6 +8,7 @@ import { Button } from "@cashsouk/ui/button";
 import { Input, Label } from "@cashsouk/ui";
 import { BoltIcon, StopIcon, PlayIcon } from "@heroicons/react/24/outline";
 
+// Load test page for debugging ECS crashes and memory issues
 const API_URL_DEFAULT = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 type EndpointId = "health" | "404" | "500";
