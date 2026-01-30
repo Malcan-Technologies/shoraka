@@ -318,7 +318,11 @@ model Application {
   status                 ApplicationStatus  @default(DRAFT)
   last_completed_step    Int                @default(0)
   financing_type         Json?
-  verify_company_info    Json?
+  financing_structure    Json?
+  contract_details       Json?
+  invoice_details        Json?
+  company_details        Json?
+  business_details       Json?
   supporting_documents   Json?
   declarations           Json?
   review_and_submit      Json?
