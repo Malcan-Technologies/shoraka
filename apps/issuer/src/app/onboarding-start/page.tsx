@@ -17,10 +17,9 @@ import {
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
 import { redirectToLanding } from "../../lib/auth";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { AccountTypeSelector } from "../../components/account-type-selector";
+import { useHeader } from "../../components/header-provider";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 
@@ -30,6 +29,12 @@ const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3
 type OnboardingStep = "welcome" | "name-input" | "account-type";
 
 function OnboardingStartPageContent() {
+  const { setTitle } = useHeader();
+
+  useEffect(() => {
+    setTitle("Onboarding");
+  }, [setTitle]);
+
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
   const { isLoading: orgLoading } = useOrganization();
@@ -98,7 +103,7 @@ function OnboardingStartPageContent() {
 
     const fetchUser = async () => {
       const token = await getAccessToken();
-      
+
       if (!token) {
         if (isMounted) {
           setLoading(false);
@@ -109,7 +114,7 @@ function OnboardingStartPageContent() {
 
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        
+
         const userResult = await apiClient.get<{
           user: {
             first_name: string;
@@ -120,7 +125,7 @@ function OnboardingStartPageContent() {
             active: number;
           };
         }>("/v1/auth/me");
-        
+
         if (userResult.success && userResult.data) {
           if (isMounted) {
             const firstName = userResult.data.user.first_name || "";
@@ -129,7 +134,7 @@ function OnboardingStartPageContent() {
               firstName,
               lastName,
             });
-            
+
             // Check if names are missing
             if (!firstName.trim() || !lastName.trim()) {
               setStep("name-input");
@@ -146,7 +151,7 @@ function OnboardingStartPageContent() {
     };
 
     fetchUser();
-    
+
     return () => {
       isMounted = false;
     };
@@ -158,7 +163,7 @@ function OnboardingStartPageContent() {
       setStep("name-input");
       return;
     }
-    
+
     // Proceed to account type selection (logging will happen when user confirms account type)
     setOnboardingStarted(true);
     setStep("account-type");
@@ -205,11 +210,6 @@ function OnboardingStartPageContent() {
   if (loading || orgLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Skeleton className="h-6 w-28" />
-        </header>
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
           <div className="w-full max-w-md">
             <div className="flex justify-center mb-8">
@@ -249,15 +249,6 @@ function OnboardingStartPageContent() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        {mounted ? (
-          <SidebarTrigger className="-ml-1" />
-        ) : (
-          <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-        )}
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Onboarding</h1>
-      </header>
       <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
         <div className="w-full max-w-md flex flex-col items-center">
           {/* Logo */}
@@ -407,11 +398,6 @@ export default function OnboardingStartPage() {
     <Suspense
       fallback={
         <>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-            <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Skeleton className="h-6 w-28" />
-          </header>
           <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>

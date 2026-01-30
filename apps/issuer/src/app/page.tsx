@@ -11,9 +11,16 @@ import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
-import { Header } from "../components/header";
+import { useHeader } from "../components/header-provider";
 
 function IssuerDashboardContent() {
+  const { setTitle } = useHeader();
+
+  // Set header title
+  useEffect(() => {
+    setTitle("Dashboard");
+  }, [setTitle]);
+
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const {
@@ -160,7 +167,6 @@ function IssuerDashboardContent() {
 
   return (
     <>
-      <Header title="Dashboard" />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-8 p-2 md:p-4">
           {/* Onboarding Status Section - shown when not all steps are complete */}

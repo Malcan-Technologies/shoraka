@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -41,6 +39,7 @@ import { TransferOwnershipDialog } from "../../components/transfer-ownership-dia
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import { useHeader } from "../../components/header-provider";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -155,13 +154,14 @@ function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?:
 }
 
 function ProfileSkeleton() {
+  const { setTitle } = useHeader();
+
+  React.useEffect(() => {
+    setTitle("Profile");
+  }, [setTitle]);
+
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Skeleton className="h-5 w-32" />
-      </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
           <Skeleton className="h-10 w-64" />
@@ -178,14 +178,14 @@ function ProfileSkeleton() {
 
 function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPrompt?: boolean }) {
   const router = useRouter();
+  const { setTitle } = useHeader();
+
+  React.useEffect(() => {
+    setTitle("Profile");
+  }, [setTitle]);
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold text-muted-foreground">Profile</h1>
-      </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8">
           <div className="rounded-xl border bg-card p-8 text-center opacity-60">
@@ -369,6 +369,12 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
 }
 
 export default function ProfilePage() {
+  const { setTitle } = useHeader();
+
+  React.useEffect(() => {
+    setTitle("Profile");
+  }, [setTitle]);
+
   const { isAuthenticated } = useAuth();
   const { getAccessToken } = useAuthToken();
   const {
@@ -755,12 +761,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Profile</h1>
-      </header>
-
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
           {/* Page Header */}

@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
+import { Header } from "../components/header";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <SidebarProvider>
               <AppSidebar />
-              <SidebarInset>{children}</SidebarInset>
+              <SidebarInset>
+                <Header />
+                {children}
+              </SidebarInset>
             </SidebarProvider>
             <Toaster />
           </AuthGuard>
