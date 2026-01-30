@@ -79,6 +79,7 @@ export default function AcceptInvitationPage() {
       // If invitation is already accepted, treat it as success
       if (error.message.includes("already been accepted")) {
         setInvitationAccepted(true);
+        refreshOrganizations();
         toast.success("Welcome back! Redirecting...");
       } else {
         toast.error("Failed to accept invitation", { description: error.message });
@@ -144,19 +145,37 @@ export default function AcceptInvitationPage() {
     );
   }
 
-  if (acceptMutation.isSuccess) {
+  // "Already accepted" is treated as success: show same UI and redirect
+  const isAlreadyAccepted =
+    acceptMutation.isError &&
+    invitationAccepted &&
+    acceptMutation.error instanceof Error &&
+    acceptMutation.error.message.includes("already been accepted");
+
+  if (acceptMutation.isSuccess || isAlreadyAccepted) {
     return (
       <>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center space-y-4">
             <CheckCircleIcon className="h-12 w-12 text-green-600 mx-auto" />
-            <h1 className="text-2xl font-bold">Invitation Accepted</h1>
-            <p className="text-muted-foreground">You have successfully joined the organization.</p>
-                {showNameDialog ? (
-                  <p className="text-sm text-muted-foreground">Please complete your profile...</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Redirecting to profile...</p>
-                )}
+            <h1 className="text-2xl font-bold">
+              {isAlreadyAccepted ? "You're already a member" : "Invitation Accepted"}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAlreadyAccepted
+                ? "You have already joined this organization."
+                : "You have successfully joined the organization."}
+            </p>
+            {showNameDialog ? (
+              <p className="text-sm text-muted-foreground">Please complete your profile...</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Redirecting to profile...</p>
+            )}
+            {isAlreadyAccepted && (
+              <Button onClick={() => router.push("/profile")} variant="outline" className="mt-2">
+                Go to Profile
+              </Button>
+            )}
           </div>
         </div>
         <NameEntryDialog
@@ -179,7 +198,7 @@ export default function AcceptInvitationPage() {
               ? acceptMutation.error.message
               : "An error occurred while accepting the invitation."}
           </p>
-          <Button onClick={() => router.push("/dashboard")}>Go to Dashboard</Button>
+          <Button onClick={() => router.push("/profile")}>Go to Profile</Button>
         </div>
       </div>
     );
