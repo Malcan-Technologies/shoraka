@@ -96,9 +96,9 @@ export default function AcceptInvitationPage() {
       if (!hasName) {
         setShowNameDialog(true);
       } else {
-        // Name exists, redirect to account page
+        // Name exists, redirect to profile page
         setTimeout(() => {
-          router.push("/account");
+          router.push("/profile");
         }, 1000);
       }
     }
@@ -106,9 +106,9 @@ export default function AcceptInvitationPage() {
 
   const handleNameComplete = () => {
     setShowNameDialog(false);
-    // Refetch profile to get updated name, then redirect to account page
+    // Refetch profile to get updated name, then redirect to profile page
     setTimeout(() => {
-      router.push("/account");
+      router.push("/profile");
     }, 500);
   };
 
@@ -126,7 +126,7 @@ export default function AcceptInvitationPage() {
           <XCircleIcon className="h-12 w-12 text-destructive mx-auto" />
           <h1 className="text-2xl font-bold">Invalid Invitation</h1>
           <p className="text-muted-foreground">No invitation token provided.</p>
-          <Button onClick={() => router.push("/account")}>Go to Account</Button>
+          <Button onClick={() => router.push("/profile")}>Go to Profile</Button>
         </div>
       </div>
     );
@@ -155,7 +155,7 @@ export default function AcceptInvitationPage() {
                 {showNameDialog ? (
                   <p className="text-sm text-muted-foreground">Please complete your profile...</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Redirecting to account...</p>
+                  <p className="text-sm text-muted-foreground">Redirecting to profile...</p>
                 )}
           </div>
         </div>
