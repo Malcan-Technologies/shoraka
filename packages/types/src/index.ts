@@ -118,7 +118,7 @@ export interface Application {
   financing_type?: any;
   invoice_details?: any;
   buyer_details?: any;
-  verify_company_info?: any;
+  company_details?: any;
   supporting_documents?: any;
   declarations?: any;
   review_submit?: any;

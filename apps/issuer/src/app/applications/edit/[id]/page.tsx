@@ -10,10 +10,15 @@ import { useApplication, useUpdateApplicationStep, useArchiveApplication } from 
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import {
+  getStepKeyFromStepId,
+  APPLICATION_STEP_KEYS_WITH_UI,
+  STEP_KEY_DISPLAY,
+} from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
-import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";
+import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import {
   Dialog,
@@ -135,7 +140,7 @@ export default function EditApplicationPage() {
    * Example workflow:
    * [
    *   { name: "Financing Type", id: "financing_type" },
-   *   { name: "Verify Company Info", id: "verify_company_info" },
+   *   { name: "Company Details", id: "company_details" },
    *   { name: "Documents", id: "supporting_documents" },
    *   { name: "Declarations", id: "declarations" }
    * ]
@@ -186,56 +191,22 @@ export default function EditApplicationPage() {
     return step || null;
   }, [application, productsData, stepFromUrl]);
   
-  // Get the step ID (e.g., "financing_type", "verify_company_info")
+  // Get the step ID (e.g., "financing_type_1", "company_details_123")
   const currentStepId = currentStepConfig?.id || "";
+  // Derive step key from ID (e.g., "company_details_1" -> "company_details")
+  const currentStepKey = getStepKeyFromStepId(currentStepId);
   
   /**
    * Check if current step is mapped to a component
-   * 
-   * If step is not mapped, we show placeholder and disable save button
+   * Step key must match Application column and have a corresponding step file.
    */
-  const isStepMapped = React.useMemo(() => {
-    const mappedStepIds = [
-      "financing_type_1",
-      "verify_company_info_1",
-      "company_info_1",
-      "declarations_1",
-      "supporting_documents_1",
-    ];
-    return mappedStepIds.includes(currentStepId);
-  }, [currentStepId]);
-  
-  /**
-   * STEP TITLES AND DESCRIPTIONS
-   * 
-   * Custom titles and descriptions for each step ID.
-   * These override the default step names from the workflow.
-   */
-  const stepTitles: Record<string, { title: string; description: string }> = {
-    "financing_type_1": {
-      title: "Select Financing Type",
-      description: "Choose the type of financing that best suits your business needs"
-    },
-    "verify_company_info_1": {
-      title: "Verify Company Information",
-      description: "Review and confirm your company details are accurate"
-    },
-    "company_info_1": {
-      title: "Verify Company Information",
-      description: "Review and confirm your company details are accurate"
-    },
-    "declarations_1": {
-      title: "Declarations",
-      description: "Please read and accept all declarations to continue"
-    },
-    "supporting_documents_1": {
-      title: "Upload Documents",
-      description: "Upload all required supporting documents for your application"
-    },
-  };
+  const isStepMapped = React.useMemo(
+    () => currentStepKey !== null && APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any),
+    [currentStepKey]
+  );
   
   // Get custom title/description or fall back to workflow step name
-  const currentStepInfo = stepTitles[currentStepId] || {
+  const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
     title: workflowSteps[stepFromUrl - 1] || "Loading...",
     description: "Complete this step to continue"
   };
@@ -251,8 +222,8 @@ export default function EditApplicationPage() {
     const financingType = application?.financing_type as any;
     const savedProductId = financingType?.product_id;
     
-    // Match step ID to component
-    if (currentStepId === "financing_type_1") {
+    // Match step key (Application column name) to component
+    if (currentStepKey === "financing_type") {
       return (
         <FinancingTypeStep
           initialProductId={savedProductId}
@@ -261,16 +232,16 @@ export default function EditApplicationPage() {
       );
     }
     
-    if (currentStepId === "verify_company_info_1" ) {
+    if (currentStepKey === "company_details") {
       return (
-        <VerifyCompanyInfoStep
+        <CompanyDetailsStep
           applicationId={applicationId}
           onDataChange={handleDataChange}
         />
       );
     }
     
-    if (currentStepId === "declarations_1") {
+    if (currentStepKey === "declarations") {
       return (
         <DeclarationsStep
           applicationId={applicationId}
@@ -279,7 +250,8 @@ export default function EditApplicationPage() {
         />
       );
     }
-    if (currentStepId === "supporting_documents_1") {
+    
+    if (currentStepKey === "supporting_documents") {
       return (
         <SupportingDocumentsStep
           applicationId={applicationId}
@@ -505,7 +477,7 @@ export default function EditApplicationPage() {
        * 
        * Some steps need to save additional data before saving the application.
        * For example:
-       * - verify_company_info updates organization data first
+       * - company_details updates organization data first
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
       if (dataToSave?.saveFunction) {
@@ -515,7 +487,7 @@ export default function EditApplicationPage() {
         if (returnedData) {
           // For supporting documents, the returned data IS the complete categories structure
           // We need to wrap it in supporting_documents key
-          if (currentStepId === "supporting_documents" || currentStepId === "supporting_documents_1") {
+          if (currentStepKey === "supporting_documents") {
             dataToSave = {
               supporting_documents: returnedData,
             };
@@ -532,7 +504,7 @@ export default function EditApplicationPage() {
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepId === "declarations_1") {
+      if (currentStepKey === "declarations") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
         

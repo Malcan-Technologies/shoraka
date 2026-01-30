@@ -23,20 +23,20 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * VERIFY COMPANY INFO STEP
- * 
+ * COMPANY DETAILS STEP
+ *
  * Read-only display of organization information.
  * User reviews their company details before submitting application.
- * 
+ *
  * Data Flow:
  * 1. Load organization data from database using hooks
  * 2. Display in read-only format
  * 3. Pass organization ID to parent for saving
- * 
+ *
  * Database format: { issuer_organization_id: "clx123" }
  */
 
-interface VerifyCompanyInfoStepProps {
+interface CompanyDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
 }
@@ -79,10 +79,10 @@ const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 pl-3 sm:pl-4 md:pl-6";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 sm:mt-6 pl-3 sm:pl-4 md:pl-6";
 
-export function VerifyCompanyInfoStep({
+export function CompanyDetailsStep({
   applicationId,
   onDataChange,
-}: VerifyCompanyInfoStepProps) {
+}: CompanyDetailsStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
@@ -113,12 +113,12 @@ export function VerifyCompanyInfoStep({
 
   /**
    * CONTACT PERSON STATE
-   * 
-   * Contact person data is stored in application.verify_company_info.contact_person
+   *
+   * Contact person data is stored in application.company_details.contact_person
    * This is user input, not fetched from organization.
    */
   const { data: application } = useApplication(applicationId);
-  const savedContactPerson = (application?.verify_company_info as any)?.contact_person;
+  const savedContactPerson = (application?.company_details as any)?.contact_person;
   
   const [contactPerson, setContactPerson] = React.useState<{
     name: string;
@@ -331,7 +331,7 @@ export function VerifyCompanyInfoStep({
       await saveAllPendingChanges();
       
       // Return contact person data to be saved to application
-      // The data will be saved to verify_company_info field
+      // The data will be saved to company_details field
       return {
         contact_person: {
           name: contactPerson.name.trim(),
@@ -342,7 +342,7 @@ export function VerifyCompanyInfoStep({
       };
     };
 
-    // Structure data to be saved to verify_company_info field
+    // Structure data to be saved to company_details field
     // Include both issuer_organization_id and contact_person
     // Pass hasPendingChanges flag so parent knows if there are actual unsaved changes
     onDataChange({

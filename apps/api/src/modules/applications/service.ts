@@ -32,7 +32,7 @@ export class ApplicationService {
     const stepIdToColumn: Record<string, keyof Application> = {
       // step id: field name in application column
       "financing_type_1": "financing_type",
-      "verify_company_info_1": "verify_company_info",
+      "company_details_1": "company_details",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
     };
