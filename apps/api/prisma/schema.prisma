@@ -333,6 +333,14 @@ model Application {
   @@map("applications")
 }
 
+model Contract {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("contracts")
+}
+
 model OrganizationMember {
   id                       String                 @id @default(cuid())
   user_id                  String
