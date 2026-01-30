@@ -71,13 +71,18 @@ export default function AcceptInvitationPage() {
       // Refresh organizations and switch to the new one
       await refreshOrganizations();
       switchOrganization(data.organizationId);
-      
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("pending_invitation_token");
+      }
       setInvitationAccepted(true);
       toast.success("Invitation accepted successfully!");
     },
     onError: (error: Error) => {
       // If invitation is already accepted, treat it as success
       if (error.message.includes("already been accepted")) {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("pending_invitation_token");
+        }
         setInvitationAccepted(true);
         refreshOrganizations();
         toast.success("Welcome back! Redirecting...");
