@@ -32,9 +32,14 @@ export class ApplicationService {
     const stepIdToColumn: Record<string, keyof Application> = {
       // step id: field name in application column
       "financing_type_1": "financing_type",
+      "financing_structure_1": "financing_structure",
+      "contract_details_1": "contract_details",
+      "invoice_details_1": "invoice_details",
       "company_details_1": "company_details",
+      "business_details_1": "business_details",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
+      "review_and_submit_1": "review_and_submit",
     };
     
     return stepIdToColumn[stepId] || null;

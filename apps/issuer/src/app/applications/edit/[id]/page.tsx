@@ -137,13 +137,10 @@ export default function EditApplicationPage() {
    * Get the list of steps from the product workflow.
    * Each product defines its own workflow steps.
    * 
-   * Example workflow:
-   * [
-   *   { name: "Financing Type", id: "financing_type" },
-   *   { name: "Company Details", id: "company_details" },
-   *   { name: "Documents", id: "supporting_documents" },
-   *   { name: "Declarations", id: "declarations" }
-   * ]
+   * Example workflow (step keys match Application columns and API stepIdToColumn):
+   * Financing Type, Financing Structure, Contract Details, Invoice Details,
+   * Company Details, Business Details, Supporting Documents, Declarations, Review And Submit
+   * Step IDs from product: e.g. financing_type_1, company_details_1, declarations_1
    */
   const workflowSteps = React.useMemo(() => {
     if (!application || !productsData) return [];
@@ -260,11 +257,25 @@ export default function EditApplicationPage() {
         />
       );
     }
-    
-    // Placeholder for unmapped steps
+
+    // Placeholder for steps not yet implemented (names match Application columns)
+    if (
+      currentStepKey === "financing_structure" ||
+      currentStepKey === "contract_details" ||
+      currentStepKey === "invoice_details" ||
+      currentStepKey === "business_details" ||
+      currentStepKey === "review_and_submit"
+    ) {
+      return (
+        <div className="text-center py-12 text-muted-foreground">
+          Coming soon...
+        </div>
+      );
+    }
+
     return (
       <div className="text-center py-12 text-muted-foreground">
-       Coming soon...
+        Coming soon...
       </div>
     );
   };

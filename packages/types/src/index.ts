@@ -116,12 +116,14 @@ export interface Application {
   status: ApplicationStatus;
   last_completed_step: number;
   financing_type?: any;
+  financing_structure?: any;
+  contract_details?: any;
   invoice_details?: any;
-  buyer_details?: any;
   company_details?: any;
+  business_details?: any;
   supporting_documents?: any;
   declarations?: any;
-  review_submit?: any;
+  review_and_submit?: any;
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
@@ -160,3 +162,4 @@ export interface GetProductsResponse {
 
 export * from "./activity-config";
 export * from "./admin";
+export * from "./application-steps";
