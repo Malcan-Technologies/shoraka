@@ -71,14 +71,20 @@ export default function AcceptInvitationPage() {
       // Refresh organizations and switch to the new one
       await refreshOrganizations();
       switchOrganization(data.organizationId);
-      
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("pending_invitation_token");
+      }
       setInvitationAccepted(true);
       toast.success("Invitation accepted successfully!");
     },
     onError: (error: Error) => {
       // If invitation is already accepted, treat it as success
       if (error.message.includes("already been accepted")) {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("pending_invitation_token");
+        }
         setInvitationAccepted(true);
+        refreshOrganizations();
         toast.success("Welcome back! Redirecting...");
       } else {
         toast.error("Failed to accept invitation", { description: error.message });
@@ -96,9 +102,9 @@ export default function AcceptInvitationPage() {
       if (!hasName) {
         setShowNameDialog(true);
       } else {
-        // Name exists, redirect to account page
+        // Name exists, redirect to profile page
         setTimeout(() => {
-          router.push("/account");
+          router.push("/profile");
         }, 1000);
       }
     }
@@ -106,9 +112,9 @@ export default function AcceptInvitationPage() {
 
   const handleNameComplete = () => {
     setShowNameDialog(false);
-    // Refetch profile to get updated name, then redirect to account page
+    // Refetch profile to get updated name, then redirect to profile page
     setTimeout(() => {
-      router.push("/account");
+      router.push("/profile");
     }, 500);
   };
 
@@ -126,7 +132,7 @@ export default function AcceptInvitationPage() {
           <XCircleIcon className="h-12 w-12 text-destructive mx-auto" />
           <h1 className="text-2xl font-bold">Invalid Invitation</h1>
           <p className="text-muted-foreground">No invitation token provided.</p>
-          <Button onClick={() => router.push("/account")}>Go to Account</Button>
+          <Button onClick={() => router.push("/profile")}>Go to Profile</Button>
         </div>
       </div>
     );
@@ -144,19 +150,37 @@ export default function AcceptInvitationPage() {
     );
   }
 
-  if (acceptMutation.isSuccess) {
+  // "Already accepted" is treated as success: show same UI and redirect
+  const isAlreadyAccepted =
+    acceptMutation.isError &&
+    invitationAccepted &&
+    acceptMutation.error instanceof Error &&
+    acceptMutation.error.message.includes("already been accepted");
+
+  if (acceptMutation.isSuccess || isAlreadyAccepted) {
     return (
       <>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center space-y-4">
             <CheckCircleIcon className="h-12 w-12 text-green-600 mx-auto" />
-            <h1 className="text-2xl font-bold">Invitation Accepted</h1>
-            <p className="text-muted-foreground">You have successfully joined the organization.</p>
-                {showNameDialog ? (
-                  <p className="text-sm text-muted-foreground">Please complete your profile...</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Redirecting to account...</p>
-                )}
+            <h1 className="text-2xl font-bold">
+              {isAlreadyAccepted ? "You're already a member" : "Invitation Accepted"}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAlreadyAccepted
+                ? "You have already joined this organization."
+                : "You have successfully joined the organization."}
+            </p>
+            {showNameDialog ? (
+              <p className="text-sm text-muted-foreground">Please complete your profile...</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Redirecting to profile...</p>
+            )}
+            {isAlreadyAccepted && (
+              <Button onClick={() => router.push("/profile")} variant="outline" className="mt-2">
+                Go to Profile
+              </Button>
+            )}
           </div>
         </div>
         <NameEntryDialog
@@ -179,7 +203,7 @@ export default function AcceptInvitationPage() {
               ? acceptMutation.error.message
               : "An error occurred while accepting the invitation."}
           </p>
-          <Button onClick={() => router.push("/dashboard")}>Go to Dashboard</Button>
+          <Button onClick={() => router.push("/profile")}>Go to Profile</Button>
         </div>
       </div>
     );

@@ -401,8 +401,6 @@ export default function ProfilePage() {
     isLeaving,
     isTransferringOwnership,
   } = useOrganizationMembers(activeOrganization?.id);
-  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id);
-
 
   // Fetch current user ID
   const { data: currentUser } = useQuery({
@@ -433,6 +431,10 @@ export default function ProfilePage() {
     );
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
+
+  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
+    enabled: isCurrentUserAdmin,
+  });
 
   // Confirmation dialog states
   const [confirmDialog, setConfirmDialog] = React.useState<{
@@ -1450,7 +1452,8 @@ export default function ProfilePage() {
               )}
 
               {/* Invite Member Dialog */}
-              {activeOrganization?.id && (
+              {/* Invite Member Dialog - only mount for org admins to avoid 403 on invitations API */}
+              {activeOrganization?.id && isCurrentUserAdmin && (
                 <InviteMemberDialog
                   organizationId={activeOrganization.id}
                   open={inviteDialogOpen}

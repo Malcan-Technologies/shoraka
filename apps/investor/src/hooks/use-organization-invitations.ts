@@ -4,10 +4,14 @@ import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useOrganizationInvitations(organizationId: string | undefined) {
+export function useOrganizationInvitations(
+  organizationId: string | undefined,
+  options?: { enabled?: boolean }
+) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
+  const canFetch = options?.enabled !== false && !!organizationId;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["organization-invitations", organizationId],
@@ -33,7 +37,7 @@ export function useOrganizationInvitations(organizationId: string | undefined) {
       }
       return result.data.invitations;
     },
-    enabled: !!organizationId,
+    enabled: canFetch,
   });
 
   const inviteMutation = useMutation({
