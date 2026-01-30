@@ -11,7 +11,7 @@ import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
-import { useHeader } from "../components/header-provider";
+import { useHeader } from "@cashsouk/ui";
 
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();

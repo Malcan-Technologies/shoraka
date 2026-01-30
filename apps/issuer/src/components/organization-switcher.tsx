@@ -18,7 +18,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization, type Organization, type OnboardingStatus, createApiClient } from "@cashsouk/config";
 import { useAuthToken } from "@cashsouk/config";

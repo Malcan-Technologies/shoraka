@@ -28,12 +28,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { NotificationPreferences } from "@cashsouk/ui";
+import { NotificationPreferences, useHeader } from "@cashsouk/ui";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { CopyableField } from "@cashsouk/ui/copyable-field";
 import { BellIcon } from "@heroicons/react/24/outline";
-import { useHeader } from "../../components/header-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 

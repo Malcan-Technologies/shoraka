@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Badge, Skeleton, ActivityToolbar } from "@cashsouk/ui";
+import { ActivityItem, Badge, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import { useHeader } from "../../components/header-provider";
 
 export default function ActivityPage() {
   const { setTitle } = useHeader();

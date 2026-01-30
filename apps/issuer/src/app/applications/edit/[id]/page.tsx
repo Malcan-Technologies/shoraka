@@ -9,7 +9,7 @@ import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ProgressIndicator } from "../../components/progress-indicator";
-import { useHeader } from "../../../components/header-provider";
+import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { VerifyCompanyInfoStep } from "../../steps/verify-company-info-step";

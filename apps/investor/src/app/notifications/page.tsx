@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useHeader } from "../../components/header-provider";
-import { NotificationList } from "@cashsouk/ui";
+import { NotificationList, useHeader } from "@cashsouk/ui";
 
 export default function NotificationsPage() {
   const { setTitle } = useHeader();

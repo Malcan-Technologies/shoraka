@@ -1,8 +1,8 @@
 "use client";
 
-import { SidebarTrigger } from "./ui/sidebar";
-import { Separator } from "./ui/separator";
-import { NotificationBell } from "@cashsouk/ui";
+import { SidebarTrigger } from "./sidebar";
+import { Separator } from "./separator";
+import { NotificationBell } from "./notification-bell";
 import { useHeader } from "./header-provider";
 
 interface HeaderProps {

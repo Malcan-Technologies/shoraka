@@ -40,7 +40,7 @@ import { TransferOwnershipDialog } from "../../components/transfer-ownership-dia
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader } from "../../components/header-provider";
+import { useHeader } from "@cashsouk/ui";
 import {
   UserIcon,
   BuildingOffice2Icon,

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode, useState } from "react";
 import { AuthProvider, OrganizationProvider } from "@cashsouk/config";
 import "../lib/amplify-config"; // Initialize Amplify
-import { HeaderProvider } from "../components/header-provider";
+import { HeaderProvider } from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 

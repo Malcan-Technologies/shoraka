@@ -19,7 +19,7 @@ import { redirectToLanding } from "../../lib/auth";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { Skeleton } from "../../components/ui/skeleton";
 import { AccountTypeSelector } from "../../components/account-type-selector";
-import { useHeader } from "../../components/header-provider";
+import { useHeader } from "@cashsouk/ui";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 

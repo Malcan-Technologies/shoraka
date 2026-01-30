@@ -3,11 +3,10 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
+import { SidebarInset, SidebarProvider, Header } from "@cashsouk/ui";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
-import { Header } from "../components/header";
 
 const inter = Inter({
   subsets: ["latin"],

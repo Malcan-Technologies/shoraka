@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
-import { useHeader } from "../../../components/header-provider";
+import { useHeader } from "@cashsouk/ui";
 
 /**
  * NEW APPLICATION PAGE
