@@ -427,6 +427,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
     const defaultOrder = [
       "Financing Type",
       "Verify Company Info",
+      "Business details",
       "Supporting Documents",
       "Declarations",
       "Review & Submit",

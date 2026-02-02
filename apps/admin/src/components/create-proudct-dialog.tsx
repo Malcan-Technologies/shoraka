@@ -121,6 +121,7 @@ function validateSupportingDocuments(steps: any[]): boolean {
 const DEFAULT_WORKFLOW = [
   { id: "financing_type_1", name: "Financing Type", config: {} },
   { id: "verify_company_info_1", name: "Verify Company Info", config: {} },
+  { id: "business_details_1", name: "Business details", config: {} },
   { id: "supporting_documents_1", name: "Supporting Documents", config: {} },
   { id: "declarations_1", name: "Declarations", config: {} },
   { id: "review_and_submit_1", name: "Review & Submit", config: {} },

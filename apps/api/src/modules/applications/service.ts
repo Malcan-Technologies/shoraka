@@ -1,7 +1,11 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
-import { CreateApplicationInput, UpdateApplicationStepInput } from "./schemas";
+import {
+  CreateApplicationInput,
+  UpdateApplicationStepInput,
+  businessDetailsDataSchema,
+} from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
 import {
@@ -26,11 +30,11 @@ export class ApplicationService {
   }
 
   /**
-   * Map step ID to database field name
+   * Map step ID to database field name.
+   * Exact match first; then strip trailing _<digits> and map by base id (e.g. business_details_1738... -> business_details).
    */
   private getFieldNameForStepId(stepId: string): keyof Application | null {
     const stepIdToColumn: Record<string, keyof Application> = {
-      // step id: field name in application column
       "financing_type_1": "financing_type",
       "financing_structure_1": "financing_structure",
       "contract_details_1": "contract_details",
@@ -42,8 +46,24 @@ export class ApplicationService {
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
     };
-    
-    return stepIdToColumn[stepId] || null;
+
+    const exact = stepIdToColumn[stepId];
+    if (exact) return exact;
+
+    const baseId = stepId.replace(/_\d+$/, "");
+    const baseToColumn: Record<string, keyof Application> = {
+      financing_type: "financing_type",
+      financing_structure: "financing_structure",
+      contract_details: "contract_details",
+      invoice_details: "invoice_details",
+      company_details: "company_details",
+      verify_company_info: "company_details",
+      business_details: "business_details",
+      supporting_documents: "supporting_documents",
+      declarations: "declarations",
+      review_and_submit: "review_and_submit",
+    };
+    return baseToColumn[baseId] ?? null;
   }
 
   /**
@@ -187,6 +207,14 @@ export class ApplicationService {
 
     if (fieldName === "company_details") {
       this.validateCompanyDetailsData(input.data as Record<string, unknown>);
+    }
+
+    if (fieldName === "business_details") {
+      const result = businessDetailsDataSchema.safeParse(input.data);
+      if (!result.success) {
+        const message = result.error.errors.map((e) => e.message).join("; ");
+        throw new AppError(400, "VALIDATION_ERROR", message);
+      }
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {

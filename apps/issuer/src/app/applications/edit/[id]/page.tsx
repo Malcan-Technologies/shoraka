@@ -19,6 +19,7 @@ import { ProgressIndicator } from "../../components/progress-indicator";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
+import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import {
   Dialog,
@@ -259,6 +260,15 @@ export default function EditApplicationPage() {
       );
     }
     
+    if (currentStepKey === "business_details") {
+      return (
+        <BusinessDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
     if (currentStepKey === "supporting_documents") {
       return (
         <SupportingDocumentsStep
@@ -274,7 +284,6 @@ export default function EditApplicationPage() {
       currentStepKey === "financing_structure" ||
       currentStepKey === "contract_details" ||
       currentStepKey === "invoice_details" ||
-      currentStepKey === "business_details" ||
       currentStepKey === "review_and_submit"
     ) {
       return (
@@ -492,7 +501,6 @@ export default function EditApplicationPage() {
     try {
       // Get the data from the current step
       let dataToSave = stepDataRef.current;
-      console.log(dataToSave)
       
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
@@ -534,6 +542,18 @@ export default function EditApplicationPage() {
           toast.error("Please check all declarations to continue");
           return;
         }
+      }
+
+      if (currentStepKey === "business_details") {
+        if (!dataToSave?.declarationConfirmed) {
+          toast.error("Please confirm the declaration to continue");
+          return;
+        }
+        dataToSave = {
+          aboutYourBusiness: dataToSave.aboutYourBusiness,
+          whyRaisingFunds: dataToSave.whyRaisingFunds,
+          declarationConfirmed: dataToSave.declarationConfirmed,
+        };
       }
       
       // For now, we're using placeholder data
@@ -605,6 +625,9 @@ export default function EditApplicationPage() {
     } else if (data?.areAllDeclarationsChecked !== undefined) {
       // Declarations step provides this flag to indicate if all boxes are checked
       setIsCurrentStepValid(data.areAllDeclarationsChecked);
+    } else if (data?.isDeclarationConfirmed !== undefined) {
+      // Business details step: declaration checkbox must be checked
+      setIsCurrentStepValid(data.isDeclarationConfirmed);
     } else {
       // Default to valid if step doesn't provide validation
       setIsCurrentStepValid(true);

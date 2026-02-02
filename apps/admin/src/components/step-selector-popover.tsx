@@ -12,6 +12,7 @@ import {
   ClipboardDocumentCheckIcon,
   CurrencyDollarIcon,
   CheckCircleIcon,
+  DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 
 export interface StepType {
@@ -44,6 +45,13 @@ const AVAILABLE_STEPS: StepType[] = [
     defaultConfig: {
       requiredFields: [],
     },
+  },
+  {
+    id: "business_details",
+    name: "Business details",
+    description: "Tell us about your business and why you're raising funds",
+    icon: DocumentTextIcon,
+    defaultConfig: {},
   },
   {
     id: "supporting_documents",
