@@ -43,3 +43,17 @@ export const getProductsListQuerySchema = z.object({
 });
 
 export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;
+
+// Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
+export const createProductBodySchema = z.object({
+  workflow: z.array(z.unknown()).min(1),
+});
+
+export type CreateProductBody = z.infer<typeof createProductBodySchema>;
+
+// Body for PATCH /v1/products/:id. Version is auto-incremented on every update; not accepted from client.
+export const updateProductBodySchema = z.object({
+  workflow: z.array(z.unknown()).optional(),
+});
+
+export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

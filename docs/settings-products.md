@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Settings/Products page in the admin portal (`/settings/products`) lets admins view and search product definitions. It is read-only: list and view details only.
+The Settings/Products page in the admin portal (`/settings/products`) lets admins view, create, edit, and delete product definitions. Create and Edit use the same popup (dialog) with name, version, and drag-and-drop workflow steps.
 
 ## What you can do
 
@@ -13,8 +13,8 @@ The Settings/Products page in the admin portal (`/settings/products`) lets admin
 
 ## UI
 
-- **Toolbar:** Search input, Clear (when search has text), Reload button, count badge.
-- **Table:** Product name (from workflow type), Version, Updated, Actions (View). Loading skeleton and empty state (“No products found”) match the documents table style.
+- **Toolbar:** Search input, Clear, **Create product** button, Reload button, count badge.
+- **Table:** Product name (from workflow type), Version, Updated, Actions (dropdown: View, Edit, Delete). Edit opens the same popup as Create (workflow builder with drag-and-drop cards). Loading skeleton and empty state (“No products found”) match the documents table style.
 - **Error:** If the list request fails, an error message appears above the table (same pattern as Organizations).
 - **Pagination:** Previous/Next when there is more than one page.
 
@@ -29,6 +29,8 @@ Search is by product name only: backend filters on workflow JSON text (contains,
 
 - **Page:** `apps/admin/src/app/settings/products/page.tsx`
 - **List UI:** `apps/admin/src/app/settings/products/components/products-list.tsx`
-- **Hook:** `apps/admin/src/app/settings/products/hooks/use-products.ts`
+- **Workflow builder (Create/Edit popup):** `apps/admin/src/app/settings/products/workflow-builder/` — `product-form-dialog.tsx` (same UI for create and edit), `workflow-step-card.tsx` (draggable step card)
+- **Shared utils:** `apps/admin/src/app/settings/products/product-utils.ts` (productName, workflowWithName, stepDisplayName, getDefaultWorkflowSteps)
+- **Hook:** `apps/admin/src/app/settings/products/hooks/use-products.ts` (useProducts, useProduct, useCreateProduct, useUpdateProduct, useDeleteProduct)
 - **API:** `apps/api/src/modules/products/products-controller.ts`, `repository.ts`
 - **E2E:** `apps/admin/e2e/products.spec.ts` (smoke: heading, search, Reload).

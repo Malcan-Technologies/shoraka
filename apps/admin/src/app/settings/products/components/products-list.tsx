@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from "react";
 import type { Product } from "@cashsouk/types";
-import { useProducts, useInvalidateProducts, type UseProductsParams } from "../hooks/use-products";
+import {
+  useProducts,
+  useInvalidateProducts,
+  useDeleteProduct,
+  type UseProductsParams,
+} from "../hooks/use-products";
 import { Input } from "../../../../components/ui/input";
 import { Button } from "../../../../components/ui/button";
 import { Badge } from "../../../../components/ui/badge";
@@ -23,22 +28,25 @@ import {
   DialogFooter,
 } from "../../../../components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../../../components/ui/dropdown-menu";
+import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
   EyeIcon,
+  PencilSquareIcon,
+  TrashIcon,
   CubeIcon,
   XMarkIcon,
+  EllipsisVerticalIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
-
-/** Get display name from first workflow step: config.name or config.type.name. Never shows id. */
-function productName(p: Product): string {
-  const first = p.workflow?.[0] as {
-    config?: { name?: string; type?: { name?: string } };
-  } | undefined;
-  const name =
-    first?.config?.name?.trim() ?? first?.config?.type?.name?.trim();
-  return name ?? "—";
-}
+import { toast } from "sonner";
+import { productName } from "../product-utils";
+import { ProductFormDialog } from "../workflow-builder/product-form-dialog";
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-MY", {
@@ -55,7 +63,20 @@ export function ProductsList() {
   const [pageSize] = useState(10);
   const [search, setSearch] = useState("");
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [productFormProductId, setProductFormProductId] = useState<string | null>(null);
   const invalidateProducts = useInvalidateProducts();
+  const deleteProduct = useDeleteProduct();
+
+  const openCreateProduct = () => {
+    setProductFormProductId(null);
+    setProductFormOpen(true);
+  };
+  const openEditProduct = (p: Product) => {
+    setProductFormProductId(p.id);
+    setProductFormOpen(true);
+  };
 
   const params: UseProductsParams = { page, pageSize, search: search || undefined };
   const { data, isPending, isError, error } = useProducts(params);
@@ -73,9 +94,39 @@ export function ProductsList() {
     setPage(1);
   };
 
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+    try {
+      await deleteProduct.mutateAsync(productToDelete.id);
+      toast.success("Product deleted");
+      setProductToDelete(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  };
+
   return (
     <>
-      {/* Toolbar – same layout as documents */}
+      {/* Title row: heading left, Create product right */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Products</h1>
+          <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+            View and manage product definitions and workflows.
+          </p>
+        </div>
+        <Button
+          variant="default"
+          onClick={openCreateProduct}
+          className="gap-2 h-11 rounded-xl shrink-0"
+          aria-label="Create product"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Create product
+        </Button>
+      </div>
+
+      {/* Toolbar – search, clear, reload, count */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -178,19 +229,37 @@ export function ProductsList() {
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate(p.updated_at)}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setViewProduct(p)}
-                        title="View"
-                        aria-label={`View ${productName(p)}`}
-                      >
-                        <EyeIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Actions for ${productName(p)}`}
+                            >
+                              <EllipsisVerticalIcon className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setViewProduct(p)}>
+                              <EyeIcon className="h-4 w-4 mr-2" />
+                              View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditProduct(p)}>
+                              <PencilSquareIcon className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setProductToDelete(p)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <TrashIcon className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                 </TableRow>
               ))
             )}
@@ -240,6 +309,31 @@ export function ProductsList() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewProduct(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ProductFormDialog
+        open={productFormOpen}
+        onOpenChange={setProductFormOpen}
+        productId={productFormProductId}
+      />
+
+      <Dialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete product</DialogTitle>
+          </DialogHeader>
+          {productToDelete && (
+            <p className="text-sm text-muted-foreground">
+              Delete &quot;{productName(productToDelete)}&quot;? This cannot be undone.
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProductToDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProduct.isPending}>
+              {deleteProduct.isPending ? "Deleting…" : "Delete"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

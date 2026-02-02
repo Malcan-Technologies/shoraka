@@ -924,6 +924,18 @@ export class ApiClient {
     return this.get<Product>(`/v1/products/${id}`);
   }
 
+  async createProduct(data: { workflow: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+    return this.post<Product>("/v1/products", data);
+  }
+
+  async updateProduct(id: string, data: { workflow?: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+    return this.patch<Product>(`/v1/products/${id}`, data);
+  }
+
+  async deleteProduct(id: string): Promise<ApiResponse<unknown> | ApiError> {
+    return this.delete<unknown>(`/v1/products/${id}`);
+  }
+
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications`, data);

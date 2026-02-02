@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
 import { ProductRepository } from "./repository";
-import { getProductsListQuerySchema } from "./schemas";
+import { getProductsListQuerySchema, createProductBodySchema, updateProductBodySchema } from "./schemas";
 
 const router = Router();
 const productRepository = new ProductRepository();
@@ -52,6 +52,36 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 );
 
 /**
+ * POST /v1/products
+ * Create a product (admin only).
+ */
+router.post("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = createProductBodySchema.parse(req.body);
+    const product = await productRepository.create({
+      workflow: validated.workflow,
+    });
+    res.status(201).json({
+      success: true,
+      data: {
+        id: product.id,
+        version: product.version,
+        workflow: product.workflow as unknown[],
+        created_at: product.created_at.toISOString(),
+        updated_at: product.updated_at.toISOString(),
+      },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof Error
+        ? new AppError(400, "VALIDATION_ERROR", error.message)
+        : error
+    );
+  }
+});
+
+/**
  * GET /v1/products/:id
  * Get a single product by id (admin only).
  */
@@ -78,5 +108,54 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
     }
   }
 );
+
+/**
+ * PATCH /v1/products/:id
+ * Update a product (admin only).
+ */
+router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const validated = updateProductBodySchema.parse(req.body);
+    const product = await productRepository.update(id, {
+      workflow: validated.workflow,
+    });
+    res.json({
+      success: true,
+      data: {
+        id: product.id,
+        version: product.version,
+        workflow: product.workflow as unknown[],
+        created_at: product.created_at.toISOString(),
+        updated_at: product.updated_at.toISOString(),
+      },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof Error
+        ? new AppError(400, "VALIDATION_ERROR", error.message)
+        : error
+    );
+  }
+});
+
+/**
+ * DELETE /v1/products/:id
+ * Delete a product (admin only).
+ */
+router.delete("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const product = await productRepository.findById(id);
+    if (!product) {
+      throw new AppError(404, "NOT_FOUND", "Product not found");
+    }
+    await productRepository.delete(id);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
 
 export const productsRouter = router;

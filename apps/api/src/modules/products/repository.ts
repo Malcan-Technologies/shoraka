@@ -8,13 +8,48 @@ export interface ListProductsParams {
   search?: string;
 }
 
+export interface UpdateProductData {
+  workflow?: unknown[];
+}
+
+export interface CreateProductData {
+  workflow: unknown[];
+}
+
 /**
- * Product read: findById and list with pagination. Used by applications module and admin products list.
- * No create/update/delete; list/read HTTP routes only.
+ * Product read/write: findById, list, create, update, delete. Used by applications module and admin products list.
  */
 export class ProductRepository {
   async findById(id: string): Promise<Product | null> {
     return prisma.product.findUnique({
+      where: { id },
+    });
+  }
+
+  async create(data: CreateProductData): Promise<Product> {
+    return prisma.product.create({
+      data: {
+        version: 1,
+        workflow: data.workflow as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /** Update product. Version is always auto-incremented on every change; client cannot set it. */
+  async update(id: string, data: UpdateProductData): Promise<Product> {
+    return prisma.product.update({
+      where: { id },
+      data: {
+        ...(data.workflow !== undefined && {
+          workflow: data.workflow as Prisma.InputJsonValue,
+          version: { increment: 1 },
+        }),
+      },
+    });
+  }
+
+  async delete(id: string): Promise<Product> {
+    return prisma.product.delete({
       where: { id },
     });
   }
