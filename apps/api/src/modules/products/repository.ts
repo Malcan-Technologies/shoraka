@@ -22,20 +22,40 @@ export class ProductRepository {
   async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
     const { page, pageSize, search } = params;
     const skip = (page - 1) * pageSize;
-    const where = search?.trim()
-      ? { id: { contains: search.trim(), mode: "insensitive" as const } }
-      : undefined;
+    const searchTrim = search?.trim();
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { updated_at: "desc" },
-      }),
-      prisma.product.count({ where }),
+    if (!searchTrim) {
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          skip,
+          take: pageSize,
+          orderBy: { updated_at: "desc" },
+        }),
+        prisma.product.count(),
+      ]);
+      return { products, total };
+    }
+
+    const pattern = `%${searchTrim}%`;
+    const [products, countResult] = await Promise.all([
+      prisma.$queryRaw<Product[]>`
+        SELECT * FROM products
+        WHERE (
+          (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+          OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+        )
+        ORDER BY updated_at DESC
+        LIMIT ${pageSize} OFFSET ${skip}
+      `,
+      prisma.$queryRaw<[{ count: number }]>`
+        SELECT COUNT(*)::int as count FROM products
+        WHERE (
+          (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+          OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+        )
+      `,
     ]);
-
+    const total = countResult[0]?.count ?? 0;
     return { products, total };
   }
 }

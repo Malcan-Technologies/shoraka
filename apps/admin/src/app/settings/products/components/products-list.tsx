@@ -30,10 +30,14 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
-/** Get display name from product workflow (first step type name). */
+/** Get display name from first workflow step: config.name or config.type.name. Never shows id. */
 function productName(p: Product): string {
-  const first = p.workflow?.[0] as { config?: { type?: { name?: string } } } | undefined;
-  return first?.config?.type?.name ?? p.id;
+  const first = p.workflow?.[0] as {
+    config?: { name?: string; type?: { name?: string } };
+  } | undefined;
+  const name =
+    first?.config?.name?.trim() ?? first?.config?.type?.name?.trim();
+  return name ?? "—";
 }
 
 function formatDate(dateStr: string): string {
@@ -54,7 +58,7 @@ export function ProductsList() {
   const invalidateProducts = useInvalidateProducts();
 
   const params: UseProductsParams = { page, pageSize, search: search || undefined };
-  const { data, isPending } = useProducts(params);
+  const { data, isPending, isError, error } = useProducts(params);
 
   const products = data?.products ?? [];
   const totalCount = data?.pagination.totalCount ?? 0;
@@ -76,11 +80,11 @@ export function ProductsList() {
         <div className="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search products..."
+            placeholder="Search by name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-11 rounded-xl"
-            aria-label="Search products"
+            aria-label="Search products by name"
           />
         </div>
         {search && (
@@ -109,6 +113,13 @@ export function ProductsList() {
         </Badge>
       </div>
 
+      {isError && (
+        <div className="text-center py-8 text-destructive">
+          Error loading products:{" "}
+          {error instanceof Error ? error.message : "Unknown error"}
+        </div>
+      )}
+
       {/* Table – same wrapper and structure as documents */}
       <div className="rounded-xl border border-border bg-card">
         <Table>
@@ -116,6 +127,7 @@ export function ProductsList() {
             <TableRow>
               <TableHead className="w-[300px]">Product</TableHead>
               <TableHead>Version</TableHead>
+              <TableHead>Created</TableHead>
               <TableHead>Updated</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -134,15 +146,21 @@ export function ProductsList() {
                     <Skeleton className="h-5 w-24" />
                   </TableCell>
                   <TableCell>
+                    <Skeleton className="h-5 w-24" />
+                  </TableCell>
+                  <TableCell>
                     <Skeleton className="h-8 w-24 ml-auto" />
                   </TableCell>
                 </TableRow>
               ))
             ) : products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No products found</p>
+                  <p className="text-sm mt-1">
+                    {search.trim() ? "Try a different search term or clear the search." : "No products in the system yet."}
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -154,6 +172,9 @@ export function ProductsList() {
                     </p>
                   </TableCell>
                   <TableCell className="text-sm">v{p.version}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatDate(p.created_at)}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate(p.updated_at)}
                   </TableCell>
@@ -212,7 +233,6 @@ export function ProductsList() {
           {viewProduct && (
             <div className="grid gap-2 text-sm">
               <p><span className="font-medium text-muted-foreground">Name</span> {productName(viewProduct)}</p>
-              <p><span className="font-medium text-muted-foreground">ID</span> {viewProduct.id}</p>
               <p><span className="font-medium text-muted-foreground">Version</span> {viewProduct.version}</p>
               <p><span className="font-medium text-muted-foreground">Created</span> {new Date(viewProduct.created_at).toLocaleString()}</p>
               <p><span className="font-medium text-muted-foreground">Updated</span> {new Date(viewProduct.updated_at).toLocaleString()}</p>
