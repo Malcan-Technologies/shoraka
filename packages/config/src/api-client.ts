@@ -50,12 +50,6 @@ import type {
   GetProductLogsParams,
   ProductLogsResponse,
   ExportProductLogsParams,
-  RequestProductImageUploadUrlInput,
-  RequestProductImageUploadUrlResponse,
-  RequestProductImageDownloadUrlInput,
-  ProductImageDownloadUrlResponse,
-  RequestProductImageReplaceUrlInput,
-  RequestProductImageReplaceUrlResponse,
   GetActivitiesParams,
   ActivitiesResponse,
   Product,
@@ -894,34 +888,6 @@ export class ApiClient {
     }
 
     return response.blob();
-  }
-
-  // Product Images
-  async requestProductImageUploadUrl(
-    data: RequestProductImageUploadUrlInput
-  ): Promise<ApiResponse<RequestProductImageUploadUrlResponse> | ApiError> {
-    return this.post<RequestProductImageUploadUrlResponse>(
-      `/v1/products/images/upload-url`,
-      data
-    );
-  }
-
-  async requestProductImageDownloadUrl(
-    data: RequestProductImageDownloadUrlInput
-  ): Promise<ApiResponse<ProductImageDownloadUrlResponse> | ApiError> {
-    return this.post<ProductImageDownloadUrlResponse>(
-      `/v1/products/images/download-url`,
-      data
-    );
-  }
-
-  async requestProductImageReplaceUrl(
-    data: RequestProductImageReplaceUrlInput
-  ): Promise<ApiResponse<RequestProductImageReplaceUrlResponse> | ApiError> {
-    return this.post<RequestProductImageReplaceUrlResponse>(
-      `/v1/products/images/replace-url`,
-      data
-    );
   }
 
   // Activities

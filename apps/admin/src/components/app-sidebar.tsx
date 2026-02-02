@@ -94,8 +94,8 @@ const navPlatform = [
       { title: "General", url: "/settings/general" },
       { title: "Security", url: "/settings/security" },
       { title: "Notifications", url: "/settings/notifications" },
-      { title: "Roles", url: "/settings/roles" },
       { title: "Products", url: "/settings/products" },
+      { title: "Roles", url: "/settings/roles" },
     ],
   },
 ];

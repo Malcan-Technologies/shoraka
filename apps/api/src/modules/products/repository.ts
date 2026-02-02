@@ -2,110 +2,41 @@ import { prisma } from "../../lib/prisma";
 import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
 
-export class ProductRepository {
-  /**
-   * Create a new product
-   */
-  async create(data: { workflow: Prisma.InputJsonValue }): Promise<Product> {
-    return prisma.product.create({
-      data: {
-        workflow: data.workflow,
-      },
-    });
-  }
+export interface ListProductsParams {
+  page: number;
+  pageSize: number;
+  search?: string;
+}
 
-  /**
-   * Find product by ID
-   */
+/**
+ * Product read: findById and list with pagination. Used by applications module and admin products list.
+ * No create/update/delete; list/read HTTP routes only.
+ */
+export class ProductRepository {
   async findById(id: string): Promise<Product | null> {
     return prisma.product.findUnique({
       where: { id },
     });
   }
 
-  /**
-   * List products with pagination and search
-   */
-  async list(params: {
-    page: number;
-    pageSize: number;
-    search?: string;
-  }): Promise<{
-    products: Product[];
-    totalCount: number;
-  }> {
-    const skip = (params.page - 1) * params.pageSize;
+  async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
+    const { page, pageSize, search } = params;
+    const skip = (page - 1) * pageSize;
+    const where = search?.trim()
+      ? { id: { contains: search.trim(), mode: "insensitive" as const } }
+      : undefined;
 
-    if (params.search && params.search.trim()) {
-      const searchTerm = `%${params.search.trim()}%`;
-      
-      const searchQuery = Prisma.sql`
-        SELECT DISTINCT p.*
-        FROM products p
-        WHERE 
-          LOWER((p.workflow::jsonb->0->'config'->'type'->>'name')::text) LIKE LOWER(${searchTerm})
-          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'category')::text) LIKE LOWER(${searchTerm})
-        ORDER BY p.created_at DESC
-        LIMIT ${params.pageSize} OFFSET ${skip}
-      `;
-
-      const countQuery = Prisma.sql`
-        SELECT COUNT(DISTINCT p.id) as count
-        FROM products p
-        WHERE 
-          LOWER((p.workflow::jsonb->0->'config'->'type'->>'name')::text) LIKE LOWER(${searchTerm})
-          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'description')::text) LIKE LOWER(${searchTerm})
-      `;
-
-      const [productsResult, countResult] = await Promise.all([
-        prisma.$queryRaw<Product[]>(searchQuery),
-        prisma.$queryRaw<[{ count: bigint }]>(countQuery),
-      ]);
-
-      const totalCount = Number(countResult[0]?.count || 0);
-
-      return {
-        products: productsResult,
-        totalCount,
-      };
-    }
-
-    const [products, totalCount] = await Promise.all([
+    const [products, total] = await Promise.all([
       prisma.product.findMany({
+        where,
         skip,
-        take: params.pageSize,
-        orderBy: { created_at: "desc" },
+        take: pageSize,
+        orderBy: { updated_at: "desc" },
       }),
-      prisma.product.count(),
+      prisma.product.count({ where }),
     ]);
 
-    return { products, totalCount };
-  }
-
-  /**
-   * Update product
-   */
-  async update(
-    id: string,
-    data: { workflow?: Prisma.InputJsonValue }
-  ): Promise<Product> {
-    return prisma.product.update({
-      where: { id },
-      data: {
-        ...(data.workflow && { workflow: data.workflow }),
-        ...(data.workflow && { version: { increment: 1 } }),
-        updated_at: new Date(),
-      },
-    });
-  }
-
-  /**
-   * Delete product
-   */
-  async delete(id: string): Promise<void> {
-    await prisma.product.delete({
-      where: { id },
-    });
+    return { products, total };
   }
 }
 
@@ -119,6 +50,10 @@ export interface CreateProductLogData {
   metadata?: Record<string, unknown> | null;
 }
 
+/**
+ * Product log repository: read/write product audit logs only.
+ * Product CRUD and image logic have been removed.
+ */
 export class ProductLogRepository {
   async create(data: CreateProductLogData) {
     return prisma.productLog.create({
