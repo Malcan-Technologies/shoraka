@@ -36,6 +36,7 @@ export class ApplicationService {
       "contract_details_1": "contract_details",
       "invoice_details_1": "invoice_details",
       "company_details_1": "company_details",
+      "verify_company_info_1": "company_details",
       "business_details_1": "business_details",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
@@ -43,6 +44,32 @@ export class ApplicationService {
     };
     
     return stepIdToColumn[stepId] || null;
+  }
+
+  /**
+   * Validate company_details payload: contact_person.ic (digits/dashes only), contact (phone chars only)
+   */
+  private validateCompanyDetailsData(data: Record<string, unknown>): void {
+    const contactPerson = data?.contact_person as Record<string, unknown> | undefined;
+    if (!contactPerson) return;
+
+    const ic = typeof contactPerson.ic === "string" ? contactPerson.ic : "";
+    if (ic && !/^[\d-]*$/.test(ic)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Applicant IC number must contain only numbers and dashes (no letters)"
+      );
+    }
+
+    const contact = typeof contactPerson.contact === "string" ? contactPerson.contact : "";
+    if (contact && !/^[\d\s+\-()]*$/.test(contact)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Applicant contact must contain only numbers and valid phone characters (+, -, spaces, parentheses)"
+      );
+    }
   }
 
   /**
@@ -156,6 +183,10 @@ export class ApplicationService {
     const fieldName = this.getFieldNameForStepId(input.stepId);
     if (!fieldName) {
       throw new AppError(400, "INVALID_STEP_ID", `Invalid step ID: ${input.stepId}`);
+    }
+
+    if (fieldName === "company_details") {
+      this.validateCompanyDetailsData(input.data as Record<string, unknown>);
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {

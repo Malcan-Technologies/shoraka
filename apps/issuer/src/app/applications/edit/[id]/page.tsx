@@ -160,7 +160,15 @@ export default function EditApplicationPage() {
     // Return step names
     return product.workflow.map((step: any) => step.name);
   }, [application, productsData]);
-  
+
+  const displayStepNames = React.useMemo(
+    () =>
+      workflowSteps.map((name: string) =>
+        name === "Verify Company Info" ? "Company details" : name
+      ),
+    [workflowSteps]
+  );
+
   const isLoading = isLoadingApp || isLoadingProducts;
   
   /**
@@ -188,10 +196,13 @@ export default function EditApplicationPage() {
     return step || null;
   }, [application, productsData, stepFromUrl]);
   
-  // Get the step ID (e.g., "financing_type_1", "company_details_123")
+  // Get the step ID (e.g., "financing_type_1", "verify_company_info_1")
   const currentStepId = currentStepConfig?.id || "";
-  // Derive step key from ID (e.g., "company_details_1" -> "company_details")
-  const currentStepKey = getStepKeyFromStepId(currentStepId);
+  // Derive step key; treat "verify_company_info" (admin workflow) as "company_details"
+  const rawKey = currentStepId.replace(/_\d+$/, "");
+  const currentStepKey =
+    getStepKeyFromStepId(currentStepId) ??
+    (rawKey === "verify_company_info" ? ("company_details" as const) : null);
   
   /**
    * Check if current step is mapped to a component
@@ -661,7 +672,7 @@ export default function EditApplicationPage() {
           
           {/* Progress Indicator */}
           <ProgressIndicator
-            steps={workflowSteps}
+            steps={displayStepNames}
             currentStep={stepFromUrl}
             isLoading={false}
           />
