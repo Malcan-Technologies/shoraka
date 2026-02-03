@@ -140,7 +140,7 @@ export function FinancingTypeConfig({
   const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
 
   return (
-    <div className="grid gap-3 pt-2 text-sm leading-6 sm:gap-4 min-w-0 overflow-hidden">
+    <div className="grid gap-3 pt-2 text-sm leading-6 sm:gap-4 min-w-0">
       <div className="grid gap-2 min-w-0">
         <Label htmlFor="ft-name" className="text-sm font-medium">Name</Label>
         <Input
@@ -173,7 +173,7 @@ export function FinancingTypeConfig({
       </div>
       <div className="space-y-2 min-w-0">
         <Label htmlFor="ft-image" className="text-sm font-medium">Image</Label>
-        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200 min-w-0 w-full overflow-hidden">
+        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200 min-w-0 w-full">
           <Input
             ref={fileInputRef}
             id="ft-image"

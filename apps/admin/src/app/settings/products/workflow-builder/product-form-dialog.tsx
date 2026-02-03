@@ -498,7 +498,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4 overflow-hidden">
+          <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4">
             <div className="grid gap-2 shrink-0 min-w-0">
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="min-w-0">

@@ -67,7 +67,7 @@ export function WorkflowStepCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className={`overflow-hidden shrink-0 transition-colors duration-500 ${isJustAdded ? "bg-muted/50" : ""} ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
+      className={`overflow-visible shrink-0 transition-colors duration-500 ${isJustAdded ? "bg-muted/50" : ""} ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
     >
       <Collapsible open={isExpanded} onOpenChange={onOpenChange}>
         <CardContent className="p-0">

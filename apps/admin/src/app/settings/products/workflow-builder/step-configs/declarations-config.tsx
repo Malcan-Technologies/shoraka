@@ -91,7 +91,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
               <span className="flex h-8 w-6 shrink-0 items-center justify-center text-sm font-medium text-muted-foreground tabular-nums">
                 {index + 1}
               </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <Textarea
                   id={`declaration-${index}`}
                   value={item.text}
