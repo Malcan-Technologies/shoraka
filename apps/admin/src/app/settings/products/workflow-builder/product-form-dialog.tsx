@@ -140,11 +140,15 @@ function getRequiredStepErrors(steps: unknown[]): string[] {
         : (Object.keys(config) as string[]).filter((k) =>
             SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number])
           );
-      for (const key of enabledCategories) {
-        const list = config[key] as Array<{ name?: string }> | undefined;
-        if (!Array.isArray(list) || list.length === 0) {
-          const label = SUPPORTING_DOC_CATEGORY_LABELS[key as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number]] ?? key;
-          errors.push(`${stepLabel}: "${label}" must have at least one document`);
+      if (enabledCategories.length === 0) {
+        errors.push(`${stepLabel}: add at least one category`);
+      } else {
+        const hasEmptyCategory = enabledCategories.some((key) => {
+          const list = config[key] as Array<{ name?: string }> | undefined;
+          return !Array.isArray(list) || list.length === 0;
+        });
+        if (hasEmptyCategory) {
+          errors.push(`${stepLabel}: every category must have at least one document`);
         }
       }
       let docsMissingName = 0;
