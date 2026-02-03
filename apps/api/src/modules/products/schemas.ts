@@ -67,3 +67,18 @@ export const productImageUploadUrlBodySchema = z.object({
 });
 
 export type ProductImageUploadUrlBody = z.infer<typeof productImageUploadUrlBodySchema>;
+
+const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
+
+const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+// Body for POST /v1/products/upload-document-template-url (admin). Returns presigned URL + s3Key. PDF only, max 5MB.
+export const productDocumentTemplateUploadUrlBodySchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.string().refine((v) => ALLOWED_DOCUMENT_TEMPLATE_TYPES.includes(v), {
+    message: "Only PDF is allowed for document templates",
+  }),
+  fileSize: z.number().max(MAX_TEMPLATE_SIZE_BYTES, "Template must be 5MB or less").optional(),
+});
+
+export type ProductDocumentTemplateUploadUrlBody = z.infer<typeof productDocumentTemplateUploadUrlBodySchema>;

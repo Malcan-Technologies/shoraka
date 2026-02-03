@@ -135,3 +135,17 @@ export function useProductImageUploadUrl() {
     },
   });
 }
+
+/** Request presigned upload URL for a product document template. Caller must then PUT file to uploadUrl and store returned s3Key in workflow config. */
+export function useProductDocumentTemplateUploadUrl() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (body: { fileName: string; contentType: string; fileSize?: number }) => {
+      const response = await apiClient.requestProductDocumentTemplateUploadUrl(body);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}

@@ -1,13 +1,14 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
 import { generatePresignedUploadUrl } from "../../lib/s3/client";
-import { generateProductImageKey, getFileExtension } from "../../lib/s3/client";
+import { generateProductImageKey, generateProductDocumentTemplateKey, getFileExtension } from "../../lib/s3/client";
 import { ProductRepository } from "./repository";
 import {
   getProductsListQuerySchema,
   createProductBodySchema,
   updateProductBodySchema,
   productImageUploadUrlBodySchema,
+  productDocumentTemplateUploadUrlBodySchema,
 } from "./schemas";
 
 const router = Router();
@@ -67,6 +68,33 @@ router.post("/upload-image-url", async (req: Request, res: Response, next: NextF
     const validated = productImageUploadUrlBodySchema.parse(req.body);
     const ext = getFileExtension(validated.fileName) || "png";
     const key = generateProductImageKey(ext);
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: validated.contentType,
+    });
+    res.json({
+      success: true,
+      data: { uploadUrl, s3Key, expiresIn },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof Error
+        ? new AppError(400, "VALIDATION_ERROR", error.message)
+        : error
+    );
+  }
+});
+
+/**
+ * POST /v1/products/upload-document-template-url
+ * Request presigned URL for uploading a product document template (admin only). Key stored in workflow config.
+ */
+router.post("/upload-document-template-url", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = productDocumentTemplateUploadUrlBodySchema.parse(req.body);
+    const ext = getFileExtension(validated.fileName) || "pdf";
+    const key = generateProductDocumentTemplateKey(ext);
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: validated.contentType,

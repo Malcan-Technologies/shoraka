@@ -947,6 +947,18 @@ export class ApiClient {
     );
   }
 
+  /** Request presigned URL for uploading a product document template (admin). Key stored in workflow config. */
+  async requestProductDocumentTemplateUploadUrl(body: {
+    fileName: string;
+    contentType: string;
+    fileSize?: number;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      "/v1/products/upload-document-template-url",
+      body
+    );
+  }
+
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications`, data);

@@ -233,6 +233,16 @@ export function generateProductImageKey(extension: string): string {
 }
 
 /**
+ * Generate S3 key for product document templates (admin upload, stored in workflow config).
+ * Format: products/documents/{timestamp}{random}.{ext}
+ */
+export function generateProductDocumentTemplateKey(extension: string): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 10);
+  return `products/documents/${timestamp}${random}.${extension}`;
+}
+
+/**
  * Generate S3 key for site documents
  * Format: site-documents/{type}/{version}-{date}-{cuid}.{ext}
  */

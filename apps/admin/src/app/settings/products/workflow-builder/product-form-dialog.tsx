@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   DndContext,
   closestCenter,
@@ -33,13 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl } from "../hooks/use-products";
+import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductDocumentTemplateUploadUrl } from "../hooks/use-products";
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
 const FIRST_STEP_KEY = "financing_type";
 const LAST_STEP_KEY = "review_and_submit";
+const SUPPORTING_DOCS_STEP_KEY = "supporting_documents";
 
 /** Step keys that have no config UI in this dialog; no collapse arrow or config panel. */
 const STEPS_WITHOUT_CONFIG = new Set([
@@ -71,11 +72,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const requestUploadUrl = useProductImageUploadUrl();
+  const requestTemplateUploadUrl = useProductDocumentTemplateUploadUrl();
   const [steps, setSteps] = useState<unknown[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const [addStepValue, setAddStepValue] = useState<string>("");
   const [justAddedStepId, setJustAddedStepId] = useState<string | null>(null);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
 
   const allAvailableSteps = getDefaultWorkflowSteps();
   const addedIds = steps.map(getStepId);
@@ -114,6 +117,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   useEffect(() => {
     if (!open) {
       setPendingImageFile(null);
+      setPendingSupportingDocTemplates({});
       return;
     }
     if (isEdit && product) {
@@ -205,6 +209,38 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         setPendingImageFile(null);
       }
+      const supportingDocEntries = Object.entries(pendingSupportingDocTemplates);
+      if (supportingDocEntries.length > 0) {
+        const supportingStep = workflowToSave.find(
+          (s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY
+        ) as { id: string; name?: string; config?: Record<string, unknown> } | undefined;
+        if (supportingStep) {
+          let stepConfig = { ...(supportingStep.config ?? {}) } as Record<string, unknown>;
+          for (const [slotKey, file] of supportingDocEntries) {
+            const parts = slotKey.split("_");
+            const indexStr = parts[parts.length - 1];
+            const categoryKey = parts.slice(0, -1).join("_");
+            const index = parseInt(indexStr, 10);
+            if (Number.isNaN(index) || !categoryKey) continue;
+            const { uploadUrl, s3Key } = await requestTemplateUploadUrl.mutateAsync({
+              fileName: file.name,
+              contentType: file.type,
+              fileSize: file.size,
+            });
+            await uploadFileToS3(uploadUrl, file);
+            const list = (stepConfig[categoryKey] as Record<string, unknown>[]) ?? [];
+            const item = { ...(list[index] as Record<string, unknown> ?? {}), template: { s3_key: s3Key, filename: file.name, file_size: file.size } };
+            const nextList = [...list];
+            nextList[index] = item;
+            stepConfig = { ...stepConfig, [categoryKey]: nextList };
+          }
+          workflowToSave = workflowToSave.map((s) => {
+            if (getStepId(s) !== supportingStep.id) return s;
+            return { ...(s as Record<string, unknown>), config: stepConfig };
+          });
+        }
+        setPendingSupportingDocTemplates({});
+      }
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
@@ -221,7 +257,24 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     }
   };
 
-  const isSaving = createProduct.isPending || updateProduct.isPending || requestUploadUrl.isPending;
+  const isSaving =
+    createProduct.isPending ||
+    updateProduct.isPending ||
+    requestUploadUrl.isPending ||
+    requestTemplateUploadUrl.isPending;
+
+  const handlePendingSupportingDocTemplate = useCallback(
+    (categoryKey: string, index: number, file: File | null) => {
+      const slotKey = `${categoryKey}_${index}`;
+      setPendingSupportingDocTemplates((prev) => {
+        const next = { ...prev };
+        if (file) next[slotKey] = file;
+        else delete next[slotKey];
+        return next;
+      });
+    },
+    []
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -322,7 +375,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                     extraProps={
                                       stepKey === FIRST_STEP_KEY
                                         ? { onPendingImageChange: setPendingImageFile }
-                                        : undefined
+                                        : stepKey === SUPPORTING_DOCS_STEP_KEY
+                                          ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
+                                          : undefined
                                     }
                                   />
                                 )}
