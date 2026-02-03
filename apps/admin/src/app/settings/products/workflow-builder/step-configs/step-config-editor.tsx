@@ -16,6 +16,8 @@ export interface StepConfigEditorProps {
   stepKey: ApplicationStepKey;
   config: unknown;
   onChange: (config: unknown) => void;
+  /** Extra props for the step config component (e.g. onPendingImageChange for financing_type). */
+  extraProps?: Record<string, unknown>;
 }
 
 const STEP_CONFIG_MAP: Record<ApplicationStepKey, React.ComponentType<{ config: unknown; onChange: (config: unknown) => void }>> = {
@@ -31,8 +33,8 @@ const STEP_CONFIG_MAP: Record<ApplicationStepKey, React.ComponentType<{ config: 
 };
 
 /** Renders the correct config UI for a step key. */
-export function StepConfigEditor({ stepKey, config, onChange }: StepConfigEditorProps) {
+export function StepConfigEditor({ stepKey, config, onChange, extraProps }: StepConfigEditorProps) {
   const Component = STEP_CONFIG_MAP[stepKey];
   if (!Component) return null;
-  return <Component config={config} onChange={onChange} />;
+  return <Component config={config} onChange={onChange} {...extraProps} />;
 }

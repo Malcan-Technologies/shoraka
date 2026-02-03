@@ -3,13 +3,10 @@
 import * as React from "react";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
-import { Button } from "../../../../../components/ui/button";
 import { Skeleton } from "../../../../../components/ui/skeleton";
 import { Textarea } from "../../../../../components/ui/textarea";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
-import { useProductImageUploadUrl } from "../../hooks/use-products";
-import { uploadFileToS3 } from "../../../../../hooks/use-site-documents";
 import { toast } from "sonner";
 
 function formatFileSize(bytes: number): string {
@@ -18,10 +15,11 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Image stored in config.image: S3 key and original filename. */
+/** Image stored in config.image: S3 key, filename, optional size in bytes. */
 export interface FinancingTypeImageShape {
   s3_key: string;
   filename: string;
+  file_size?: number;
 }
 
 /** Financing type step config: category, name, description, image. Stored in workflow step config. */
@@ -34,12 +32,13 @@ export interface FinancingTypeConfigShape {
 }
 
 function getImage(c: Record<string, unknown> | undefined): FinancingTypeImageShape | null {
-  const img = c?.image as { s3_key?: string; filename?: string } | undefined;
+  const img = c?.image as { s3_key?: string; filename?: string; file_size?: number } | undefined;
   const s3_key = (img?.s3_key ?? c?.s3_key) as string | undefined;
   if (!s3_key?.trim()) return null;
   return {
     s3_key,
     filename: (img?.filename as string) ?? "",
+    file_size: img?.file_size as number | undefined,
   };
 }
 
@@ -50,7 +49,7 @@ function getConfig(config: unknown): FinancingTypeConfigShape & { imageData: Fin
     category: (c?.category as string) ?? "",
     name: (c?.name as string) ?? "",
     description: (c?.description as string) ?? "",
-    image: imageData ? { s3_key: imageData.s3_key, filename: imageData.filename } : undefined,
+    image: imageData ? { s3_key: imageData.s3_key, filename: imageData.filename, file_size: imageData.file_size } : undefined,
     imageData,
   };
 }
@@ -58,21 +57,39 @@ function getConfig(config: unknown): FinancingTypeConfigShape & { imageData: Fin
 export function FinancingTypeConfig({
   config,
   onChange,
+  onPendingImageChange,
 }: {
   config: unknown;
   onChange: (config: unknown) => void;
+  onPendingImageChange?: (file: File | null) => void;
 }) {
   const current = getConfig(config);
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [pendingFile, setPendingFile] = React.useState<File | null>(null);
+  const [previewDataUrl, setPreviewDataUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const base = (config as Record<string, unknown>) ?? {};
 
-  const requestUploadUrl = useProductImageUploadUrl();
   const imageData = current.imageData;
   const s3Key = imageData?.s3_key ?? "";
   const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
-  const uploading = requestUploadUrl.isPending;
   const [imgError, setImgError] = React.useState(false);
+
+  const hasPreview = pendingFile !== null || imageData !== null;
+
+  // Preview: pending file → FileReader.readAsDataURL (data URL). Saved image → S3 view URL.
+  React.useEffect(() => {
+    if (!pendingFile) {
+      setPreviewDataUrl(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPreviewDataUrl(reader.result as string);
+    reader.readAsDataURL(pendingFile);
+  }, [pendingFile]);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [s3Key]);
 
   const update = React.useCallback(
     (updates: Partial<FinancingTypeConfigShape>) => {
@@ -87,14 +104,11 @@ export function FinancingTypeConfig({
     [config, onChange, current]
   );
 
-  React.useEffect(() => {
-    setImgError(false);
-  }, [s3Key]);
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
-      setSelectedFile(null);
+      setPendingFile(null);
+      onPendingImageChange?.(null);
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -102,22 +116,20 @@ export function FinancingTypeConfig({
       e.target.value = "";
       return;
     }
-    setSelectedFile(file);
-    try {
-      const { uploadUrl, s3Key: newKey } = await requestUploadUrl.mutateAsync({
-        fileName: file.name,
-        contentType: file.type,
-      });
-      await uploadFileToS3(uploadUrl, file);
-      update({ image: { s3_key: newKey, filename: file.name } });
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      toast.success("Image uploaded");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-      setSelectedFile(null);
-    }
+    setPendingFile(file);
+    onPendingImageChange?.(file);
   };
+
+  const handleRemove = () => {
+    setPendingFile(null);
+    onPendingImageChange?.(null);
+    update({ image: undefined });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Pending file → data URL from FileReader. Else saved image (s3_key) → presigned view URL.
+  const previewSrc = pendingFile && previewDataUrl ? previewDataUrl : viewUrl && !imgError ? viewUrl : null;
+  const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
 
   return (
     <div className="grid gap-4 pt-2">
@@ -150,55 +162,60 @@ export function FinancingTypeConfig({
       </div>
       <div className="space-y-2">
         <Label htmlFor="ft-image">Image</Label>
-        <Input
-          ref={fileInputRef}
-          id="ft-image"
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          disabled={uploading}
-        />
-        {selectedFile && (
-          <p className="text-sm text-muted-foreground">
-            {selectedFile.name} ({formatFileSize(selectedFile.size)})
-            {uploading ? " — Uploading…" : ""}
-          </p>
-        )}
-        {imageData && (
-          <div className="space-y-2 pt-2 border-t border-border">
-            <p className="text-xs font-medium text-muted-foreground">
-              Current image {imageData.filename ? `— ${imageData.filename}` : ""}
-            </p>
-            <div className="flex items-start gap-4">
-              <div className="w-28 h-28 shrink-0 rounded-xl border border-border bg-muted flex items-center justify-center overflow-hidden">
-                {viewUrlLoading ? (
+        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200">
+          <Input
+            ref={fileInputRef}
+            id="ft-image"
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className={hasPreview ? "sr-only" : "border-0 bg-transparent p-0 h-auto file:text-sm file:font-medium"}
+            tabIndex={hasPreview ? -1 : undefined}
+          />
+          {hasPreview ? (
+            <div className="flex items-center gap-4 animate-in fade-in-0 duration-200">
+              <div className="w-14 h-14 shrink-0 rounded-md border border-border bg-background overflow-hidden flex items-center justify-center">
+                {previewLoading ? (
                   <Skeleton className="w-full h-full" />
-                ) : viewUrl && !imgError ? (
+                ) : previewSrc ? (
                   <img
-                    src={viewUrl}
+                    src={previewSrc}
                     alt=""
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     onError={() => setImgError(true)}
                   />
                 ) : (
-                  <span className="flex flex-col items-center justify-center gap-1 text-muted-foreground">
-                    <PhotoIcon className="h-10 w-10" />
-                    <span className="text-[10px]">Preview</span>
-                  </span>
+                  <PhotoIcon className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground shrink-0"
-                onClick={() => update({ image: undefined })}
-              >
-                Remove
-              </Button>
+              <div className="min-w-0 flex-1">
+                {(pendingFile || imageData?.filename || imageData?.file_size != null) && (
+                  <p className="text-sm font-medium truncate">
+                    {pendingFile
+                      ? `${pendingFile.name} (${formatFileSize(pendingFile.size)})`
+                      : `${imageData?.filename || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="hover:underline focus:underline focus:outline-none"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    className="ml-2 text-muted-foreground hover:underline hover:text-destructive focus:underline focus:outline-none"
+                  >
+                    Remove
+                  </button>
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          ) : null}
+        </div>
       </div>
     </div>
   );

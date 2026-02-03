@@ -33,7 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { useProduct, useCreateProduct, useUpdateProduct } from "../hooks/use-products";
+import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl } from "../hooks/use-products";
+import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
@@ -60,10 +61,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const { data: product, isPending: loading, isError, error } = useProduct(productId);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+  const requestUploadUrl = useProductImageUploadUrl();
   const [steps, setSteps] = useState<unknown[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const [addStepValue, setAddStepValue] = useState<string>("");
   const [justAddedStepId, setJustAddedStepId] = useState<string | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
 
   const allAvailableSteps = getDefaultWorkflowSteps();
   const addedIds = steps.map(getStepId);
@@ -100,7 +103,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   }
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPendingImageFile(null);
+      return;
+    }
     if (isEdit && product) {
       const raw = product.workflow?.length
         ? (product.workflow as unknown[])
@@ -161,14 +167,43 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       return;
     }
     try {
+      let workflowToSave = steps;
+      if (pendingImageFile) {
+        const { uploadUrl, s3Key: newKey } = await requestUploadUrl.mutateAsync({
+          fileName: pendingImageFile.name,
+          contentType: pendingImageFile.type,
+        });
+        await uploadFileToS3(uploadUrl, pendingImageFile);
+        const firstStep = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY) as
+          | { id: string; name?: string; config?: Record<string, unknown> }
+          | undefined;
+        if (firstStep) {
+          const prevConfig = (firstStep.config ?? {}) as Record<string, unknown>;
+          workflowToSave = steps.map((s) => {
+            if (getStepId(s) !== firstStep.id) return s;
+            return {
+              ...(s as Record<string, unknown>),
+              config: {
+                ...prevConfig,
+                image: {
+                  s3_key: newKey,
+                  filename: pendingImageFile.name,
+                  file_size: pendingImageFile.size,
+                },
+              },
+            };
+          });
+        }
+        setPendingImageFile(null);
+      }
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
-          data: { workflow: steps },
+          data: { workflow: workflowToSave },
         });
         toast.success("Product updated");
       } else {
-        await createProduct.mutateAsync({ workflow: steps });
+        await createProduct.mutateAsync({ workflow: workflowToSave });
         toast.success("Product created");
       }
       onOpenChange(false);
@@ -177,7 +212,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     }
   };
 
-  const isSaving = createProduct.isPending || updateProduct.isPending;
+  const isSaving = createProduct.isPending || updateProduct.isPending || requestUploadUrl.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -272,6 +307,11 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                     stepKey={stepKey}
                                     config={(step as { config?: unknown }).config}
                                     onChange={(config) => handleConfigChange(stepId, config)}
+                                    extraProps={
+                                      stepKey === FIRST_STEP_KEY
+                                        ? { onPendingImageChange: setPendingImageFile }
+                                        : undefined
+                                    }
                                   />
                                 )}
                               </WorkflowStepCard>
