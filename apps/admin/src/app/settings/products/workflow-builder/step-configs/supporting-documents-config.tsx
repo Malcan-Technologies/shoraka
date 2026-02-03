@@ -66,13 +66,11 @@ const ENABLED_CATEGORIES_KEY = "enabled_categories";
 function getEnabledCategories(config: unknown): CategoryKey[] {
   const c = config as Record<string, unknown> | undefined;
   const raw = c?.[ENABLED_CATEGORIES_KEY];
-  if (!Array.isArray(raw)) {
-    const base = c ?? {};
-    const hasAny = CATEGORY_KEYS.some((k) => getCategoryList(base, k).length > 0);
-    if (hasAny) return CATEGORY_KEYS.filter((k) => getCategoryList(base, k).length > 0 || base[k] !== undefined);
-    return ["financial_docs"];
+  if (Array.isArray(raw)) {
+    return raw.filter((k): k is CategoryKey => CATEGORY_KEYS.includes(k as CategoryKey));
   }
-  return raw.filter((k): k is CategoryKey => CATEGORY_KEYS.includes(k as CategoryKey));
+  const base = c ?? {};
+  return CATEGORY_KEYS.filter((k) => base[k] !== undefined);
 }
 
 function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[]> {
@@ -113,16 +111,17 @@ export function SupportingDocumentsConfig({
   }, [config]);
 
   const persist = React.useCallback(
-    (nextLists: Record<CategoryKey, SupportingDocItemShape[]>, _nextEnabled?: CategoryKey[]) => {
+    (nextLists: Record<CategoryKey, SupportingDocItemShape[]>, nextEnabled?: CategoryKey[]) => {
       const payload: Record<string, unknown> = { ...base };
       delete payload[ENABLED_CATEGORIES_KEY];
+      const enabled = nextEnabled ?? enabledCategories;
       CATEGORY_KEYS.forEach((key) => {
-        const list = nextLists[key];
-        if (list.length > 0) payload[key] = list;
+        if (enabled.includes(key)) payload[key] = nextLists[key];
+        else delete payload[key];
       });
       onChange(payload);
     },
-    [base, onChange]
+    [base, onChange, enabledCategories]
   );
 
   const updateCategory = (key: CategoryKey, items: SupportingDocItemShape[]) => {
@@ -140,7 +139,6 @@ export function SupportingDocumentsConfig({
 
   const removeCategory = (key: CategoryKey) => {
     const nextEnabled = enabledCategories.filter((k) => k !== key);
-    if (nextEnabled.length === 0) return;
     setEnabledCategories(nextEnabled);
     const nextLists = { ...lists, [key]: [] };
     setLists(nextLists);
@@ -201,7 +199,8 @@ export function SupportingDocumentsConfig({
     <div className="grid gap-4 pt-2">
       {availableToAdd.length > 0 && (
         <Select
-          value={addCategoryValue}
+          key={enabledCategories.join(",")}
+          value={addCategoryValue || undefined}
           onValueChange={(value) => {
             if (value) {
               addCategory(value as CategoryKey);
@@ -359,7 +358,7 @@ function DocRow({
           <Input
             value={item.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
-            placeholder={index === 0 ? "e.g. Bank statement (last 6 months)" : "Document name"}
+            placeholder="Document name"
             className="text-sm h-8 min-w-0 flex-1"
           />
           <Button
