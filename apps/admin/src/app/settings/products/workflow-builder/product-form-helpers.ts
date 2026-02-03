@@ -1,6 +1,7 @@
 /**
- * Helpers for the product workflow form: validation messages and building the payload we send to the API.
- * Keeps the dialog file shorter and easier to read.
+ * Validation and payload for the product workflow form.
+ * Output to DB: buildPayloadFromSteps() builds the workflow → dialog sends it to API → products-controller → repository → DB.
+ * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";

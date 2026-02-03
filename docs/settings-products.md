@@ -249,8 +249,13 @@ To verify with a real DB: run the API (`pnpm -F @cashsouk/api dev`) and admin ap
 
 - **Page:** `apps/admin/src/app/settings/products/page.tsx`
 - **List UI:** `apps/admin/src/app/settings/products/components/products-list.tsx`
-- **Workflow builder (Create/Edit popup):** `apps/admin/src/app/settings/products/workflow-builder/` — `product-form-dialog.tsx` (same UI for create and edit), `workflow-step-card.tsx` (draggable step card)
+- **Workflow builder (Create/Edit popup):** `apps/admin/src/app/settings/products/workflow-builder/`
+  - **Registry (add new steps here):** `workflow-registry.tsx` — step keys, which have config UI (`STEPS_WITHOUT_CONFIG`), step key → config component (`STEP_CONFIG_MAP`). File comment explains how to add a new step and where payload goes to DB.
+  - **Dialog:** `product-form-dialog.tsx` — create/edit UI, save flow.
+  - **Card:** `workflow-step-card.tsx` — draggable step card.
+  - **Payload & validation:** `product-form-helpers.ts` — `buildPayloadFromSteps()` (output sent to API → DB), `getRequiredStepErrors()`.
+- **Step config components:** `workflow-builder/step-configs/` — one component per step that has a form; registered in `workflow-registry.tsx`.
 - **Shared utils:** `apps/admin/src/app/settings/products/product-utils.ts` (productName, workflowWithName, stepDisplayName, getDefaultWorkflowSteps)
-- **Hook:** `apps/admin/src/app/settings/products/hooks/use-products.ts` (useProducts, useProduct, useCreateProduct, useUpdateProduct, useDeleteProduct)
+- **Hook:** `apps/admin/src/app/settings/products/hooks/use-products.ts`
 - **API:** `apps/api/src/modules/products/products-controller.ts`, `repository.ts`
-- **E2E:** `apps/admin/e2e/products.spec.ts` (smoke: heading, search, Reload).
+- **E2E:** `apps/admin/e2e/products.spec.ts`

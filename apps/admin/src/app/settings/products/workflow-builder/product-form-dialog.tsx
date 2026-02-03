@@ -36,7 +36,7 @@ import {
 import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductTemplateUploadUrl } from "../hooks/use-products";
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
 import {
   getStepId,
   buildPayloadFromSteps,
@@ -50,15 +50,6 @@ import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { toast } from "sonner";
-
-/** Step keys that have no config UI in this dialog; no collapse arrow or config panel. */
-const STEPS_WITHOUT_CONFIG = new Set([
-  "financing_structure",
-  "contract_details",
-  "company_details",
-  "business_details",
-  "review_and_submit",
-]);
 
 export interface ProductFormDialogProps {
   open: boolean;

@@ -1,36 +1,15 @@
 "use client";
 
-import * as React from "react";
-import type { ApplicationStepKey } from "@cashsouk/types";
-import { FinancingTypeConfig } from "./financing-type-config";
-import { FinancingStructureConfig } from "./financing-structure-config";
-import { ContractDetailsConfig } from "./contract-details-config";
-import { InvoiceDetailsConfig } from "./invoice-details-config";
-import { CompanyDetailsConfig } from "./company-details-config";
-import { BusinessDetailsConfig } from "./business-details-config";
-import { SupportingDocumentsConfig } from "./supporting-documents-config";
-import { DeclarationsConfig } from "./declarations-config";
-import { ReviewAndSubmitConfig } from "./review-and-submit-config";
+import type { ApplicationStepKey } from "../workflow-registry";
+import { STEP_CONFIG_MAP } from "../workflow-registry";
 
-/** Renders the config UI for a step. stepKey picks which form to show; extraProps passed through (e.g. onPendingImageChange). */
+/** Renders the config UI for a step. stepKey picks which form; extraProps passed through (e.g. onPendingImageChange). */
 export interface StepConfigEditorProps {
   stepKey: ApplicationStepKey;
   config: unknown;
   onChange: (config: unknown) => void;
   extraProps?: Record<string, unknown>;
 }
-
-const STEP_CONFIG_MAP: Record<ApplicationStepKey, React.ComponentType<{ config: unknown; onChange: (config: unknown) => void }>> = {
-  financing_type: FinancingTypeConfig,
-  financing_structure: FinancingStructureConfig,
-  contract_details: ContractDetailsConfig,
-  invoice_details: InvoiceDetailsConfig,
-  company_details: CompanyDetailsConfig,
-  business_details: BusinessDetailsConfig,
-  supporting_documents: SupportingDocumentsConfig,
-  declarations: DeclarationsConfig,
-  review_and_submit: ReviewAndSubmitConfig,
-};
 
 export function StepConfigEditor({ stepKey, config, onChange, extraProps }: StepConfigEditorProps) {
   const Component = STEP_CONFIG_MAP[stepKey];
