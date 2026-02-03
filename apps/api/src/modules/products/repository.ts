@@ -10,6 +10,8 @@ export interface ListProductsParams {
 
 export interface UpdateProductData {
   workflow?: unknown[];
+  /** When true, replace workflow without incrementing version (used only for the first update right after create). */
+  completeCreate?: boolean;
 }
 
 export interface CreateProductData {
@@ -35,24 +37,17 @@ export class ProductRepository {
     });
   }
 
-  /** Update product. Version is auto-incremented on every change after the first; the first update (version 1) only replaces workflow so new products stay at version 1 after create+upload+update. */
+  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). Otherwise version is always incremented (edit flow). */
   async update(id: string, data: UpdateProductData): Promise<Product> {
     if (data.workflow === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
-    const current = await prisma.product.findUnique({
-      where: { id },
-      select: { version: true },
-    });
-    if (!current) {
-      throw new Error("Product not found");
-    }
-    const keepVersionOne = current.version === 1;
+    const skipIncrement = data.completeCreate === true;
     return prisma.product.update({
       where: { id },
       data: {
         workflow: data.workflow as Prisma.InputJsonValue,
-        ...(keepVersionOne ? { version: 1 } : { version: { increment: 1 } }),
+        ...(skipIncrement ? {} : { version: { increment: 1 } }),
       },
     });
   }

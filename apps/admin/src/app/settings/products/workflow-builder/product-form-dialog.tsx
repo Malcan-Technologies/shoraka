@@ -390,7 +390,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       } else {
         await updateProduct.mutateAsync({
           id: productId,
-          data: { workflow: workflowPayload },
+          data: { workflow: workflowPayload, completeCreate: true },
         });
         toast.success("Product created");
       }

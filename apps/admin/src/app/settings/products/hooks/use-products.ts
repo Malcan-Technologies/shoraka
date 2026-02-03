@@ -95,7 +95,13 @@ export function useUpdateProduct() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { workflow?: unknown[] } }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { workflow?: unknown[]; completeCreate?: boolean };
+    }) => {
       const response = await apiClient.updateProduct(id, data);
       if (!response.success) throw new Error(response.error.message);
       return response.data;

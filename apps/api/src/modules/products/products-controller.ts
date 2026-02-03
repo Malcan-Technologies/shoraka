@@ -189,6 +189,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
     const validated = updateProductBodySchema.parse(req.body);
     const product = await productRepository.update(id, {
       workflow: validated.workflow,
+      completeCreate: validated.completeCreate,
     });
     res.json({
       success: true,

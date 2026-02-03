@@ -51,9 +51,10 @@ export const createProductBodySchema = z.object({
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
 
-// Body for PATCH /v1/products/:id. Version is auto-incremented on every update; not accepted from client.
+// Body for PATCH /v1/products/:id. Version auto-increments unless completeCreate is true (used only to complete the first save after create).
 export const updateProductBodySchema = z.object({
   workflow: z.array(z.unknown()).optional(),
+  completeCreate: z.boolean().optional(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

@@ -928,7 +928,10 @@ export class ApiClient {
     return this.post<Product>("/v1/products", data);
   }
 
-  async updateProduct(id: string, data: { workflow?: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+  async updateProduct(
+    id: string,
+    data: { workflow?: unknown[]; completeCreate?: boolean }
+  ): Promise<ApiResponse<Product> | ApiError> {
     return this.patch<Product>(`/v1/products/${id}`, data);
   }
 
