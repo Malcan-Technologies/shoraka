@@ -11,7 +11,7 @@ import {
   UpdateNotificationGroupSchema,
 } from "./schemas";
 import { UserRole } from "@prisma/client";
-import { getDeviceInfo } from "../../lib/http/request-utils";
+import { extractRequestMetadata } from "../../lib/http/request-utils";
 
 const router = Router();
 const notificationService = new NotificationService();
@@ -330,11 +330,12 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = AdminSendNotificationSchema.parse(req.body);
+      const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
       const result = await notificationService.sendBulkNotification(req.user!.user_id, {
         ...validated,
-        ip_address: req.ip,
-        user_agent: req.get("user-agent"),
-        device_info: getDeviceInfo(req),
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        device_info: deviceInfo,
       });
       res.json({
         success: true,
