@@ -58,12 +58,14 @@ export const updateProductBodySchema = z.object({
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
 
-// Body for POST /v1/products/upload-image-url (admin). Returns presigned URL + s3Key.
+// Body for POST /v1/products/upload-image-url (admin). Returns presigned URL + s3Key. Path: products/{productId}/{date}-{version}-{cuid}.{ext}
 export const productImageUploadUrlBodySchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().refine((v) => v.startsWith("image/"), {
     message: "Only image types are allowed",
   }),
+  productId: z.string().min(1),
+  version: z.number().int().positive(),
 });
 
 export type ProductImageUploadUrlBody = z.infer<typeof productImageUploadUrlBodySchema>;
@@ -72,13 +74,15 @@ const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
 
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-// Body for POST /v1/products/upload-document-template-url (admin). Returns presigned URL + s3Key. PDF only, max 5MB.
+// Body for POST /v1/products/upload-document-template-url (admin). Returns presigned URL + s3Key. Path: products/{productId}/{date}-{version}-{cuid}.{ext}
 export const productDocumentTemplateUploadUrlBodySchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().refine((v) => ALLOWED_DOCUMENT_TEMPLATE_TYPES.includes(v), {
     message: "Only PDF is allowed for document templates",
   }),
   fileSize: z.number().max(MAX_TEMPLATE_SIZE_BYTES, "Template must be 5MB or less").optional(),
+  productId: z.string().min(1),
+  version: z.number().int().positive(),
 });
 
 export type ProductDocumentTemplateUploadUrlBody = z.infer<typeof productDocumentTemplateUploadUrlBodySchema>;

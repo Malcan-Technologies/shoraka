@@ -223,23 +223,26 @@ export async function s3ObjectExists(key: string): Promise<boolean> {
 }
 
 /**
- * Generate S3 key for product images (admin upload, stored in workflow config).
- * Format: products/images/{timestamp}{random}.{ext}
+ * Generate a short cuid-like string for S3 keys (same pattern as site-documents).
  */
-export function generateProductImageKey(extension: string): string {
+function generateCuidForKey(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 10);
-  return `products/images/${timestamp}${random}.${extension}`;
+  return `${timestamp}${random}`;
 }
 
 /**
- * Generate S3 key for product document templates (admin upload, stored in workflow config).
- * Format: products/documents/{timestamp}{random}.{ext}
+ * Generate S3 key for product assets (image or document template). Same filename pattern as site-documents.
+ * Format: products/{productId}/v{version}-{date}-{cuid}.{ext} (e.g. v5-2025-12-31-mjtow2sbsibauldb.pdf)
  */
-export function generateProductDocumentTemplateKey(extension: string): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `products/documents/${timestamp}${random}.${extension}`;
+export function generateProductAssetKey(params: {
+  productId: string;
+  version: number;
+  extension: string;
+}): string {
+  const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const cuid = generateCuidForKey();
+  return `products/${params.productId}/v${params.version}-${date}-${cuid}.${params.extension}`;
 }
 
 /**

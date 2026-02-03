@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
 import { generatePresignedUploadUrl } from "../../lib/s3/client";
-import { generateProductImageKey, generateProductDocumentTemplateKey, getFileExtension } from "../../lib/s3/client";
+import { generateProductAssetKey, getFileExtension } from "../../lib/s3/client";
 import { ProductRepository } from "./repository";
 import {
   getProductsListQuerySchema,
@@ -67,7 +67,11 @@ router.post("/upload-image-url", async (req: Request, res: Response, next: NextF
   try {
     const validated = productImageUploadUrlBodySchema.parse(req.body);
     const ext = getFileExtension(validated.fileName) || "png";
-    const key = generateProductImageKey(ext);
+    const key = generateProductAssetKey({
+      productId: validated.productId,
+      version: validated.version,
+      extension: ext,
+    });
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: validated.contentType,
@@ -94,7 +98,11 @@ router.post("/upload-document-template-url", async (req: Request, res: Response,
   try {
     const validated = productDocumentTemplateUploadUrlBodySchema.parse(req.body);
     const ext = getFileExtension(validated.fileName) || "pdf";
-    const key = generateProductDocumentTemplateKey(ext);
+    const key = generateProductAssetKey({
+      productId: validated.productId,
+      version: validated.version,
+      extension: ext,
+    });
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: validated.contentType,

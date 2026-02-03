@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "../../../../components/ui/select";
 import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductDocumentTemplateUploadUrl } from "../hooks/use-products";
-import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
+import { uploadToS3WithPresignedUrl } from "../upload-product-asset";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
@@ -252,20 +252,51 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       return;
     }
     try {
+      const buildPayload = (stepsSource: unknown[]) =>
+        stepsSource.map((s) => {
+          const step = s as { id?: string; name?: string; config?: unknown };
+          let config = (step.config ?? {}) as Record<string, unknown>;
+          const stepKey = getStepKeyFromStepId(step.id ?? "");
+          if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)) {
+            config = { ...config, max_financing_rate_percent: 80 };
+          }
+          return { ...step, config };
+        });
+
+      let productId: string;
+      let productVersion: number;
+      if (isEdit && product) {
+        productId = product.id;
+        productVersion = product.version;
+      } else {
+        const initialPayload = buildPayload(steps);
+        const created = await createProduct.mutateAsync({ workflow: initialPayload });
+        productId = created.id;
+        productVersion = created.version;
+      }
+
       let workflowToSave = steps;
       if (pendingImageFile) {
-        const { uploadUrl, s3Key: newKey } = await requestUploadUrl.mutateAsync({
-          fileName: pendingImageFile.name,
-          contentType: pendingImageFile.type,
-        });
-        await uploadFileToS3(uploadUrl, pendingImageFile);
-        const firstStep = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY) as
+        const { s3Key: newKey } = await uploadToS3WithPresignedUrl(
+          pendingImageFile,
+          (params) =>
+            requestUploadUrl.mutateAsync({
+              fileName: params.fileName,
+              contentType: params.contentType,
+              productId: params.productId,
+              version: params.version,
+            }),
+          "image",
+          productId,
+          productVersion
+        );
+        const firstStepForConfig = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY) as
           | { id: string; name?: string; config?: Record<string, unknown> }
           | undefined;
-        if (firstStep) {
-          const prevConfig = (firstStep.config ?? {}) as Record<string, unknown>;
+        if (firstStepForConfig) {
+          const prevConfig = (firstStepForConfig.config ?? {}) as Record<string, unknown>;
           workflowToSave = steps.map((s) => {
-            if (getStepId(s) !== firstStep.id) return s;
+            if (getStepId(s) !== firstStepForConfig.id) return s;
             return {
               ...(s as Record<string, unknown>),
               config: {
@@ -294,12 +325,20 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             const categoryKey = parts.slice(0, -1).join("_");
             const index = parseInt(indexStr, 10);
             if (Number.isNaN(index) || !categoryKey) continue;
-            const { uploadUrl, s3Key } = await requestTemplateUploadUrl.mutateAsync({
-              fileName: file.name,
-              contentType: file.type,
-              fileSize: file.size,
-            });
-            await uploadFileToS3(uploadUrl, file);
+            const { s3Key } = await uploadToS3WithPresignedUrl(
+              file,
+              (params) =>
+                requestTemplateUploadUrl.mutateAsync({
+                  fileName: params.fileName,
+                  contentType: params.contentType,
+                  fileSize: params.fileSize,
+                  productId: params.productId,
+                  version: params.version,
+                }),
+              "document template",
+              productId,
+              productVersion
+            );
             const list = (stepConfig[categoryKey] as Record<string, unknown>[]) ?? [];
             const item = { ...(list[index] as Record<string, unknown> ?? {}), template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
             const nextList = [...list];
@@ -313,15 +352,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         setPendingSupportingDocTemplates({});
       }
-      const workflowPayload = workflowToSave.map((s) => {
-        const step = s as { id?: string; name?: string; config?: unknown };
-        let config = (step.config ?? {}) as Record<string, unknown>;
-        const stepKey = getStepKeyFromStepId(step.id ?? "");
-        if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)) {
-          config = { ...config, max_financing_rate_percent: 80 };
-        }
-        return { ...step, config };
-      });
+      const workflowPayload = buildPayload(workflowToSave);
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
@@ -329,12 +360,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         });
         toast.success("Product updated");
       } else {
-        await createProduct.mutateAsync({ workflow: workflowPayload });
+        await updateProduct.mutateAsync({
+          id: productId,
+          data: { workflow: workflowPayload },
+        });
         toast.success("Product created");
       }
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      const message = e instanceof Error ? e.message : "Save failed";
+      toast.error(message);
     }
   };
 

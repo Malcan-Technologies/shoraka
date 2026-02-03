@@ -128,7 +128,7 @@ export function useProductImageUploadUrl() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (body: { fileName: string; contentType: string }) => {
+    mutationFn: async (body: { fileName: string; contentType: string; productId: string; version: number }) => {
       const response = await apiClient.requestProductImageUploadUrl(body);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
@@ -142,7 +142,7 @@ export function useProductDocumentTemplateUploadUrl() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (body: { fileName: string; contentType: string; fileSize?: number }) => {
+    mutationFn: async (body: { fileName: string; contentType: string; fileSize?: number; productId: string; version: number }) => {
       const response = await apiClient.requestProductDocumentTemplateUploadUrl(body);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
