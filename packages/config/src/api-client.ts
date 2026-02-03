@@ -939,32 +939,34 @@ export class ApiClient {
     return this.delete<unknown>(`/v1/products/${id}`);
   }
 
-  /** Request presigned URL for uploading a product image (admin). Key stored in workflow config. */
-  async requestProductImageUploadUrl(body: {
-    fileName: string;
-    contentType: string;
-    productId: string;
-    version: number;
-  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+  /** Request presigned URL for product image (admin). Same pattern as site-documents: backend loads product and returns uploadUrl + s3Key. */
+  async requestProductImageUploadUrl(
+    productId: string,
+    body: { fileName: string; contentType: string }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
     return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
-      "/v1/products/upload-image-url",
+      `/v1/products/${productId}/upload-image-url`,
       body
     );
   }
 
-  /** Request presigned URL for uploading a product document template (admin). Path: products/{productId}/{date}-{version}-{cuid}.{ext} */
-  async requestProductDocumentTemplateUploadUrl(body: {
-    fileName: string;
-    contentType: string;
-    fileSize?: number;
-    productId: string;
-    version: number;
-  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+  /** Request presigned URL for product document template (admin). Backend loads product and returns uploadUrl + s3Key for slot. */
+  async requestProductTemplateUploadUrl(
+    productId: string,
+    body: {
+      categoryKey: string;
+      templateIndex: number;
+      fileName: string;
+      contentType: string;
+      fileSize?: number;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
     return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
-      "/v1/products/upload-document-template-url",
+      `/v1/products/${productId}/upload-template-url`,
       body
     );
   }
+
 
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {

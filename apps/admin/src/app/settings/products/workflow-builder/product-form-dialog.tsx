@@ -33,8 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductDocumentTemplateUploadUrl } from "../hooks/use-products";
-import { uploadToS3WithPresignedUrl } from "../upload-product-asset";
+import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductTemplateUploadUrl } from "../hooks/use-products";
+import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
@@ -63,6 +63,44 @@ const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "complianc
 
 const INVOICE_DETAILS_STEP_KEY = "invoice_details";
 const DECLARATIONS_STEP_KEY = "declarations";
+
+/** Normalize workflow steps to API shape (strip _pendingImage, apply invoice default). Used for comparison and payload. */
+function buildPayloadFromSteps(stepsSource: unknown[]): unknown[] {
+  return stepsSource.map((s) => {
+    const step = s as { id?: string; name?: string; config?: unknown };
+    let config = (step.config ?? {}) as Record<string, unknown>;
+    const stepKey = getStepKeyFromStepId(step.id ?? "");
+    if (
+      stepKey === INVOICE_DETAILS_STEP_KEY &&
+      (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)
+    ) {
+      config = { ...config, max_financing_rate_percent: 80 };
+    }
+    const { _pendingImage: _omit, ...configForApi } = config;
+    return { ...step, config: configForApi };
+  });
+}
+
+/** Deep equality for JSON-like workflow. Used to detect if there are unsaved changes. */
+function workflowDeepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, i) => workflowDeepEqual(item, b[i]));
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keysA = Object.keys(a as Record<string, unknown>).sort();
+  const keysB = Object.keys(b as Record<string, unknown>).sort();
+  if (keysA.length !== keysB.length || keysA.some((k, i) => k !== keysB[i])) return false;
+  return keysA.every((k) =>
+    workflowDeepEqual(
+      (a as Record<string, unknown>)[k],
+      (b as Record<string, unknown>)[k]
+    )
+  );
+}
 
 /** Returns human-readable messages for steps that have config but missing required fields. All fields in every step are required (including description and image). */
 function getRequiredStepErrors(steps: unknown[]): string[] {
@@ -144,8 +182,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const { data: product, isPending: loading, isError, error } = useProduct(productId);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
-  const requestUploadUrl = useProductImageUploadUrl();
-  const requestTemplateUploadUrl = useProductDocumentTemplateUploadUrl();
+  const requestImageUrl = useProductImageUploadUrl();
+  const requestTemplateUrl = useProductTemplateUploadUrl();
   const [steps, setSteps] = useState<unknown[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const [addStepValue, setAddStepValue] = useState<string>("");
@@ -155,7 +193,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveTriggered, setSaveTriggered] = useState(false);
+  /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
+  const initialWorkflowRef = useRef<unknown[]>([]);
 
+  /** Store pending image; upload happens only on Save. */
   const handlePendingImageChange = useCallback((file: File | null) => {
     setPendingImageFile(file);
     pendingImageFileRef.current = file;
@@ -211,6 +252,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setPendingSupportingDocTemplates({});
       setSaveInProgress(false);
       setSaveTriggered(false);
+      initialWorkflowRef.current = [];
       return;
     }
     setSaveInProgress(false);
@@ -219,10 +261,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       const raw = product.workflow?.length
         ? (product.workflow as unknown[])
         : getDefaultWorkflowSteps();
-      setSteps(enforceFirstAndLast(ensureFirstAndLastPresent(raw)));
+      const stepsToSet = enforceFirstAndLast(ensureFirstAndLastPresent(raw));
+      setSteps(stepsToSet);
+      initialWorkflowRef.current = buildPayloadFromSteps(stepsToSet);
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
+      initialWorkflowRef.current = [];
     }
   }, [open, isEdit, product]);
 
@@ -277,127 +322,86 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     setSaveInProgress(true);
     setSaveTriggered(true);
     try {
-      const buildPayload = (stepsSource: unknown[]) =>
-        stepsSource.map((s) => {
-          const step = s as { id?: string; name?: string; config?: unknown };
-          let config = (step.config ?? {}) as Record<string, unknown>;
-          const stepKey = getStepKeyFromStepId(step.id ?? "");
-          if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)) {
-            config = { ...config, max_financing_rate_percent: 80 };
-          }
-          const { _pendingImage: _omit, ...configForApi } = config;
-          return { ...step, config: configForApi };
-        });
-
       let productId: string;
-      let productVersion: number;
       if (isEdit && product) {
         productId = product.id;
-        productVersion = product.version;
       } else {
-        const initialPayload = buildPayload(steps);
-        const created = await createProduct.mutateAsync({ workflow: initialPayload });
+        const created = await createProduct.mutateAsync({
+          workflow: buildPayloadFromSteps(steps),
+        });
         productId = created.id;
-        productVersion = created.version;
       }
 
-      let workflowToSave = steps;
-      const imageFileToUpload = pendingImageFile ?? pendingImageFileRef.current;
-      if (imageFileToUpload) {
-        const { s3Key: newKey } = await uploadToS3WithPresignedUrl(
-          imageFileToUpload,
-          (params) =>
-            requestUploadUrl.mutateAsync({
-              fileName: params.fileName,
-              contentType: params.contentType,
-              productId: params.productId,
-              version: params.version,
-            }),
-          "image",
+      let nextSteps = steps.map((s) => ({
+        ...(s as Record<string, unknown>),
+        config: { ...((s as { config?: Record<string, unknown> }).config ?? {}) },
+      }));
+
+      const imageFile = pendingImageFile ?? pendingImageFileRef.current;
+      if (imageFile) {
+        const { uploadUrl, s3Key } = await requestImageUrl.mutateAsync({
           productId,
-          productVersion
-        );
-        const firstStepForConfig = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY) as
-          | { id: string; name?: string; config?: Record<string, unknown> }
-          | undefined;
-        if (firstStepForConfig) {
-          const prevConfig = (firstStepForConfig.config ?? {}) as Record<string, unknown>;
-          workflowToSave = steps.map((s) => {
-            if (getStepId(s) !== firstStepForConfig.id) return s;
-            return {
-              ...(s as Record<string, unknown>),
-              config: {
-                ...prevConfig,
-                image: {
-                  s3_key: newKey,
-                  file_name: imageFileToUpload.name,
-                  file_size: imageFileToUpload.size,
-                },
-              },
-            };
-          });
+          fileName: imageFile.name,
+          contentType: imageFile.type,
+        });
+        await uploadFileToS3(uploadUrl, imageFile);
+        const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+        if (firstIdx >= 0) {
+          const step = nextSteps[firstIdx] as Record<string, unknown>;
+          (step.config as Record<string, unknown>).image = {
+            s3_key: s3Key,
+            file_name: imageFile.name,
+            file_size: imageFile.size,
+          };
         }
         setPendingImageFile(null);
         pendingImageFileRef.current = null;
       }
-      const supportingDocEntries = Object.entries(pendingSupportingDocTemplates);
-      if (supportingDocEntries.length > 0) {
-        const supportingStep = workflowToSave.find(
-          (s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY
-        ) as { id: string; name?: string; config?: Record<string, unknown> } | undefined;
-        if (supportingStep) {
-          let stepConfig = { ...(supportingStep.config ?? {}) } as Record<string, unknown>;
-          for (const [slotKey, file] of supportingDocEntries) {
-            const parts = slotKey.split("_");
-            const indexStr = parts[parts.length - 1];
-            const categoryKey = parts.slice(0, -1).join("_");
-            const index = parseInt(indexStr, 10);
-            if (Number.isNaN(index) || !categoryKey) continue;
-            const { s3Key } = await uploadToS3WithPresignedUrl(
-              file,
-              (params) =>
-                requestTemplateUploadUrl.mutateAsync({
-                  fileName: params.fileName,
-                  contentType: params.contentType,
-                  fileSize: params.fileSize,
-                  productId: params.productId,
-                  version: params.version,
-                }),
-              "document template",
-              productId,
-              productVersion
-            );
-            const list = (stepConfig[categoryKey] as Record<string, unknown>[]) ?? [];
-            const item = { ...(list[index] as Record<string, unknown> ?? {}), template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
-            const nextList = [...list];
-            nextList[index] = item;
-            stepConfig = { ...stepConfig, [categoryKey]: nextList };
-          }
-          workflowToSave = workflowToSave.map((s) => {
-            if (getStepId(s) !== supportingStep.id) return s;
-            return { ...(s as Record<string, unknown>), config: stepConfig };
-          });
-        }
-        setPendingSupportingDocTemplates({});
-      }
-      const workflowPayload = buildPayload(workflowToSave);
-      if (isEdit && product) {
-        await updateProduct.mutateAsync({
-          id: product.id,
-          data: { workflow: workflowPayload },
+
+      for (const [slotKey, file] of Object.entries(pendingSupportingDocTemplates)) {
+        const parts = slotKey.split("_");
+        const categoryKey = parts.slice(0, -1).join("_");
+        const index = parseInt(parts[parts.length - 1], 10);
+        if (Number.isNaN(index) || !categoryKey) continue;
+        const { uploadUrl, s3Key } = await requestTemplateUrl.mutateAsync({
+          productId,
+          categoryKey,
+          templateIndex: index,
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
         });
+        await uploadFileToS3(uploadUrl, file);
+        const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
+        if (supportIdx >= 0) {
+          const step = nextSteps[supportIdx] as Record<string, unknown>;
+          const config = (step.config ?? {}) as Record<string, unknown>;
+          const list = ((config[categoryKey] as unknown[]) ?? []).slice();
+          const item = (list[index] ?? {}) as Record<string, unknown>;
+          const updated = { ...item, template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
+          if (index >= list.length) {
+            while (list.length < index) list.push({});
+            list.push(updated);
+          } else {
+            list[index] = updated;
+          }
+          config[categoryKey] = list;
+          (step as Record<string, unknown>).config = config;
+        }
+      }
+      setPendingSupportingDocTemplates({});
+
+      const payload = buildPayloadFromSteps(nextSteps);
+      if (isEdit && product) {
+        await updateProduct.mutateAsync({ id: product.id, data: { workflow: payload } });
         toast.success("Product updated");
       } else {
-        await updateProduct.mutateAsync({
-          id: productId,
-          data: { workflow: workflowPayload, completeCreate: true },
-        });
+        await updateProduct.mutateAsync({ id: productId, data: { workflow: payload, completeCreate: true } });
         toast.success("Product created");
       }
       onOpenChange(false);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Save failed";
-      toast.error(message);
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaveInProgress(false);
     }
@@ -407,9 +411,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     saveInProgress ||
     createProduct.isPending ||
     updateProduct.isPending ||
-    requestUploadUrl.isPending ||
-    requestTemplateUploadUrl.isPending;
+    requestImageUrl.isPending ||
+    requestTemplateUrl.isPending;
 
+  const hasChanges = !isEdit
+    ? true
+    : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
+      Object.keys(pendingSupportingDocTemplates).length > 0 ||
+      !workflowDeepEqual(buildPayloadFromSteps(steps), initialWorkflowRef.current);
+
+  /** Store pending template file; upload happens only on Save. */
   const handlePendingSupportingDocTemplate = useCallback(
     (categoryKey: string, index: number, file: File | null) => {
       const slotKey = `${categoryKey}_${index}`;
@@ -568,7 +579,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps).length > 0}
+                disabled={
+                  isSaving ||
+                  steps.length === 0 ||
+                  getRequiredStepErrors(steps).length > 0 ||
+                  (isEdit && !hasChanges)
+                }
               >
                 {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
               </Button>

@@ -232,17 +232,49 @@ function generateCuidForKey(): string {
 }
 
 /**
+ * Parse a product asset S3 key. Format: products/{productId}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if the key does not match.
+ */
+export function parseProductAssetKey(key: string): {
+  productId: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  const match = key.match(/^products\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.([a-z0-9]+)$/i);
+  if (!match) return null;
+  return {
+    productId: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5].toLowerCase(),
+  };
+}
+
+/**
  * Generate S3 key for product assets (image or document template). Same filename pattern as site-documents.
  * Format: products/{productId}/v{version}-{date}-{cuid}.{ext} (e.g. v5-2025-12-31-mjtow2sbsibauldb.pdf)
+ * When existingKey is provided and parses successfully, reuses the same date and cuid and only bumps the version (for in-place replace).
  */
 export function generateProductAssetKey(params: {
   productId: string;
   version: number;
   extension: string;
+  /** When replacing an existing file, pass its s3_key so the new key keeps the same date and cuid (only version changes). */
+  existingKey?: string;
 }): string {
+  const prefix = `products/${params.productId}/`;
+  if (params.existingKey?.trim()) {
+    const parsed = parseProductAssetKey(params.existingKey.trim());
+    if (parsed && parsed.productId === params.productId) {
+      return `${prefix}v${params.version}-${parsed.date}-${parsed.cuid}.${params.extension}`;
+    }
+  }
   const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const cuid = generateCuidForKey();
-  return `products/${params.productId}/v${params.version}-${date}-${cuid}.${params.extension}`;
+  return `${prefix}v${params.version}-${date}-${cuid}.${params.extension}`;
 }
 
 /**

@@ -18,6 +18,27 @@ export interface CreateProductData {
   workflow: unknown[];
 }
 
+/** Deep equality for JSON-like workflow (arrays and plain objects). Used to avoid version bump when nothing changed. */
+function workflowDeepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, i) => workflowDeepEqual(item, b[i]));
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keysA = Object.keys(a as Record<string, unknown>).sort();
+  const keysB = Object.keys(b as Record<string, unknown>).sort();
+  if (keysA.length !== keysB.length || keysA.some((k, i) => k !== keysB[i])) return false;
+  return keysA.every((k) =>
+    workflowDeepEqual(
+      (a as Record<string, unknown>)[k],
+      (b as Record<string, unknown>)[k]
+    )
+  );
+}
+
 /**
  * Product read/write: findById, list, create, update, delete. Used by applications module and admin products list.
  */
@@ -37,10 +58,18 @@ export class ProductRepository {
     });
   }
 
-  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). Otherwise version is always incremented (edit flow). */
+  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
   async update(id: string, data: UpdateProductData): Promise<Product> {
     if (data.workflow === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
+    }
+    const current = await prisma.product.findUnique({ where: { id } });
+    if (!current) {
+      throw new Error("Product not found");
+    }
+    const currentWorkflow = current.workflow as unknown;
+    if (workflowDeepEqual(data.workflow, currentWorkflow)) {
+      return current;
     }
     const skipIncrement = data.completeCreate === true;
     return prisma.product.update({

@@ -59,31 +59,29 @@ export const updateProductBodySchema = z.object({
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
 
-// Body for POST /v1/products/upload-image-url (admin). Returns presigned URL + s3Key. Path: products/{productId}/{date}-{version}-{cuid}.{ext}
-export const productImageUploadUrlBodySchema = z.object({
+const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
+const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+// POST /v1/products/:id/upload-image-url — same pattern as site-documents: backend loads product, gets current image key, returns uploadUrl + s3Key.
+export const productUploadImageUrlBodySchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().refine((v) => v.startsWith("image/"), {
     message: "Only image types are allowed",
   }),
-  productId: z.string().min(1),
-  version: z.number().int().positive(),
 });
 
-export type ProductImageUploadUrlBody = z.infer<typeof productImageUploadUrlBodySchema>;
+export type ProductUploadImageUrlBody = z.infer<typeof productUploadImageUrlBodySchema>;
 
-const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
-
-const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-
-// Body for POST /v1/products/upload-document-template-url (admin). Returns presigned URL + s3Key. Path: products/{productId}/{date}-{version}-{cuid}.{ext}
-export const productDocumentTemplateUploadUrlBodySchema = z.object({
+// POST /v1/products/:id/upload-template-url — backend loads product, gets current template key at slot, returns uploadUrl + s3Key.
+export const productUploadTemplateUrlBodySchema = z.object({
+  categoryKey: z.string().min(1),
+  templateIndex: z.number().int().min(0),
   fileName: z.string().min(1),
   contentType: z.string().refine((v) => ALLOWED_DOCUMENT_TEMPLATE_TYPES.includes(v), {
     message: "Only PDF is allowed for document templates",
   }),
   fileSize: z.number().max(MAX_TEMPLATE_SIZE_BYTES, "Template must be 5MB or less").optional(),
-  productId: z.string().min(1),
-  version: z.number().int().positive(),
 });
 
-export type ProductDocumentTemplateUploadUrlBody = z.infer<typeof productDocumentTemplateUploadUrlBodySchema>;
+export type ProductUploadTemplateUrlBody = z.infer<typeof productUploadTemplateUrlBodySchema>;
+

@@ -57,6 +57,13 @@ describe("ProductRepository", () => {
       const workflow = [
         { id: "financing_type_1", name: "Financing Type", config: { name: "Updated", image: { s3_key: "k" } } },
       ];
+      mockFindUnique.mockResolvedValue({
+        id: "prod-123",
+        version: 1,
+        workflow: [],
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
       mockUpdate.mockResolvedValue({
         id: "prod-123",
         version: 1,
@@ -67,6 +74,7 @@ describe("ProductRepository", () => {
 
       const result = await repo.update("prod-123", { workflow, completeCreate: true });
 
+      expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: "prod-123" } });
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: "prod-123" },
         data: { workflow },
@@ -78,9 +86,16 @@ describe("ProductRepository", () => {
       const workflow = [
         { id: "financing_type_1", name: "Financing Type", config: { name: "Updated" } },
       ];
-      mockUpdate.mockResolvedValue({
+      mockFindUnique.mockResolvedValue({
         id: "prod-123",
         version: 2,
+        workflow: [{ id: "financing_type_1", name: "Financing Type", config: { name: "Old" } }],
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      mockUpdate.mockResolvedValue({
+        id: "prod-123",
+        version: 3,
         workflow,
         created_at: new Date(),
         updated_at: new Date(),
@@ -88,11 +103,33 @@ describe("ProductRepository", () => {
 
       const result = await repo.update("prod-123", { workflow });
 
+      expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: "prod-123" } });
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: "prod-123" },
         data: { workflow, version: { increment: 1 } },
       });
       expect(result.workflow).toEqual(workflow);
+    });
+
+    it("returns current product without updating when workflow is unchanged", async () => {
+      const workflow = [
+        { id: "financing_type_1", name: "Financing Type", config: { name: "Same" } },
+      ];
+      const current = {
+        id: "prod-123",
+        version: 2,
+        workflow,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      mockFindUnique.mockResolvedValue(current);
+
+      const result = await repo.update("prod-123", { workflow });
+
+      expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: "prod-123" } });
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(result).toBe(current);
+      expect(result.version).toBe(2);
     });
   });
 });

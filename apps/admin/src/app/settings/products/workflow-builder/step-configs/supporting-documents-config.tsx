@@ -12,10 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../../components/ui/select";
-import { DocumentIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
-import { useProductDocumentTemplateUploadUrl } from "../../hooks/use-products";
-import { uploadFileToS3 } from "../../../../../hooks/use-site-documents";
 import { toast } from "sonner";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
@@ -94,7 +92,13 @@ export function SupportingDocumentsConfig({
 }: {
   config: unknown;
   onChange: (config: unknown) => void;
-  onPendingTemplateChange?: (categoryKey: string, index: number, file: File | null) => void;
+  /** When file is null (template removed), pass previousS3Key so the next upload for this slot can use v2, v3, etc. */
+  onPendingTemplateChange?: (
+    categoryKey: string,
+    index: number,
+    file: File | null,
+    previousS3Key?: string
+  ) => void;
 }) {
   const base = (config as Record<string, unknown>) ?? {};
   const [lists, setLists] = React.useState<Record<CategoryKey, SupportingDocItemShape[]>>(() =>

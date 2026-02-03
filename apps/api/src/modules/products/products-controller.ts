@@ -1,18 +1,71 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
-import { generatePresignedUploadUrl } from "../../lib/s3/client";
-import { generateProductAssetKey, getFileExtension } from "../../lib/s3/client";
+import { deleteS3Object } from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 import { ProductRepository } from "./repository";
+import { createProductUploadsRouter } from "./product-uploads-controller";
 import {
   getProductsListQuerySchema,
   createProductBodySchema,
   updateProductBodySchema,
-  productImageUploadUrlBodySchema,
-  productDocumentTemplateUploadUrlBodySchema,
 } from "./schemas";
 
 const router = Router();
 const productRepository = new ProductRepository();
+
+const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
+const PRODUCT_ASSET_KEY_PREFIX = "products/";
+
+function getStepId(step: unknown): string {
+  return (step as { id?: string })?.id ?? "";
+}
+
+function getConfig(step: unknown): Record<string, unknown> {
+  return ((step as { config?: unknown }).config as Record<string, unknown>) ?? {};
+}
+
+/** Collect S3 keys that are in the old workflow but replaced (different or removed) in the new workflow. Only returns keys under products/. */
+function getReplacedProductAssetKeys(
+  oldWorkflow: unknown[],
+  newWorkflow: unknown[]
+): string[] {
+  const keys = new Set<string>();
+  const oldSteps = Array.isArray(oldWorkflow) ? oldWorkflow : [];
+  const newSteps = Array.isArray(newWorkflow) ? newWorkflow : [];
+
+  const oldFirst = oldSteps.find((s) => getStepId(s).startsWith("financing_type"));
+  const newFirst = newSteps.find((s) => getStepId(s).startsWith("financing_type"));
+  const oldConfig = oldFirst ? getConfig(oldFirst) : {};
+  const newConfig = newFirst ? getConfig(newFirst) : {};
+  const oldImage = oldConfig.image as { s3_key?: string } | undefined;
+  const newImage = newConfig.image as { s3_key?: string } | undefined;
+  const oldImageKey = (oldImage?.s3_key ?? oldConfig.s3_key) as string | undefined;
+  const newImageKey = (newImage?.s3_key ?? newConfig.s3_key) as string | undefined;
+  const oldKeyTrim = oldImageKey?.trim();
+  if (oldKeyTrim && oldKeyTrim !== (newImageKey?.trim() ?? "")) {
+    if (oldKeyTrim.startsWith(PRODUCT_ASSET_KEY_PREFIX)) keys.add(oldKeyTrim);
+  }
+
+  const oldSupporting = oldSteps.find((s) => getStepId(s).startsWith("supporting_documents"));
+  const newSupporting = newSteps.find((s) => getStepId(s).startsWith("supporting_documents"));
+  const oldSupportConfig = oldSupporting ? getConfig(oldSupporting) : {};
+  const newSupportConfig = newSupporting ? getConfig(newSupporting) : {};
+  for (const category of SUPPORTING_DOC_CATEGORY_KEYS) {
+    const oldList = (oldSupportConfig[category] as Array<{ template?: { s3_key?: string } }>) ?? [];
+    const newList = (newSupportConfig[category] as Array<{ template?: { s3_key?: string } }>) ?? [];
+    const maxLen = Math.max(oldList.length, newList.length);
+    for (let i = 0; i < maxLen; i++) {
+      const oldItem = oldList[i];
+      const newItem = newList[i];
+      const oldT = oldItem?.template?.s3_key?.trim();
+      const newT = newItem?.template?.s3_key?.trim() ?? "";
+      if (oldT && oldT !== newT && oldT.startsWith(PRODUCT_ASSET_KEY_PREFIX)) {
+        keys.add(oldT);
+      }
+    }
+  }
+  return [...keys];
+}
 
 /**
  * GET /v1/products
@@ -58,68 +111,6 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     }
   }
 );
-
-/**
- * POST /v1/products/upload-image-url
- * Request presigned URL for uploading a product image (admin only). Key stored in workflow config.
- */
-router.post("/upload-image-url", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = productImageUploadUrlBodySchema.parse(req.body);
-    const ext = getFileExtension(validated.fileName) || "png";
-    const key = generateProductAssetKey({
-      productId: validated.productId,
-      version: validated.version,
-      extension: ext,
-    });
-    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
-      key,
-      contentType: validated.contentType,
-    });
-    res.json({
-      success: true,
-      data: { uploadUrl, s3Key, expiresIn },
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(
-      error instanceof Error
-        ? new AppError(400, "VALIDATION_ERROR", error.message)
-        : error
-    );
-  }
-});
-
-/**
- * POST /v1/products/upload-document-template-url
- * Request presigned URL for uploading a product document template (admin only). Key stored in workflow config.
- */
-router.post("/upload-document-template-url", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = productDocumentTemplateUploadUrlBodySchema.parse(req.body);
-    const ext = getFileExtension(validated.fileName) || "pdf";
-    const key = generateProductAssetKey({
-      productId: validated.productId,
-      version: validated.version,
-      extension: ext,
-    });
-    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
-      key,
-      contentType: validated.contentType,
-    });
-    res.json({
-      success: true,
-      data: { uploadUrl, s3Key, expiresIn },
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(
-      error instanceof Error
-        ? new AppError(400, "VALIDATION_ERROR", error.message)
-        : error
-    );
-  }
-});
 
 /**
  * POST /v1/products
@@ -181,16 +172,35 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 
 /**
  * PATCH /v1/products/:id
- * Update a product (admin only).
+ * Update a product (admin only). Replaced asset keys (image, document templates) are deleted from S3 after a successful update.
  */
 router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const validated = updateProductBodySchema.parse(req.body);
+    const current = await productRepository.findById(id);
+    if (!current) {
+      throw new AppError(404, "NOT_FOUND", "Product not found");
+    }
+    const oldWorkflow = (current.workflow as unknown[]) ?? [];
+    const keysToDelete =
+      validated.workflow !== undefined
+        ? getReplacedProductAssetKeys(oldWorkflow, validated.workflow)
+        : [];
+
     const product = await productRepository.update(id, {
       workflow: validated.workflow,
       completeCreate: validated.completeCreate,
     });
+
+    for (const key of keysToDelete) {
+      try {
+        await deleteS3Object(key);
+      } catch (err) {
+        logger.warn({ err, key }, "Failed to delete replaced product asset from S3");
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -210,6 +220,9 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
     );
   }
 });
+
+/** S3 upload URLs for product image and templates (key version is per file, separate from product version). */
+router.use("/:id", createProductUploadsRouter(productRepository));
 
 /**
  * DELETE /v1/products/:id

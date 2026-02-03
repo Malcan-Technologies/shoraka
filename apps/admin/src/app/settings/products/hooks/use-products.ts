@@ -128,30 +128,59 @@ export function useDeleteProduct() {
   });
 }
 
-/** Request presigned upload URL for a product image. Caller must then PUT file to uploadUrl and store returned s3Key in workflow config. */
+/** Request presigned upload URL for product image. Same pattern as site-documents: then upload to S3 and call confirmProductImage. */
 export function useProductImageUploadUrl() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (body: { fileName: string; contentType: string; productId: string; version: number }) => {
-      const response = await apiClient.requestProductImageUploadUrl(body);
+    mutationFn: async ({
+      productId,
+      fileName,
+      contentType,
+    }: {
+      productId: string;
+      fileName: string;
+      contentType: string;
+    }) => {
+      const response = await apiClient.requestProductImageUploadUrl(productId, { fileName, contentType });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
   });
 }
 
-/** Request presigned upload URL for a product document template. Caller must then PUT file to uploadUrl and store returned s3Key in workflow config. */
-export function useProductDocumentTemplateUploadUrl() {
+/** Request presigned upload URL for product document template. Then upload to S3 and call confirmProductTemplate. */
+export function useProductTemplateUploadUrl() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (body: { fileName: string; contentType: string; fileSize?: number; productId: string; version: number }) => {
-      const response = await apiClient.requestProductDocumentTemplateUploadUrl(body);
+    mutationFn: async ({
+      productId,
+      categoryKey,
+      templateIndex,
+      fileName,
+      contentType,
+      fileSize,
+    }: {
+      productId: string;
+      categoryKey: string;
+      templateIndex: number;
+      fileName: string;
+      contentType: string;
+      fileSize?: number;
+    }) => {
+      const response = await apiClient.requestProductTemplateUploadUrl(productId, {
+        categoryKey,
+        templateIndex,
+        fileName,
+        contentType,
+        fileSize,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
   });
 }
+
