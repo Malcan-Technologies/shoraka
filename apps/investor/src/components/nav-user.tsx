@@ -21,7 +21,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logout } from "../lib/auth";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";

@@ -63,7 +63,7 @@ export function NotificationPreferences() {
         >
           <div className="space-y-0.5">
             <Label className="text-base font-medium">{type.name}</Label>
-            <p className="text-sm text-muted-foreground">{type.description}</p>
+            <p className="text-[0.8rem] text-muted-foreground mt-1">{type.description}</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center space-x-2 whitespace-nowrap">
