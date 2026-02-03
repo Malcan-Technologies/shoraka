@@ -50,12 +50,51 @@ const STEPS_WITHOUT_CONFIG = new Set([
   "business_details",
   "review_and_submit",
 ]);
+import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { toast } from "sonner";
 
 function getStepId(step: unknown): string {
   return (step as { id?: string })?.id ?? "";
+}
+
+const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
+
+/** Returns human-readable messages for steps that have config but missing required fields. */
+function getRequiredStepErrors(steps: unknown[]): string[] {
+  const errors: string[] = [];
+  for (const step of steps) {
+    const stepId = getStepId(step);
+    const stepKey = getStepKeyFromStepId(stepId);
+    const config = (step as { config?: Record<string, unknown> }).config ?? {};
+    if (stepKey === FIRST_STEP_KEY) {
+      const name = (config.name as string)?.trim() ?? "";
+      const category = (config.category as string)?.trim() ?? "";
+      if (!name || !category) {
+        errors.push("Financing Type: enter name and category");
+      }
+    }
+    if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
+      let hasDocWithName = false;
+      for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
+        const list = config[key] as Array<{ name?: string }> | undefined;
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            if ((item?.name as string)?.trim()) {
+              hasDocWithName = true;
+              break;
+            }
+          }
+        }
+        if (hasDocWithName) break;
+      }
+      if (!hasDocWithName) {
+        errors.push("Supporting Documents: add at least one document with a name");
+      }
+    }
+  }
+  return errors;
 }
 
 export interface ProductFormDialogProps {
@@ -399,14 +438,38 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         )}
 
         {!isEdit || product ? (
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving || steps.length === 0}>
-              {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
-            </Button>
-          </DialogFooter>
+          <>
+            {steps.length > 0 && (() => {
+              const requiredErrors = getRequiredStepErrors(steps);
+              if (requiredErrors.length === 0) return null;
+              return (
+                <div className="mx-4 -mt-3 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/50 dark:bg-amber-950/40">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" aria-hidden />
+                    <p className="font-medium text-amber-900 dark:text-amber-100">
+                      {isEdit ? "Complete these before saving" : "Complete these before create"}
+                    </p>
+                  </div>
+                  <ul className="mt-1.5 list-disc list-inside space-y-0.5 pl-7 text-amber-800 dark:text-amber-200">
+                    {requiredErrors.map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps).length > 0}
+              >
+                {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
+              </Button>
+            </DialogFooter>
+          </>
         ) : null}
       </DialogContent>
     </Dialog>
