@@ -40,6 +40,15 @@ import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
 const FIRST_STEP_KEY = "financing_type";
 const LAST_STEP_KEY = "review_and_submit";
+
+/** Step keys that have no config UI in this dialog; no collapse arrow or config panel. */
+const STEPS_WITHOUT_CONFIG = new Set([
+  "financing_structure",
+  "contract_details",
+  "company_details",
+  "business_details",
+  "review_and_submit",
+]);
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { toast } from "sonner";
@@ -281,6 +290,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                         {steps.map((step) => {
                           const stepId = getStepId(step);
                           const stepKey = getStepKeyFromStepId(stepId);
+                          const hasConfig = stepKey && !STEPS_WITHOUT_CONFIG.has(stepKey);
                           return (
                             <div key={stepId} className="relative">
                               <WorkflowStepCard
@@ -292,7 +302,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                       : stepDisplayName(step),
                                 }}
                                 isExpanded={expandedStepId === stepId}
-                                onOpenChange={(open) => setExpandedStepId(open ? stepId : null)}
+                                onOpenChange={
+                                  hasConfig ? (open) => setExpandedStepId(open ? stepId : null) : undefined
+                                }
                                 onDragHandlePointerDown={() => setExpandedStepId(null)}
                                 isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
                                 isJustAdded={stepId === justAddedStepId}
@@ -302,7 +314,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                     : undefined
                                 }
                               >
-                                {stepKey && (
+                                {hasConfig && (
                                   <StepConfigEditor
                                     stepKey={stepKey}
                                     config={(step as { config?: unknown }).config}

@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bars3Icon, ChevronDownIcon, ChevronUpIcon, LockClosedIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon, LockClosedIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -10,6 +10,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../../../../components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../../../components/ui/dropdown-menu";
 import type { WorkflowStepShape } from "../product-utils";
 
 export interface WorkflowStepCardProps {
@@ -102,18 +108,7 @@ export function WorkflowStepCard({
             ) : (
               <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
             )}
-            {onDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive focus-visible:ring-inset"
-                onClick={onDelete}
-                aria-label={`Delete ${step.name}`}
-              >
-                <TrashIcon className="h-4 w-4 shrink-0" />
-              </Button>
-            )}
-            {onOpenChange && (
+            {onOpenChange ? (
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
@@ -128,7 +123,37 @@ export function WorkflowStepCard({
                   )}
                 </Button>
               </CollapsibleTrigger>
+            ) : (
+              <span className="h-8 w-8 shrink-0" aria-hidden />
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground focus-visible:ring-inset"
+                  aria-label="Step options"
+                >
+                  <EllipsisVerticalIcon className="h-4 w-4 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isLocked ? (
+                  <DropdownMenuItem disabled className="cursor-default opacity-100">
+                    <LockClosedIcon className="h-4 w-4 shrink-0" />
+                    Locked
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={onDelete}
+                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <TrashIcon className="h-4 w-4 shrink-0" />
+                    Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {children && (
             <CollapsibleContent>
