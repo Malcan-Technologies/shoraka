@@ -276,18 +276,68 @@ export function OnboardingReviewDialog({
                 Onboarding Approval Required
               </CardTitle>
               <CardDescription>
-                The user has completed their identity verification on RegTank. You need to review
-                and approve it in the RegTank admin portal.
+                The user has completed their onboarding submission in RegTank. You must review and
+                approve the onboarding before the account can proceed.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                <p className="text-sm font-medium">Instructions:</p>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Click the button below to open the user&apos;s onboarding page</li>
-                  <li>Review the submitted ID documents and liveness check</li>
-                  <li>Approve or reject the onboarding request</li>
-                </ol>
+              <div className="rounded-lg bg-muted/50 p-4 space-y-4">
+                {isCompany ? (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium">Business Account – Onboarding Approval</p>
+                      <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside mt-2">
+                        <li>
+                          Click the &quot;Open Onboarding Review&quot; button to open the business
+                          onboarding page in RegTank.
+                        </li>
+                        <li>
+                          Review the onboarding status for all applicable related parties, including:
+                          Directors (if applicable), Individual Shareholders (if applicable),
+                          Business Shareholders (if applicable).
+                        </li>
+                        <li>
+                          For each applicable related party: confirm onboarding has been completed
+                          and ensure the onboarding has been approved by an admin.
+                        </li>
+                        <li>
+                          After all applicable directors and shareholders are approved, take one of:
+                          <strong> Approve</strong> (if all requirements are met),{" "}
+                          <strong>Reject</strong> (if the onboarding does not meet requirements), or{" "}
+                          <strong>Request Amendment</strong> (if changes or additional information
+                          are needed).
+                        </li>
+                      </ol>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium">Personal Account – Onboarding Approval</p>
+                      <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside mt-2">
+                        <li>
+                          Click the &quot;Open Onboarding Review&quot; button to open the user&apos;s
+                          onboarding page in RegTank.
+                        </li>
+                        <li>
+                          Review the submitted KYC information and identity documents.
+                        </li>
+                        <li>
+                          Take one of: <strong>Approve</strong> (if all information is correct),{" "}
+                          <strong>Reject</strong> (if the submission does not meet requirements), or{" "}
+                          <strong>Retry Onboarding</strong> (if the user needs to resubmit
+                          information).
+                        </li>
+                      </ol>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <Button
                 onClick={handleOpenRegTank}
@@ -365,18 +415,67 @@ export function OnboardingReviewDialog({
                 AML Approval Required
               </CardTitle>
               <CardDescription>
-                Onboarding has been approved. Now you need to complete the AML (Anti-Money
-                Laundering) screening in RegTank.
+                Onboarding has been approved. AML screening in RegTank is now required.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                <p className="text-sm font-medium">Instructions:</p>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Click the button below to open KYC/AML screening page</li>
-                  <li>Review the AML screening results</li>
-                  <li>Approve or reject based on the findings</li>
-                </ol>
+              <div className="rounded-lg bg-muted/50 p-4 space-y-4">
+                {isCompany ? (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium">Business Account – AML Approval</p>
+                      <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside mt-2">
+                        <li>
+                          Click the &quot;Open KYB/AML Review&quot; button to access the AML
+                          screening page in RegTank.
+                        </li>
+                        <li>
+                          Perform AML screening for all relevant associated parties: Directors (if
+                          applicable), Individual Shareholders (if applicable), Business
+                          Shareholders (if applicable).
+                        </li>
+                        <li>
+                          For each applicable related party: review their AML screening results,
+                          check for name matches, mark results as &quot;True&quot; or
+                          &quot;False&quot; as appropriate, and click &quot;Generate Score.&quot;
+                        </li>
+                        <li>
+                          Once all applicable screenings are completed: <strong>Approve</strong> if
+                          all AML screenings are clear, or <strong>Reject</strong> if any screening
+                          fails or requires rejection.
+                        </li>
+                      </ol>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        After successful approval, the AML process is complete.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium">Personal Account – AML Approval</p>
+                      <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside mt-2">
+                        <li>
+                          Click the &quot;Open KYB/AML Review&quot; button to access the AML
+                          screening page (My KYC) in RegTank.
+                        </li>
+                        <li>Review the AML screening results.</li>
+                        <li>
+                          Check for name matches. If no matches are found, all results should be
+                          marked as &quot;False.&quot;
+                        </li>
+                        <li>Click &quot;Generate Score.&quot;</li>
+                        <li>
+                          <strong>Approve</strong> (if AML screening is clear) or{" "}
+                          <strong>Reject</strong> (if screening results require rejection).
+                        </li>
+                      </ol>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Once approved, the AML process is complete.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <Button
                 onClick={handleOpenKycReview}
