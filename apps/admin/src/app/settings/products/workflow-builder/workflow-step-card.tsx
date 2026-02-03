@@ -29,6 +29,8 @@ export interface WorkflowStepCardProps {
   isLocked?: boolean;
   /** Briefly show "just added" highlight and New badge (cleared by parent after a few seconds). */
   isJustAdded?: boolean;
+  /** Show "Edited" when the step has unsaved changes (edit mode only). */
+  isEdited?: boolean;
   children?: React.ReactNode;
 }
 
@@ -41,6 +43,7 @@ export function WorkflowStepCard({
   onDragHandlePointerDown,
   isLocked = false,
   isJustAdded = false,
+  isEdited = false,
   children,
 }: WorkflowStepCardProps) {
   const {
@@ -101,12 +104,20 @@ export function WorkflowStepCard({
                 >
                   <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
                   {isJustAdded && (
-                    <span className="shrink-0 text-xs text-muted-foreground">just added</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">Just added</span>
+                  )}
+                  {isEdited && !isJustAdded && (
+                    <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
                   )}
                 </button>
               </CollapsibleTrigger>
             ) : (
-              <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
+              <>
+                <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
+                {isEdited && (
+                  <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
+                )}
+              </>
             )}
             {onOpenChange ? (
               <CollapsibleTrigger asChild>

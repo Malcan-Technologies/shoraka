@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -434,6 +434,40 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       Object.keys(pendingSupportingDocTemplates).length > 0 ||
       !workflowDeepEqual(buildPayloadFromSteps(steps), initialWorkflowRef.current);
 
+  /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
+  const editedStepIds = useMemo(() => {
+    if (!isEdit) return new Set<string>();
+    const initial = initialWorkflowRef.current;
+    const currentPayload = buildPayloadFromSteps(steps);
+    const initialById = new Map<string, unknown>();
+    for (const s of initial) {
+      initialById.set(getStepId(s), s);
+    }
+    const hasPendingImage = Boolean(pendingImageFile ?? pendingImageFileRef.current);
+    const hasPendingTemplates = Object.keys(pendingSupportingDocTemplates).length > 0;
+    const edited = new Set<string>();
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const stepId = getStepId(step);
+      const stepKey = getStepKeyFromStepId(stepId);
+      if (stepKey === FIRST_STEP_KEY && hasPendingImage) {
+        edited.add(stepId);
+        continue;
+      }
+      if (stepKey === SUPPORTING_DOCS_STEP_KEY && hasPendingTemplates) {
+        edited.add(stepId);
+        continue;
+      }
+      const initialStep = initialById.get(stepId);
+      if (!initialStep) {
+        edited.add(stepId);
+        continue;
+      }
+      if (!workflowDeepEqual(currentPayload[i], initialStep)) edited.add(stepId);
+    }
+    return edited;
+  }, [isEdit, steps, pendingImageFile, pendingSupportingDocTemplates]);
+
   /** Store pending template file; upload happens only on Save. */
   const handlePendingSupportingDocTemplate = useCallback(
     (categoryKey: string, index: number, file: File | null) => {
@@ -533,6 +567,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                 onDragHandlePointerDown={() => setExpandedStepId(null)}
                                 isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
                                 isJustAdded={stepId === justAddedStepId}
+                                isEdited={editedStepIds.has(stepId)}
                                 onDelete={
                                   stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
                                     ? () => handleDeleteStep(stepId)
