@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -65,12 +65,8 @@ const INVOICE_DETAILS_STEP_KEY = "invoice_details";
 const DECLARATIONS_STEP_KEY = "declarations";
 
 /** Returns human-readable messages for steps that have config but missing required fields. All fields in every step are required (including description and image). */
-function getRequiredStepErrors(
-  steps: unknown[],
-  opts?: { pendingImageFile?: File | null }
-): string[] {
+function getRequiredStepErrors(steps: unknown[]): string[] {
   const errors: string[] = [];
-  const pendingImage = opts?.pendingImageFile ?? null;
   for (const step of steps) {
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);
@@ -87,8 +83,9 @@ function getRequiredStepErrors(
       const description = (config.description as string)?.trim() ?? "";
       const image = config.image as { s3_key?: string } | undefined;
       const legacyS3Key = (config.s3_key as string)?.trim();
+      const hasPendingImage = config._pendingImage === true;
       const hasImage =
-        Boolean((image?.s3_key as string)?.trim()) || Boolean(legacyS3Key) || Boolean(pendingImage);
+        Boolean((image?.s3_key as string)?.trim()) || Boolean(legacyS3Key) || hasPendingImage;
       if (!name) errors.push(`${stepLabel}: enter name`);
       if (!category) errors.push(`${stepLabel}: enter category`);
       if (!description) errors.push(`${stepLabel}: enter description`);
@@ -154,8 +151,24 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [addStepValue, setAddStepValue] = useState<string>("");
   const [justAddedStepId, setJustAddedStepId] = useState<string | null>(null);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const pendingImageFileRef = useRef<File | null>(null);
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
   const [saveInProgress, setSaveInProgress] = useState(false);
+  const [saveTriggered, setSaveTriggered] = useState(false);
+
+  const handlePendingImageChange = useCallback((file: File | null) => {
+    setPendingImageFile(file);
+    pendingImageFileRef.current = file;
+    setSteps((prev) => {
+      const firstIdx = prev.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+      if (firstIdx === -1) return prev;
+      const first = prev[firstIdx] as { id: string; config?: Record<string, unknown> };
+      const config = { ...(first.config ?? {}), _pendingImage: !!file };
+      return prev.map((s, i) =>
+        i === firstIdx ? { ...(s as Record<string, unknown>), config } : s
+      );
+    });
+  }, []);
 
   const allAvailableSteps = getDefaultWorkflowSteps();
   const addedIds = steps.map(getStepId);
@@ -194,9 +207,14 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   useEffect(() => {
     if (!open) {
       setPendingImageFile(null);
+      pendingImageFileRef.current = null;
       setPendingSupportingDocTemplates({});
+      setSaveInProgress(false);
+      setSaveTriggered(false);
       return;
     }
+    setSaveInProgress(false);
+    setSaveTriggered(false);
     if (isEdit && product) {
       const raw = product.workflow?.length
         ? (product.workflow as unknown[])
@@ -257,6 +275,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       return;
     }
     setSaveInProgress(true);
+    setSaveTriggered(true);
     try {
       const buildPayload = (stepsSource: unknown[]) =>
         stepsSource.map((s) => {
@@ -266,7 +285,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)) {
             config = { ...config, max_financing_rate_percent: 80 };
           }
-          return { ...step, config };
+          const { _pendingImage: _omit, ...configForApi } = config;
+          return { ...step, config: configForApi };
         });
 
       let productId: string;
@@ -282,9 +302,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       }
 
       let workflowToSave = steps;
-      if (pendingImageFile) {
+      const imageFileToUpload = pendingImageFile ?? pendingImageFileRef.current;
+      if (imageFileToUpload) {
         const { s3Key: newKey } = await uploadToS3WithPresignedUrl(
-          pendingImageFile,
+          imageFileToUpload,
           (params) =>
             requestUploadUrl.mutateAsync({
               fileName: params.fileName,
@@ -309,14 +330,15 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 ...prevConfig,
                 image: {
                   s3_key: newKey,
-                  file_name: pendingImageFile.name,
-                  file_size: pendingImageFile.size,
+                  file_name: imageFileToUpload.name,
+                  file_size: imageFileToUpload.size,
                 },
               },
             };
           });
         }
         setPendingImageFile(null);
+        pendingImageFileRef.current = null;
       }
       const supportingDocEntries = Object.entries(pendingSupportingDocTemplates);
       if (supportingDocEntries.length > 0) {
@@ -499,7 +521,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                     onChange={(config) => handleConfigChange(stepId, config)}
                                     extraProps={
                                       stepKey === FIRST_STEP_KEY
-                                        ? { onPendingImageChange: setPendingImageFile }
+                                        ? { onPendingImageChange: handlePendingImageChange }
                                         : stepKey === SUPPORTING_DOCS_STEP_KEY
                                           ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
                                           : undefined
@@ -521,8 +543,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
         {!isEdit || product ? (
           <>
-            {steps.length > 0 && !isSaving && (() => {
-              const requiredErrors = getRequiredStepErrors(steps, { pendingImageFile });
+            {steps.length > 0 && !isSaving && !saveTriggered && (() => {
+              const requiredErrors = getRequiredStepErrors(steps);
               if (requiredErrors.length === 0) return null;
               return (
                 <div className="mx-4 -mt-3 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/50 dark:bg-amber-950/40">
@@ -546,7 +568,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps, { pendingImageFile }).length > 0}
+                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps).length > 0}
               >
                 {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
               </Button>
