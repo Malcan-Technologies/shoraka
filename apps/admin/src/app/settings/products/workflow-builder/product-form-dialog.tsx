@@ -259,6 +259,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   useEffect(() => {
     if (!open) {
+      setExpandedStepId(null);
       setPendingImageFile(null);
       pendingImageFileRef.current = null;
       setPendingSupportingDocTemplates({});
