@@ -134,34 +134,37 @@ export function FinancingTypeConfig({
   return (
     <div className="grid gap-4 pt-2">
       <div className="grid gap-2">
-        <Label htmlFor="ft-category">Category</Label>
-        <Input
-          id="ft-category"
-          value={current.category}
-          onChange={(e) => update({ category: e.target.value })}
-          placeholder="e.g. Invoice financing"
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="ft-name">Name</Label>
+        <Label htmlFor="ft-name" className="text-sm">Name</Label>
         <Input
           id="ft-name"
           value={current.name}
           onChange={(e) => update({ name: e.target.value })}
           placeholder="e.g. Account Receivable (AR) Financing"
+          className="text-sm"
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="ft-description">Description</Label>
+        <Label htmlFor="ft-category" className="text-sm">Category</Label>
+        <Input
+          id="ft-category"
+          value={current.category}
+          onChange={(e) => update({ category: e.target.value })}
+          placeholder="e.g. Invoice financing"
+          className="text-sm"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="ft-description" className="text-sm">Description</Label>
         <Textarea
           id="ft-description"
           value={current.description}
           onChange={(e) => update({ description: e.target.value })}
           placeholder="Short description shown on the card"
+          className="text-sm"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ft-image">Image</Label>
+        <Label htmlFor="ft-image" className="text-sm">Image</Label>
         <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200">
           <Input
             ref={fileInputRef}
