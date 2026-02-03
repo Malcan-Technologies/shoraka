@@ -35,7 +35,7 @@ import {
 } from "../../../../components/ui/select";
 import { useProduct, useCreateProduct, useUpdateProduct } from "../hooks/use-products";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
 const FIRST_STEP_KEY = "financing_type";
 const LAST_STEP_KEY = "review_and_submit";
@@ -242,7 +242,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                               <WorkflowStepCard
                                 step={{
                                   id: stepId,
-                                  name: stepDisplayName(step),
+                                  name:
+                                    stepKey === FIRST_STEP_KEY
+                                      ? STEP_KEY_DISPLAY.financing_type.title
+                                      : stepDisplayName(step),
                                 }}
                                 isExpanded={expandedStepId === stepId}
                                 onOpenChange={(open) => setExpandedStepId(open ? stepId : null)}

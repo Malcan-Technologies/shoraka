@@ -71,7 +71,7 @@ export function WorkflowStepCard({
             ) : (
               <button
                 type="button"
-                className="touch-none cursor-grab rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:cursor-grabbing shrink-0"
+                className="flex h-9 w-9 shrink-0 items-center justify-center touch-none cursor-grab rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:cursor-grabbing"
                 aria-label={`Drag to reorder ${step.name}`}
                 {...attributes}
                 {...restListeners}
