@@ -75,7 +75,11 @@ function getRequiredStepErrors(
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);
     const config = (step as { config?: Record<string, unknown> }).config ?? {};
-    const stepLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
+    const defaultLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
+    const stepLabel =
+      stepKey === FIRST_STEP_KEY && (config.name as string)?.trim()
+        ? (config.name as string).trim()
+        : defaultLabel;
 
     if (stepKey === FIRST_STEP_KEY) {
       const name = (config.name as string)?.trim() ?? "";
@@ -151,6 +155,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [justAddedStepId, setJustAddedStepId] = useState<string | null>(null);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
+  const [saveInProgress, setSaveInProgress] = useState(false);
 
   const allAvailableSteps = getDefaultWorkflowSteps();
   const addedIds = steps.map(getStepId);
@@ -251,6 +256,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       toast.error("Add at least one step.");
       return;
     }
+    setSaveInProgress(true);
     try {
       const buildPayload = (stepsSource: unknown[]) =>
         stepsSource.map((s) => {
@@ -370,10 +376,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     } catch (e) {
       const message = e instanceof Error ? e.message : "Save failed";
       toast.error(message);
+    } finally {
+      setSaveInProgress(false);
     }
   };
 
   const isSaving =
+    saveInProgress ||
     createProduct.isPending ||
     updateProduct.isPending ||
     requestUploadUrl.isPending ||
@@ -512,7 +521,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
         {!isEdit || product ? (
           <>
-            {steps.length > 0 && (() => {
+            {steps.length > 0 && !isSaving && (() => {
               const requiredErrors = getRequiredStepErrors(steps, { pendingImageFile });
               if (requiredErrors.length === 0) return null;
               return (
