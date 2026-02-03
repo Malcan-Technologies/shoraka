@@ -40,16 +40,10 @@ function OnboardingStartPageContent() {
   const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
   const [savingName, setSavingName] = useState(false);
   const [onboardingStarted, setOnboardingStarted] = useState(false);
-
-  // Handle hydration
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Note: We do NOT redirect users away from this page based on active organization status.
   // This page is for adding NEW organizations, so users should be able to access it
