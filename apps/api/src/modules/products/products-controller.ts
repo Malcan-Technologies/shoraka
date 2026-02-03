@@ -14,7 +14,7 @@ const router = Router();
 const productRepository = new ProductRepository();
 
 const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
-const PRODUCT_ASSET_KEY_PREFIX = "products/";
+const PRODUCT_S3_KEY_PREFIX = "products/";
 
 function getStepId(step: unknown): string {
   return (step as { id?: string })?.id ?? "";
@@ -24,8 +24,8 @@ function getConfig(step: unknown): Record<string, unknown> {
   return ((step as { config?: unknown }).config as Record<string, unknown>) ?? {};
 }
 
-/** Collect S3 keys that are in the old workflow but replaced (different or removed) in the new workflow. Only returns keys under products/. */
-function getReplacedProductAssetKeys(
+/** S3 keys that were in the old workflow but are replaced or removed in the new workflow. Only keys under products/. */
+function getReplacedProductS3Keys(
   oldWorkflow: unknown[],
   newWorkflow: unknown[]
 ): string[] {
@@ -43,7 +43,7 @@ function getReplacedProductAssetKeys(
   const newImageKey = (newImage?.s3_key ?? newConfig.s3_key) as string | undefined;
   const oldKeyTrim = oldImageKey?.trim();
   if (oldKeyTrim && oldKeyTrim !== (newImageKey?.trim() ?? "")) {
-    if (oldKeyTrim.startsWith(PRODUCT_ASSET_KEY_PREFIX)) keys.add(oldKeyTrim);
+    if (oldKeyTrim.startsWith(PRODUCT_S3_KEY_PREFIX)) keys.add(oldKeyTrim);
   }
 
   const oldSupporting = oldSteps.find((s) => getStepId(s).startsWith("supporting_documents"));
@@ -59,11 +59,40 @@ function getReplacedProductAssetKeys(
       const newItem = newList[i];
       const oldT = oldItem?.template?.s3_key?.trim();
       const newT = newItem?.template?.s3_key?.trim() ?? "";
-      if (oldT && oldT !== newT && oldT.startsWith(PRODUCT_ASSET_KEY_PREFIX)) {
+      if (oldT && oldT !== newT && oldT.startsWith(PRODUCT_S3_KEY_PREFIX)) {
         keys.add(oldT);
       }
     }
   }
+  return [...keys];
+}
+
+/**
+ * Find every s3_key in the workflow (anywhere in the JSON).
+ * When we delete a product, we delete these files from S3 too.
+ */
+function getProductS3KeysFromWorkflow(workflow: unknown): string[] {
+  const keys = new Set<string>();
+
+  function scan(value: unknown): void {
+    if (value == null) return;
+    if (Array.isArray(value)) {
+      value.forEach(scan);
+      return;
+    }
+    if (typeof value === "object") {
+      for (const [name, val] of Object.entries(value)) {
+        if (name === "s3_key" && typeof val === "string") {
+          const path = val.trim();
+          if (path.startsWith(PRODUCT_S3_KEY_PREFIX)) keys.add(path);
+        } else {
+          scan(val);
+        }
+      }
+    }
+  }
+
+  scan(workflow);
   return [...keys];
 }
 
@@ -172,7 +201,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 
 /**
  * PATCH /v1/products/:id
- * Update a product (admin only). Replaced asset keys (image, document templates) are deleted from S3 after a successful update.
+ * Update a product (admin only). Replaced S3 keys (image, document templates) are deleted from S3 after a successful update.
  */
 router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -185,7 +214,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
     const oldWorkflow = (current.workflow as unknown[]) ?? [];
     const keysToDelete =
       validated.workflow !== undefined
-        ? getReplacedProductAssetKeys(oldWorkflow, validated.workflow)
+        ? getReplacedProductS3Keys(oldWorkflow, validated.workflow)
         : [];
 
     const product = await productRepository.update(id, {
@@ -197,7 +226,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
       try {
         await deleteS3Object(key);
       } catch (err) {
-        logger.warn({ err, key }, "Failed to delete replaced product asset from S3");
+        logger.warn({ err, key }, "Failed to delete replaced product file from S3");
       }
     }
 
@@ -226,7 +255,7 @@ router.use("/:id", createProductUploadsRouter(productRepository));
 
 /**
  * DELETE /v1/products/:id
- * Delete a product (admin only).
+ * Delete a product (admin only). Also deletes all S3 objects referenced in the product workflow (image and document templates).
  */
 router.delete("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -235,7 +264,18 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
     if (!product) {
       throw new AppError(404, "NOT_FOUND", "Product not found");
     }
+    const workflow = (product.workflow as unknown[]) ?? [];
+    const keysToDelete = getProductS3KeysFromWorkflow(workflow);
+
     await productRepository.delete(id);
+
+    for (const key of keysToDelete) {
+      try {
+        await deleteS3Object(key);
+      } catch (err) {
+        logger.warn({ err, key }, "Failed to delete product file from S3 after product delete");
+      }
+    }
     res.status(204).send();
   } catch (error) {
     next(error);

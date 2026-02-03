@@ -5,11 +5,11 @@
  */
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
-import { generatePresignedUploadUrl, generateProductAssetKey, getFileExtension, parseProductAssetKey } from "../../lib/s3/client";
+import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, parseProductS3Key } from "../../lib/s3/client";
 import type { ProductRepository } from "./repository";
 import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "./schemas";
 
-const PRODUCT_ASSET_KEY_PREFIX = "products/";
+const PRODUCT_S3_KEY_PREFIX = "products/";
 
 function getStepId(step: unknown): string {
   return (step as { id?: string })?.id ?? "";
@@ -25,7 +25,7 @@ function getExistingImageKeyFromWorkflow(workflow: unknown[]): string | undefine
   const config = getConfig(first);
   const image = config.image as { s3_key?: string } | undefined;
   const key = (image?.s3_key ?? config.s3_key) as string | undefined;
-  return key?.trim() && key.startsWith(PRODUCT_ASSET_KEY_PREFIX) ? key : undefined;
+  return key?.trim() && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
 }
 
 function getExistingTemplateKeyFromWorkflow(
@@ -38,7 +38,7 @@ function getExistingTemplateKeyFromWorkflow(
   const config = getConfig(supporting);
   const list = (config[categoryKey] as Array<{ template?: { s3_key?: string } }>) ?? [];
   const key = list[templateIndex]?.template?.s3_key?.trim();
-  return key && key.startsWith(PRODUCT_ASSET_KEY_PREFIX) ? key : undefined;
+  return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
 }
 
 export function createProductUploadsRouter(productRepository: ProductRepository): Router {
@@ -56,11 +56,11 @@ export function createProductUploadsRouter(productRepository: ProductRepository)
       const ext = getFileExtension(validated.fileName) || "png";
       const keyVersion = existingKey
         ? (() => {
-            const parsed = parseProductAssetKey(existingKey);
+            const parsed = parseProductS3Key(existingKey);
             return parsed ? parsed.version + 1 : 1;
           })()
         : 1;
-      const key = generateProductAssetKey({
+      const key = generateProductS3Key({
         productId,
         version: keyVersion,
         extension: ext,
@@ -98,11 +98,11 @@ export function createProductUploadsRouter(productRepository: ProductRepository)
       const ext = getFileExtension(validated.fileName) || "pdf";
       const keyVersion = existingKey
         ? (() => {
-            const parsed = parseProductAssetKey(existingKey);
+            const parsed = parseProductS3Key(existingKey);
             return parsed ? parsed.version + 1 : 1;
           })()
         : 1;
-      const key = generateProductAssetKey({
+      const key = generateProductS3Key({
         productId,
         version: keyVersion,
         extension: ext,
