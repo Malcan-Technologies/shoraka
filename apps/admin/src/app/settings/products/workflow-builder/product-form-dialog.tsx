@@ -61,9 +61,9 @@ function getStepId(step: unknown): string {
 
 const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const SUPPORTING_DOC_CATEGORY_LABELS: Record<(typeof SUPPORTING_DOC_CATEGORY_KEYS)[number], string> = {
-  financial_docs: "Financial docs",
-  legal_docs: "Legal docs",
-  compliance_docs: "Compliance docs",
+  financial_docs: "Financial Docs",
+  legal_docs: "Legal Docs",
+  compliance_docs: "Compliance Docs",
   others: "Others",
 };
 
@@ -115,11 +115,7 @@ function getRequiredStepErrors(steps: unknown[]): string[] {
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);
     const config = (step as { config?: Record<string, unknown> }).config ?? {};
-    const defaultLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
-    const stepLabel =
-      stepKey === FIRST_STEP_KEY && (config.name as string)?.trim()
-        ? (config.name as string).trim()
-        : defaultLabel;
+    const stepLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
 
     if (stepKey === FIRST_STEP_KEY) {
       const name = (config.name as string)?.trim() ?? "";

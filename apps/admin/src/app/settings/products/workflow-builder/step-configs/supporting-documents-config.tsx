@@ -18,9 +18,9 @@ import { toast } from "sonner";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KEYS)[number], string> = {
-  financial_docs: "Financial docs",
-  legal_docs: "Legal docs",
-  compliance_docs: "Compliance docs",
+  financial_docs: "Financial Docs",
+  legal_docs: "Legal Docs",
+  compliance_docs: "Compliance Docs",
   others: "Others",
 };
 
