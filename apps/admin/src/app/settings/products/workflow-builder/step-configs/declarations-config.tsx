@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Label } from "../../../../../components/ui/label";
 import { Textarea } from "../../../../../components/ui/textarea";
 import { Button } from "../../../../../components/ui/button";
 import { ChevronUpIcon, ChevronDownIcon, TrashIcon, PlusIcon } from "@heroicons/react/24/outline";
@@ -67,8 +66,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
 
   return (
     <div className="grid gap-3 pt-2">
-      <div className="flex items-center justify-between">
-        <Label>Declarations</Label>
+      <div className="flex justify-end">
         <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1.5">
           <PlusIcon className="h-4 w-4 shrink-0" />
           Add declaration
@@ -79,50 +77,52 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
       ) : (
         <ul className="grid gap-3">
           {declarations.map((text, index) => (
-            <li key={index} className="grid gap-2">
-              <Label htmlFor={`declaration-${index}`} className="text-sm font-medium text-muted-foreground">
-                Declaration {index + 1}
-              </Label>
-              <Textarea
-                id={`declaration-${index}`}
-                value={text}
-                onChange={(e) => updateAt(index, e.target.value)}
-                placeholder={`Declaration ${index + 1}`}
-                className="text-sm min-h-[80px] resize-y"
-              />
-              <div className="flex shrink-0 items-center justify-end gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => moveUp(index)}
-                  disabled={index === 0}
-                  aria-label="Move up"
-                >
-                  <ChevronUpIcon className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => moveDown(index)}
-                  disabled={index === declarations.length - 1}
-                  aria-label="Move down"
-                >
-                  <ChevronDownIcon className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => remove(index)}
-                  aria-label="Remove declaration"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </Button>
+            <li key={index} className="flex gap-3 py-2.5 px-0">
+              <span className="flex h-8 w-6 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground tabular-nums">
+                {index + 1}
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Textarea
+                  id={`declaration-${index}`}
+                  value={text}
+                  onChange={(e) => updateAt(index, e.target.value)}
+                  placeholder="e.g. I confirm that the information provided is accurate."
+                  className="text-sm min-h-[80px] resize-y"
+                />
+                <div className="flex shrink-0 items-center justify-end gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => moveUp(index)}
+                    disabled={index === 0}
+                    aria-label="Move up"
+                  >
+                    <ChevronUpIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => moveDown(index)}
+                    disabled={index === declarations.length - 1}
+                    aria-label="Move down"
+                  >
+                    <ChevronDownIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => remove(index)}
+                    aria-label="Remove declaration"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </li>
           ))}

@@ -348,7 +348,7 @@ function DocRow({
   const showPending = !hasTemplate && !!pendingFile;
 
   return (
-    <li className="flex gap-3 rounded-md border border-border/60 bg-background py-2.5 px-3">
+    <li className="flex gap-3 py-2.5 px-0">
       <span className="flex h-8 w-6 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground tabular-nums">
         {index + 1}
       </span>
