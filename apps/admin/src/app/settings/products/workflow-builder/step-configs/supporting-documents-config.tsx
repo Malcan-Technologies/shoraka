@@ -30,7 +30,7 @@ type CategoryKey = (typeof CATEGORY_KEYS)[number];
 
 export interface SupportingDocItemShape {
   name: string;
-  template?: { s3_key: string; filename: string; file_size?: number };
+  template?: { s3_key: string; file_name: string; file_size?: number };
 }
 
 function formatFileSize(bytes: number): string {
@@ -45,14 +45,15 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
   if (!Array.isArray(raw)) return [];
   return raw.map((item) => {
     const row = item as Record<string, unknown> | undefined;
-    const template = row?.template as { s3_key?: string; filename?: string; file_size?: number } | undefined;
+    const template = row?.template as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
+    const fileName = (template?.file_name ?? template?.filename) as string | undefined;
     return {
       name: (row?.name as string) ?? "",
       template:
         template?.s3_key != null
           ? {
               s3_key: template.s3_key,
-              filename: (template.filename as string) ?? "",
+              file_name: fileName ?? "",
               file_size: template.file_size as number | undefined,
             }
           : undefined,
@@ -112,15 +113,16 @@ export function SupportingDocumentsConfig({
   }, [config]);
 
   const persist = React.useCallback(
-    (nextLists: Record<CategoryKey, SupportingDocItemShape[]>, nextEnabled?: CategoryKey[]) => {
+    (nextLists: Record<CategoryKey, SupportingDocItemShape[]>, _nextEnabled?: CategoryKey[]) => {
       const payload: Record<string, unknown> = { ...base };
-      payload[ENABLED_CATEGORIES_KEY] = nextEnabled ?? enabledCategories;
+      delete payload[ENABLED_CATEGORIES_KEY];
       CATEGORY_KEYS.forEach((key) => {
-        payload[key] = nextLists[key];
+        const list = nextLists[key];
+        if (list.length > 0) payload[key] = list;
       });
       onChange(payload);
     },
-    [base, onChange, enabledCategories]
+    [base, onChange]
   );
 
   const updateCategory = (key: CategoryKey, items: SupportingDocItemShape[]) => {
@@ -384,8 +386,8 @@ function DocRow({
           <span className="shrink-0 text-xs">Optional template:</span>
           {hasTemplate ? (
             <>
-              <span className="truncate max-w-[180px]" title={item.template!.filename}>
-                {item.template!.filename}
+              <span className="truncate max-w-[180px]" title={item.template!.file_name}>
+                {item.template!.file_name}
                 {item.template!.file_size != null && (
                   <span className="ml-1">({formatFileSize(item.template!.file_size)})</span>
                 )}

@@ -200,7 +200,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 ...prevConfig,
                 image: {
                   s3_key: newKey,
-                  filename: pendingImageFile.name,
+                  file_name: pendingImageFile.name,
                   file_size: pendingImageFile.size,
                 },
               },
@@ -229,7 +229,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             });
             await uploadFileToS3(uploadUrl, file);
             const list = (stepConfig[categoryKey] as Record<string, unknown>[]) ?? [];
-            const item = { ...(list[index] as Record<string, unknown> ?? {}), template: { s3_key: s3Key, filename: file.name, file_size: file.size } };
+            const item = { ...(list[index] as Record<string, unknown> ?? {}), template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
             const nextList = [...list];
             nextList[index] = item;
             stepConfig = { ...stepConfig, [categoryKey]: nextList };
@@ -241,14 +241,18 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         setPendingSupportingDocTemplates({});
       }
+      const workflowPayload = workflowToSave.map((s) => {
+        const step = s as { id?: string; name?: string; config?: unknown };
+        return { ...step, config: step.config ?? {} };
+      });
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
-          data: { workflow: workflowToSave },
+          data: { workflow: workflowPayload },
         });
         toast.success("Product updated");
       } else {
-        await createProduct.mutateAsync({ workflow: workflowToSave });
+        await createProduct.mutateAsync({ workflow: workflowPayload });
         toast.success("Product created");
       }
       onOpenChange(false);

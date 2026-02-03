@@ -15,10 +15,10 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Image stored in config.image: S3 key, filename, optional size in bytes. */
+/** Image stored in config.image: S3 key, file_name, optional size in bytes. */
 export interface FinancingTypeImageShape {
   s3_key: string;
-  filename: string;
+  file_name: string;
   file_size?: number;
 }
 
@@ -32,12 +32,13 @@ export interface FinancingTypeConfigShape {
 }
 
 function getImage(c: Record<string, unknown> | undefined): FinancingTypeImageShape | null {
-  const img = c?.image as { s3_key?: string; filename?: string; file_size?: number } | undefined;
+  const img = c?.image as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
   const s3_key = (img?.s3_key ?? c?.s3_key) as string | undefined;
   if (!s3_key?.trim()) return null;
+  const fileName = (img?.file_name ?? img?.filename) as string | undefined;
   return {
     s3_key,
-    filename: (img?.filename as string) ?? "",
+    file_name: fileName ?? "",
     file_size: img?.file_size as number | undefined,
   };
 }
@@ -49,7 +50,7 @@ function getConfig(config: unknown): FinancingTypeConfigShape & { imageData: Fin
     category: (c?.category as string) ?? "",
     name: (c?.name as string) ?? "",
     description: (c?.description as string) ?? "",
-    image: imageData ? { s3_key: imageData.s3_key, filename: imageData.filename, file_size: imageData.file_size } : undefined,
+    image: imageData ? { s3_key: imageData.s3_key, file_name: imageData.file_name, file_size: imageData.file_size } : undefined,
     imageData,
   };
 }
@@ -192,11 +193,11 @@ export function FinancingTypeConfig({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                {(pendingFile || imageData?.filename || imageData?.file_size != null) && (
+                {(pendingFile || imageData?.file_name || imageData?.file_size != null) && (
                   <p className="text-sm font-medium truncate">
                     {pendingFile
                       ? `${pendingFile.name} (${formatFileSize(pendingFile.size)})`
-                      : `${imageData?.filename || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
+                      : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground mt-0.5">

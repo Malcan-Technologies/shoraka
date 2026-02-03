@@ -34,14 +34,15 @@ export function DeclarationsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
-   * Get declarations array from config
-   * 
-   * The product workflow has: config.declarations = ["text 1", "text 2", ...]
-   * We use useMemo to avoid re-creating the array on every render.
+   * Get declarations text array from config.
+   * Config can be string[] (legacy) or Array<{ text: string }> (current). Normalize to string[] for display.
    */
   const declarations = React.useMemo(() => {
     const decls = stepConfig?.declarations;
-    return Array.isArray(decls) ? decls : [];
+    if (!Array.isArray(decls)) return [];
+    return decls.map((d) =>
+      typeof d === "string" ? d : d != null && typeof d === "object" && "text" in d ? String((d as { text: unknown }).text ?? "") : ""
+    );
   }, [stepConfig?.declarations]);
 
   /**

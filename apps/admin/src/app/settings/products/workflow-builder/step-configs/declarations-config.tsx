@@ -7,31 +7,41 @@ import { ChevronUpIcon, ChevronDownIcon, TrashIcon, PlusIcon } from "@heroicons/
 
 const CONFIG_KEY = "declarations";
 
-function getDeclarations(config: unknown): string[] {
+/** Each declaration is an object so we can add fields later (e.g. required, id). */
+export interface DeclarationItemShape {
+  text: string;
+}
+
+function getDeclarations(config: unknown): DeclarationItemShape[] {
   const c = config as Record<string, unknown> | undefined;
   const raw = c?.[CONFIG_KEY];
   if (!Array.isArray(raw)) return [];
-  return raw.filter((item): item is string => typeof item === "string");
+  return raw.map((item) => {
+    if (typeof item === "string") return { text: item };
+    if (item != null && typeof item === "object" && "text" in item)
+      return { text: String((item as { text: unknown }).text ?? "") };
+    return { text: "" };
+  });
 }
 
 export function DeclarationsConfig({ config, onChange }: { config: unknown; onChange: (config: unknown) => void }) {
   const base = (config as Record<string, unknown>) ?? {};
-  const [declarations, setDeclarations] = React.useState<string[]>(() => getDeclarations(config));
+  const [declarations, setDeclarations] = React.useState<DeclarationItemShape[]>(() => getDeclarations(config));
 
   React.useEffect(() => {
     setDeclarations(getDeclarations(config));
   }, [config]);
 
   const persist = React.useCallback(
-    (next: string[]) => {
-      onChange({ ...base, [CONFIG_KEY]: next });
+    (next: DeclarationItemShape[]) => {
+      onChange({ ...base, [CONFIG_KEY]: next.map((d) => ({ text: d.text })) });
     },
     [base, onChange]
   );
 
   const updateAt = (index: number, value: string) => {
     const next = [...declarations];
-    next[index] = value;
+    next[index] = { ...next[index], text: value };
     setDeclarations(next);
     persist(next);
   };
@@ -59,7 +69,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
   };
 
   const add = () => {
-    const next = [...declarations, ""];
+    const next = [...declarations, { text: "" }];
     setDeclarations(next);
     persist(next);
   };
@@ -76,7 +86,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
         <p className="text-sm text-muted-foreground">No declarations yet. Add one to get started.</p>
       ) : (
         <ul className="grid gap-3">
-          {declarations.map((text, index) => (
+          {declarations.map((item, index) => (
             <li key={index} className="flex gap-3 py-2.5 px-0">
               <span className="flex h-8 w-6 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground tabular-nums">
                 {index + 1}
@@ -84,7 +94,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <Textarea
                   id={`declaration-${index}`}
-                  value={text}
+                  value={item.text}
                   onChange={(e) => updateAt(index, e.target.value)}
                   placeholder="e.g. I confirm that the information provided is accurate."
                   className="text-sm min-h-[80px] resize-y"
