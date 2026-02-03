@@ -37,10 +37,19 @@ import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUr
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
-
-const FIRST_STEP_KEY = "financing_type";
-const LAST_STEP_KEY = "review_and_submit";
-const SUPPORTING_DOCS_STEP_KEY = "supporting_documents";
+import {
+  getStepId,
+  buildPayloadFromSteps,
+  workflowDeepEqual,
+  getRequiredStepErrors,
+  FIRST_STEP_KEY,
+  LAST_STEP_KEY,
+  SUPPORTING_DOCS_STEP_KEY,
+} from "./product-form-helpers";
+import { AlertTriangle } from "lucide-react";
+import { WorkflowStepCard } from "./workflow-step-card";
+import { StepConfigEditor } from "./step-configs/step-config-editor";
+import { toast } from "sonner";
 
 /** Step keys that have no config UI in this dialog; no collapse arrow or config panel. */
 const STEPS_WITHOUT_CONFIG = new Set([
@@ -50,140 +59,6 @@ const STEPS_WITHOUT_CONFIG = new Set([
   "business_details",
   "review_and_submit",
 ]);
-import { AlertTriangle } from "lucide-react";
-import { WorkflowStepCard } from "./workflow-step-card";
-import { StepConfigEditor } from "./step-configs/step-config-editor";
-import { toast } from "sonner";
-
-function getStepId(step: unknown): string {
-  return (step as { id?: string })?.id ?? "";
-}
-
-const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
-const SUPPORTING_DOC_CATEGORY_LABELS: Record<(typeof SUPPORTING_DOC_CATEGORY_KEYS)[number], string> = {
-  financial_docs: "Financial Docs",
-  legal_docs: "Legal Docs",
-  compliance_docs: "Compliance Docs",
-  others: "Others",
-};
-
-const INVOICE_DETAILS_STEP_KEY = "invoice_details";
-const DECLARATIONS_STEP_KEY = "declarations";
-
-/** Normalize workflow steps to API shape (strip _pendingImage, apply invoice default). Used for comparison and payload. */
-function buildPayloadFromSteps(stepsSource: unknown[]): unknown[] {
-  return stepsSource.map((s) => {
-    const step = s as { id?: string; name?: string; config?: unknown };
-    let config = (step.config ?? {}) as Record<string, unknown>;
-    const stepKey = getStepKeyFromStepId(step.id ?? "");
-    if (
-      stepKey === INVOICE_DETAILS_STEP_KEY &&
-      (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)
-    ) {
-      config = { ...config, max_financing_rate_percent: 80 };
-    }
-    const { _pendingImage: _omit, ...configForApi } = config;
-    return { ...step, config: configForApi };
-  });
-}
-
-/** Deep equality for JSON-like workflow. Used to detect if there are unsaved changes. */
-function workflowDeepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a == null || b == null) return false;
-  if (typeof a !== "object" || typeof b !== "object") return false;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((item, i) => workflowDeepEqual(item, b[i]));
-  }
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  const keysA = Object.keys(a as Record<string, unknown>).sort();
-  const keysB = Object.keys(b as Record<string, unknown>).sort();
-  if (keysA.length !== keysB.length || keysA.some((k, i) => k !== keysB[i])) return false;
-  return keysA.every((k) =>
-    workflowDeepEqual(
-      (a as Record<string, unknown>)[k],
-      (b as Record<string, unknown>)[k]
-    )
-  );
-}
-
-/** Returns human-readable messages for steps that have config but missing required fields. All fields in every step are required (including description and image). */
-function getRequiredStepErrors(steps: unknown[]): string[] {
-  const errors: string[] = [];
-  for (const step of steps) {
-    const stepId = getStepId(step);
-    const stepKey = getStepKeyFromStepId(stepId);
-    const config = (step as { config?: Record<string, unknown> }).config ?? {};
-    const stepLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
-
-    if (stepKey === FIRST_STEP_KEY) {
-      const name = (config.name as string)?.trim() ?? "";
-      const category = (config.category as string)?.trim() ?? "";
-      const description = (config.description as string)?.trim() ?? "";
-      const image = config.image as { s3_key?: string } | undefined;
-      const legacyS3Key = (config.s3_key as string)?.trim();
-      const hasPendingImage = config._pendingImage === true;
-      const hasImage =
-        Boolean((image?.s3_key as string)?.trim()) || Boolean(legacyS3Key) || hasPendingImage;
-      if (!name) errors.push(`${stepLabel}: enter name`);
-      if (!category) errors.push(`${stepLabel}: enter category`);
-      if (!description) errors.push(`${stepLabel}: enter description`);
-      if (!hasImage) errors.push(`${stepLabel}: add an image`);
-    }
-
-    if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
-      const enabledCategories = Array.isArray(config.enabled_categories)
-        ? (config.enabled_categories as string[]).filter((k) =>
-            SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number])
-          )
-        : (Object.keys(config) as string[]).filter((k) =>
-            SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number])
-          );
-      if (enabledCategories.length === 0) {
-        errors.push(`${stepLabel}: add at least one category`);
-      } else {
-        const hasEmptyCategory = enabledCategories.some((key) => {
-          const list = config[key] as Array<{ name?: string }> | undefined;
-          return !Array.isArray(list) || list.length === 0;
-        });
-        if (hasEmptyCategory) {
-          errors.push(`${stepLabel}: every category must have at least one document`);
-        }
-      }
-      let docsMissingName = 0;
-      for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
-        const list = config[key] as Array<{ name?: string }> | undefined;
-        if (Array.isArray(list)) {
-          for (const item of list) {
-            if (!(item?.name as string)?.trim()) docsMissingName++;
-          }
-        }
-      }
-      if (docsMissingName > 0) {
-        errors.push(`${stepLabel}: every document must have a name`);
-      }
-    }
-
-    if (stepKey === DECLARATIONS_STEP_KEY) {
-      const raw = config.declarations;
-      if (!Array.isArray(raw) || raw.length === 0) {
-        errors.push(`${stepLabel}: add at least one declaration`);
-      } else {
-        const empty = raw.some((item: unknown) => {
-          const text = typeof item === "object" && item != null && "text" in item
-            ? String((item as { text: unknown }).text ?? "").trim()
-            : typeof item === "string"
-              ? item.trim()
-              : "";
-          return !text;
-        });
-        if (empty) errors.push(`${stepLabel}: every declaration must have text`);
-      }
-    }
-  }
-  return errors;
-}
 
 export interface ProductFormDialogProps {
   open: boolean;
@@ -331,6 +206,66 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
+  /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. */
+  const uploadImageAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+    const imageFile = pendingImageFile ?? pendingImageFileRef.current;
+    if (!imageFile) return;
+    const { uploadUrl, s3Key } = await requestImageUrl.mutateAsync({
+      productId,
+      fileName: imageFile.name,
+      contentType: imageFile.type,
+      fileSize: imageFile.size,
+    });
+    await uploadFileToS3(uploadUrl, imageFile);
+    const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+    if (firstIdx >= 0) {
+      const step = nextSteps[firstIdx] as Record<string, unknown>;
+      (step.config as Record<string, unknown>).image = {
+        s3_key: s3Key,
+        file_name: imageFile.name,
+        file_size: imageFile.size,
+      };
+    }
+    setPendingImageFile(null);
+    pendingImageFileRef.current = null;
+  };
+
+  /** Upload all pending template files to S3 and merge s3Keys into the supporting documents step. Mutates nextSteps. */
+  const uploadTemplatesAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+    for (const [slotKey, file] of Object.entries(pendingSupportingDocTemplates)) {
+      const parts = slotKey.split("_");
+      const categoryKey = parts.slice(0, -1).join("_");
+      const index = parseInt(parts[parts.length - 1], 10);
+      if (Number.isNaN(index) || !categoryKey) continue;
+      const { uploadUrl, s3Key } = await requestTemplateUrl.mutateAsync({
+        productId,
+        categoryKey,
+        templateIndex: index,
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+      });
+      await uploadFileToS3(uploadUrl, file);
+      const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
+      if (supportIdx >= 0) {
+        const step = nextSteps[supportIdx] as Record<string, unknown>;
+        const config = (step.config ?? {}) as Record<string, unknown>;
+        const list = ((config[categoryKey] as unknown[]) ?? []).slice();
+        const item = (list[index] ?? {}) as Record<string, unknown>;
+        const updated = { ...item, template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
+        if (index >= list.length) {
+          while (list.length < index) list.push({});
+          list.push(updated);
+        } else {
+          list[index] = updated;
+        }
+        config[categoryKey] = list;
+        (step as Record<string, unknown>).config = config;
+      }
+    }
+    setPendingSupportingDocTemplates({});
+  };
+
   const handleSave = async () => {
     if (steps.length === 0) {
       toast.error("Add at least one step.");
@@ -349,65 +284,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         productId = created.id;
       }
 
-      let nextSteps = steps.map((s) => ({
+      const nextSteps = steps.map((s) => ({
         ...(s as Record<string, unknown>),
         config: { ...((s as { config?: Record<string, unknown> }).config ?? {}) },
       }));
 
-      const imageFile = pendingImageFile ?? pendingImageFileRef.current;
-      if (imageFile) {
-        const { uploadUrl, s3Key } = await requestImageUrl.mutateAsync({
-          productId,
-          fileName: imageFile.name,
-          contentType: imageFile.type,
-          fileSize: imageFile.size,
-        });
-        await uploadFileToS3(uploadUrl, imageFile);
-        const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
-        if (firstIdx >= 0) {
-          const step = nextSteps[firstIdx] as Record<string, unknown>;
-          (step.config as Record<string, unknown>).image = {
-            s3_key: s3Key,
-            file_name: imageFile.name,
-            file_size: imageFile.size,
-          };
-        }
-        setPendingImageFile(null);
-        pendingImageFileRef.current = null;
-      }
-
-      for (const [slotKey, file] of Object.entries(pendingSupportingDocTemplates)) {
-        const parts = slotKey.split("_");
-        const categoryKey = parts.slice(0, -1).join("_");
-        const index = parseInt(parts[parts.length - 1], 10);
-        if (Number.isNaN(index) || !categoryKey) continue;
-        const { uploadUrl, s3Key } = await requestTemplateUrl.mutateAsync({
-          productId,
-          categoryKey,
-          templateIndex: index,
-          fileName: file.name,
-          contentType: file.type,
-          fileSize: file.size,
-        });
-        await uploadFileToS3(uploadUrl, file);
-        const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
-        if (supportIdx >= 0) {
-          const step = nextSteps[supportIdx] as Record<string, unknown>;
-          const config = (step.config ?? {}) as Record<string, unknown>;
-          const list = ((config[categoryKey] as unknown[]) ?? []).slice();
-          const item = (list[index] ?? {}) as Record<string, unknown>;
-          const updated = { ...item, template: { s3_key: s3Key, file_name: file.name, file_size: file.size } };
-          if (index >= list.length) {
-            while (list.length < index) list.push({});
-            list.push(updated);
-          } else {
-            list[index] = updated;
-          }
-          config[categoryKey] = list;
-          (step as Record<string, unknown>).config = config;
-        }
-      }
-      setPendingSupportingDocTemplates({});
+      await uploadImageAndMerge(productId, nextSteps);
+      await uploadTemplatesAndMerge(productId, nextSteps);
 
       const payload = buildPayloadFromSteps(nextSteps);
       if (isEdit && product) {

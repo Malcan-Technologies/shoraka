@@ -12,11 +12,11 @@ import { SupportingDocumentsConfig } from "./supporting-documents-config";
 import { DeclarationsConfig } from "./declarations-config";
 import { ReviewAndSubmitConfig } from "./review-and-submit-config";
 
+/** Renders the config UI for a step. stepKey picks which form to show; extraProps passed through (e.g. onPendingImageChange). */
 export interface StepConfigEditorProps {
   stepKey: ApplicationStepKey;
   config: unknown;
   onChange: (config: unknown) => void;
-  /** Extra props for the step config component (e.g. onPendingImageChange for financing_type). */
   extraProps?: Record<string, unknown>;
 }
 
@@ -32,7 +32,6 @@ const STEP_CONFIG_MAP: Record<ApplicationStepKey, React.ComponentType<{ config: 
   review_and_submit: ReviewAndSubmitConfig,
 };
 
-/** Renders the correct config UI for a step key. */
 export function StepConfigEditor({ stepKey, config, onChange, extraProps }: StepConfigEditorProps) {
   const Component = STEP_CONFIG_MAP[stepKey];
   if (!Component) return null;

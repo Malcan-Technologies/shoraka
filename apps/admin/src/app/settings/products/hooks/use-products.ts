@@ -6,13 +6,18 @@ import type { GetProductsResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export interface UseProductsParams {
-  page: number;
-  pageSize: number;
-  search?: string;
+/** If API returned an error, redirect on auth errors and throw. Otherwise return response.data. */
+function unwrapResponse<T>(response: { success: true; data: T } | { success: false; error: { code: string; message: string } }): T {
+  if (response.success) return response.data;
+  if (response.error.code === "UNAUTHORIZED" || response.error.code === "FORBIDDEN") {
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+      window.location.href = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
+    }
+  }
+  throw new Error(response.error.message);
 }
 
-export function useProducts(params: UseProductsParams) {
+export function useProducts(params: { page: number; pageSize: number; search?: string }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -20,16 +25,7 @@ export function useProducts(params: UseProductsParams) {
     queryKey: ["admin", "products", params],
     queryFn: async (): Promise<GetProductsResponse> => {
       const response = await apiClient.getProducts(params);
-      if (!response.success) {
-        if (response.error.code === "UNAUTHORIZED" || response.error.code === "FORBIDDEN") {
-          if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-            const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
-            window.location.href = landingUrl;
-          }
-        }
-        throw new Error(response.error.message);
-      }
-      return response.data;
+      return unwrapResponse(response);
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -51,16 +47,7 @@ export function useProduct(id: string | null) {
     queryFn: async () => {
       if (!id) throw new Error("No product id");
       const response = await apiClient.getProduct(id);
-      if (!response.success) {
-        if (response.error.code === "UNAUTHORIZED" || response.error.code === "FORBIDDEN") {
-          if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-            const landingUrl = process.env.NODE_ENV === "production" ? (process.env.NEXT_PUBLIC_LANDING_URL || "/") : "/";
-            window.location.href = landingUrl;
-          }
-        }
-        throw new Error(response.error.message);
-      }
-      return response.data;
+      return unwrapResponse(response);
     },
     enabled: !!id,
     staleTime: 0,
@@ -78,10 +65,9 @@ export function useCreateProduct() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (data: { version?: number; workflow: unknown[] }) => {
+    mutationFn: async (data: { workflow: unknown[] }) => {
       const response = await apiClient.createProduct(data);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
+      return unwrapResponse(response);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
@@ -95,16 +81,9 @@ export function useUpdateProduct() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: { workflow?: unknown[]; completeCreate?: boolean };
-    }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { workflow?: unknown[]; completeCreate?: boolean } }) => {
       const response = await apiClient.updateProduct(id, data);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
+      return unwrapResponse(response);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
@@ -120,7 +99,7 @@ export function useDeleteProduct() {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await apiClient.deleteProduct(id);
-      if (!response.success) throw new Error(response.error.message);
+      unwrapResponse(response);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
@@ -134,24 +113,13 @@ export function useProductImageUploadUrl() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async ({
-      productId,
-      fileName,
-      contentType,
-      fileSize,
-    }: {
-      productId: string;
-      fileName: string;
-      contentType: string;
-      fileSize?: number;
-    }) => {
-      const response = await apiClient.requestProductImageUploadUrl(productId, {
-        fileName,
-        contentType,
-        fileSize,
+    mutationFn: async (args: { productId: string; fileName: string; contentType: string; fileSize?: number }) => {
+      const response = await apiClient.requestProductImageUploadUrl(args.productId, {
+        fileName: args.fileName,
+        contentType: args.contentType,
+        fileSize: args.fileSize,
       });
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
+      return unwrapResponse(response);
     },
   });
 }
@@ -162,14 +130,7 @@ export function useProductTemplateUploadUrl() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async ({
-      productId,
-      categoryKey,
-      templateIndex,
-      fileName,
-      contentType,
-      fileSize,
-    }: {
+    mutationFn: async (args: {
       productId: string;
       categoryKey: string;
       templateIndex: number;
@@ -177,15 +138,14 @@ export function useProductTemplateUploadUrl() {
       contentType: string;
       fileSize?: number;
     }) => {
-      const response = await apiClient.requestProductTemplateUploadUrl(productId, {
-        categoryKey,
-        templateIndex,
-        fileName,
-        contentType,
-        fileSize,
+      const response = await apiClient.requestProductTemplateUploadUrl(args.productId, {
+        categoryKey: args.categoryKey,
+        templateIndex: args.templateIndex,
+        fileName: args.fileName,
+        contentType: args.contentType,
+        fileSize: args.fileSize,
       });
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
+      return unwrapResponse(response);
     },
   });
 }
