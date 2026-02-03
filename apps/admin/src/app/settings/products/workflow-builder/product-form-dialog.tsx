@@ -61,36 +61,76 @@ function getStepId(step: unknown): string {
 
 const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 
-/** Returns human-readable messages for steps that have config but missing required fields. */
-function getRequiredStepErrors(steps: unknown[]): string[] {
+const INVOICE_DETAILS_STEP_KEY = "invoice_details";
+const DECLARATIONS_STEP_KEY = "declarations";
+
+/** Returns human-readable messages for steps that have config but missing required fields. All fields in every step are required (including description and image). */
+function getRequiredStepErrors(
+  steps: unknown[],
+  opts?: { pendingImageFile?: File | null }
+): string[] {
   const errors: string[] = [];
+  const pendingImage = opts?.pendingImageFile ?? null;
   for (const step of steps) {
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);
     const config = (step as { config?: Record<string, unknown> }).config ?? {};
+    const stepLabel = STEP_KEY_DISPLAY[stepKey as keyof typeof STEP_KEY_DISPLAY]?.title ?? stepKey;
+
     if (stepKey === FIRST_STEP_KEY) {
       const name = (config.name as string)?.trim() ?? "";
       const category = (config.category as string)?.trim() ?? "";
-      if (!name || !category) {
-        errors.push("Financing Type: enter name and category");
+      const description = (config.description as string)?.trim() ?? "";
+      const image = config.image as { s3_key?: string } | undefined;
+      const legacyS3Key = (config.s3_key as string)?.trim();
+      const hasImage =
+        Boolean((image?.s3_key as string)?.trim()) || Boolean(legacyS3Key) || Boolean(pendingImage);
+      if (!name) errors.push(`${stepLabel}: enter name`);
+      if (!category) errors.push(`${stepLabel}: enter category`);
+      if (!description) errors.push(`${stepLabel}: enter description`);
+      if (!hasImage) errors.push(`${stepLabel}: add an image`);
+    }
+
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const v = config.max_financing_rate_percent;
+      if (typeof v !== "number" || Number.isNaN(v) || v < 0 || v > 100) {
+        errors.push(`${stepLabel}: enter max financing rate (0–100%)`);
       }
     }
+
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
-      let hasDocWithName = false;
+      let totalDocs = 0;
+      let docsMissingName = 0;
       for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
         const list = config[key] as Array<{ name?: string }> | undefined;
         if (Array.isArray(list)) {
           for (const item of list) {
-            if ((item?.name as string)?.trim()) {
-              hasDocWithName = true;
-              break;
-            }
+            totalDocs++;
+            if (!(item?.name as string)?.trim()) docsMissingName++;
           }
         }
-        if (hasDocWithName) break;
       }
-      if (!hasDocWithName) {
-        errors.push("Supporting Documents: add at least one document with a name");
+      if (totalDocs === 0) {
+        errors.push(`${stepLabel}: add at least one document with a name`);
+      } else if (docsMissingName > 0) {
+        errors.push(`${stepLabel}: every document must have a name`);
+      }
+    }
+
+    if (stepKey === DECLARATIONS_STEP_KEY) {
+      const raw = config.declarations;
+      if (!Array.isArray(raw) || raw.length === 0) {
+        errors.push(`${stepLabel}: add at least one declaration`);
+      } else {
+        const empty = raw.some((item: unknown) => {
+          const text = typeof item === "object" && item != null && "text" in item
+            ? String((item as { text: unknown }).text ?? "").trim()
+            : typeof item === "string"
+              ? item.trim()
+              : "";
+          return !text;
+        });
+        if (empty) errors.push(`${stepLabel}: every declaration must have text`);
       }
     }
   }
@@ -440,7 +480,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         {!isEdit || product ? (
           <>
             {steps.length > 0 && (() => {
-              const requiredErrors = getRequiredStepErrors(steps);
+              const requiredErrors = getRequiredStepErrors(steps, { pendingImageFile });
               if (requiredErrors.length === 0) return null;
               return (
                 <div className="mx-4 -mt-3 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/50 dark:bg-amber-950/40">
@@ -464,7 +504,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps).length > 0}
+                disabled={isSaving || steps.length === 0 || getRequiredStepErrors(steps, { pendingImageFile }).length > 0}
               >
                 {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
               </Button>

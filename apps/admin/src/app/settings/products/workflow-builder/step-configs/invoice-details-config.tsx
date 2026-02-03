@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
 
@@ -15,6 +16,13 @@ function getMaxFinancingRatePercent(config: unknown): number {
 export function InvoiceDetailsConfig({ config, onChange }: { config: unknown; onChange: (config: unknown) => void }) {
   const base = (config as Record<string, unknown>) ?? {};
   const maxFinancingRatePercent = getMaxFinancingRatePercent(config);
+
+  React.useEffect(() => {
+    const c = config as Record<string, unknown> | undefined;
+    if (c && c.max_financing_rate_percent === undefined) {
+      onChange({ ...c, max_financing_rate_percent: DEFAULT_MAX_FINANCING_RATE_PERCENT });
+    }
+  }, [config, onChange]);
 
   const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.trim();
