@@ -103,20 +103,21 @@ export function WorkflowStepCard({
                   aria-label={isExpanded ? "Collapse config" : "Expand config"}
                 >
                   <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
-                  {isJustAdded && (
+                  {isJustAdded ? (
                     <span className="shrink-0 text-xs text-muted-foreground">Just added</span>
-                  )}
-                  {isEdited && !isJustAdded && (
+                  ) : isEdited ? (
                     <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
-                  )}
+                  ) : null}
                 </button>
               </CollapsibleTrigger>
             ) : (
               <>
                 <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
-                {isEdited && (
+                {isJustAdded ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">Just added</span>
+                ) : isEdited ? (
                   <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
-                )}
+                ) : null}
               </>
             )}
             {onOpenChange ? (
