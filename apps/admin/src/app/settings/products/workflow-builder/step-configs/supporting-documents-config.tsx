@@ -60,15 +60,26 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
 }
 
 const ENABLED_CATEGORIES_KEY = "enabled_categories";
+const OTHERS_KEY: CategoryKey = "others";
+
+/** Return categories with "others" moved to the end. Other categories keep their order. */
+function ensureOthersLast(cats: CategoryKey[]): CategoryKey[] {
+  const rest = cats.filter((k) => k !== OTHERS_KEY);
+  const hasOthers = cats.includes(OTHERS_KEY);
+  return hasOthers ? [...rest, OTHERS_KEY] : rest;
+}
 
 function getEnabledCategories(config: unknown): CategoryKey[] {
   const c = config as Record<string, unknown> | undefined;
   const raw = c?.[ENABLED_CATEGORIES_KEY];
   if (Array.isArray(raw)) {
-    return raw.filter((k): k is CategoryKey => CATEGORY_KEYS.includes(k as CategoryKey));
+    const filtered = raw.filter((k): k is CategoryKey => CATEGORY_KEYS.includes(k as CategoryKey));
+    return ensureOthersLast(filtered);
   }
   const base = c ?? {};
-  return CATEGORY_KEYS.filter((k) => base[k] !== undefined);
+  const categorySet = new Set(CATEGORY_KEYS);
+  const derived = (Object.keys(base) as CategoryKey[]).filter((k) => categorySet.has(k));
+  return ensureOthersLast(derived);
 }
 
 function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[]> {
@@ -136,7 +147,7 @@ export function SupportingDocumentsConfig({
 
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
-    const nextEnabled = [...enabledCategories, key];
+    const nextEnabled = ensureOthersLast([...enabledCategories, key]);
     setEnabledCategories(nextEnabled);
     persist(lists, nextEnabled);
   };

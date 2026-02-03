@@ -60,6 +60,12 @@ function getStepId(step: unknown): string {
 }
 
 const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
+const SUPPORTING_DOC_CATEGORY_LABELS: Record<(typeof SUPPORTING_DOC_CATEGORY_KEYS)[number], string> = {
+  financial_docs: "Financial docs",
+  legal_docs: "Legal docs",
+  compliance_docs: "Compliance docs",
+  others: "Others",
+};
 
 const INVOICE_DETAILS_STEP_KEY = "invoice_details";
 const DECLARATIONS_STEP_KEY = "declarations";
@@ -131,20 +137,30 @@ function getRequiredStepErrors(steps: unknown[]): string[] {
     }
 
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
-      let totalDocs = 0;
+      const enabledCategories = Array.isArray(config.enabled_categories)
+        ? (config.enabled_categories as string[]).filter((k) =>
+            SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number])
+          )
+        : (Object.keys(config) as string[]).filter((k) =>
+            SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number])
+          );
+      for (const key of enabledCategories) {
+        const list = config[key] as Array<{ name?: string }> | undefined;
+        if (!Array.isArray(list) || list.length === 0) {
+          const label = SUPPORTING_DOC_CATEGORY_LABELS[key as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number]] ?? key;
+          errors.push(`${stepLabel}: "${label}" must have at least one document`);
+        }
+      }
       let docsMissingName = 0;
       for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
         const list = config[key] as Array<{ name?: string }> | undefined;
         if (Array.isArray(list)) {
           for (const item of list) {
-            totalDocs++;
             if (!(item?.name as string)?.trim()) docsMissingName++;
           }
         }
       }
-      if (totalDocs === 0) {
-        errors.push(`${stepLabel}: add at least one document with a name`);
-      } else if (docsMissingName > 0) {
+      if (docsMissingName > 0) {
         errors.push(`${stepLabel}: every document must have a name`);
       }
     }
