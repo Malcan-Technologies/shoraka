@@ -138,12 +138,18 @@ export function useProductImageUploadUrl() {
       productId,
       fileName,
       contentType,
+      fileSize,
     }: {
       productId: string;
       fileName: string;
       contentType: string;
+      fileSize?: number;
     }) => {
-      const response = await apiClient.requestProductImageUploadUrl(productId, { fileName, contentType });
+      const response = await apiClient.requestProductImageUploadUrl(productId, {
+        fileName,
+        contentType,
+        fileSize,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

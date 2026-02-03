@@ -61,13 +61,14 @@ export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
 
 const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPE = "image/png";
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-// POST /v1/products/:id/upload-image-url — same pattern as site-documents: backend loads product, gets current image key, returns uploadUrl + s3Key.
+// POST /v1/products/:id/upload-image-url — PNG only, 5MB max.
 export const productUploadImageUrlBodySchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.string().refine((v) => v.startsWith("image/"), {
-    message: "Only image types are allowed",
-  }),
+  contentType: z.literal(ALLOWED_IMAGE_TYPE),
+  fileSize: z.number().max(MAX_IMAGE_SIZE_BYTES, "Image must be 5MB or less").optional(),
 });
 
 export type ProductUploadImageUrlBody = z.infer<typeof productUploadImageUrlBodySchema>;

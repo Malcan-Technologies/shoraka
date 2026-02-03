@@ -9,6 +9,8 @@ import { PhotoIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -112,8 +114,13 @@ export function FinancingTypeConfig({
       onPendingImageChange?.(null);
       return;
     }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file (e.g. PNG, JPG)");
+    if (file.type !== "image/png") {
+      toast.error("Only PNG images are allowed");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast.error("Image must be 5MB or less");
       e.target.value = "";
       return;
     }
@@ -171,7 +178,7 @@ export function FinancingTypeConfig({
             ref={fileInputRef}
             id="ft-image"
             type="file"
-            accept="image/*"
+            accept="image/png"
             onChange={handleFileSelect}
             className={hasPreview ? "sr-only" : "border-0 bg-transparent p-0 h-auto file:text-sm file:font-medium"}
             tabIndex={hasPreview ? -1 : undefined}

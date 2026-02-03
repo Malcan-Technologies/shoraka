@@ -356,6 +356,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           productId,
           fileName: imageFile.name,
           contentType: imageFile.type,
+          fileSize: imageFile.size,
         });
         await uploadFileToS3(uploadUrl, imageFile);
         const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);

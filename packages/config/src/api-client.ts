@@ -939,10 +939,10 @@ export class ApiClient {
     return this.delete<unknown>(`/v1/products/${id}`);
   }
 
-  /** Request presigned URL for product image (admin). Same pattern as site-documents: backend loads product and returns uploadUrl + s3Key. */
+  /** Request presigned URL for product image (admin). PNG only, 5MB max. */
   async requestProductImageUploadUrl(
     productId: string,
-    body: { fileName: string; contentType: string }
+    body: { fileName: string; contentType: string; fileSize?: number }
   ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
     return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
       `/v1/products/${productId}/upload-image-url`,
