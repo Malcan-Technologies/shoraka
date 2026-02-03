@@ -49,6 +49,74 @@ interface BusinessDetailsPayload {
   declarationConfirmed: boolean;
 }
 
+/** API/DB shape: snake_case keys */
+interface BusinessDetailsSnake {
+  about_your_business?: {
+    what_does_company_do?: string;
+    main_customers?: string;
+    single_customer_over_50_revenue?: string;
+  };
+  why_raising_funds?: {
+    financing_for?: string;
+    how_funds_used?: string;
+    business_plan?: string;
+    risks_delay_repayment?: string;
+    backup_plan?: string;
+    raising_on_other_p2p?: string;
+    platform_name?: string;
+    amount_raised?: string;
+    same_invoice_used?: string;
+  };
+  declaration_confirmed?: boolean;
+}
+
+function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
+  return {
+    about_your_business: {
+      what_does_company_do: p.aboutYourBusiness.whatDoesCompanyDo ?? "",
+      main_customers: p.aboutYourBusiness.mainCustomers ?? "",
+      single_customer_over_50_revenue: p.aboutYourBusiness.singleCustomerOver50Revenue ?? "",
+    },
+    why_raising_funds: {
+      financing_for: p.whyRaisingFunds.financingFor ?? "",
+      how_funds_used: p.whyRaisingFunds.howFundsUsed ?? "",
+      business_plan: p.whyRaisingFunds.businessPlan ?? "",
+      risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
+      backup_plan: p.whyRaisingFunds.backupPlan ?? "",
+      raising_on_other_p2p: p.whyRaisingFunds.raisingOnOtherP2P ?? "",
+      platform_name: p.whyRaisingFunds.platformName ?? "",
+      amount_raised: p.whyRaisingFunds.amountRaised ?? "",
+      same_invoice_used: p.whyRaisingFunds.sameInvoiceUsed ?? "",
+    },
+    declaration_confirmed: p.declarationConfirmed,
+  };
+}
+
+function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined): BusinessDetailsPayload {
+  const raw = saved as any;
+  const a = raw?.about_your_business ?? raw?.aboutYourBusiness;
+  const w = raw?.why_raising_funds ?? raw?.whyRaisingFunds;
+  return {
+    aboutYourBusiness: {
+      whatDoesCompanyDo: a?.what_does_company_do ?? a?.whatDoesCompanyDo ?? "",
+      mainCustomers: a?.main_customers ?? a?.mainCustomers ?? "",
+      singleCustomerOver50Revenue: (a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue) as YesNo | "" ?? "",
+    },
+    whyRaisingFunds: {
+      financingFor: w?.financing_for ?? w?.financingFor ?? "",
+      howFundsUsed: w?.how_funds_used ?? w?.howFundsUsed ?? "",
+      businessPlan: w?.business_plan ?? w?.businessPlan ?? "",
+      risksDelayRepayment: w?.risks_delay_repayment ?? w?.risksDelayRepayment ?? "",
+      backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
+      raisingOnOtherP2P: (w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P) as YesNo | "" ?? "",
+      platformName: w?.platform_name ?? w?.platformName ?? "",
+      amountRaised: w?.amount_raised ?? w?.amountRaised ?? "",
+      sameInvoiceUsed: (w?.same_invoice_used ?? w?.sameInvoiceUsed) as YesNo | "" ?? "",
+    },
+    declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
+  };
+}
+
 const defaultAbout: AboutYourBusiness = {
   whatDoesCompanyDo: "",
   mainCustomers: "",
@@ -199,36 +267,15 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
 
-    const saved = application?.business_details as BusinessDetailsPayload | null | undefined;
-    if (saved?.aboutYourBusiness) {
-      setAboutYourBusiness({
-        whatDoesCompanyDo: saved.aboutYourBusiness.whatDoesCompanyDo ?? "",
-        mainCustomers: saved.aboutYourBusiness.mainCustomers ?? "",
-        singleCustomerOver50Revenue: saved.aboutYourBusiness.singleCustomerOver50Revenue ?? "",
-      });
-    }
-    if (saved?.whyRaisingFunds) {
-      setWhyRaisingFunds({
-        financingFor: saved.whyRaisingFunds.financingFor ?? "",
-        howFundsUsed: saved.whyRaisingFunds.howFundsUsed ?? "",
-        businessPlan: saved.whyRaisingFunds.businessPlan ?? "",
-        risksDelayRepayment: saved.whyRaisingFunds.risksDelayRepayment ?? "",
-        backupPlan: saved.whyRaisingFunds.backupPlan ?? "",
-        raisingOnOtherP2P: saved.whyRaisingFunds.raisingOnOtherP2P ?? "",
-        platformName: saved.whyRaisingFunds.platformName ?? "",
-        amountRaised: restrictDigitsOnly(saved.whyRaisingFunds.amountRaised ?? ""),
-        sameInvoiceUsed: saved.whyRaisingFunds.sameInvoiceUsed ?? "",
-      });
-    }
-    if (typeof saved?.declarationConfirmed === "boolean") {
-      setDeclarationConfirmed(saved.declarationConfirmed);
-    }
-    const initial = {
-      aboutYourBusiness: saved?.aboutYourBusiness ?? defaultAbout,
-      whyRaisingFunds: saved?.whyRaisingFunds ?? defaultWhy,
-      declarationConfirmed: saved?.declarationConfirmed ?? false,
-    };
-    initialPayloadRef.current = JSON.stringify(initial);
+    const saved = application?.business_details;
+    const initial = fromSnakeSaved(saved);
+    setAboutYourBusiness(initial.aboutYourBusiness);
+    setWhyRaisingFunds({
+      ...initial.whyRaisingFunds,
+      amountRaised: restrictDigitsOnly(initial.whyRaisingFunds.amountRaised),
+    });
+    setDeclarationConfirmed(initial.declarationConfirmed);
+    initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
 
@@ -241,20 +288,22 @@ export function BusinessDetailsStep({
     [aboutYourBusiness, whyRaisingFunds, declarationConfirmed]
   );
 
+  const snakePayload = React.useMemo(() => toSnakePayload(payload), [payload]);
+
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
-    return JSON.stringify(payload) !== initialPayloadRef.current;
-  }, [payload, isInitialized]);
+    return JSON.stringify(snakePayload) !== initialPayloadRef.current;
+  }, [snakePayload, isInitialized]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
 
     onDataChangeRef.current({
-      ...payload,
+      ...snakePayload,
       hasPendingChanges,
       isDeclarationConfirmed: declarationConfirmed,
     });
-  }, [payload, hasPendingChanges, declarationConfirmed, isInitialized]);
+  }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized]);
 
   if (isLoadingApp || !isInitialized) {
     return (

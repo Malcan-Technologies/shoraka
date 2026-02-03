@@ -207,12 +207,16 @@ export function CompanyDetailsStep({
     try {
       const updates: any = {};
 
-      // Save company info if there are pending changes
+      // Save company info only for fields that have pending changes
       if (pendingCompanyInfo) {
-        updates.industry = pendingCompanyInfo.industry || null;
-        updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
-          ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
-          : null;
+        if (pendingCompanyInfo.industry !== undefined) {
+          updates.industry = pendingCompanyInfo.industry || null;
+        }
+        if (pendingCompanyInfo.numberOfEmployees !== undefined) {
+          updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
+            ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
+            : null;
+        }
       }
 
       // Save address if there are pending changes
@@ -650,11 +654,14 @@ export function CompanyDetailsStep({
             disabled
             className={inputClassName}
           />
-          <div className={labelClassName}>Industry</div>
+          <div className={labelClassNameEditable}>Industry</div>
           <Input
-            value={displayIndustry || "—"}
-            disabled
-            className={inputClassName}
+            value={displayIndustry ?? ""}
+            onChange={(e) =>
+              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
+            }
+            placeholder="—"
+            className={inputClassNameEditable}
           />
           <div className={labelClassNameEditable}>Number of employees</div>
           <div>

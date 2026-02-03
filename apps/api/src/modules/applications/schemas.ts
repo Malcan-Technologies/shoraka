@@ -27,27 +27,27 @@ export const applicationIdParamSchema = z.object({
 const yesNoOrEmptySchema = z.union([z.enum(["yes", "no"]), z.literal("")]);
 
 const aboutYourBusinessSchema = z.object({
-  whatDoesCompanyDo: z.string().max(200).optional().default(""),
-  mainCustomers: z.string().max(200).optional().default(""),
-  singleCustomerOver50Revenue: yesNoOrEmptySchema.optional().default(""),
+  what_does_company_do: z.string().max(200).optional().default(""),
+  main_customers: z.string().max(200).optional().default(""),
+  single_customer_over_50_revenue: yesNoOrEmptySchema.optional().default(""),
 });
 
 const whyRaisingFundsSchema = z.object({
-  financingFor: z.string().max(200).optional().default(""),
-  howFundsUsed: z.string().max(200).optional().default(""),
-  businessPlan: z.string().max(1000).optional().default(""),
-  risksDelayRepayment: z.string().max(200).optional().default(""),
-  backupPlan: z.string().max(200).optional().default(""),
-  raisingOnOtherP2P: yesNoOrEmptySchema.optional().default(""),
-  platformName: z.string().optional().default(""),
-  amountRaised: z.string().optional().default(""),
-  sameInvoiceUsed: yesNoOrEmptySchema.optional().default(""),
+  financing_for: z.string().max(200).optional().default(""),
+  how_funds_used: z.string().max(200).optional().default(""),
+  business_plan: z.string().max(1000).optional().default(""),
+  risks_delay_repayment: z.string().max(200).optional().default(""),
+  backup_plan: z.string().max(200).optional().default(""),
+  raising_on_other_p2p: yesNoOrEmptySchema.optional().default(""),
+  platform_name: z.string().optional().default(""),
+  amount_raised: z.string().optional().default(""),
+  same_invoice_used: yesNoOrEmptySchema.optional().default(""),
 });
 
 export const businessDetailsDataSchema = z.object({
-  aboutYourBusiness: aboutYourBusinessSchema.optional().default({}),
-  whyRaisingFunds: whyRaisingFundsSchema.optional().default({}),
-  declarationConfirmed: z.boolean(),
+  about_your_business: aboutYourBusinessSchema.optional().default({}),
+  why_raising_funds: whyRaisingFundsSchema.optional().default({}),
+  declaration_confirmed: z.boolean(),
 });
 
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;

@@ -545,14 +545,14 @@ export default function EditApplicationPage() {
       }
 
       if (currentStepKey === "business_details") {
-        if (!dataToSave?.declarationConfirmed) {
+        if (!dataToSave?.declaration_confirmed) {
           toast.error("Please confirm the declaration to continue");
           return;
         }
         dataToSave = {
-          aboutYourBusiness: dataToSave.aboutYourBusiness,
-          whyRaisingFunds: dataToSave.whyRaisingFunds,
-          declarationConfirmed: dataToSave.declarationConfirmed,
+          about_your_business: dataToSave.about_your_business,
+          why_raising_funds: dataToSave.why_raising_funds,
+          declaration_confirmed: dataToSave.declaration_confirmed,
         };
       }
       
