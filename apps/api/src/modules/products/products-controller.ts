@@ -9,92 +9,15 @@ import {
   createProductBodySchema,
   updateProductBodySchema,
 } from "./schemas";
+import {
+  createProductLog,
+  buildProductLogMetadata,
+  getProductS3KeysFromWorkflow,
+  getReplacedProductS3Keys,
+} from "./product-log";
 
 const router = Router();
 const productRepository = new ProductRepository();
-
-const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
-const PRODUCT_S3_KEY_PREFIX = "products/";
-
-function getStepId(step: unknown): string {
-  return (step as { id?: string })?.id ?? "";
-}
-
-function getConfig(step: unknown): Record<string, unknown> {
-  return ((step as { config?: unknown }).config as Record<string, unknown>) ?? {};
-}
-
-/** S3 keys that were in the old workflow but are replaced or removed in the new workflow. Only keys under products/. */
-function getReplacedProductS3Keys(
-  oldWorkflow: unknown[],
-  newWorkflow: unknown[]
-): string[] {
-  const keys = new Set<string>();
-  const oldSteps = Array.isArray(oldWorkflow) ? oldWorkflow : [];
-  const newSteps = Array.isArray(newWorkflow) ? newWorkflow : [];
-
-  const oldFirst = oldSteps.find((s) => getStepId(s).startsWith("financing_type"));
-  const newFirst = newSteps.find((s) => getStepId(s).startsWith("financing_type"));
-  const oldConfig = oldFirst ? getConfig(oldFirst) : {};
-  const newConfig = newFirst ? getConfig(newFirst) : {};
-  const oldImage = oldConfig.image as { s3_key?: string } | undefined;
-  const newImage = newConfig.image as { s3_key?: string } | undefined;
-  const oldImageKey = (oldImage?.s3_key ?? oldConfig.s3_key) as string | undefined;
-  const newImageKey = (newImage?.s3_key ?? newConfig.s3_key) as string | undefined;
-  const oldKeyTrim = oldImageKey?.trim();
-  if (oldKeyTrim && oldKeyTrim !== (newImageKey?.trim() ?? "")) {
-    if (oldKeyTrim.startsWith(PRODUCT_S3_KEY_PREFIX)) keys.add(oldKeyTrim);
-  }
-
-  const oldSupporting = oldSteps.find((s) => getStepId(s).startsWith("supporting_documents"));
-  const newSupporting = newSteps.find((s) => getStepId(s).startsWith("supporting_documents"));
-  const oldSupportConfig = oldSupporting ? getConfig(oldSupporting) : {};
-  const newSupportConfig = newSupporting ? getConfig(newSupporting) : {};
-  for (const category of SUPPORTING_DOC_CATEGORY_KEYS) {
-    const oldList = (oldSupportConfig[category] as Array<{ template?: { s3_key?: string } }>) ?? [];
-    const newList = (newSupportConfig[category] as Array<{ template?: { s3_key?: string } }>) ?? [];
-    const maxLen = Math.max(oldList.length, newList.length);
-    for (let i = 0; i < maxLen; i++) {
-      const oldItem = oldList[i];
-      const newItem = newList[i];
-      const oldT = oldItem?.template?.s3_key?.trim();
-      const newT = newItem?.template?.s3_key?.trim() ?? "";
-      if (oldT && oldT !== newT && oldT.startsWith(PRODUCT_S3_KEY_PREFIX)) {
-        keys.add(oldT);
-      }
-    }
-  }
-  return [...keys];
-}
-
-/**
- * Find every s3_key in the workflow (anywhere in the JSON).
- * When we delete a product, we delete these files from S3 too.
- */
-function getProductS3KeysFromWorkflow(workflow: unknown): string[] {
-  const keys = new Set<string>();
-
-  function scan(value: unknown): void {
-    if (value == null) return;
-    if (Array.isArray(value)) {
-      value.forEach(scan);
-      return;
-    }
-    if (typeof value === "object") {
-      for (const [name, val] of Object.entries(value)) {
-        if (name === "s3_key" && typeof val === "string") {
-          const path = val.trim();
-          if (path.startsWith(PRODUCT_S3_KEY_PREFIX)) keys.add(path);
-        } else {
-          scan(val);
-        }
-      }
-    }
-  }
-
-  scan(workflow);
-  return [...keys];
-}
 
 /**
  * GET /v1/products
@@ -151,6 +74,8 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const product = await productRepository.create({
       workflow: validated.workflow,
     });
+    const workflowArr = (product.workflow as unknown[]) ?? [];
+    await createProductLog(req, "PRODUCT_CREATED", product.id, buildProductLogMetadata(workflowArr, product.version, product.created_at, product.updated_at));
     res.status(201).json({
       success: true,
       data: {
@@ -222,6 +147,9 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
       completeCreate: validated.completeCreate,
     });
 
+    const newWorkflow = (product.workflow as unknown[]) ?? [];
+    await createProductLog(req, "PRODUCT_UPDATED", id, buildProductLogMetadata(newWorkflow, product.version, product.created_at, product.updated_at));
+
     for (const key of keysToDelete) {
       try {
         await deleteS3Object(key);
@@ -266,6 +194,8 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
     }
     const workflow = (product.workflow as unknown[]) ?? [];
     const keysToDelete = getProductS3KeysFromWorkflow(workflow);
+
+    await createProductLog(req, "PRODUCT_DELETED", id, buildProductLogMetadata(workflow, product.version, product.created_at, product.updated_at));
 
     await productRepository.delete(id);
 
