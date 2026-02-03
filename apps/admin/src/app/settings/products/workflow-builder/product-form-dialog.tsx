@@ -91,13 +91,6 @@ function getRequiredStepErrors(
       if (!hasImage) errors.push(`${stepLabel}: add an image`);
     }
 
-    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
-      const v = config.max_financing_rate_percent;
-      if (typeof v !== "number" || Number.isNaN(v) || v < 0 || v > 100) {
-        errors.push(`${stepLabel}: enter max financing rate (0–100%)`);
-      }
-    }
-
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
       let totalDocs = 0;
       let docsMissingName = 0;
@@ -322,7 +315,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       }
       const workflowPayload = workflowToSave.map((s) => {
         const step = s as { id?: string; name?: string; config?: unknown };
-        return { ...step, config: step.config ?? {} };
+        let config = (step.config ?? {}) as Record<string, unknown>;
+        const stepKey = getStepKeyFromStepId(step.id ?? "");
+        if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent === undefined || config.max_financing_rate_percent === null)) {
+          config = { ...config, max_financing_rate_percent: 80 };
+        }
+        return { ...step, config };
       });
       if (isEdit && product) {
         await updateProduct.mutateAsync({
