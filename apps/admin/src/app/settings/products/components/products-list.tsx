@@ -28,22 +28,15 @@ import {
   DialogFooter,
 } from "../../../../components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../../../components/ui/dropdown-menu";
-import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
-  EyeIcon,
   PencilSquareIcon,
   TrashIcon,
   CubeIcon,
   XMarkIcon,
-  EllipsisVerticalIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
+import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { productName } from "../product-utils";
 import { ProductFormDialog } from "../workflow-builder/product-form-dialog";
@@ -53,8 +46,6 @@ function formatDate(dateStr: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -128,7 +119,7 @@ export function ProductsList() {
 
       {/* Toolbar – search, clear, reload, count */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by name..."
@@ -171,16 +162,16 @@ export function ProductsList() {
         </div>
       )}
 
-      {/* Table – same wrapper and structure as documents */}
-      <div className="rounded-xl border border-border bg-card">
-        <Table>
+      {/* Table – scroll horizontally on small screens */}
+      <div className="rounded-xl border border-border bg-card overflow-x-auto">
+        <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[300px]">Product</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Updated</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="w-0 whitespace-nowrap text-left">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -200,7 +191,7 @@ export function ProductsList() {
                     <Skeleton className="h-5 w-24" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="h-8 w-24 ml-auto" />
+                    <Skeleton className="h-8 w-24" />
                   </TableCell>
                 </TableRow>
               ))
@@ -227,39 +218,32 @@ export function ProductsList() {
                     {formatDate(p.created_at)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(p.updated_at)}
+                    {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
                   </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              aria-label={`Actions for ${productName(p)}`}
-                            >
-                              <EllipsisVerticalIcon className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setViewProduct(p)}>
-                              <EyeIcon className="h-4 w-4 mr-2" />
-                              View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditProduct(p)}>
-                              <PencilSquareIcon className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setProductToDelete(p)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <TrashIcon className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                  <TableCell className="text-left whitespace-nowrap">
+                    <div className="flex items-center justify-start gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-sm"
+                        onClick={() => openEditProduct(p)}
+                        aria-label={`Edit ${productName(p)}`}
+                      >
+                        <PencilSquareIcon className="h-4 w-4 shrink-0" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setProductToDelete(p)}
+                        aria-label={`Delete ${productName(p)}`}
+                      >
+                        <TrashIcon className="h-4 w-4 shrink-0" />
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             )}

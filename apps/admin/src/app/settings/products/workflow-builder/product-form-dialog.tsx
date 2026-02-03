@@ -484,7 +484,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-xl border-border">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-xl border-border sm:w-full">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
@@ -501,7 +501,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <Label>Workflow steps</Label>
                   <p className="text-xs text-muted-foreground">
                     Drag to reorder. Expand to configure. Add steps below.
@@ -515,7 +515,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                       if (step) handleAddStep(step);
                     }}
                   >
-                    <SelectTrigger className="w-[200px] h-9">
+                    <SelectTrigger className="w-full sm:w-[200px] h-9 shrink-0">
                       <SelectValue placeholder="Add step" />
                     </SelectTrigger>
                     <SelectContent>
