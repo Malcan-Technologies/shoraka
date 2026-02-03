@@ -211,7 +211,7 @@ export function SupportingDocumentsConfig({
   const [addCategoryValue, setAddCategoryValue] = React.useState("");
 
   return (
-    <div className="grid gap-3 pt-2 min-w-0 sm:gap-4">
+    <div className="grid gap-3 pt-2 text-sm leading-6 min-w-0 sm:gap-4">
       {availableToAdd.length > 0 && (
         <Select
           key={enabledCategories.join(",")}
@@ -293,7 +293,7 @@ function CategorySection({
   isUploadingTemplate: boolean;
 }) {
   return (
-    <div className="grid gap-3 rounded-lg bg-muted/5 p-3 min-w-0 sm:p-4">
+    <div className="grid gap-3 rounded-lg bg-muted/5 p-3 text-sm leading-6 min-w-0 sm:p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Label className="text-sm font-medium shrink-0">{label}</Label>
         <div className="flex flex-wrap items-center gap-2">
@@ -397,7 +397,7 @@ function DocRow({
             className="sr-only"
             tabIndex={hasTemplate || showPending ? -1 : undefined}
           />
-          <span className="shrink-0 text-sm">Optional template:</span>
+          <span className="shrink-0">Optional template:</span>
           {hasTemplate ? (
             <>
               <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={item.template!.file_name}>

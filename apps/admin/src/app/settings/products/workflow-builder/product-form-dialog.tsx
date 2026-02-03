@@ -545,7 +545,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                       items={steps.map(getStepId)}
                       strategy={verticalListSortingStrategy}
                     >
-                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
+                      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
                         {steps.map((step) => {
                           const stepId = getStepId(step);
                           const stepKey = getStepKeyFromStepId(stepId);

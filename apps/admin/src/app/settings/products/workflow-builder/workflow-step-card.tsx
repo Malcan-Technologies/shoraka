@@ -169,7 +169,7 @@ export function WorkflowStepCard({
           </div>
           {children && (
             <CollapsibleContent>
-              <div className="border-t border-border px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">{children}</div>
+              <div className="border-t border-border px-3 pb-3 pt-2 min-w-0 sm:px-4 sm:pb-4 sm:pt-3">{children}</div>
             </CollapsibleContent>
           )}
         </CardContent>

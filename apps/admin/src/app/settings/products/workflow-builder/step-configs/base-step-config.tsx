@@ -22,14 +22,14 @@ export function BaseStepConfig({ config, onChange, stepTitle }: BaseStepConfigPr
     onChange({ ...getBaseConfig(config), ...updates });
   };
   return (
-    <div className="grid gap-3 pt-2 min-w-0">
+    <div className="grid gap-3 pt-2 min-w-0 text-sm leading-6">
       <div className="grid gap-2">
-        <Label>Label</Label>
+        <Label className="text-sm font-medium">Label</Label>
         <Input
           value={label}
           onChange={(e) => update({ label: e.target.value })}
           placeholder={stepTitle}
-          className="min-w-0"
+          className="text-sm leading-6 min-w-0"
         />
       </div>
       <div className="flex items-center gap-2">

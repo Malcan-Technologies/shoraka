@@ -140,7 +140,7 @@ export function FinancingTypeConfig({
   const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
 
   return (
-    <div className="grid gap-3 pt-2 sm:gap-4 min-w-0">
+    <div className="grid gap-3 pt-2 text-sm leading-6 sm:gap-4 min-w-0 overflow-hidden">
       <div className="grid gap-2 min-w-0">
         <Label htmlFor="ft-name" className="text-sm font-medium">Name</Label>
         <Input
@@ -162,18 +162,18 @@ export function FinancingTypeConfig({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="ft-description" className="text-sm">Description</Label>
+        <Label htmlFor="ft-description" className="text-sm font-medium">Description</Label>
         <Textarea
           id="ft-description"
           value={current.description}
           onChange={(e) => update({ description: e.target.value })}
           placeholder="Short description shown on the card"
-          className="text-sm"
+          className="text-sm leading-6"
         />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0">
         <Label htmlFor="ft-image" className="text-sm font-medium">Image</Label>
-        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200">
+        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200 min-w-0 w-full overflow-hidden">
           <Input
             ref={fileInputRef}
             id="ft-image"
@@ -184,7 +184,7 @@ export function FinancingTypeConfig({
             tabIndex={hasPreview ? -1 : undefined}
           />
           {hasPreview ? (
-            <div className="flex flex-col gap-3 animate-in fade-in-0 duration-200 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-col gap-3 animate-in fade-in-0 duration-200 sm:flex-row sm:items-center sm:gap-4">
               <div className="w-14 h-14 shrink-0 rounded-md border border-border bg-background overflow-hidden flex items-center justify-center">
                 {previewLoading ? (
                   <Skeleton className="w-full h-full" />
@@ -199,9 +199,16 @@ export function FinancingTypeConfig({
                   <PhotoIcon className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 sm:basis-0 sm:overflow-hidden">
                 {(pendingFile || imageData?.file_name || imageData?.file_size != null) && (
-                  <p className="text-sm font-medium truncate">
+                  <p
+                    className="text-sm font-medium block max-w-full min-w-0 break-words sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap"
+                    title={
+                      pendingFile
+                        ? pendingFile.name
+                        : imageData?.file_name || (imageData?.file_size != null ? "Image" : undefined)
+                    }
+                  >
                     {pendingFile
                       ? `${pendingFile.name} (${formatFileSize(pendingFile.size)})`
                       : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
