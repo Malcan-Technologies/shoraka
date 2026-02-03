@@ -21,6 +21,8 @@ export interface WorkflowStepCardProps {
   onDragHandlePointerDown?: () => void;
   /** First or last step: not draggable, no delete, show lock icon. */
   isLocked?: boolean;
+  /** Briefly show "just added" highlight and New badge (cleared by parent after a few seconds). */
+  isJustAdded?: boolean;
   children?: React.ReactNode;
 }
 
@@ -32,6 +34,7 @@ export function WorkflowStepCard({
   onDelete,
   onDragHandlePointerDown,
   isLocked = false,
+  isJustAdded = false,
   children,
 }: WorkflowStepCardProps) {
   const {
@@ -55,11 +58,11 @@ export function WorkflowStepCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className={`overflow-hidden shrink-0 ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
+      className={`overflow-hidden shrink-0 transition-colors duration-500 ${isJustAdded ? "bg-muted/50" : ""} ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
     >
       <Collapsible open={isExpanded} onOpenChange={onOpenChange}>
         <CardContent className="p-0">
-          <div className="flex items-center gap-2 h-11 pl-3 pr-2 box-border shrink-0">
+          <div className="flex items-center gap-2 h-11 px-4 box-border shrink-0">
             {isLocked ? (
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground"
@@ -87,10 +90,13 @@ export function WorkflowStepCard({
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="flex flex-1 min-w-0 items-center cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:rounded"
+                  className="flex flex-1 min-w-0 items-center gap-2 cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:rounded"
                   aria-label={isExpanded ? "Collapse config" : "Expand config"}
                 >
                   <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
+                  {isJustAdded && (
+                    <span className="shrink-0 text-xs text-muted-foreground">just added</span>
+                  )}
                 </button>
               </CollapsibleTrigger>
             ) : (
@@ -126,7 +132,7 @@ export function WorkflowStepCard({
           </div>
           {children && (
             <CollapsibleContent>
-              <div className="border-t px-3 pb-3 pt-2">{children}</div>
+              <div className="border-t border-border px-4 pb-4 pt-3">{children}</div>
             </CollapsibleContent>
           )}
         </CardContent>

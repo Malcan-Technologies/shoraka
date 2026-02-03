@@ -63,6 +63,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [steps, setSteps] = useState<unknown[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const [addStepValue, setAddStepValue] = useState<string>("");
+  const [justAddedStepId, setJustAddedStepId] = useState<string | null>(null);
 
   const allAvailableSteps = getDefaultWorkflowSteps();
   const addedIds = steps.map(getStepId);
@@ -128,10 +129,18 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   const handleAddStep = (stepToAdd: WorkflowStepShape) => {
     const last = steps[steps.length - 1];
-    const middle = [...steps.slice(0, -1), { ...stepToAdd, config: stepToAdd.config ?? {} }];
+    const newStep = { ...stepToAdd, config: stepToAdd.config ?? {} };
+    const middle = [...steps.slice(0, -1), newStep];
     setSteps([...middle, last]);
     setAddStepValue("");
+    setJustAddedStepId(stepToAdd.id);
   };
+
+  useEffect(() => {
+    if (!justAddedStepId) return;
+    const t = setTimeout(() => setJustAddedStepId(null), 3000);
+    return () => clearTimeout(t);
+  }, [justAddedStepId]);
 
   const handleDeleteStep = (stepId: string) => {
     setSteps(steps.filter((s) => getStepId(s) !== stepId));
@@ -172,7 +181,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-xl border-border">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
@@ -216,7 +225,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                   </Select>
                 )}
               </div>
-              <div className="rounded-xl border border-border bg-muted/5 h-[420px] flex flex-col overflow-hidden">
+              <div className="rounded-xl border border-border bg-card h-[420px] flex flex-col overflow-hidden">
                 {steps.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center p-6 text-center">
                     <p className="text-sm text-muted-foreground">
@@ -233,7 +242,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                       items={steps.map(getStepId)}
                       strategy={verticalListSortingStrategy}
                     >
-                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2">
+                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-2">
                         {steps.map((step) => {
                           const stepId = getStepId(step);
                           const stepKey = getStepKeyFromStepId(stepId);
@@ -251,6 +260,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                                 onOpenChange={(open) => setExpandedStepId(open ? stepId : null)}
                                 onDragHandlePointerDown={() => setExpandedStepId(null)}
                                 isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
+                                isJustAdded={stepId === justAddedStepId}
                                 onDelete={
                                   stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
                                     ? () => handleDeleteStep(stepId)
