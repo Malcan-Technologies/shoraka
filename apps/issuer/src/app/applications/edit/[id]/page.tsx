@@ -19,6 +19,7 @@ import { ProgressIndicator } from "../../components/progress-indicator";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
+import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import {
   Dialog,
@@ -160,7 +161,15 @@ export default function EditApplicationPage() {
     // Return step names
     return product.workflow.map((step: any) => step.name);
   }, [application, productsData]);
-  
+
+  const displayStepNames = React.useMemo(
+    () =>
+      workflowSteps.map((name: string) =>
+        name === "Verify Company Info" ? "Company details" : name
+      ),
+    [workflowSteps]
+  );
+
   const isLoading = isLoadingApp || isLoadingProducts;
   
   /**
@@ -188,10 +197,13 @@ export default function EditApplicationPage() {
     return step || null;
   }, [application, productsData, stepFromUrl]);
   
-  // Get the step ID (e.g., "financing_type_1", "company_details_123")
+  // Get the step ID (e.g., "financing_type_1", "verify_company_info_1")
   const currentStepId = currentStepConfig?.id || "";
-  // Derive step key from ID (e.g., "company_details_1" -> "company_details")
-  const currentStepKey = getStepKeyFromStepId(currentStepId);
+  // Derive step key; treat "verify_company_info" (admin workflow) as "company_details"
+  const rawKey = currentStepId.replace(/_\d+$/, "");
+  const currentStepKey =
+    getStepKeyFromStepId(currentStepId) ??
+    (rawKey === "verify_company_info" ? ("company_details" as const) : null);
   
   /**
    * Check if current step is mapped to a component
@@ -248,6 +260,15 @@ export default function EditApplicationPage() {
       );
     }
     
+    if (currentStepKey === "business_details") {
+      return (
+        <BusinessDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
     if (currentStepKey === "supporting_documents") {
       return (
         <SupportingDocumentsStep
@@ -263,7 +284,6 @@ export default function EditApplicationPage() {
       currentStepKey === "financing_structure" ||
       currentStepKey === "contract_details" ||
       currentStepKey === "invoice_details" ||
-      currentStepKey === "business_details" ||
       currentStepKey === "review_and_submit"
     ) {
       return (
@@ -481,7 +501,6 @@ export default function EditApplicationPage() {
     try {
       // Get the data from the current step
       let dataToSave = stepDataRef.current;
-      console.log(dataToSave)
       
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
@@ -523,6 +542,18 @@ export default function EditApplicationPage() {
           toast.error("Please check all declarations to continue");
           return;
         }
+      }
+
+      if (currentStepKey === "business_details") {
+        if (!dataToSave?.declaration_confirmed) {
+          toast.error("Please confirm the declaration to continue");
+          return;
+        }
+        dataToSave = {
+          about_your_business: dataToSave.about_your_business,
+          why_raising_funds: dataToSave.why_raising_funds,
+          declaration_confirmed: dataToSave.declaration_confirmed,
+        };
       }
       
       // For now, we're using placeholder data
@@ -594,6 +625,9 @@ export default function EditApplicationPage() {
     } else if (data?.areAllDeclarationsChecked !== undefined) {
       // Declarations step provides this flag to indicate if all boxes are checked
       setIsCurrentStepValid(data.areAllDeclarationsChecked);
+    } else if (data?.isDeclarationConfirmed !== undefined) {
+      // Business details step: declaration checkbox must be checked
+      setIsCurrentStepValid(data.isDeclarationConfirmed);
     } else {
       // Default to valid if step doesn't provide validation
       setIsCurrentStepValid(true);
@@ -661,7 +695,7 @@ export default function EditApplicationPage() {
           
           {/* Progress Indicator */}
           <ProgressIndicator
-            steps={workflowSteps}
+            steps={displayStepNames}
             currentStep={stepFromUrl}
             isLoading={false}
           />

@@ -73,8 +73,38 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Bank account number: digits only */
+const BANK_ACCOUNT_REGEX = /^\d*$/;
+/** IC number: digits and dashes only (no letters) */
+const IC_NUMBER_REGEX = /^[\d-]*$/;
+/** Contact/phone: digits, spaces, and + - ( ) only */
+const CONTACT_REGEX = /^[\d\s+\-()]*$/;
+/** Number of employees: positive integer (digits only, non-zero) */
+function isValidNumberOfEmployees(value: string): boolean {
+  if (!value.trim()) return true;
+  const n = Number.parseInt(value.trim(), 10);
+  return Number.isInteger(n) && n > 0 && value.trim().replace(/^0+/, "") !== "";
+}
+
+/** Restrict input to digits only (e.g. bank account, number of employees) */
+function restrictDigitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+/** Restrict input to digits and dashes only (IC number) */
+function restrictIcNumber(value: string): string {
+  return value.replace(/[^\d-]/g, "");
+}
+
+/** Restrict input to phone-friendly characters */
+function restrictContact(value: string): string {
+  return value.replace(/[^\d\s+\-()]/g, "");
+}
+
 const inputClassName = "bg-muted rounded-xl border border-border";
+const inputClassNameEditable = "rounded-xl border border-border bg-background text-foreground";
 const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
+const labelClassNameEditable = "text-sm md:text-base leading-6 text-foreground";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 pl-3 sm:pl-4 md:pl-6";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 sm:mt-6 pl-3 sm:pl-4 md:pl-6";
@@ -93,13 +123,7 @@ export function CompanyDetailsStep({
     [getAccessToken]
   );
 
-  /**
-   * MODAL OPEN/CLOSE STATES
-   */
-  const [isEditCompanyInfoOpen, setIsEditCompanyInfoOpen] = React.useState(false);
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
-  const [isEditBankingOpen, setIsEditBankingOpen] = React.useState(false);
-  const [isEditContactOpen, setIsEditContactOpen] = React.useState(false);
 
   /**
    * PENDING CHANGES STATES
@@ -183,12 +207,16 @@ export function CompanyDetailsStep({
     try {
       const updates: any = {};
 
-      // Save company info if there are pending changes
+      // Save company info only for fields that have pending changes
       if (pendingCompanyInfo) {
-        updates.industry = pendingCompanyInfo.industry || null;
-        updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
-          ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
-          : null;
+        if (pendingCompanyInfo.industry !== undefined) {
+          updates.industry = pendingCompanyInfo.industry || null;
+        }
+        if (pendingCompanyInfo.numberOfEmployees !== undefined) {
+          updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
+            ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
+            : null;
+        }
       }
 
       // Save address if there are pending changes
@@ -238,28 +266,63 @@ export function CompanyDetailsStep({
   }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking]);
 
   /**
+   * Validation errors per field (for inline display)
+   */
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+
+  /**
    * VALIDATE CONTACT PERSON
-   * 
-   * Required fields: name, position, ic, contact
+   * Required fields and format: IC digits/dashes only, contact phone-friendly
    */
   const validateContactPerson = React.useCallback(() => {
     const errors: string[] = [];
-    
-    if (!contactPerson.name?.trim()) {
-      errors.push("Applicant name is required");
-    }
-    if (!contactPerson.position?.trim()) {
-      errors.push("Applicant position is required");
-    }
+    if (!contactPerson.name?.trim()) errors.push("Applicant name is required");
+    if (!contactPerson.position?.trim()) errors.push("Applicant position is required");
     if (!contactPerson.ic?.trim()) {
       errors.push("Applicant IC number is required");
+    } else if (!IC_NUMBER_REGEX.test(contactPerson.ic)) {
+      errors.push("Applicant IC number must contain only numbers and dashes (no letters)");
     }
     if (!contactPerson.contact?.trim()) {
       errors.push("Applicant contact is required");
+    } else if (!CONTACT_REGEX.test(contactPerson.contact)) {
+      errors.push("Applicant contact must contain only numbers and valid phone characters (+, -, spaces, parentheses)");
     }
-    
     return errors;
   }, [contactPerson]);
+
+  /**
+   * Validate all editable fields before save: contact person, number of employees, bank account
+   */
+  const validateAll = React.useCallback((): { errors: string[]; fieldErrors: Record<string, string> } => {
+    const errors: string[] = [];
+    const fieldErrors: Record<string, string> = {};
+
+    const contactErrors = validateContactPerson();
+    if (contactErrors.length > 0) {
+      errors.push(...contactErrors);
+      if (contactErrors.some((e) => e.includes("IC"))) fieldErrors.ic = "Only numbers and dashes allowed (no letters)";
+      if (contactErrors.some((e) => e.includes("contact"))) fieldErrors.contact = "Only numbers and phone characters (+, -, spaces, parentheses)";
+      if (contactErrors.some((e) => e.includes("name"))) fieldErrors.name = "Required";
+      if (contactErrors.some((e) => e.includes("position"))) fieldErrors.position = "Required";
+    }
+
+    const numEmp = pendingCompanyInfo?.numberOfEmployees;
+    if (numEmp !== undefined && numEmp !== "" && !isValidNumberOfEmployees(numEmp)) {
+      errors.push("Number of employees must be a positive whole number");
+      fieldErrors.numberOfEmployees = "Enter a positive whole number";
+    }
+
+    const bankNum =
+      pendingBanking?.bankAccountNumber ??
+      getBankField(bankAccountDetails || null, "Bank account number");
+    if (bankNum !== undefined && bankNum !== "" && !BANK_ACCOUNT_REGEX.test(String(bankNum))) {
+      errors.push("Bank account number must contain only numbers");
+      fieldErrors.bankAccountNumber = "Only numbers allowed";
+    }
+
+    return { errors, fieldErrors };
+  }, [validateContactPerson, pendingCompanyInfo, pendingBanking, bankAccountDetails]);
 
   /**
    * CHECK IF CONTACT PERSON HAS CHANGED FROM SAVED STATE
@@ -318,16 +381,16 @@ export function CompanyDetailsStep({
     if (!onDataChange || !organizationId) return;
 
     const saveFunctionWithValidation = async () => {
-      // Validate contact person before saving
-      const validationErrors = validateContactPerson();
-      if (validationErrors.length > 0) {
-        toast.error("Please fill in all required contact person fields", {
-          description: validationErrors.join(", "),
+      const { errors, fieldErrors: nextFieldErrors } = validateAll();
+      setFieldErrors(nextFieldErrors);
+      if (errors.length > 0) {
+        toast.error("Please fix the errors below", {
+          description: errors.slice(0, 3).join("; "),
         });
-        throw new Error(validationErrors.join(", "));
+        throw new Error(errors.join(", "));
       }
 
-      // Save organization changes first
+      setFieldErrors({});
       await saveAllPendingChanges();
       
       // Return contact person data to be saved to application
@@ -356,7 +419,7 @@ export function CompanyDetailsStep({
       saveFunction: saveFunctionWithValidation,
       hasPendingChanges: hasPendingChanges,
     });
-  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateContactPerson, hasPendingChanges]);
+  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateAll, hasPendingChanges]);
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
@@ -554,27 +617,9 @@ export function CompanyDetailsStep({
   const displayBankName = pendingBanking?.bankName !== undefined ? pendingBanking.bankName : bankName;
   const displayAccountNumber = pendingBanking?.bankAccountNumber !== undefined ? pendingBanking.bankAccountNumber : accountNumber;
 
-  /**
-   * EDIT HANDLERS - store changes in pending state
-   */
-  const handleSaveCompanyInfo = (industry: string, numberOfEmployees: string) => {
-    setPendingCompanyInfo({ industry, numberOfEmployees });
-    setIsEditCompanyInfoOpen(false);
-  };
-
   const handleSaveAddress = (businessAddress: any, registeredAddress: any) => {
     setPendingAddress({ businessAddress, registeredAddress });
     setIsEditAddressOpen(false);
-  };
-
-  const handleSaveBanking = (bankName: string, bankAccountNumber: string) => {
-    setPendingBanking({ bankName, bankAccountNumber });
-    setIsEditBankingOpen(false);
-  };
-
-  const handleSaveContact = (name: string, position: string, ic: string, contact: string) => {
-    setContactPerson({ name, position, ic, contact });
-    setIsEditContactOpen(false);
   };
 
   /**
@@ -587,18 +632,7 @@ export function CompanyDetailsStep({
       {/* Company Info Section */}
       <div className="space-y-4">
         <div>
-          <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Company info</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditCompanyInfoOpen(true)}
-              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-            >
-              Edit
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-          </div>
+          <h3 className={sectionHeaderClassName}>Company info</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={gridClassName}>
@@ -620,18 +654,35 @@ export function CompanyDetailsStep({
             disabled
             className={inputClassName}
           />
-          <div className={labelClassName}>Industry</div>
+          <div className={labelClassNameEditable}>Industry</div>
           <Input
-            value={displayIndustry || "—"}
-            disabled
-            className={inputClassName}
+            value={displayIndustry ?? ""}
+            onChange={(e) =>
+              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
+            }
+            placeholder="—"
+            className={inputClassNameEditable}
           />
-          <div className={labelClassName}>Number of employees</div>
-          <Input
-            value={displayNumberOfEmployees?.toString() || "—"}
-            disabled
-            className={inputClassName}
-          />
+          <div className={labelClassNameEditable}>Number of employees</div>
+          <div>
+            <Input
+              value={displayNumberOfEmployees?.toString() ?? ""}
+              onChange={(e) => {
+                const v = restrictDigitsOnly(e.target.value);
+                setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
+                if (fieldErrors.numberOfEmployees) setFieldErrors((prev) => { const next = { ...prev }; delete next.numberOfEmployees; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.numberOfEmployees}
+              aria-describedby={fieldErrors.numberOfEmployees ? "err-numberOfEmployees" : undefined}
+            />
+            {fieldErrors.numberOfEmployees && (
+              <p id="err-numberOfEmployees" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.numberOfEmployees}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -714,65 +765,132 @@ export function CompanyDetailsStep({
       {/* Banking Details Section */}
       <div className="space-y-4">
         <div>
-          <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Banking details</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditBankingOpen(true)}
-              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-            >
-              Edit
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-          </div>
+          <h3 className={sectionHeaderClassName}>Banking details</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={gridClassName}>
-          <div className={labelClassName}>Bank name</div>
-          <Input value={displayBankName || "—"} disabled className={inputClassName} />
-          <div className={labelClassName}>Bank account number</div>
-          <Input value={displayAccountNumber || "—"} disabled className={inputClassName} />
+          <div className={labelClassNameEditable}>Bank name</div>
+          <Input
+            value={displayBankName ?? ""}
+            onChange={(e) =>
+              setPendingBanking((prev) => ({
+                ...prev,
+                bankName: e.target.value,
+              }))
+            }
+            placeholder="—"
+            className={inputClassNameEditable}
+          />
+          <div className={labelClassNameEditable}>Bank account number</div>
+          <div>
+            <Input
+              value={displayAccountNumber ?? ""}
+              onChange={(e) => {
+                const v = restrictDigitsOnly(e.target.value);
+                setPendingBanking((prev) => ({ ...prev, bankAccountNumber: v }));
+                if (fieldErrors.bankAccountNumber) setFieldErrors((prev) => { const next = { ...prev }; delete next.bankAccountNumber; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.bankAccountNumber}
+              aria-describedby={fieldErrors.bankAccountNumber ? "err-bankAccountNumber" : undefined}
+            />
+            {fieldErrors.bankAccountNumber && (
+              <p id="err-bankAccountNumber" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.bankAccountNumber}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Contact Person Section */}
       <div className="space-y-4">
         <div>
-          <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Contact Person</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditContactOpen(true)}
-              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-            >
-              Edit
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-          </div>
+          <h3 className={sectionHeaderClassName}>Contact Person</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={gridClassName}>
-          <div className={labelClassName}>Applicant name</div>
-          <Input value={contactPerson.name || "—"} disabled className={inputClassName} />
-          <div className={labelClassName}>Applicant position</div>
-          <Input value={contactPerson.position || "—"} disabled className={inputClassName} />
-          <div className={labelClassName}>Applicant IC no</div>
-          <Input value={contactPerson.ic || "—"} disabled className={inputClassName} />
-          <div className={labelClassName}>Applicant contact</div>
-          <Input value={contactPerson.contact || "—"} disabled className={inputClassName} />
+          <div className={labelClassNameEditable}>Applicant name</div>
+          <div>
+            <Input
+              value={contactPerson.name ?? ""}
+              onChange={(e) => {
+                setContactPerson((prev) => ({ ...prev, name: e.target.value }));
+                if (fieldErrors.name) setFieldErrors((prev) => { const next = { ...prev }; delete next.name; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.name}
+              aria-describedby={fieldErrors.name ? "err-contact-name" : undefined}
+            />
+            {fieldErrors.name && (
+              <p id="err-contact-name" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.name}
+              </p>
+            )}
+          </div>
+          <div className={labelClassNameEditable}>Applicant position</div>
+          <div>
+            <Input
+              value={contactPerson.position ?? ""}
+              onChange={(e) => {
+                setContactPerson((prev) => ({ ...prev, position: e.target.value }));
+                if (fieldErrors.position) setFieldErrors((prev) => { const next = { ...prev }; delete next.position; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.position}
+              aria-describedby={fieldErrors.position ? "err-contact-position" : undefined}
+            />
+            {fieldErrors.position && (
+              <p id="err-contact-position" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.position}
+              </p>
+            )}
+          </div>
+          <div className={labelClassNameEditable}>Applicant IC no</div>
+          <div>
+            <Input
+              value={contactPerson.ic ?? ""}
+              onChange={(e) => {
+                const v = restrictIcNumber(e.target.value);
+                setContactPerson((prev) => ({ ...prev, ic: v }));
+                if (fieldErrors.ic) setFieldErrors((prev) => { const next = { ...prev }; delete next.ic; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.ic}
+              aria-describedby={fieldErrors.ic ? "err-contact-ic" : undefined}
+            />
+            {fieldErrors.ic && (
+              <p id="err-contact-ic" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.ic}
+              </p>
+            )}
+          </div>
+          <div className={labelClassNameEditable}>Applicant contact</div>
+          <div>
+            <Input
+              value={contactPerson.contact ?? ""}
+              onChange={(e) => {
+                const v = restrictContact(e.target.value);
+                setContactPerson((prev) => ({ ...prev, contact: v }));
+                if (fieldErrors.contact) setFieldErrors((prev) => { const next = { ...prev }; delete next.contact; return next; });
+              }}
+              placeholder="—"
+              className={inputClassNameEditable}
+              aria-invalid={!!fieldErrors.contact}
+              aria-describedby={fieldErrors.contact ? "err-contact-contact" : undefined}
+            />
+            {fieldErrors.contact && (
+              <p id="err-contact-contact" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.contact}
+              </p>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Edit Dialogs */}
-      <EditCompanyInfoDialog
-        open={isEditCompanyInfoOpen}
-        onOpenChange={setIsEditCompanyInfoOpen}
-        industry={displayIndustry || ""}
-        numberOfEmployees={displayNumberOfEmployees?.toString() || ""}
-        onSave={handleSaveCompanyInfo}
-      />
 
       <EditAddressDialog
         open={isEditAddressOpen}
@@ -795,100 +913,7 @@ export function CompanyDetailsStep({
         }}
         onSave={handleSaveAddress}
       />
-
-      <EditBankingDialog
-        open={isEditBankingOpen}
-        onOpenChange={setIsEditBankingOpen}
-        bankName={displayBankName || ""}
-        bankAccountNumber={displayAccountNumber || ""}
-        onSave={handleSaveBanking}
-      />
-
-      <EditContactDialog
-        open={isEditContactOpen}
-        onOpenChange={setIsEditContactOpen}
-        name={contactPerson.name || ""}
-        position={contactPerson.position || ""}
-        ic={contactPerson.ic || ""}
-        contact={contactPerson.contact || ""}
-        onSave={handleSaveContact}
-      />
     </div>
-  );
-}
-
-/**
- * EDIT COMPANY INFO DIALOG
- * 
- * Modal to edit industry and number of employees.
- * Shows pending values if they exist, otherwise original values.
- */
-function EditCompanyInfoDialog({
-  open,
-  onOpenChange,
-  industry: initialIndustry,
-  numberOfEmployees: initialNumberOfEmployees,
-  onSave,
-}: any) {
-  const [industry, setIndustry] = React.useState(initialIndustry);
-  const [numberOfEmployees, setNumberOfEmployees] = React.useState(initialNumberOfEmployees);
-
-  React.useEffect(() => {
-    if (open) {
-      setIndustry(initialIndustry);
-      setNumberOfEmployees(initialNumberOfEmployees);
-    }
-  }, [open, initialIndustry, initialNumberOfEmployees]);
-
-  const handleSave = () => {
-    onSave(industry, numberOfEmployees);
-  };
-
-  const handleCancel = () => {
-    setIndustry(initialIndustry);
-    setNumberOfEmployees(initialNumberOfEmployees);
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Edit Company Info</DialogTitle>
-          <DialogDescription className="text-[15px]">
-            Update your company&apos;s industry and number of employees.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="industry">Industry</Label>
-            <Input
-              id="industry"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              placeholder="Enter industry"
-              className="h-11 rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="number-of-employees">Number of employees</Label>
-            <Input
-              id="number-of-employees"
-              value={numberOfEmployees}
-              onChange={(e) => setNumberOfEmployees(e.target.value)}
-              placeholder="Enter number of employees"
-              className="h-11 rounded-xl"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -998,8 +1023,8 @@ function EditAddressDialog({
                   <Input
                     id="business-postal-code"
                     value={businessAddress.postalCode}
-                    onChange={(e) => updateBusinessAddress("postalCode", e.target.value)}
-                    placeholder="Enter postal code"
+                    onChange={(e) => updateBusinessAddress("postalCode", restrictDigitsOnly(e.target.value))}
+                    placeholder="Enter postal code (numbers only)"
                     className="h-11 rounded-xl"
                   />
                 </div>
@@ -1080,8 +1105,8 @@ function EditAddressDialog({
                     <Input
                       id="registered-postal-code"
                       value={registeredAddress.postalCode}
-                      onChange={(e) => updateRegisteredAddress("postalCode", e.target.value)}
-                      placeholder="Enter postal code"
+                      onChange={(e) => updateRegisteredAddress("postalCode", restrictDigitsOnly(e.target.value))}
+                      placeholder="Enter postal code (numbers only)"
                       className="h-11 rounded-xl"
                     />
                   </div>
@@ -1123,184 +1148,3 @@ function EditAddressDialog({
   );
 }
 
-/**
- * EDIT BANKING DIALOG
- * 
- * Modal to edit bank name and account number.
- * Shows pending values if they exist, otherwise original values.
- */
-function EditBankingDialog({
-  open,
-  onOpenChange,
-  bankName: initialBankName,
-  bankAccountNumber: initialBankAccountNumber,
-  onSave,
-}: any) {
-  const [bankName, setBankName] = React.useState(initialBankName);
-  const [bankAccountNumber, setBankAccountNumber] = React.useState(initialBankAccountNumber);
-
-  React.useEffect(() => {
-    if (open) {
-      setBankName(initialBankName);
-      setBankAccountNumber(initialBankAccountNumber);
-    }
-  }, [open, initialBankName, initialBankAccountNumber]);
-
-  const handleSave = () => {
-    onSave(bankName, bankAccountNumber);
-  };
-
-  const handleCancel = () => {
-    setBankName(initialBankName);
-    setBankAccountNumber(initialBankAccountNumber);
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Edit Banking Details</DialogTitle>
-          <DialogDescription className="text-[15px]">
-            Update your bank name and account number.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="bank-name">Bank name</Label>
-            <Input
-              id="bank-name"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder="Enter bank name"
-              className="h-11 rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bank-account">Bank account number</Label>
-            <Input
-              id="bank-account"
-              value={bankAccountNumber}
-              onChange={(e) => setBankAccountNumber(e.target.value)}
-              placeholder="Enter account number"
-              className="h-11 rounded-xl"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/**
- * EDIT CONTACT DIALOG
- * 
- * Modal to edit contact person information.
- * Shows current values and allows editing.
- */
-function EditContactDialog({
-  open,
-  onOpenChange,
-  name: initialName,
-  position: initialPosition,
-  ic: initialIc,
-  contact: initialContact,
-  onSave,
-}: any) {
-  const [name, setName] = React.useState(initialName);
-  const [position, setPosition] = React.useState(initialPosition);
-  const [ic, setIc] = React.useState(initialIc);
-  const [contact, setContact] = React.useState(initialContact);
-
-  React.useEffect(() => {
-    if (open) {
-      setName(initialName);
-      setPosition(initialPosition);
-      setIc(initialIc);
-      setContact(initialContact);
-    }
-  }, [open, initialName, initialPosition, initialIc, initialContact]);
-
-  const handleSave = () => {
-    onSave(name, position, ic, contact);
-  };
-
-  const handleCancel = () => {
-    setName(initialName);
-    setPosition(initialPosition);
-    setIc(initialIc);
-    setContact(initialContact);
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Edit Contact Person</DialogTitle>
-          <DialogDescription className="text-[15px]">
-            Update the applicant&apos;s contact information.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="applicant-name">Applicant name</Label>
-            <Input
-              id="applicant-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter applicant name"
-              className="h-11 rounded-xl"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="applicant-position">Applicant position</Label>
-            <Input
-              id="applicant-position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Enter position"
-              className="h-11 rounded-xl"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="applicant-ic">Applicant IC no</Label>
-            <Input
-              id="applicant-ic"
-              value={ic}
-              onChange={(e) => setIc(e.target.value)}
-              placeholder="Enter IC number"
-              className="h-11 rounded-xl"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="applicant-contact">Applicant contact</Label>
-            <Input
-              id="applicant-contact"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Enter contact number"
-              className="h-11 rounded-xl"
-              required
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

@@ -21,6 +21,7 @@ export type ApplicationStepKey = (typeof APPLICATION_STEP_KEYS)[number];
 export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "financing_type",
   "company_details",
+  "business_details",
   "supporting_documents",
   "declarations",
 ];
@@ -54,7 +55,7 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   },
   business_details: {
     title: "Business Details",
-    description: "Provide your business information",
+    description: "Tell us about your business",
   },
   supporting_documents: {
     title: "Supporting Documents",
