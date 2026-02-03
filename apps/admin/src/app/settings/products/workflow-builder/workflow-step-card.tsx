@@ -104,9 +104,9 @@ export function WorkflowStepCard({
                 >
                   <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
                   {isJustAdded ? (
-                    <span className="shrink-0 text-xs text-muted-foreground">Just added</span>
+                    <span className="shrink-0 text-sm text-muted-foreground">Just added</span>
                   ) : isEdited ? (
-                    <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
+                    <span className="shrink-0 text-sm text-muted-foreground">Edited</span>
                   ) : null}
                 </button>
               </CollapsibleTrigger>
@@ -114,9 +114,9 @@ export function WorkflowStepCard({
               <>
                 <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
                 {isJustAdded ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">Just added</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">Just added</span>
                 ) : isEdited ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">Edited</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">Edited</span>
                 ) : null}
               </>
             )}
@@ -169,7 +169,7 @@ export function WorkflowStepCard({
           </div>
           {children && (
             <CollapsibleContent>
-              <div className="border-t border-border px-4 pb-4 pt-3">{children}</div>
+              <div className="border-t border-border px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">{children}</div>
             </CollapsibleContent>
           )}
         </CardContent>

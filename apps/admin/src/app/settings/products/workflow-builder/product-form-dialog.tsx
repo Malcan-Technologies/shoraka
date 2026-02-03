@@ -484,26 +484,26 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-xl border-border sm:w-full">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit product" : "Create product"}</DialogTitle>
+      <DialogContent className="flex flex-col w-[calc(100vw-1rem)] max-w-4xl max-h-[min(90vh,90dvh)] overflow-hidden rounded-xl border-border p-4 gap-3 sm:w-full sm:max-h-[90vh] sm:p-6 sm:gap-4 [&>div]:min-h-0">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="text-base sm:text-lg">{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
 
         {isEdit && loading ? (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 min-h-0 overflow-auto">
             <Skeleton className="h-48 w-full" />
           </div>
         ) : isEdit && (isError || !product) ? (
-          <p className="text-destructive py-4">
+          <p className="text-destructive py-4 text-sm">
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4 overflow-hidden">
+            <div className="grid gap-2 shrink-0 min-w-0">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <Label>Workflow steps</Label>
-                  <p className="text-xs text-muted-foreground">
+                  <Label className="text-sm font-medium">Workflow steps</Label>
+                  <p className="text-sm text-muted-foreground">
                     Drag to reorder. Expand to configure. Add steps below.
                   </p>
                 </div>
@@ -528,10 +528,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                   </Select>
                 )}
               </div>
-              <div className="rounded-xl border border-border bg-card h-[420px] flex flex-col overflow-hidden">
+              <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
                 {steps.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center p-6 text-center">
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground leading-6">
                       No steps yet. Use &quot;Add step&quot; above to add steps here.
                     </p>
                   </div>
@@ -545,7 +545,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                       items={steps.map(getStepId)}
                       strategy={verticalListSortingStrategy}
                     >
-                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-2">
+                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
                         {steps.map((step) => {
                           const stepId = getStepId(step);
                           const stepKey = getStepKeyFromStepId(stepId);
@@ -602,27 +602,29 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         )}
 
         {!isEdit || product ? (
-          <>
+          <div className="shrink-0 flex flex-col gap-2 min-w-0">
             {steps.length > 0 && !isSaving && !saveTriggered && (() => {
               const requiredErrors = getRequiredStepErrors(steps);
               if (requiredErrors.length === 0) return null;
               return (
-                <div className="mx-4 -mt-3 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/50 dark:bg-amber-950/40">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" aria-hidden />
-                    <p className="font-medium text-amber-900 dark:text-amber-100">
-                      {isEdit ? "Complete these before saving" : "Complete these before create"}
-                    </p>
+                <div className="mx-0 -mt-1 rounded-lg border border-amber-500/70 bg-amber-50 px-3 py-2.5 text-sm leading-6 dark:border-amber-500/50 dark:bg-amber-950/40 sm:mx-4 sm:-mt-3 sm:px-4 sm:py-3">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        {isEdit ? "Complete these before saving" : "Complete these before create"}
+                      </p>
+                      <ul className="mt-1 list-disc list-inside space-y-0.5 text-sm text-amber-800 dark:text-amber-200">
+                        {requiredErrors.map((msg, i) => (
+                          <li key={i}>{msg}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <ul className="mt-1.5 list-disc list-inside space-y-0.5 pl-7 text-amber-800 dark:text-amber-200">
-                    {requiredErrors.map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                  </ul>
                 </div>
               );
             })()}
-            <DialogFooter>
+            <DialogFooter className="shrink-0 flex-wrap gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -638,7 +640,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
               </Button>
             </DialogFooter>
-          </>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>

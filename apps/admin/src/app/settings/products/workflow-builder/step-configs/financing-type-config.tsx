@@ -140,25 +140,25 @@ export function FinancingTypeConfig({
   const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
 
   return (
-    <div className="grid gap-4 pt-2">
-      <div className="grid gap-2">
-        <Label htmlFor="ft-name" className="text-sm">Name</Label>
+    <div className="grid gap-3 pt-2 sm:gap-4 min-w-0">
+      <div className="grid gap-2 min-w-0">
+        <Label htmlFor="ft-name" className="text-sm font-medium">Name</Label>
         <Input
           id="ft-name"
           value={current.name}
           onChange={(e) => update({ name: e.target.value })}
           placeholder="e.g. Account Receivable (AR) Financing"
-          className="text-sm"
+          className="text-sm leading-6"
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="ft-category" className="text-sm">Category</Label>
+        <Label htmlFor="ft-category" className="text-sm font-medium">Category</Label>
         <Input
           id="ft-category"
           value={current.category}
           onChange={(e) => update({ category: e.target.value })}
           placeholder="e.g. Invoice financing"
-          className="text-sm"
+          className="text-sm leading-6"
         />
       </div>
       <div className="grid gap-2">
@@ -172,7 +172,7 @@ export function FinancingTypeConfig({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ft-image" className="text-sm">Image</Label>
+        <Label htmlFor="ft-image" className="text-sm font-medium">Image</Label>
         <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200">
           <Input
             ref={fileInputRef}
@@ -184,7 +184,7 @@ export function FinancingTypeConfig({
             tabIndex={hasPreview ? -1 : undefined}
           />
           {hasPreview ? (
-            <div className="flex items-center gap-4 animate-in fade-in-0 duration-200">
+            <div className="flex flex-col gap-3 animate-in fade-in-0 duration-200 sm:flex-row sm:items-center sm:gap-4">
               <div className="w-14 h-14 shrink-0 rounded-md border border-border bg-background overflow-hidden flex items-center justify-center">
                 {previewLoading ? (
                   <Skeleton className="w-full h-full" />
@@ -207,7 +207,7 @@ export function FinancingTypeConfig({
                       : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                   {viewUrl && !pendingFile ? (
                     <a
                       href={viewUrl}

@@ -22,18 +22,19 @@ export function BaseStepConfig({ config, onChange, stepTitle }: BaseStepConfigPr
     onChange({ ...getBaseConfig(config), ...updates });
   };
   return (
-    <div className="grid gap-3 pt-2">
+    <div className="grid gap-3 pt-2 min-w-0">
       <div className="grid gap-2">
         <Label>Label</Label>
         <Input
           value={label}
           onChange={(e) => update({ label: e.target.value })}
           placeholder={stepTitle}
+          className="min-w-0"
         />
       </div>
       <div className="flex items-center gap-2">
         <Switch checked={required} onCheckedChange={(checked) => update({ required: !!checked })} />
-        <Label className="font-normal">Required</Label>
+        <Label className="text-sm font-normal">Required</Label>
       </div>
     </div>
   );

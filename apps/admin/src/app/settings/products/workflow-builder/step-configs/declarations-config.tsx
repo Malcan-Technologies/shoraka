@@ -75,7 +75,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
   };
 
   return (
-    <div className="grid gap-3 pt-2">
+    <div className="grid gap-3 pt-2 min-w-0">
       <div className="flex justify-end">
         <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1.5">
           <PlusIcon className="h-4 w-4 shrink-0" />
@@ -83,23 +83,23 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
         </Button>
       </div>
       {declarations.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No declarations yet. Add one to get started.</p>
+        <p className="text-sm text-muted-foreground leading-6">No declarations yet. Add one to get started.</p>
       ) : (
         <ul className="grid gap-3">
           {declarations.map((item, index) => (
-            <li key={index} className="flex gap-3 py-2.5 px-0">
+            <li key={index} className="flex gap-2 py-2.5 px-0 min-w-0 sm:gap-3">
               <span className="flex h-8 w-6 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground tabular-nums">
                 {index + 1}
               </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden">
                 <Textarea
                   id={`declaration-${index}`}
                   value={item.text}
                   onChange={(e) => updateAt(index, e.target.value)}
                   placeholder="e.g. I confirm that the information provided is accurate."
-                  className="text-sm min-h-[80px] resize-y"
+                  className="text-sm leading-6 min-h-[80px] resize-y min-w-0"
                 />
-                <div className="flex shrink-0 items-center justify-end gap-0.5">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
                   <Button
                     type="button"
                     variant="ghost"

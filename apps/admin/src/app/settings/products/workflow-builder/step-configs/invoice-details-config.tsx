@@ -37,9 +37,9 @@ export function InvoiceDetailsConfig({ config, onChange }: { config: unknown; on
   };
 
   return (
-    <div className="grid gap-2 pt-2">
+    <div className="grid gap-2 pt-2 min-w-0">
       <div className="grid gap-2">
-        <Label htmlFor="invoice-max-financing-rate">Max financing rate (%)</Label>
+        <Label htmlFor="invoice-max-financing-rate" className="text-sm font-medium">Max financing rate (%)</Label>
         <Input
           id="invoice-max-financing-rate"
           type="number"
@@ -48,7 +48,7 @@ export function InvoiceDetailsConfig({ config, onChange }: { config: unknown; on
           step={1}
           value={maxFinancingRatePercent}
           onChange={handleRateChange}
-          className="text-sm w-24"
+          className="text-sm leading-6 w-full max-w-[6rem]"
         />
       </div>
     </div>

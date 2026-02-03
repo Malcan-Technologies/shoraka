@@ -102,7 +102,7 @@ export function ProductsList() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Products</h1>
-          <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground leading-6 mt-1">
             View and manage product definitions and workflows.
           </p>
         </div>
@@ -200,7 +200,7 @@ export function ProductsList() {
                 <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                   <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No products found</p>
-                  <p className="text-sm mt-1">
+                  <p className="text-sm leading-6 mt-1">
                     {search.trim() ? "Try a different search term or clear the search." : "No products in the system yet."}
                   </p>
                 </TableCell>
@@ -309,7 +309,7 @@ export function ProductsList() {
             <DialogTitle>Delete product</DialogTitle>
           </DialogHeader>
           {productToDelete && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground leading-6">
               Delete &quot;{productName(productToDelete)}&quot;? This cannot be undone.
             </p>
           )}
