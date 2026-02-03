@@ -15,6 +15,7 @@ import {
   arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+
 import {
   Dialog,
   DialogContent,
@@ -33,8 +34,11 @@ import {
   SelectValue,
 } from "../../../../components/ui/select";
 import { useProduct, useCreateProduct, useUpdateProduct } from "../hooks/use-products";
-import { stepDisplayName, getDefaultWorkflowSteps, type WorkflowStepShape } from "../product-utils";
+import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId } from "@cashsouk/types";
+
+const FIRST_STEP_KEY = "financing_type";
+const LAST_STEP_KEY = "review_and_submit";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { toast } from "sonner";
@@ -64,16 +68,46 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const addedIds = steps.map(getStepId);
   const addableSteps = allAvailableSteps.filter((s) => !addedIds.includes(s.id));
 
+  function getKey(s: unknown) {
+    return getStepKeyFromStepId(getStepId(s));
+  }
+
+  function ensureFirstAndLastPresent(items: unknown[]): unknown[] {
+    const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
+    let result = [...items];
+    if (!result.some((s) => getKey(s) === FIRST_STEP_KEY)) {
+      result = [firstStep, ...result];
+    }
+    if (!result.some((s) => getKey(s) === LAST_STEP_KEY)) {
+      result = [...result, lastStep];
+    }
+    return result;
+  }
+
+  function enforceFirstAndLast(items: unknown[]): unknown[] {
+    if (items.length === 0) return items;
+    let result = [...items];
+    const firstIdx = result.findIndex((s) => getKey(s) === FIRST_STEP_KEY);
+    if (firstIdx >= 0 && getKey(result[0]) !== FIRST_STEP_KEY) {
+      result = arrayMove(result, firstIdx, 0);
+    }
+    const lastIdx = result.findIndex((s) => getKey(s) === LAST_STEP_KEY);
+    if (lastIdx >= 0 && getKey(result[result.length - 1]) !== LAST_STEP_KEY) {
+      result = arrayMove(result, lastIdx, result.length - 1);
+    }
+    return result;
+  }
+
   useEffect(() => {
     if (!open) return;
     if (isEdit && product) {
-      setSteps(
-        product.workflow?.length
-          ? (product.workflow as unknown[])
-          : getDefaultWorkflowSteps()
-      );
-    } else if (!isEdit) {
-      setSteps([]);
+      const raw = product.workflow?.length
+        ? (product.workflow as unknown[])
+        : getDefaultWorkflowSteps();
+      setSteps(enforceFirstAndLast(ensureFirstAndLastPresent(raw)));
+    } else {
+      const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
+      setSteps([firstStep, lastStep]);
     }
   }, [open, isEdit, product]);
 
@@ -88,11 +122,14 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     const oldIndex = steps.findIndex((s) => getStepId(s) === active.id);
     const newIndex = steps.findIndex((s) => getStepId(s) === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    setSteps(arrayMove(steps, oldIndex, newIndex));
+    let next = arrayMove(steps, oldIndex, newIndex);
+    setSteps(enforceFirstAndLast(next));
   };
 
   const handleAddStep = (stepToAdd: WorkflowStepShape) => {
-    setSteps([...steps, { ...stepToAdd, config: stepToAdd.config ?? {} }]);
+    const last = steps[steps.length - 1];
+    const middle = [...steps.slice(0, -1), { ...stepToAdd, config: stepToAdd.config ?? {} }];
+    setSteps([...middle, last]);
     setAddStepValue("");
   };
 
@@ -135,7 +172,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
@@ -179,47 +216,60 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                   </Select>
                 )}
               </div>
-              {steps.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">No steps. Add a step above.</p>
-              ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={steps.map(getStepId)}
-                    strategy={verticalListSortingStrategy}
+              <div className="rounded-xl border border-border bg-muted/5 h-[420px] flex flex-col overflow-hidden">
+                {steps.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center p-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No steps yet. Use &quot;Add step&quot; above to add steps here.
+                    </p>
+                  </div>
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
                   >
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                      {steps.map((step) => {
-                        const stepId = getStepId(step);
-                        const stepKey = getStepKeyFromStepId(stepId);
-                        return (
-                          <WorkflowStepCard
-                            key={stepId}
-                            step={{
-                              id: stepId,
-                              name: stepDisplayName(step),
-                            }}
-                            isExpanded={expandedStepId === stepId}
-                            onOpenChange={(open) => setExpandedStepId(open ? stepId : null)}
-                            onDelete={() => handleDeleteStep(stepId)}
-                          >
-                            {stepKey && (
-                              <StepConfigEditor
-                                stepKey={stepKey}
-                                config={(step as { config?: unknown }).config}
-                                onChange={(config) => handleConfigChange(stepId, config)}
-                              />
-                            )}
-                          </WorkflowStepCard>
-                        );
-                      })}
-                    </div>
+                    <SortableContext
+                      items={steps.map(getStepId)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2">
+                        {steps.map((step) => {
+                          const stepId = getStepId(step);
+                          const stepKey = getStepKeyFromStepId(stepId);
+                          return (
+                            <div key={stepId} className="relative">
+                              <WorkflowStepCard
+                                step={{
+                                  id: stepId,
+                                  name: stepDisplayName(step),
+                                }}
+                                isExpanded={expandedStepId === stepId}
+                                onOpenChange={(open) => setExpandedStepId(open ? stepId : null)}
+                                onDragHandlePointerDown={() => setExpandedStepId(null)}
+                                isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
+                                onDelete={
+                                  stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
+                                    ? () => handleDeleteStep(stepId)
+                                    : undefined
+                                }
+                              >
+                                {stepKey && (
+                                  <StepConfigEditor
+                                    stepKey={stepKey}
+                                    config={(step as { config?: unknown }).config}
+                                    onChange={(config) => handleConfigChange(stepId, config)}
+                                  />
+                                )}
+                              </WorkflowStepCard>
+                            </div>
+                          );
+                        })}
+                      </div>
                   </SortableContext>
                 </DndContext>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

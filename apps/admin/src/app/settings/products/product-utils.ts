@@ -16,6 +16,12 @@ export function getDefaultWorkflowSteps(): WorkflowStepShape[] {
   }));
 }
 
+/** First and last steps that must always be present (financing type, review and submit). Used for create-mode initial and ensure-present. */
+export function getRequiredFirstAndLastSteps(): [WorkflowStepShape, WorkflowStepShape] {
+  const all = getDefaultWorkflowSteps();
+  return [all[0], all[all.length - 1]];
+}
+
 /** Normalize product workflow to steps with id and name; use default if empty. */
 export function normalizeWorkflowSteps(raw: unknown[] | null | undefined): WorkflowStepShape[] {
   if (!raw?.length) return getDefaultWorkflowSteps();

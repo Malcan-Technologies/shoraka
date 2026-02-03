@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bars3Icon, ChevronDownIcon, ChevronUpIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, ChevronDownIcon, ChevronUpIcon, LockClosedIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -17,6 +17,10 @@ export interface WorkflowStepCardProps {
   isExpanded?: boolean;
   onOpenChange?: (open: boolean) => void;
   onDelete?: () => void;
+  /** Called when pointer goes down on the drag handle so parent can collapse this card before drag starts. */
+  onDragHandlePointerDown?: () => void;
+  /** First or last step: not draggable, no delete, show lock icon. */
+  isLocked?: boolean;
   children?: React.ReactNode;
 }
 
@@ -26,6 +30,8 @@ export function WorkflowStepCard({
   isExpanded = false,
   onOpenChange,
   onDelete,
+  onDragHandlePointerDown,
+  isLocked = false,
   children,
 }: WorkflowStepCardProps) {
   const {
@@ -35,10 +41,13 @@ export function WorkflowStepCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: step.id });
+  } = useSortable({ id: step.id, disabled: isLocked });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  const listenerHandlers = (listeners ?? {}) as { onPointerDown?: (e: React.PointerEvent) => void };
+  const { onPointerDown: listenerPointerDown, ...restListeners } = listenerHandlers;
+
+  const style: React.CSSProperties = {
+    transform: transform ? CSS.Transform.toString(transform) : undefined,
     transition,
   };
 
@@ -46,48 +55,73 @@ export function WorkflowStepCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className={isDragging ? "opacity-50 shadow-lg" : ""}
+      className={`overflow-hidden shrink-0 ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
     >
       <Collapsible open={isExpanded} onOpenChange={onOpenChange}>
         <CardContent className="p-0">
-          <div className="flex items-center gap-2 py-3 pl-3 pr-2">
-            <button
-              type="button"
-              className="touch-none cursor-grab rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring active:cursor-grabbing"
-              aria-label={`Drag to reorder ${step.name}`}
-              {...attributes}
-              {...listeners}
-            >
-              <Bars3Icon className="h-5 w-5" />
-            </button>
-            <span className="flex-1 text-sm font-medium truncate">{step.name}</span>
-            <span className="text-xs text-muted-foreground font-mono shrink-0">{step.id}</span>
-            {onOpenChange && (
+          <div className="flex items-center gap-2 h-11 pl-3 pr-2 box-border shrink-0">
+            {isLocked ? (
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground"
+                title="Locked – first and last steps cannot be reordered or removed"
+                aria-label="Locked step"
+              >
+                <LockClosedIcon className="h-5 w-5 shrink-0" />
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="touch-none cursor-grab rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:cursor-grabbing shrink-0"
+                aria-label={`Drag to reorder ${step.name}`}
+                {...attributes}
+                {...restListeners}
+                onPointerDown={(e) => {
+                  onDragHandlePointerDown?.();
+                  listenerPointerDown?.(e);
+                }}
+              >
+                <Bars3Icon className="h-5 w-5 shrink-0" />
+              </button>
+            )}
+            {onOpenChange ? (
               <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 shrink-0"
+                <button
+                  type="button"
+                  className="flex flex-1 min-w-0 items-center cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:rounded"
                   aria-label={isExpanded ? "Collapse config" : "Expand config"}
                 >
-                  {isExpanded ? (
-                    <ChevronUpIcon className="h-4 w-4" />
-                  ) : (
-                    <ChevronDownIcon className="h-4 w-4" />
-                  )}
-                </Button>
+                  <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
+                </button>
               </CollapsibleTrigger>
+            ) : (
+              <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
             )}
             {onDelete && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive"
+                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive focus-visible:ring-inset"
                 onClick={onDelete}
                 aria-label={`Delete ${step.name}`}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="h-4 w-4 shrink-0" />
               </Button>
+            )}
+            {onOpenChange && (
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0 focus-visible:ring-inset"
+                  aria-label={isExpanded ? "Collapse config" : "Expand config"}
+                >
+                  {isExpanded ? (
+                    <ChevronUpIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronDownIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
             )}
           </div>
           {children && (
