@@ -128,11 +128,11 @@ export function ProductList({ products, selectedProductId, onProductSelect }: Pr
       );
       const config = financingStep?.config || {};
       
-      // Extract data from config
+      // Extract data from config (image can be nested config.image or legacy config.s3_key)
       const category = config.category || "Other";
       const name = config.name || "Unnamed Product";
       const description = config.description || "";
-      const imageUrl = config.s3_key || "";
+      const imageUrl = config.image?.s3_key || config.s3_key || "";
       
       // Create product data
       const productData = {

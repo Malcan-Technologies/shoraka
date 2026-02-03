@@ -57,3 +57,13 @@ export const updateProductBodySchema = z.object({
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
+
+// Body for POST /v1/products/upload-image-url (admin). Returns presigned URL + s3Key.
+export const productImageUploadUrlBodySchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.string().refine((v) => v.startsWith("image/"), {
+    message: "Only image types are allowed",
+  }),
+});
+
+export type ProductImageUploadUrlBody = z.infer<typeof productImageUploadUrlBodySchema>;

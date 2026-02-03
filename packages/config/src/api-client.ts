@@ -936,6 +936,17 @@ export class ApiClient {
     return this.delete<unknown>(`/v1/products/${id}`);
   }
 
+  /** Request presigned URL for uploading a product image (admin). Key stored in workflow config. */
+  async requestProductImageUploadUrl(body: {
+    fileName: string;
+    contentType: string;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      "/v1/products/upload-image-url",
+      body
+    );
+  }
+
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications`, data);

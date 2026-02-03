@@ -223,6 +223,16 @@ export async function s3ObjectExists(key: string): Promise<boolean> {
 }
 
 /**
+ * Generate S3 key for product images (admin upload, stored in workflow config).
+ * Format: products/images/{timestamp}{random}.{ext}
+ */
+export function generateProductImageKey(extension: string): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 10);
+  return `products/images/${timestamp}${random}.${extension}`;
+}
+
+/**
  * Generate S3 key for site documents
  * Format: site-documents/{type}/{version}-{date}-{cuid}.{ext}
  */

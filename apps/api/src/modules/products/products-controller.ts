@@ -1,7 +1,14 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
+import { generatePresignedUploadUrl } from "../../lib/s3/client";
+import { generateProductImageKey, getFileExtension } from "../../lib/s3/client";
 import { ProductRepository } from "./repository";
-import { getProductsListQuerySchema, createProductBodySchema, updateProductBodySchema } from "./schemas";
+import {
+  getProductsListQuerySchema,
+  createProductBodySchema,
+  updateProductBodySchema,
+  productImageUploadUrlBodySchema,
+} from "./schemas";
 
 const router = Router();
 const productRepository = new ProductRepository();
@@ -50,6 +57,33 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     }
   }
 );
+
+/**
+ * POST /v1/products/upload-image-url
+ * Request presigned URL for uploading a product image (admin only). Key stored in workflow config.
+ */
+router.post("/upload-image-url", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = productImageUploadUrlBodySchema.parse(req.body);
+    const ext = getFileExtension(validated.fileName) || "png";
+    const key = generateProductImageKey(ext);
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: validated.contentType,
+    });
+    res.json({
+      success: true,
+      data: { uploadUrl, s3Key, expiresIn },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof Error
+        ? new AppError(400, "VALIDATION_ERROR", error.message)
+        : error
+    );
+  }
+});
 
 /**
  * POST /v1/products
