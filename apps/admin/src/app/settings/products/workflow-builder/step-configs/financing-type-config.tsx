@@ -185,7 +185,7 @@ export function FinancingTypeConfig({
                   <img
                     src={previewSrc}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     onError={() => setImgError(true)}
                   />
                 ) : (
@@ -200,7 +200,17 @@ export function FinancingTypeConfig({
                       : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  {viewUrl && !pendingFile ? (
+                    <a
+                      href={viewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline focus:outline-none"
+                    >
+                      View
+                    </a>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -211,7 +221,7 @@ export function FinancingTypeConfig({
                   <button
                     type="button"
                     onClick={handleRemove}
-                    className="ml-2 text-muted-foreground hover:underline hover:text-destructive focus:underline focus:outline-none"
+                    className="text-muted-foreground hover:underline hover:text-destructive focus:underline focus:outline-none"
                   >
                     Remove
                   </button>

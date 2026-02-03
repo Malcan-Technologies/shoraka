@@ -402,11 +402,19 @@ function DocRow({
                   href={viewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 text-primary hover:underline"
+                  className="shrink-0 hover:underline focus:outline-none"
                 >
                   View
                 </a>
               ) : null}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingTemplate}
+                className="shrink-0 hover:underline focus:outline-none"
+              >
+                Change
+              </button>
               <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline">
                 Remove
               </button>
@@ -416,6 +424,14 @@ function DocRow({
               <span className="truncate max-w-[180px]" title={pendingFile.name}>
                 {pendingFile.name} ({formatFileSize(pendingFile.size)})
               </span>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingTemplate}
+                className="shrink-0 hover:underline focus:outline-none"
+              >
+                Change
+              </button>
               <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline">
                 Remove
               </button>
