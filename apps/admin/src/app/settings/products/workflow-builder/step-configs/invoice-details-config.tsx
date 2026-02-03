@@ -7,7 +7,7 @@ const DEFAULT_MAX_FINANCING_RATE_PERCENT = 80;
 
 function getMaxFinancingRatePercent(config: unknown): number {
   const c = config as Record<string, unknown> | undefined;
-  const v = c?.maxFinancingRatePercent;
+  const v = c?.max_financing_rate_percent;
   if (typeof v === "number" && !Number.isNaN(v) && v >= 0 && v <= 100) return v;
   return DEFAULT_MAX_FINANCING_RATE_PERCENT;
 }
@@ -19,12 +19,12 @@ export function InvoiceDetailsConfig({ config, onChange }: { config: unknown; on
   const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.trim();
     if (raw === "") {
-      onChange({ ...base, maxFinancingRatePercent: DEFAULT_MAX_FINANCING_RATE_PERCENT });
+      onChange({ ...base, max_financing_rate_percent: DEFAULT_MAX_FINANCING_RATE_PERCENT });
       return;
     }
     const n = Number(raw);
     if (!Number.isNaN(n) && n >= 0 && n <= 100) {
-      onChange({ ...base, maxFinancingRatePercent: n });
+      onChange({ ...base, max_financing_rate_percent: n });
     }
   };
 
