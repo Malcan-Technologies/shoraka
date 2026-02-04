@@ -29,19 +29,19 @@ import { ProgressIndicator } from "../components/progress-indicator";
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization } = useOrganization();
-  
+
   // Load products from API
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
     pageSize: 100,
   });
-  
+
   // Hook to create application
   const createApplicationMutation = useCreateApplication();
-  
+
   // Track which product user selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-  
+
   /**
    * ORGANIZATION VERIFICATION CHECK
    * 
@@ -54,7 +54,7 @@ export default function NewApplicationPage() {
       router.push("/");
       return;
     }
-    
+
     if (activeOrganization.onboardingStatus !== "COMPLETED") {
       // Organization not verified - redirect to dashboard
       toast.error("Your organization must be verified before creating applications");
@@ -62,9 +62,44 @@ export default function NewApplicationPage() {
       return;
     }
   }, [activeOrganization, router]);
-  
+
   const products = productsData?.products || [];
-  
+
+  /**
+    * AUTO-SELECT FIRST PRODUCT
+    * 
+    * When products load, automatically select the first one.
+    * This gives users a default choice and shows the workflow immediately.
+    */
+  React.useEffect(() => {
+    if (products.length > 0 && !selectedProductId) {
+      setSelectedProductId(products[0].id);
+    }
+  }, [products, selectedProductId]);
+
+  /**
+   * GET WORKFLOW STEPS
+   * 
+   * Get the list of steps from the selected product.
+   * This shows users what the complete journey will look like.
+   * 
+   * Example: ["Financing Type", "Verify Company Info", "Documents", "Declarations"]
+   */
+  const workflowSteps = React.useMemo(() => {
+    if (!selectedProductId || products.length === 0) {
+      return [];
+    }
+
+    const selectedProduct = products.find((p: any) => p.id === selectedProductId);
+
+    if (!selectedProduct || !selectedProduct.workflow) {
+      return [];
+    }
+
+    return selectedProduct.workflow.map((step: any) => step.name);
+  }, [selectedProductId, products]);
+
+
   // Don't render page content if organization is not verified
   if (!activeOrganization || activeOrganization.onboardingStatus !== "COMPLETED") {
     return (
@@ -82,48 +117,15 @@ export default function NewApplicationPage() {
       </div>
     );
   }
-  
-  /**
-   * AUTO-SELECT FIRST PRODUCT
-   * 
-   * When products load, automatically select the first one.
-   * This gives users a default choice and shows the workflow immediately.
-   */
-  React.useEffect(() => {
-    if (products.length > 0 && !selectedProductId) {
-      setSelectedProductId(products[0].id);
-    }
-  }, [products, selectedProductId]);
-  
-  /**
-   * GET WORKFLOW STEPS
-   * 
-   * Get the list of steps from the selected product.
-   * This shows users what the complete journey will look like.
-   * 
-   * Example: ["Financing Type", "Verify Company Info", "Documents", "Declarations"]
-   */
-  const workflowSteps = React.useMemo(() => {
-    if (!selectedProductId || products.length === 0) {
-      return [];
-    }
-    
-    const selectedProduct = products.find((p: any) => p.id === selectedProductId);
-    
-    if (!selectedProduct || !selectedProduct.workflow) {
-      return [];
-    }
-    
-    return selectedProduct.workflow.map((step: any) => step.name);
-  }, [selectedProductId, products]);
-  
+
+
   /**
    * When user selects a product
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
   };
-  
+
   /**
    * When user clicks "Continue"
    * 
@@ -139,28 +141,28 @@ export default function NewApplicationPage() {
       toast.error("Please select a financing type");
       return;
     }
-    
+
     if (!activeOrganization) {
       toast.error("Please select an organization first");
       return;
     }
-    
+
     try {
       // Call API: POST /v1/applications
       const application = await createApplicationMutation.mutateAsync({
         productId: selectedProductId,
         issuerOrganizationId: activeOrganization.id,
       });
-      
+
       toast.success("Application created successfully");
-      
+
       // Go to step 2 (next step after selecting product)
       router.push(`/applications/edit/${application.id}?step=2`);
     } catch (error) {
       // Error already shown by mutation hook
     }
   };
-  
+
   // Show loading state while fetching products
   if (isLoadingProducts) {
     return (
@@ -170,7 +172,7 @@ export default function NewApplicationPage() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Skeleton className="h-6 w-32" />
         </header>
-        
+
         <main className="flex-1 overflow-y-auto p-4">
           <div className="max-w-7xl mx-auto w-full px-4 py-8">
             <Skeleton className="h-9 w-64 mb-2" />
@@ -178,7 +180,7 @@ export default function NewApplicationPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         </main>
-        
+
         <footer className="sticky bottom-0 border-t bg-background">
           <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-end">
             <Skeleton className="h-12 w-40 rounded-xl" />
@@ -187,7 +189,7 @@ export default function NewApplicationPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex flex-col h-full">
       {/* Top navigation bar */}
@@ -196,7 +198,7 @@ export default function NewApplicationPage() {
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-lg font-semibold">New Application</h1>
       </header>
-      
+
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-4">
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
@@ -209,7 +211,7 @@ export default function NewApplicationPage() {
               Browse and invest in verified loan opportunities from your dashboard
             </p>
           </div>
-          
+
           {/* Progress Indicator */}
           {workflowSteps.length > 0 && (
             <ProgressIndicator
@@ -219,10 +221,10 @@ export default function NewApplicationPage() {
             />
           )}
         </div>
-        
+
         {/* Divider */}
         <div className="h-px bg-border w-full" />
-        
+
         {/* Product List */}
         <div className="max-w-7xl mx-auto w-full px-4 pt-6">
           {products.length === 0 ? (
@@ -238,7 +240,7 @@ export default function NewApplicationPage() {
           )}
         </div>
       </main>
-      
+
       {/* Bottom button */}
       <footer className="sticky bottom-0 border-t bg-background">
         <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-end">
