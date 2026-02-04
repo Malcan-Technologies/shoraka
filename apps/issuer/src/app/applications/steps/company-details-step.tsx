@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 
 /**
  * COMPANY DETAILS STEP
@@ -84,11 +86,14 @@ const MALAYSIAN_BANKS = [
   { value: "UOB Bank Berhad", label: "UOB Bank" },
 ];
 
+const ADDRESS_PLACEHOLDER = "No address entered";
+
 /**
- * Helper function to format address object into a single string
+ * Helper function to format address object into a single string.
+ * When empty, returns a placeholder instead of "—".
  */
 function formatAddress(addr: any): string {
-  if (!addr) return "—";
+  if (!addr) return ADDRESS_PLACEHOLDER;
   const parts = [
     addr.line1,
     addr.line2,
@@ -97,7 +102,7 @@ function formatAddress(addr: any): string {
     addr.state,
     addr.country,
   ].filter(Boolean);
-  return parts.length ? parts.join(", ") : "—";
+  return parts.length ? parts.join(", ") : ADDRESS_PLACEHOLDER;
 }
 
 /**
@@ -111,10 +116,8 @@ function normalizeName(name: string): string {
 const BANK_ACCOUNT_REGEX = /^\d*$/;
 const BANK_ACCOUNT_MIN_LENGTH = 10;
 const BANK_ACCOUNT_MAX_LENGTH = 18;
-/** IC number: digits and dashes only (no letters) */
-const IC_NUMBER_REGEX = /^[\d-]*$/;
-/** Contact/phone: digits, spaces, and + - ( ) only */
-const CONTACT_REGEX = /^[\d\s+\-()]*$/;
+/** IC number: digits only (no dashes or letters) */
+const IC_NUMBER_REGEX = /^\d*$/;
 /** Number of employees: positive integer (digits only, non-zero) */
 function isValidNumberOfEmployees(value: string): boolean {
   if (!value.trim()) return true;
@@ -127,14 +130,9 @@ function restrictDigitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-/** Restrict input to digits and dashes only (IC number) */
+/** Restrict input to digits only (IC number) */
 function restrictIcNumber(value: string): string {
-  return value.replace(/[^\d-]/g, "");
-}
-
-/** Restrict input to phone-friendly characters */
-function restrictContact(value: string): string {
-  return value.replace(/[^\d\s+\-()]/g, "");
+  return value.replace(/\D/g, "");
 }
 
 const inputClassName = "bg-muted rounded-xl border border-border";
@@ -316,7 +314,7 @@ export function CompanyDetailsStep({
 
   /**
    * VALIDATE CONTACT PERSON
-   * Required fields and format: IC digits/dashes only, contact phone-friendly
+   * Required fields and format: IC digits only, contact from PhoneInput
    */
   const validateContactPerson = React.useCallback(() => {
     const errors: string[] = [];
@@ -325,12 +323,10 @@ export function CompanyDetailsStep({
     if (!contactPerson.ic?.trim()) {
       errors.push("Applicant IC number is required");
     } else if (!IC_NUMBER_REGEX.test(contactPerson.ic)) {
-      errors.push("Applicant IC number must contain only numbers and dashes (no letters)");
+      errors.push("Applicant IC number must contain only digits");
     }
     if (!contactPerson.contact?.trim()) {
       errors.push("Applicant contact is required");
-    } else if (!CONTACT_REGEX.test(contactPerson.contact)) {
-      errors.push("Applicant contact must contain only numbers and valid phone characters (+, -, spaces, parentheses)");
     }
     return errors;
   }, [contactPerson]);
@@ -345,8 +341,8 @@ export function CompanyDetailsStep({
     const contactErrors = validateContactPerson();
     if (contactErrors.length > 0) {
       errors.push(...contactErrors);
-      if (contactErrors.some((e) => e.includes("IC"))) fieldErrors.ic = "Only numbers and dashes allowed (no letters)";
-      if (contactErrors.some((e) => e.includes("contact"))) fieldErrors.contact = "Only numbers and phone characters (+, -, spaces, parentheses)";
+      if (contactErrors.some((e) => e.includes("IC"))) fieldErrors.ic = "Digits only";
+      if (contactErrors.some((e) => e.includes("contact"))) fieldErrors.contact = "Required";
       if (contactErrors.some((e) => e.includes("name"))) fieldErrors.name = "Required";
       if (contactErrors.some((e) => e.includes("position"))) fieldErrors.position = "Required";
     }
@@ -706,19 +702,19 @@ export function CompanyDetailsStep({
         <div className={gridClassName}>
           <div className={labelClassName}>Company name</div>
           <Input
-            value={basicInfo?.businessName || "—"}
+            value={basicInfo?.businessName || "eg. Company Name"}
             disabled
             className={inputClassName}
           />
           <div className={labelClassName}>Type of entity</div>
           <Input
-            value={basicInfo?.entityType || "—"}
+            value={basicInfo?.entityType || "eg. Private Limited Company"}
             disabled
             className={inputClassName}
           />
           <div className={labelClassName}>SSM no</div>
           <Input
-            value={basicInfo?.ssmRegisterNumber || "—"}
+            value={basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
             disabled
             className={inputClassName}
           />
@@ -728,7 +724,7 @@ export function CompanyDetailsStep({
             onChange={(e) =>
               setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
             }
-            placeholder="—"
+            placeholder="eg. Technology"
             className={inputClassNameEditable}
           />
           <div className={labelClassNameEditable}>Number of employees</div>
@@ -740,7 +736,7 @@ export function CompanyDetailsStep({
                 setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
                 if (fieldErrors.numberOfEmployees) setFieldErrors((prev) => { const next = { ...prev }; delete next.numberOfEmployees; return next; });
               }}
-              placeholder="—"
+              placeholder="eg. 10"
               className={inputClassNameEditable}
               aria-invalid={!!fieldErrors.numberOfEmployees}
               aria-describedby={fieldErrors.numberOfEmployees ? "err-numberOfEmployees" : undefined}
@@ -909,7 +905,7 @@ export function CompanyDetailsStep({
                 setContactPerson((prev) => ({ ...prev, name: e.target.value }));
                 if (fieldErrors.name) setFieldErrors((prev) => { const next = { ...prev }; delete next.name; return next; });
               }}
-              placeholder="—"
+              placeholder="eg. John Doe"
               className={inputClassNameEditable}
               aria-invalid={!!fieldErrors.name}
               aria-describedby={fieldErrors.name ? "err-contact-name" : undefined}
@@ -928,7 +924,7 @@ export function CompanyDetailsStep({
                 setContactPerson((prev) => ({ ...prev, position: e.target.value }));
                 if (fieldErrors.position) setFieldErrors((prev) => { const next = { ...prev }; delete next.position; return next; });
               }}
-              placeholder="—"
+              placeholder="eg. CEO"
               className={inputClassNameEditable}
               aria-invalid={!!fieldErrors.position}
               aria-describedby={fieldErrors.position ? "err-contact-position" : undefined}
@@ -948,7 +944,7 @@ export function CompanyDetailsStep({
                 setContactPerson((prev) => ({ ...prev, ic: v }));
                 if (fieldErrors.ic) setFieldErrors((prev) => { const next = { ...prev }; delete next.ic; return next; });
               }}
-              placeholder="—"
+              placeholder="eg. 1234567890"
               className={inputClassNameEditable}
               aria-invalid={!!fieldErrors.ic}
               aria-describedby={fieldErrors.ic ? "err-contact-ic" : undefined}
@@ -961,15 +957,15 @@ export function CompanyDetailsStep({
           </div>
           <div className={labelClassNameEditable}>Applicant contact</div>
           <div>
-            <Input
-              value={contactPerson.contact ?? ""}
-              onChange={(e) => {
-                const v = restrictContact(e.target.value);
-                setContactPerson((prev) => ({ ...prev, contact: v }));
+            <PhoneInput
+              international
+              defaultCountry="MY"
+              value={contactPerson.contact ?? undefined}
+              onChange={(v) => {
+                setContactPerson((prev) => ({ ...prev, contact: v ?? "" }));
                 if (fieldErrors.contact) setFieldErrors((prev) => { const next = { ...prev }; delete next.contact; return next; });
               }}
-              placeholder="—"
-              className={inputClassNameEditable}
+              className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
               aria-invalid={!!fieldErrors.contact}
               aria-describedby={fieldErrors.contact ? "err-contact-contact" : undefined}
             />
