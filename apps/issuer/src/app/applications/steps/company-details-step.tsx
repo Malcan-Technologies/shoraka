@@ -10,6 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
@@ -49,6 +56,33 @@ function getBankField(bankDetails: any, fieldName: string): string {
   const field = bankDetails.content.find((f: any) => f.fieldName === fieldName);
   return field?.fieldValue || "";
 }
+
+/** Malaysian banks list (values match RegTank format); same as profile page */
+const MALAYSIAN_BANKS = [
+  { value: "Affin Bank Berhad", label: "Affin Bank" },
+  { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
+  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
+  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
+  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
+  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
+  { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
+  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
+  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
+  { value: "Bank of America", label: "Bank of America" },
+  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
+  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
+  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
+  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
+  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
+  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
+  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
+  { value: "Public Bank Berhad", label: "Public Bank" },
+  { value: "RHB Bank Berhad", label: "RHB Bank" },
+  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
+  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
+  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
+  { value: "UOB Bank Berhad", label: "UOB Bank" },
+];
 
 /**
  * Helper function to format address object into a single string
@@ -236,17 +270,25 @@ export function CompanyDetailsStep({
         queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
       }
 
-      // Save banking if there are pending changes
+      // Save banking if there are pending changes — use current display values so we never overwrite one field with empty
       if (pendingBanking) {
-        const bankAccountDetails = {
+        const currentBankName =
+          pendingBanking.bankName !== undefined
+            ? pendingBanking.bankName
+            : getBankField(bankAccountDetails || null, "Bank");
+        const currentAccountNumber =
+          pendingBanking.bankAccountNumber !== undefined
+            ? pendingBanking.bankAccountNumber
+            : getBankField(bankAccountDetails || null, "Bank account number");
+        const bankAccountDetailsPayload = {
           content: [
-            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: pendingBanking.bankName ?? "" },
-            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: pendingBanking.bankAccountNumber ?? "" },
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: currentBankName ?? "" },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: currentAccountNumber ?? "" },
           ],
           displayArea: "Operational Information",
         };
         const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-          bankAccountDetails,
+          bankAccountDetails: bankAccountDetailsPayload,
         });
         if (!result.success) {
           throw new Error(result.error.message);
@@ -265,7 +307,7 @@ export function CompanyDetailsStep({
       });
       throw error;
     }
-  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking]);
+  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking, bankAccountDetails]);
 
   /**
    * Validation errors per field (for inline display)
@@ -315,11 +357,22 @@ export function CompanyDetailsStep({
       fieldErrors.numberOfEmployees = "Enter a positive whole number";
     }
 
+    const bankNameDisplay =
+      pendingBanking?.bankName !== undefined ? pendingBanking.bankName : getBankField(bankAccountDetails || null, "Bank");
+    const bankNameStr = (bankNameDisplay ?? "").trim();
+    if (!bankNameStr) {
+      errors.push("Bank name is required");
+      fieldErrors.bankName = "Select a bank";
+    }
+
     const bankNum =
       pendingBanking?.bankAccountNumber ??
       getBankField(bankAccountDetails || null, "Bank account number");
     const bankNumStr = bankNum !== undefined && bankNum !== "" ? String(bankNum).trim() : "";
-    if (bankNumStr !== "") {
+    if (!bankNumStr) {
+      errors.push("Bank account number is required");
+      fieldErrors.bankAccountNumber = "Required";
+    } else {
       if (!BANK_ACCOUNT_REGEX.test(bankNumStr)) {
         errors.push("Bank account number must contain only numbers");
         fieldErrors.bankAccountNumber = "Only numbers allowed";
@@ -785,17 +838,35 @@ export function CompanyDetailsStep({
         </div>
         <div className={gridClassName}>
           <div className={labelClassNameEditable}>Bank name</div>
-          <Input
-            value={displayBankName ?? ""}
-            onChange={(e) =>
-              setPendingBanking((prev) => ({
-                ...prev,
-                bankName: e.target.value,
-              }))
-            }
-            placeholder="—"
-            className={inputClassNameEditable}
-          />
+          <div>
+            <Select
+              value={displayBankName ?? ""}
+              onValueChange={(value) => {
+                setPendingBanking((prev) => ({ ...prev, bankName: value }));
+                if (fieldErrors.bankName) setFieldErrors((prev) => { const next = { ...prev }; delete next.bankName; return next; });
+              }}
+            >
+              <SelectTrigger
+                className={inputClassNameEditable}
+                aria-invalid={!!fieldErrors.bankName}
+                aria-describedby={fieldErrors.bankName ? "err-bankName" : undefined}
+              >
+                <SelectValue placeholder="Select bank" />
+              </SelectTrigger>
+              <SelectContent>
+                {MALAYSIAN_BANKS.map((bank) => (
+                  <SelectItem key={bank.value} value={bank.value}>
+                    {bank.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.bankName && (
+              <p id="err-bankName" className="text-destructive text-sm mt-1" role="alert">
+                {fieldErrors.bankName}
+              </p>
+            )}
+          </div>
           <div className={labelClassNameEditable}>Bank account number</div>
           <div>
             <Input
@@ -805,7 +876,7 @@ export function CompanyDetailsStep({
                 setPendingBanking((prev) => ({ ...prev, bankAccountNumber: v }));
                 if (fieldErrors.bankAccountNumber) setFieldErrors((prev) => { const next = { ...prev }; delete next.bankAccountNumber; return next; });
               }}
-              placeholder="—"
+              placeholder="Enter account number"
               className={inputClassNameEditable}
               aria-invalid={!!fieldErrors.bankAccountNumber}
               aria-describedby={fieldErrors.bankAccountNumber ? "err-bankAccountNumber" : undefined}
