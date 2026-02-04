@@ -281,12 +281,12 @@ export function OnboardingReviewDialog({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-4 text-sm text-muted-foreground">
+              <div className="rounded-lg bg-muted/50 p-4 space-y-4">
                 {isCompany ? (
                   <>
                     <div>
-                      <p className="font-medium text-foreground">Business Account – Onboarding Approval</p>
-                      <ol className="space-y-2 list-decimal list-inside mt-2">
+                      <p className="text-sm font-medium">Business Account – Onboarding Approval</p>
+                      <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside mt-2">
                         <li>
                           Click the &quot;Open Onboarding Review&quot; button to open the business
                           onboarding page in RegTank.
@@ -308,7 +308,7 @@ export function OnboardingReviewDialog({
                           are needed).
                         </li>
                       </ol>
-                      <p className="mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         <strong>Next step:</strong> Once approved, proceed to AML Approval.
                       </p>
                     </div>
@@ -316,8 +316,8 @@ export function OnboardingReviewDialog({
                 ) : (
                   <>
                     <div>
-                      <p className="font-medium text-foreground">Personal Account – Onboarding Approval</p>
-                      <ol className="space-y-2 list-decimal list-inside mt-2">
+                      <p className="text-sm font-medium">Personal Account – Onboarding Approval</p>
+                      <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside mt-2">
                         <li>
                           Click the &quot;Open Onboarding Review&quot; button to open the user&apos;s
                           onboarding page in RegTank.
@@ -332,7 +332,7 @@ export function OnboardingReviewDialog({
                           information).
                         </li>
                       </ol>
-                      <p className="mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         <strong>Next step:</strong> Once approved, proceed to AML Approval.
                       </p>
                     </div>
@@ -419,12 +419,12 @@ export function OnboardingReviewDialog({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-4 text-sm text-muted-foreground">
+              <div className="rounded-lg bg-muted/50 p-4 space-y-4">
                 {isCompany ? (
                   <>
                     <div>
-                      <p className="font-medium text-foreground">Business Account – AML Approval</p>
-                      <ol className="space-y-2 list-decimal list-inside mt-2">
+                      <p className="text-sm font-medium">Business Account – AML Approval</p>
+                      <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside mt-2">
                         <li>
                           Click the &quot;Open KYB/AML Review&quot; button to access the AML
                           screening page in RegTank.
@@ -445,7 +445,7 @@ export function OnboardingReviewDialog({
                           fails or requires rejection.
                         </li>
                       </ol>
-                      <p className="mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         After successful approval, the AML process is complete.
                       </p>
                     </div>
@@ -453,8 +453,8 @@ export function OnboardingReviewDialog({
                 ) : (
                   <>
                     <div>
-                      <p className="font-medium text-foreground">Personal Account – AML Approval</p>
-                      <ol className="space-y-2 list-decimal list-inside mt-2">
+                      <p className="text-sm font-medium">Personal Account – AML Approval</p>
+                      <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside mt-2">
                         <li>
                           Click the &quot;Open KYB/AML Review&quot; button to access the AML
                           screening page (My KYC) in RegTank.
@@ -470,7 +470,7 @@ export function OnboardingReviewDialog({
                           <strong>Reject</strong> (if screening results require rejection).
                         </li>
                       </ol>
-                      <p className="mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         Once approved, the AML process is complete.
                       </p>
                     </div>
