@@ -24,22 +24,103 @@ export function SupportingDocumentsStep({
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
+  /**
+   * SUPPORTING DOCUMENTS CONFIG ADAPTER
+   *
+   * WHY THIS EXISTS:
+   * The UI was originally built to consume a `categories[]` structure.
+   * The workflow config has since changed to a grouped-object structure.
+   *
+   * Instead of rewriting the UI (risky),
+   * we adapt the new config into the old shape.
+   *
+   * --------------------------------------------------
+   * OLD CONFIG SHAPE (what the UI was built for)
+   *
+   * categories: [
+   *   {
+   *     name: "Financial Docs",
+   *     documents: [
+   *       {
+   *         title: "Latest Management Account",
+   *         template: { s3_key: "templates/management.pdf" }
+   *       }
+   *     ]
+   *   }
+   * ]
+   *
+   * --------------------------------------------------
+   * NEW CONFIG SHAPE (from workflow config)
+   *
+   * config: {
+   *   financial_docs: [
+   *     {
+   *       name: "Latest Management Account",
+   *       template: { s3_key: "templates/management.pdf" }
+   *     }
+   *   ],
+   *   legal_docs: [
+   *     {
+   *       name: "Deed of Assignment"
+   *     }
+   *   ]
+   * }
+   *
+   * --------------------------------------------------
+   * RESULTING UI SHAPE (what this adapter returns)
+   *
+   * [
+   *   {
+   *     name: "Financial Docs",
+   *     documents: [
+   *       {
+   *         title: "Latest Management Account",
+   *         template: { s3_key: "templates/management.pdf" }
+   *       }
+   *     ]
+   *   },
+   *   {
+   *     name: "Legal Docs",
+   *     documents: [
+   *       {
+   *         title: "Deed of Assignment"
+   *       }
+   *     ]
+   *   }
+   * ]
+   *
+   * --------------------------------------------------
+   * STRATEGY:
+   * - Convert object groups into categories
+   * - Keep UI unchanged
+   * - Safely support future workflow changes
+   */
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
+
+    // Guard: no config or invalid shape
     if (!config || typeof config !== "object") return [];
 
     return Object.entries(config)
+
+      // Only treat array values as document groups
       .filter(([, value]) => Array.isArray(value))
+
+      // Convert each group into a UI category
       .map(([groupKey, docs]) => ({
+        // "financial_docs" → "Financial Docs"
         name: groupKey
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
+
+        // Convert documents into UI-friendly shape
         documents: (docs as any[]).map((doc) => ({
-          title: doc?.name ?? "Untitled document",
+          title: doc?.name ?? "—", // if no document name
           template: doc?.template,
         })),
       }));
   }, [stepConfig]);
+
 
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -201,7 +282,7 @@ export function SupportingDocumentsStep({
       },
     }));
 
-    toast.success("File selected. Click 'Save and continue' to upload.");
+    toast.success("File added.");
   };
 
   const uploadFilesToS3 = React.useCallback(async () => {
