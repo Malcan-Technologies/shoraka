@@ -516,6 +516,41 @@ export default function EditApplicationPage() {
       // Get the data from the current step
       let dataToSave = stepDataRef.current;
 
+      //  cleanup block,
+      //
+      // Purpose:
+      // Remove UI-only fields before sending data to the backend.
+      //
+      // Why this is needed:
+      // Step components pass extra metadata to the parent for UI control
+      // (e.g. validation, unsaved-changes tracking, file upload helpers).
+      // These fields are NOT part of the domain model and must never be stored in the DB.
+      //
+      // Examples of UI-only fields:
+      // - hasPendingChanges         → used only to trigger unsaved-changes warning
+      // - areAllDeclarationsChecked → used only to enable/disable "Save and Continue"
+      // - areAllFilesUploaded       → used only for client-side validation
+      // - saveFunction              → client-side helper for uploads / side effects
+      //
+      // Design decision:
+      // We keep step components flexible and expressive,
+      // but enforce a single cleanup point in the parent
+      // to guarantee that only pure, persistent data
+      // is ever sent to the API.
+      //
+      // This protects the database schema and prevents accidental data pollution.
+      if (dataToSave && typeof dataToSave === "object") {
+        const {
+          hasPendingChanges,          // UI only
+          areAllDeclarationsChecked,  // UI only
+          areAllFilesUploaded,        // UI only
+          saveFunction,               // UI only
+          ...rest
+        } = dataToSave;
+
+        dataToSave = rest;
+      }
+
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
        * 
