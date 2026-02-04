@@ -30,6 +30,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+type ApplicationBlockReason =
+  | "PRODUCT_DELETED"
+  | "PRODUCT_VERSION_CHANGED"
+  | null;
+
+
 /**
  * EDIT APPLICATION PAGE
  * 
@@ -89,33 +95,37 @@ export default function EditApplicationPage() {
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
 
-  const isVersionMismatch = React.useMemo(() => {
-    if (!application || !productsData) return false;
-
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
-    if (!productId) return false;
-
-    /**
-   * VERSION / PRODUCT VALIDATION
-   * 
-   * Block the application if:
-   * - The product no longer exists (deleted)
-   * - The product version has changed
-   * 
-   * In both cases, the application contract is no longer valid
-   * and the user must restart.
+  /**
+   * APPLICATION BLOCK REASON
+   *
+   * Determines whether the application can continue
+   * under the currently selected product.
+   *
+   * - PRODUCT_DELETED: product no longer exists
+   * - PRODUCT_VERSION_CHANGED: product exists but version differs
    */
+  const applicationBlockReason = React.useMemo<ApplicationBlockReason>(() => {
+    if (!application || !productsData) return null;
+
+    const productId = (application.financing_type as any)?.product_id;
+    if (!productId) return null;
+
     const product = productsData.products?.find(
       (p: any) => p.id === productId
     );
 
-    // Product was deleted or is no longer accessible
-    if (!product) return true;
+    // Product was deleted or is no longer available
+    if (!product) {
+      return "PRODUCT_DELETED";
+    }
 
-    return application.product_version !== product.version;
+    // Product exists but version changed
+    if (application.product_version !== product.version) {
+      return "PRODUCT_VERSION_CHANGED";
+    }
+
+    return null;
   }, [application, productsData]);
-
 
 
 
@@ -229,7 +239,9 @@ export default function EditApplicationPage() {
   );
 
   const isLoading = isLoadingApp || isLoadingProducts;
-  const showBlockingSkeleton = isLoading || !application || isVersionMismatch;
+  const showBlockingSkeleton =
+    isLoading || !application || applicationBlockReason !== null;
+
   const isProgressLoading = isLoadingProducts || !workflowSteps.length;
 
 
@@ -385,7 +397,7 @@ export default function EditApplicationPage() {
    * Why? We want users to complete steps in order and ensure steps exist.
    */
   React.useEffect(() => {
-    if (!application || isLoadingApp || isLoadingProducts || isVersionMismatch) return;
+    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
 
     // Skip validation if we just saved and are navigating to next step
     // This prevents false "complete steps in order" error when data is still updating
@@ -560,7 +572,7 @@ export default function EditApplicationPage() {
  * If a version mismatch exists, do NOT allow saving.
  * This guarantees the DB is never mutated with incompatible data.
  */
-      if (isVersionMismatch) {
+      if (applicationBlockReason !== null) {
         return;
       }
 
@@ -779,15 +791,32 @@ export default function EditApplicationPage() {
           </footer>
         </div>
 
-        <Dialog open={isVersionMismatch} onOpenChange={() => { }}>
+        <Dialog open={applicationBlockReason !== null} onOpenChange={() => { }}>
           <DialogContent className="[&>button]:hidden">
             <DialogHeader>
-              <DialogTitle>Product Updated</DialogTitle>
+              <DialogTitle>
+                {applicationBlockReason === "PRODUCT_DELETED"
+                  ? "Product No Longer Available"
+                  : "Product Updated"}
+              </DialogTitle>
+
               <DialogDescription>
-                This product has been updated with new features and requirements.
-                Please restart your application to continue.
+                {applicationBlockReason === "PRODUCT_DELETED" ? (
+                  <>
+                    The financing product used for this application has been removed
+                    and is no longer available. To continue, please start a new
+                    application with a different product.
+                  </>
+                ) : (
+                  <>
+                    This financing product has been updated with new requirements.
+                    To continue, you’ll need to restart your application using the
+                    latest version.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
+
             <DialogFooter>
               <Button
                 onClick={handleRestartApplication}
@@ -801,6 +830,7 @@ export default function EditApplicationPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
       </>
     );
   }
