@@ -3,11 +3,12 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, CheckIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
+import { Separator } from "@/components/ui/separator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -23,8 +24,23 @@ export function SupportingDocumentsStep({
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
-  const categories = stepConfig?.config?.categories || [];
-  
+  const categories = React.useMemo(() => {
+    const config = stepConfig?.config;
+    if (!config || typeof config !== "object") return [];
+
+    return Object.entries(config)
+      .filter(([, value]) => Array.isArray(value))
+      .map(([groupKey, docs]) => ({
+        name: groupKey
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
+        documents: (docs as any[]).map((doc) => ({
+          title: doc?.name ?? "Untitled document",
+          template: doc?.template,
+        })),
+      }));
+  }, [stepConfig]);
+
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
@@ -32,7 +48,7 @@ export function SupportingDocumentsStep({
   const [documentCuids, setDocumentCuids] = React.useState<Record<string, string>>({});
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
-  
+
   if (isLoadingApp || !stepConfig) {
     return (
       <div className="space-y-6 sm:space-y-8 md:space-y-12">
@@ -200,7 +216,7 @@ export function SupportingDocumentsStep({
         setUploadingKeys((prev) => new Set(prev).add(key));
 
         const existingS3Key = uploadedFiles[key]?.s3_key || lastS3Keys[key];
-        
+
         const token = await getAccessToken();
 
         const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
@@ -344,10 +360,10 @@ export function SupportingDocumentsStep({
 
   React.useEffect(() => {
     if (!onDataChange) return;
-    
+
     const dataToSave = buildDataToSave(uploadedFiles);
     const hasPendingChanges = Object.keys(selectedFiles).length > 0 || hasRemovedFiles;
-    
+
     onDataChange({
       hasPendingChanges: hasPendingChanges,
       saveFunction: uploadFilesToS3,
@@ -355,19 +371,19 @@ export function SupportingDocumentsStep({
       supporting_documents: dataToSave,
       _uploadFiles: uploadFilesRef.current,
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
 
   const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
-    
+
     // Save the S3 key before removing, so we can delete it on next upload
     const currentFile = uploadedFiles[key];
     if (currentFile?.s3_key) {
       const s3Key = currentFile.s3_key;
       setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
     }
-    
+
     setUploadedFiles((prev: any) => {
       const newFiles = { ...prev };
       delete newFiles[key];
@@ -447,11 +463,49 @@ export function SupportingDocumentsStep({
                   const isUploaded = isDocumentUploaded(categoryIndex, documentIndex);
                   const fileIsUploading = uploadingKeys.has(key);
                   const file = uploadedFiles[key];
+                  const templateS3Key = document.template?.s3_key;
 
                   return (
                     <React.Fragment key={documentIndex}>
                       <div className="text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">{document.title}</div>
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end gap-4">
+
+                        {templateS3Key && (
+                          <>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                              onClick={async () => {
+                                try {
+                                  const token = await getAccessToken();
+                                  const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+                                    method: "POST",
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                      "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({ s3Key: templateS3Key }),
+                                  });
+                                  const j = await resp.json();
+                                  if (j?.success && j.data?.downloadUrl) {
+                                    window.open(j.data.downloadUrl, "_blank");
+                                  } else {
+                                    toast.error("Unable to download template");
+                                  }
+                                } catch (err) {
+                                  toast.error("Unable to download template");
+                                }
+                              }}
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                              <span>Download template</span>
+                            </button>
+
+                            {/* separator */}
+                            <Separator orientation="vertical" className="h-4" />
+                          </>
+                        )}
+
                         {isUploaded && file && !fileIsUploading ? (
                           <div className="inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full">
                             <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
@@ -467,7 +521,7 @@ export function SupportingDocumentsStep({
                             </button>
                           </div>
                         ) : (
-                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-base sm:text-[17px] leading-6 sm:leading-7">
+                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-destructive font-medium cursor-pointer hover:opacity-80">
                             <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
                             <span className="hidden sm:inline">{fileIsUploading ? "Uploading..." : "Upload file"}</span>
                             <span className="sm:hidden">{fileIsUploading ? "Uploading..." : "Upload"}</span>
