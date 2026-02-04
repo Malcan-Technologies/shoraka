@@ -89,21 +89,32 @@ export default function EditApplicationPage() {
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
 
-const isVersionMismatch = React.useMemo(() => {
-  if (!application || !productsData) return false;
+  const isVersionMismatch = React.useMemo(() => {
+    if (!application || !productsData) return false;
 
-  const financingType = application.financing_type as any;
-  const productId = financingType?.product_id;
-  if (!productId) return false;
+    const financingType = application.financing_type as any;
+    const productId = financingType?.product_id;
+    if (!productId) return false;
 
-  const product = productsData.products?.find(
-    (p: any) => p.id === productId
-  );
+    /**
+   * VERSION / PRODUCT VALIDATION
+   * 
+   * Block the application if:
+   * - The product no longer exists (deleted)
+   * - The product version has changed
+   * 
+   * In both cases, the application contract is no longer valid
+   * and the user must restart.
+   */
+    const product = productsData.products?.find(
+      (p: any) => p.id === productId
+    );
 
-  if (!product) return false;
+    // Product was deleted or is no longer accessible
+    if (!product) return true;
 
-  return application.product_version !== product.version;
-}, [application, productsData]);
+    return application.product_version !== product.version;
+  }, [application, productsData]);
 
 
 
@@ -140,8 +151,8 @@ const isVersionMismatch = React.useMemo(() => {
  * Selected product ID on Financing Type step.
  * This represents user intent before saving.
  */
-const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
-console.log("selectedProductId (state):", selectedProductId);
+  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+  console.log("selectedProductId (state):", selectedProductId);
 
 
 
@@ -159,54 +170,54 @@ console.log("selectedProductId (state):", selectedProductId);
  * - Step 1: use selected product if user clicked one, otherwise fallback to saved application product
  * - Step 2+: always use saved application product
  */
-const effectiveProductId = React.useMemo(() => {
-  const savedProductId = (application?.financing_type as any)?.product_id;
+  const effectiveProductId = React.useMemo(() => {
+    const savedProductId = (application?.financing_type as any)?.product_id;
 
-  if (stepFromUrl === 1) {
-    return selectedProductId ?? savedProductId ?? null;
-  }
+    if (stepFromUrl === 1) {
+      return selectedProductId ?? savedProductId ?? null;
+    }
 
-  return savedProductId ?? null;
-}, [stepFromUrl, selectedProductId, application]);
+    return savedProductId ?? null;
+  }, [stepFromUrl, selectedProductId, application]);
 
-/**
- * PRODUCT ID TO CHECK FOR VERSION MISMATCH
- *
- * - Step 1:
- *   - if user selected a product → check that
- *   - else → check saved application product
- * - Step 2+:
- *   - always check saved application product
- */
-const productIdToCheck = React.useMemo(() => {
-  const savedProductId = (application?.financing_type as any)?.product_id;
+  /**
+   * PRODUCT ID TO CHECK FOR VERSION MISMATCH
+   *
+   * - Step 1:
+   *   - if user selected a product → check that
+   *   - else → check saved application product
+   * - Step 2+:
+   *   - always check saved application product
+   */
+  const productIdToCheck = React.useMemo(() => {
+    const savedProductId = (application?.financing_type as any)?.product_id;
 
-  if (stepFromUrl === 1) {
-    return selectedProductId ?? savedProductId ?? null;
-  }
+    if (stepFromUrl === 1) {
+      return selectedProductId ?? savedProductId ?? null;
+    }
 
-  return savedProductId ?? null;
-}, [stepFromUrl, selectedProductId, application]);
+    return savedProductId ?? null;
+  }, [stepFromUrl, selectedProductId, application]);
 
 
- /**
- * GET WORKFLOW STEPS
- *
- * Workflow must reflect the EFFECTIVE product:
- * - selected product on step 1
- * - saved product on later steps
- */
-const workflowSteps = React.useMemo(() => {
-  if (!effectiveProductId || !productsData) return [];
+  /**
+  * GET WORKFLOW STEPS
+  *
+  * Workflow must reflect the EFFECTIVE product:
+  * - selected product on step 1
+  * - saved product on later steps
+  */
+  const workflowSteps = React.useMemo(() => {
+    if (!effectiveProductId || !productsData) return [];
 
-  const product = productsData.products?.find(
-    (p: any) => p.id === effectiveProductId
-  );
+    const product = productsData.products?.find(
+      (p: any) => p.id === effectiveProductId
+    );
 
-  if (!product?.workflow) return [];
+    if (!product?.workflow) return [];
 
-  return product.workflow.map((step: any) => step.name);
-}, [effectiveProductId, productsData]);
+    return product.workflow.map((step: any) => step.name);
+  }, [effectiveProductId, productsData]);
 
 
   const displayStepNames = React.useMemo(
@@ -222,20 +233,20 @@ const workflowSteps = React.useMemo(() => {
   const isProgressLoading = isLoadingProducts || !workflowSteps.length;
 
 
-const currentStepConfig = React.useMemo(() => {
-  if (!application || !productsData) return null;
+  const currentStepConfig = React.useMemo(() => {
+    if (!application || !productsData) return null;
 
-  const productId = (application.financing_type as any)?.product_id;
-  if (!productId) return null;
+    const productId = (application.financing_type as any)?.product_id;
+    if (!productId) return null;
 
-  const product = productsData.products?.find(
-    (p: any) => p.id === productId
-  );
+    const product = productsData.products?.find(
+      (p: any) => p.id === productId
+    );
 
-  if (!product?.workflow) return null;
+    if (!product?.workflow) return null;
 
-  return product.workflow[stepFromUrl - 1] ?? null;
-}, [application, productsData, stepFromUrl]);
+    return product.workflow[stepFromUrl - 1] ?? null;
+  }, [application, productsData, stepFromUrl]);
 
 
 
@@ -549,9 +560,9 @@ const currentStepConfig = React.useMemo(() => {
  * If a version mismatch exists, do NOT allow saving.
  * This guarantees the DB is never mutated with incompatible data.
  */
-if (isVersionMismatch) {
-  return;
-}
+      if (isVersionMismatch) {
+        return;
+      }
 
       // Get the data from the current step (capture saveFunction before cleanup removes it)
       const rawStepData = stepDataRef.current;
@@ -693,13 +704,13 @@ if (isVersionMismatch) {
   const handleDataChange = (data: any) => {
     stepDataRef.current = data;
 
-      /**
-   * Financing Type step:
-   * capture selected product ID as STATE (reactive)
-   */
-  if (data?.product_id) {
-    setSelectedProductId(data.product_id);
-  }
+    /**
+ * Financing Type step:
+ * capture selected product ID as STATE (reactive)
+ */
+    if (data?.product_id) {
+      setSelectedProductId(data.product_id);
+    }
 
     // Check if step provides validation flag
     if (data?.areAllFilesUploaded !== undefined) {
