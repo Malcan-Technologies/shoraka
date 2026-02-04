@@ -184,6 +184,7 @@ export default function EditApplicationPage() {
 
   const isLoading = isLoadingApp || isLoadingProducts;
   const showBlockingSkeleton = isLoading || !application || isVersionMismatch;
+  const isProgressLoading = isLoadingProducts || !workflowSteps.length;
 
 
   /**
@@ -677,7 +678,7 @@ export default function EditApplicationPage() {
               <ProgressIndicator
                 steps={displayStepNames.length ? displayStepNames : ["", "", "", ""]}
                 currentStep={stepFromUrl}
-                isLoading={showBlockingSkeleton}
+                isLoading
               />
             </div>
 
@@ -751,7 +752,7 @@ export default function EditApplicationPage() {
           <ProgressIndicator
             steps={displayStepNames}
             currentStep={stepFromUrl}
-            isLoading={false}
+            isLoading={isProgressLoading}
           />
         </div>
 
