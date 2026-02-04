@@ -17,6 +17,8 @@ import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createProductRouter } from "./modules/products/controller";
 import { createApplicationRouter } from "./modules/applications/controller";
+import { createContractRouter } from "./modules/contracts/controller";
+import { createInvoiceRouter } from "./modules/invoices/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
@@ -80,6 +82,8 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/products", createProductRouter());
 
   v1Router.use("/applications", createApplicationRouter());
+  v1Router.use("/contracts", createContractRouter());
+  v1Router.use("/invoices", createInvoiceRouter());
 
   // RegTank routes (require authentication)
   v1Router.use("/regtank", requireAuth, regTankRouter);

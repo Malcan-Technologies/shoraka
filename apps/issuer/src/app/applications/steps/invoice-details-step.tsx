@@ -11,10 +11,22 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Pencil, CloudUpload } from "lucide-react";
+import { Plus, Trash2, CloudUpload } from "lucide-react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
+import { useApplication } from "@/hooks/use-applications";
+import {
+  useInvoices,
+  useCreateInvoice,
+  useUpdateInvoice,
+  useDeleteInvoice,
+} from "@/hooks/use-invoices";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthToken, createApiClient } from "@cashsouk/config";
+import { toast } from "sonner";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
  * INVOICE DETAILS STEP
@@ -34,47 +46,28 @@ interface InvoiceDetailsStepProps {
   onDataChange?: (data: any) => void;
 }
 
-const MOCK_CONTRACT_SUMMARY = {
-  title: "Mining Rig Repair 12654",
-  customer: "Petronas Chemical Bhd",
-  value: "RM 5,000,000",
-  approved_facility: "RM 2,000,000",
-  utilised_facility: "RM 500,000",
-  available_facility: "RM 1,500,000",
-};
-
-const INITIAL_INVOICES = [
-  {
-    id: "1",
-    number: "#3066",
-    value: 10000,
-    maturity_date: "2025-01-06",
-    document: "Invoice.pdf",
-    status: "APPROVED",
-  },
-  {
-    id: "2",
-    number: "#3065",
-    value: 20000,
-    maturity_date: "2025-02-12",
-    document: "Invoice.pdf",
-    status: "DRAFT",
-  },
-  {
-    id: "3",
-    number: "#3064",
-    value: 30000,
-    maturity_date: "2025-07-29",
-    document: null,
-    status: "DRAFT",
-  },
-];
-
 export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
-  const [invoices, setInvoices] = React.useState(INITIAL_INVOICES);
+  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const { data: invoicesData = [], isLoading: isLoadingInvoices } = useInvoices(applicationId);
+  const createInvoiceMutation = useCreateInvoice();
+  const updateInvoiceMutation = useUpdateInvoice();
+  const deleteInvoiceMutation = useDeleteInvoice();
+  const { getAccessToken } = useAuthToken();
 
-  // Track if we've initialized the data
-  const [isInitialized, setIsInitialized] = React.useState(false);
+  const [localInvoices, setInvoices] = React.useState<any[]>([]);
+  const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
+
+  // Sync local state with server data
+  React.useEffect(() => {
+    if (invoicesData) {
+      setInvoices(
+        invoicesData.map((inv: any) => ({
+          ...inv.details,
+          id: inv.id,
+        }))
+      );
+    }
+  }, [invoicesData]);
 
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
@@ -84,42 +77,122 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
   // Notify parent on changes
   React.useEffect(() => {
-    const totalFinancingAmount = invoices.reduce((acc, inv) => acc + inv.value * 0.8, 0);
+    const totalFinancingAmount = localInvoices.reduce(
+      (acc, inv) => acc + (inv.value || 0) * 0.8,
+      0
+    );
     onDataChangeRef.current?.({
-      invoices,
+      invoices: localInvoices,
       totalFinancingAmount,
-      isValid: invoices.length > 0 && invoices.every((inv) => inv.number && inv.value > 0),
+      isValid:
+        localInvoices.length > 0 && localInvoices.every((inv) => inv.number && inv.value > 0),
+      hasPendingChanges: false, // Since each action is immediate via API
     });
-  }, [invoices]);
+  }, [localInvoices]);
 
-  const handleAddInvoice = () => {
-    const newId = Math.random().toString(36).substring(7);
-    const newInvoice = {
-      id: newId,
+  const handleAddInvoice = async () => {
+    const newInvoiceDetails = {
       number: "",
       value: 0,
       maturity_date: "",
-      document: null,
       status: "DRAFT",
     };
-    setInvoices([...invoices, newInvoice]);
+
+    await createInvoiceMutation.mutateAsync({
+      applicationId,
+      contractId: application?.contract?.id,
+      details: newInvoiceDetails,
+    });
   };
 
-  const handleDeleteInvoice = (id: string) => {
-    const invoice = invoices.find((inv) => inv.id === id);
+  const handleDeleteInvoice = async (id: string) => {
+    const invoice = localInvoices.find((inv) => inv.id === id);
     if (invoice?.status === "APPROVED") return;
-    setInvoices(invoices.filter((inv) => inv.id !== id));
+
+    await deleteInvoiceMutation.mutateAsync({ id, applicationId });
   };
 
-  const handleUpdateInvoice = (id: string, field: string, value: any) => {
-    setInvoices(
-      invoices.map((inv) =>
-        inv.id === id && inv.status !== "APPROVED" ? { ...inv, [field]: value } : inv
-      )
+  const handleUpdateInvoice = async (id: string, field: string, value: any) => {
+    const invoice = localInvoices.find((inv) => inv.id === id);
+    if (invoice?.status === "APPROVED") return;
+
+    await updateInvoiceMutation.mutateAsync({
+      id,
+      applicationId,
+      details: { [field]: value },
+    });
+  };
+
+  const handleFileUpload = async (invoiceId: string, file: File) => {
+    try {
+      setIsUploading((prev) => ({ ...prev, [invoiceId]: true }));
+      const token = await getAccessToken();
+      const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
+
+      const response = await apiClient.requestInvoiceUploadUrl(invoiceId, {
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+
+      const { uploadUrl, s3Key } = response.data;
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Failed to upload file to S3");
+      }
+
+      await updateInvoiceMutation.mutateAsync({
+        id: invoiceId,
+        applicationId,
+        details: {
+          document: {
+            s3_key: s3Key,
+            file_name: file.name,
+            file_size: file.size,
+          },
+        },
+      });
+
+      toast.success("Invoice uploaded successfully");
+    } catch (error: any) {
+      toast.error("Upload failed", { description: error.message });
+    } finally {
+      setIsUploading((prev) => ({ ...prev, [invoiceId]: false }));
+    }
+  };
+
+  const totalFinancingAmount = localInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
+  const contractDetails = (application?.contract?.contract_details as any) || {};
+
+  const formatCurrency = (value: any) => {
+    const num =
+      typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
+    return `RM ${num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  if (isLoadingApp || isLoadingInvoices) {
+    return (
+      <div className="space-y-12 pb-8">
+        <Skeleton className="h-[200px] w-full rounded-xl" />
+        <Skeleton className="h-[400px] w-full rounded-xl" />
+      </div>
     );
-  };
-
-  const totalFinancingAmount = invoices.reduce((acc, inv) => acc + inv.value * 0.8, 0);
+  }
 
   return (
     <div className="space-y-12 pb-8">
@@ -129,27 +202,29 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
         <div className="space-y-4 border rounded-xl p-6 bg-card/50">
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Contract title</span>
-            <span>{MOCK_CONTRACT_SUMMARY.title}</span>
+            <span>{contractDetails.title || "-"}</span>
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Customer</span>
-            <span>{MOCK_CONTRACT_SUMMARY.customer}</span>
+            <span>{(application?.contract?.customer_details as any)?.name || "-"}</span>
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Contract value</span>
-            <span className="font-medium text-foreground">{MOCK_CONTRACT_SUMMARY.value}</span>
+            <span className="font-medium text-foreground">
+              {formatCurrency(contractDetails.value)}
+            </span>
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Approved facility</span>
-            <span>{MOCK_CONTRACT_SUMMARY.approved_facility}</span>
+            <span>{formatCurrency(contractDetails.approved_facility)}</span>
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Utilised facility</span>
-            <span>{MOCK_CONTRACT_SUMMARY.utilised_facility}</span>
+            <span>{formatCurrency(contractDetails.utilized_facility)}</span>
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Available facility</span>
-            <span>{MOCK_CONTRACT_SUMMARY.available_facility}</span>
+            <span>{formatCurrency(contractDetails.available_facility)}</span>
           </div>
         </div>
       </section>
@@ -166,10 +241,11 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           </div>
           <Button
             onClick={handleAddInvoice}
+            disabled={createInvoiceMutation.isPending}
             className="bg-[#800000] hover:bg-[#600000] text-white rounded-lg flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="h-4 w-4" />
-            Add invoice
+            {createInvoiceMutation.isPending ? "Adding..." : "Add invoice"}
           </Button>
         </div>
 
@@ -187,9 +263,9 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => {
+                {localInvoices.map((invoice) => {
                   const isApproved = invoice.status === "APPROVED";
-                  const maxFinancing = invoice.value * 0.8;
+                  const maxFinancing = (invoice.value || 0) * 0.8;
 
                   return (
                     <TableRow
@@ -232,7 +308,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                           />
                         ) : (
                           <span className="text-muted-foreground">
-                            {invoice.value.toLocaleString()}
+                            {formatCurrency(invoice.value)}
                           </span>
                         )}
                       </TableCell>
@@ -265,21 +341,23 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             isApproved ? "text-muted-foreground" : "text-foreground"
                           )}
                         >
-                          {maxFinancing.toLocaleString()}
+                          {formatCurrency(maxFinancing)}
                         </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {invoice.document ? (
-                            <div className={cn(
-                              "inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full",
-                              isApproved && "opacity-70 bg-muted/30"
-                            )}>
+                            <div
+                              className={cn(
+                                "inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full",
+                                isApproved && "opacity-70 bg-muted/30"
+                              )}
+                            >
                               <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
                                 <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                               </div>
                               <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">
-                                {invoice.document}
+                                {invoice.document.file_name}
                               </span>
                               {!isApproved && (
                                 <button
@@ -293,10 +371,20 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             </div>
                           ) : (
                             !isApproved && (
-                              <button className="flex items-center gap-2 text-[#800000] font-medium hover:underline text-sm">
+                              <label className="flex items-center gap-2 text-[#800000] font-medium hover:underline text-sm cursor-pointer">
                                 <CloudUpload className="h-4 w-4" />
-                                Upload file
-                              </button>
+                                {isUploading[invoice.id] ? "Uploading..." : "Upload file"}
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept=".pdf,application/pdf"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleFileUpload(invoice.id, file);
+                                  }}
+                                  disabled={isUploading[invoice.id]}
+                                />
+                              </label>
                             )
                           )}
                         </div>
@@ -306,6 +394,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                           {!isApproved && (
                             <button
                               onClick={() => handleDeleteInvoice(invoice.id)}
+                              disabled={deleteInvoiceMutation.isPending}
                               className="p-2 text-muted-foreground hover:text-destructive hover:bg-muted rounded-md transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -321,7 +410,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                   <TableCell colSpan={3}></TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <div className="text-foreground">{totalFinancingAmount.toLocaleString()}</div>
+                      <div className="text-foreground">{formatCurrency(totalFinancingAmount)}</div>
                       <div className="text-[10px] text-muted-foreground font-normal">
                         Total financing amount
                       </div>

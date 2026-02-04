@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
+import { useApprovedContracts } from "@/hooks/use-contracts";
 import {
   Select,
   SelectContent,
@@ -32,30 +33,14 @@ interface FinancingStructureStepProps {
   onDataChange?: (data: any) => void;
 }
 
-// Mock existing contracts - will be replaced with API call later
-const MOCK_EXISTING_CONTRACTS = [
-  {
-    id: "c1",
-    title: "Mining Rig Repair 12654",
-    customer: "Petronas Chemical Bhd",
-  },
-  {
-    id: "c2",
-    title: "Equipment Supply 2024",
-    customer: "Shell Malaysia",
-  },
-  {
-    id: "c3",
-    title: "Maintenance Services Q1",
-    customer: "Tenaga Nasional Bhd",
-  },
-];
-
 export function FinancingStructureStep({
   applicationId,
   onDataChange,
 }: FinancingStructureStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const { data: approvedContracts = [] } = useApprovedContracts(
+    application?.issuer_organization_id || ""
+  );
 
   // Track selected structure type
   const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType | null>(
@@ -174,11 +159,15 @@ export function FinancingStructureStep({
               <SelectValue placeholder="Select an existing contracts" />
             </SelectTrigger>
             <SelectContent>
-              {MOCK_EXISTING_CONTRACTS.map((contract) => (
-                <SelectItem key={contract.id} value={contract.id}>
-                  {contract.title}
-                </SelectItem>
-              ))}
+              {approvedContracts
+                .filter(
+                  (contract: any) => (contract.contract_details as any)?.status === "approved"
+                )
+                .map((contract: any) => (
+                  <SelectItem key={contract.id} value={contract.id}>
+                    {(contract.contract_details as any)?.title || "Untitled Contract"}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         }

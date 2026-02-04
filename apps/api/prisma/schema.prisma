@@ -33,15 +33,15 @@ model User {
   sent_issuer_org_invitations   IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
   issuer_organizations          IssuerOrganization[]
   loans                         Loan[]
+  admin_notification_logs       NotificationLog[]                @relation("AdminNotificationLogs")
+  notifications                 Notification[]
   onboarding_logs               OnboardingLog[]
   organization_memberships      OrganizationMember[]
   product_logs                  ProductLog[]
   regtank_onboarding            RegTankOnboarding[]
   security_logs                 SecurityLog[]
-  sessions                      UserSession[]
-  notifications                 Notification[]
   notification_preferences      UserNotificationPreference[]
-  admin_notification_logs       NotificationLog[]                @relation("AdminNotificationLogs")
+  sessions                      UserSession[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -175,9 +175,6 @@ model SecurityLog {
 model OnboardingLog {
   id                       String                @id @default(cuid())
   user_id                  String
-  organization_name        String?
-  investor_organization_id String?
-  issuer_organization_id   String?
   role                     UserRole
   event_type               String
   portal                   String?
@@ -187,9 +184,12 @@ model OnboardingLog {
   device_type              String?
   metadata                 Json?
   created_at               DateTime              @default(now())
+  organization_name        String?
+  investor_organization_id String?
+  issuer_organization_id   String?
+  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
+  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
   user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: SetNull)
-  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: SetNull)
 
   @@index([user_id])
   @@index([role])
@@ -248,9 +248,9 @@ model InvestorOrganization {
   business_aml_status           Json?
   invitations                   InvestorOrganizationInvitation[]
   owner                         User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
+  onboarding_logs               OnboardingLog[]
   members                       OrganizationMember[]
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
-  onboarding_logs               OnboardingLog[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -298,12 +298,13 @@ model IssuerOrganization {
   director_aml_status          Json?
   director_kyc_status          Json?
   business_aml_status          Json?
+  applications                 Application[]
+  contracts                    Contract[]
   invitations                  IssuerOrganizationInvitation[]
   owner                        User                           @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
+  onboarding_logs              OnboardingLog[]
   members                      OrganizationMember[]
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
-  onboarding_logs              OnboardingLog[]
-  applications                 Application[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -318,27 +319,52 @@ model Application {
   status                 ApplicationStatus  @default(DRAFT)
   last_completed_step    Int                @default(0)
   financing_type         Json?
+  supporting_documents   Json?
+  declarations           Json?
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  review_and_submit      Json?
   financing_structure    Json?
   contract_details       Json?
   invoice_details        Json?
   company_details        Json?
   business_details       Json?
-  supporting_documents   Json?
-  declarations           Json?
-  review_and_submit      Json?
-  created_at             DateTime           @default(now())
-  updated_at             DateTime           @updatedAt
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  contract               Contract?
+  invoices               Invoice[]
 
   @@map("applications")
 }
 
 model Contract {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id                     String             @id @default(cuid())
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  application_id         String             @unique
+  contract_details       Json?
+  customer_details       Json?
+  issuer_organization_id String
+  status                 ContractStatus     @default(DRAFT)
+  application            Application        @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  invoices               Invoice[]
 
   @@map("contracts")
+}
+
+model Invoice {
+  id             String      @id @default(cuid())
+  contract_id    String?
+  application_id String
+  details        Json
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+  application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract       Contract?   @relation(fields: [contract_id], references: [id])
+
+  @@index([contract_id])
+  @@index([application_id])
+  @@map("invoices")
 }
 
 model OrganizationMember {
@@ -437,26 +463,20 @@ model RegTankOnboarding {
 }
 
 model AmlIdentityMapping {
-  id                String   @id @default(cuid())
-  organization_id   String   @db.VarChar(255)
-  organization_type String   // 'investor' | 'issuer'
-  entity_type       String   // 'director' | 'individual_shareholder' | 'business_shareholder'
-
-  // Identity fields for matching
+  id                String    @id @default(cuid())
+  organization_id   String    @db.VarChar(255)
+  organization_type String
+  entity_type       String
   name              String?
   email             String?
-  business_name     String? // For business shareholders
-
-  // RegTank IDs
-  cod_request_id    String? // Parent COD for individuals, own COD for businesses
-  eod_request_id    String? // Only for directors/individual shareholders
-  kyc_id            String? // For individuals
-  kyb_id            String? // For businesses
-
-  // Metadata
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  last_synced_at DateTime?
+  business_name     String?
+  cod_request_id    String?
+  eod_request_id    String?
+  kyc_id            String?
+  kyb_id            String?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  last_synced_at    DateTime?
 
   @@index([organization_id])
   @@index([kyc_id])
@@ -530,13 +550,108 @@ model ProductLog {
 }
 
 model Product {
-  id           String        @id @default(cuid())
-  version      Int           @default(1)
-  created_at   DateTime      @default(now())
-  updated_at   DateTime      @updatedAt
-  workflow     Json
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  workflow   Json
+  version    Int      @default(1)
 
   @@map("products")
+}
+
+model NotificationType {
+  id                String                       @id
+  name              String
+  description       String?
+  category          NotificationCategory
+  default_priority  NotificationPriority         @default(INFO)
+  enabled_platform  Boolean                      @default(true)
+  enabled_email     Boolean                      @default(true)
+  user_configurable Boolean                      @default(true)
+  retention_days    Int?
+  created_at        DateTime                     @default(now())
+  updated_at        DateTime                     @updatedAt
+  notification_logs NotificationLog[]
+  notifications     Notification[]
+  user_preferences  UserNotificationPreference[]
+
+  @@map("notification_types")
+}
+
+model Notification {
+  id                   String               @id @default(cuid())
+  user_id              String
+  notification_type_id String
+  idempotency_key      String?              @unique
+  priority             NotificationPriority
+  title                String
+  message              String
+  read_at              DateTime?
+  email_sent_at        DateTime?
+  link_path            String?
+  metadata             Json?
+  created_at           DateTime             @default(now())
+  expires_at           DateTime?
+  send_to_email        Boolean              @default(false)
+  send_to_platform     Boolean              @default(true)
+  notification_type    NotificationType     @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
+  user                 User                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@index([notification_type_id])
+  @@index([expires_at])
+  @@index([idempotency_key])
+  @@map("notifications")
+}
+
+model UserNotificationPreference {
+  id                   String           @id @default(cuid())
+  user_id              String
+  notification_type_id String
+  enabled_platform     Boolean
+  enabled_email        Boolean
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
+  user                 User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([user_id, notification_type_id])
+  @@index([user_id])
+  @@map("user_notification_preferences")
+}
+
+model NotificationGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  user_ids    String[]
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("notification_groups")
+}
+
+model NotificationLog {
+  id                   String           @id @default(cuid())
+  admin_user_id        String
+  target_type          String
+  target_group_id      String?
+  notification_type_id String
+  title                String
+  message              String
+  recipient_count      Int
+  metadata             Json?
+  ip_address           String?
+  user_agent           String?
+  device_info          String?
+  created_at           DateTime         @default(now())
+  admin                User             @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
+  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id])
+
+  @@index([admin_user_id])
+  @@index([created_at])
+  @@map("notification_logs")
 }
 
 enum UserRole {
@@ -580,11 +695,11 @@ enum OnboardingStatus {
 }
 
 enum OrganizationMemberRole {
+  ORGANIZATION_ADMIN
+  ORGANIZATION_MEMBER
   OWNER
   DIRECTOR
   MEMBER
-  ORGANIZATION_ADMIN
-  ORGANIZATION_MEMBER
 }
 
 enum SiteDocumentType {
@@ -605,6 +720,13 @@ enum ApplicationStatus {
   ARCHIVED
 }
 
+enum ContractStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 enum NotificationCategory {
   AUTHENTICATION
   SYSTEM
@@ -616,100 +738,4 @@ enum NotificationPriority {
   INFO
   WARNING
   CRITICAL
-}
-
-model NotificationType {
-  id                String                     @id
-  name              String
-  description       String?
-  category          NotificationCategory
-  default_priority  NotificationPriority       @default(INFO)
-  enabled_platform  Boolean                    @default(true)
-  enabled_email     Boolean                    @default(true)
-  user_configurable Boolean                    @default(true)
-  retention_days    Int?
-  created_at        DateTime                   @default(now())
-  updated_at        DateTime                   @updatedAt
-  notifications     Notification[]
-  user_preferences  UserNotificationPreference[]
-  notification_logs NotificationLog[]
-
-  @@map("notification_types")
-}
-
-model Notification {
-  id                   String               @id @default(cuid())
-  user_id              String
-  notification_type_id String
-  idempotency_key      String?              @unique
-  priority             NotificationPriority
-  title                String
-  message              String
-  read_at              DateTime?
-  email_sent_at        DateTime?
-  send_to_platform     Boolean              @default(true)
-  send_to_email        Boolean              @default(false)
-  link_path            String?
-  metadata             Json?
-  created_at           DateTime             @default(now())
-  expires_at           DateTime?
-  user                 User                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  notification_type    NotificationType     @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id, created_at])
-  @@index([user_id, read_at])
-  @@index([notification_type_id])
-  @@index([expires_at])
-  @@index([idempotency_key])
-  @@map("notifications")
-}
-
-model UserNotificationPreference {
-  id                   String           @id @default(cuid())
-  user_id              String
-  notification_type_id String
-  enabled_platform     Boolean
-  enabled_email        Boolean
-  created_at           DateTime         @default(now())
-  updated_at           DateTime         @updatedAt
-  user                 User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
-
-  @@unique([user_id, notification_type_id])
-  @@index([user_id])
-  @@map("user_notification_preferences")
-}
-
-model NotificationGroup {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  user_ids    String[] // Array of User.user_id
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  @@map("notification_groups")
-}
-
-model NotificationLog {
-  id                   String   @id @default(cuid())
-  admin_user_id        String
-  target_type          String   // 'ALL_USERS', 'INVESTORS', 'ISSUERS', 'SPECIFIC_USERS', 'GROUP'
-  target_group_id      String?
-  notification_type_id String
-  title                String
-  message              String
-  recipient_count      Int
-  metadata             Json?
-  ip_address           String?
-  user_agent           String?
-  device_info          String?
-  created_at           DateTime @default(now())
-
-  admin             User             @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
-  notification_type NotificationType @relation(fields: [notification_type_id], references: [id])
-
-  @@index([admin_user_id])
-  @@index([created_at])
-  @@map("notification_logs")
 }

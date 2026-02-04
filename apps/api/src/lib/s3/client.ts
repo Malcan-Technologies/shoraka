@@ -32,26 +32,26 @@ export { S3_BUCKET, S3_REGION };
 
 /**
  * Generate direct S3 object URL (standardized AWS format)
- * 
+ *
  * AWS S3 has standardized URL formats. This function uses the virtual-hosted style:
  * Format: https://{bucket}.s3.{region}.amazonaws.com/{key}
- * 
+ *
  * Other standardized formats AWS supports:
  * 1. Virtual-hosted style (what we use):
  *    https://bucket-name.s3.region.amazonaws.com/key
- * 
+ *
  * 2. Path-style (legacy, still supported):
  *    https://s3.region.amazonaws.com/bucket-name/key
- * 
+ *
  * 3. Virtual-hosted style without region (older, works for us-east-1):
  *    https://bucket-name.s3.amazonaws.com/key
- * 
+ *
  * 4. S3 website endpoint (if bucket is configured as static website):
  *    https://bucket-name.s3-website.region.amazonaws.com/key
- * 
+ *
  * Note: Only works if the bucket/object is publicly accessible
  * For private buckets, use generatePresignedDownloadUrl instead
- * 
+ *
  * @param key - S3 object key (e.g., "product-images/2025-01-15-abc123.jpg")
  * @returns Direct S3 URL (only works if object is public)
  */
@@ -59,7 +59,7 @@ export function generateDirectS3Url(key: string): string {
   // URL-encode the key to handle special characters in file paths
   // But preserve forward slashes (/) as they're part of the path structure
   const encodedKey = encodeURIComponent(key).replace(/%2F/g, "/");
-  
+
   // Standardized virtual-hosted style URL format
   return `https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${encodedKey}`;
 }
@@ -70,14 +70,14 @@ export function generateDirectS3Url(key: string): string {
  */
 export async function testS3ObjectPublicAccess(key: string): Promise<boolean> {
   const directUrl = generateDirectS3Url(key);
-  
+
   try {
     // Try to fetch the object without any authentication
     const response = await fetch(directUrl, {
       method: "HEAD", // Just check if it exists, don't download
       // No Authorization header = public access test
     });
-    
+
     // If we get 200 OK, the object is publicly accessible
     return response.ok;
   } catch (error) {
@@ -249,7 +249,7 @@ export function getFileExtension(fileName: string): string {
  * Generate S3 key for product images
  * Format: products/{financing-type-name}/v1-{date}-{cuid}.{ext}
  * Matches the site documents naming convention: v1_date_id.ext
- * 
+ *
  * @param params - Parameters for generating the S3 key
  * @param params.financingTypeName - Name of the financing type (used as folder name)
  * @param params.cuid - Unique identifier for the file
@@ -265,10 +265,10 @@ export function generateProductImageKey(params: {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
     .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
-  
+
   // Generate date in YYYY-MM-DD format (same as site documents)
   const date = new Date().toISOString().split("T")[0];
-  
+
   // Format: products/{type}/v1-{date}-{cuid}.{ext}
   return `products/${sanitizedTypeName}/v1-${date}-${params.cuid}.${params.extension}`;
 }
@@ -287,7 +287,7 @@ export function parseProductImageKey(s3Key: string): {
 } | null {
   // Match: products/{type}/v{version}-{date}-{cuid}.{ext}
   const match = s3Key.match(/^products\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
-  
+
   if (!match) {
     return null;
   }
@@ -310,17 +310,17 @@ export function generateProductImageKeyWithVersion(params: {
   extension: string;
 }): string | null {
   const parsed = parseProductImageKey(params.existingS3Key);
-  
+
   if (!parsed) {
     return null;
   }
 
   // Increment version
   const newVersion = parsed.version + 1;
-  
+
   // Generate new date
   const date = new Date().toISOString().split("T")[0];
-  
+
   // Reuse same cuid and financing type name
   return `products/${parsed.financingTypeName}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
 }
@@ -386,7 +386,7 @@ export function validateProductImage(params: {
  * Generate S3 key for application documents
  * Format: applications/{applicationId}/v{version}-{date}-{cuid}.{ext}
  * Follows the same pattern as product images: v{version}-{date}-{cuid}.{ext}
- * 
+ *
  * @param params - Parameters for generating the S3 key
  * @param params.applicationId - Application ID
  * @param params.cuid - Unique identifier for the file
@@ -473,3 +473,62 @@ export function validateApplicationDocument(params: {
 
   return { valid: true };
 }
+
+/**
+ * Generate S3 key for contract documents
+ * Format: contracts/{contractId}/v{version}-{date}-{cuid}.{ext}
+ */
+export function generateContractDocumentKey(params: {
+  contractId: string;
+  cuid: string;
+  extension: string;
+  version?: number;
+}): string {
+  const date = new Date().toISOString().split("T")[0];
+  const version = params.version ?? 1;
+  return `contracts/${params.contractId}/v${version}-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
+ * Generate S3 key for invoice documents
+ * Format: invoices/{invoiceId}/v{version}-{date}-{cuid}.{ext}
+ */
+export function generateInvoiceDocumentKey(params: {
+  invoiceId: string;
+  cuid: string;
+  extension: string;
+  version?: number;
+}): string {
+  const date = new Date().toISOString().split("T")[0];
+  const version = params.version ?? 1;
+  return `invoices/${params.invoiceId}/v${version}-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
+ * Validate file type and size for contract/invoice documents
+ * Only PDF allowed, max 5MB
+ */
+export function validateDocument(params: {
+  contentType: string;
+  fileSize: number;
+}): { valid: boolean; error?: string } {
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_CONTENT_TYPES = ["application/pdf"];
+
+  if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
+    return {
+      valid: false,
+      error: `Invalid content type. Only PDF documents are allowed.`,
+    };
+  }
+
+  if (params.fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+    };
+  }
+
+  return { valid: true };
+}
+
