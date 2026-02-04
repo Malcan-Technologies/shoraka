@@ -29,19 +29,18 @@ export class ApplicationService {
    * Map step ID to database field name
    */
   private getFieldNameForStepId(stepId: string): keyof Application | null {
-    const stepIdToColumn: Record<string, keyof Application> = {
+    const stepIdToColumn: Partial<Record<string, keyof Application>> = {
       // step id: field name in application column
       "financing_type_1": "financing_type",
       "financing_structure_1": "financing_structure",
-      "contract_details_1": "contract_details",
-      "invoice_details_1": "invoice_details",
+      // contract_details_1 and invoice_details_1 are stored in their own tables
       "company_details_1": "company_details",
       "business_details_1": "business_details",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
     };
-    
+
     return stepIdToColumn[stepId] || null;
   }
 
@@ -61,11 +60,11 @@ export class ApplicationService {
     // The repository includes issuer_organization, but TypeScript doesn't know about it
     // So we use 'as any' to access it (it's safe because we know it's included)
     const organization = (application as any).issuer_organization;
-    
+
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this application");
     }
-    
+
     // Check if user is owner of the organization
     if (organization.owner_user_id === userId) {
       return; // User is owner, access granted
@@ -154,14 +153,20 @@ export class ApplicationService {
     }
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
-    if (!fieldName) {
+    const isSpecialStep = ["contract_details_1", "invoice_details_1"].includes(input.stepId);
+
+    if (!fieldName && !isSpecialStep) {
       throw new AppError(400, "INVALID_STEP_ID", `Invalid step ID: ${input.stepId}`);
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {
-      [fieldName]: input.data as Prisma.InputJsonValue,
       updated_at: new Date(),
     };
+
+    // Only update application column if mapping exists
+    if (fieldName) {
+      (updateData as any)[fieldName] = input.data as Prisma.InputJsonValue;
+    }
 
     // Update last_completed_step if this is a new step
     if (input.stepNumber >= application.last_completed_step) {

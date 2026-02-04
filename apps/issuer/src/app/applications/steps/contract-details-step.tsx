@@ -192,7 +192,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     return {
       contract_details: updatedContractDetails,
       customer_details: formData.customer,
-      isValid: true,
     };
   }, [contractId, formData, updateContractMutation]);
 

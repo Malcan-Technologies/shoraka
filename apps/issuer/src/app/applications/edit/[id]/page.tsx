@@ -501,7 +501,14 @@ export default function EditApplicationPage() {
   const handleSaveAndContinue = async () => {
     try {
       // Get the data from the current step
-      let dataToSave = stepDataRef.current;
+      const rawData = stepDataRef.current;
+      let dataToSave = rawData ? { ...rawData } : null;
+
+      // Remove isValid from JSON as it's only for frontend communication
+      if (dataToSave && "isValid" in dataToSave) {
+        delete dataToSave.isValid;
+      }
+
       console.log(dataToSave);
 
       /**
@@ -515,8 +522,20 @@ export default function EditApplicationPage() {
       if (dataToSave?.saveFunction) {
         const returnedData = await dataToSave.saveFunction();
 
+        // Remove saveFunction from the data being sent to API
+        delete dataToSave.saveFunction;
+
         // If saveFunction returns data, use it (e.g., supporting documents with S3 keys)
         if (returnedData) {
+          // Remove isValid from returned data if present
+          if (
+            typeof returnedData === "object" &&
+            returnedData !== null &&
+            "isValid" in returnedData
+          ) {
+            delete (returnedData as any).isValid;
+          }
+
           // For supporting documents, the returned data IS the complete categories structure
           // We need to wrap it in supporting_documents key
           if (currentStepKey === "supporting_documents") {
@@ -528,6 +547,13 @@ export default function EditApplicationPage() {
             dataToSave = { ...dataToSave, ...returnedData };
           }
         }
+      }
+
+      // Final cleanup of frontend-only properties before saving to DB
+      if (dataToSave) {
+        delete (dataToSave as any).hasPendingChanges;
+        delete (dataToSave as any).saveFunction;
+        delete (dataToSave as any).isValid;
       }
 
       /**
