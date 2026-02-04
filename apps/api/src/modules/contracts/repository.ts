@@ -41,6 +41,8 @@ export class ContractRepository {
   }
 
   async findApprovedByOrganization(organizationId: string): Promise<Contract[]> {
+    // Return contracts that are either top-level APPROVED
+    // or have status: "approved" in their contract_details JSON
     return prisma.contract.findMany({
       where: {
         issuer_organization_id: organizationId,

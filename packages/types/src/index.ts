@@ -117,8 +117,6 @@ export interface Application {
   last_completed_step: number;
   financing_type?: any;
   financing_structure?: any;
-  contract_details?: any;
-  invoice_details?: any;
   company_details?: any;
   business_details?: any;
   supporting_documents?: any;
@@ -139,13 +137,12 @@ export interface ContractDetails {
   title: string;
   description?: string;
   number: string;
-  value: number;
+  value: string;
   start_date: string;
   end_date: string;
-  approved_facility: number;
-  utilized_facility: number;
-  available_facility: number;
-  status: "pending" | "approved";
+  approved_facility: string;
+  utilized_facility: string;
+  available_facility: string;
   document?: {
     s3_key: string;
     file_name: string;
@@ -158,7 +155,7 @@ export interface CustomerDetails {
   entity_type: string;
   ssm_number: string;
   country: string;
-  is_related_party: boolean;
+  is_related_party: string;
   document?: {
     s3_key: string;
     file_name: string;

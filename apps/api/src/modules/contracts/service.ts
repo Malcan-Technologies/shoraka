@@ -2,14 +2,13 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { Contract, Prisma, ContractStatus } from "@prisma/client";
+import { Contract, Prisma } from "@prisma/client";
 import {
   generateContractDocumentKey,
   generatePresignedUploadUrl,
   getFileExtension,
   validateDocument,
 } from "../../lib/s3/client";
-import { logger } from "../../lib/logger";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -119,7 +118,7 @@ export class ContractService {
     );
 
     // Also check if user is owner
-    const organization = await this.organizationRepository.findById(organizationId);
+    const organization = await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!member && organization?.owner_user_id !== userId) {
       throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's contracts.");

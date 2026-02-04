@@ -16,7 +16,6 @@ export const contractDetailsSchema = z.object({
   approved_facility: z.number(),
   utilized_facility: z.number(),
   available_facility: z.number(),
-  status: z.enum(["pending", "approved"]),
   document: documentSchema.optional(),
 });
 

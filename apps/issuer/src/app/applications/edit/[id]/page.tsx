@@ -82,7 +82,6 @@ export default function EditApplicationPage() {
     data: application,
     isLoading: isLoadingApp,
     error: appError,
-    refetch: refetchApplication,
   } = useApplication(applicationId);
 
   // Handle application error (e.g. 404)
@@ -330,8 +329,11 @@ export default function EditApplicationPage() {
     if (!application || isLoadingApp || isLoadingProducts) return;
 
     // Skip validation if we just saved and are navigating to this step
-    if (targetStepRef.current === stepFromUrl) {
-      targetStepRef.current = null;
+    if (targetStepRef.current !== null && stepFromUrl === targetStepRef.current) {
+      const lastCompleted = application.last_completed_step || 1;
+      if (lastCompleted >= targetStepRef.current - 1) {
+        targetStepRef.current = null;
+      }
       return;
     }
 
@@ -554,6 +556,12 @@ export default function EditApplicationPage() {
         delete (dataToSave as any).hasPendingChanges;
         delete (dataToSave as any).saveFunction;
         delete (dataToSave as any).isValid;
+
+        // If this is a special step that saves to its own table (Contract/Invoice),
+        // we don't want to send the details back to the Application table
+        if (currentStepKey === "contract_details" || currentStepKey === "invoice_details") {
+          dataToSave = {};
+        }
       }
 
       /**
@@ -574,7 +582,7 @@ export default function EditApplicationPage() {
 
       // For now, we're using placeholder data
       // Later, step components will update stepDataRef with real data
-      if (!dataToSave) {
+      if (dataToSave === null) {
         // No data yet - just navigate for now
         toast.success("Step completed");
         setHasUnsavedChanges(false);
@@ -597,10 +605,6 @@ export default function EditApplicationPage() {
           data: dataToSave,
         },
       });
-
-      // Wait for application data to refetch before navigating
-      // This ensures the page has fresh data, though we skip validation anyway
-      await refetchApplication();
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
@@ -635,7 +639,9 @@ export default function EditApplicationPage() {
     stepDataRef.current = data;
 
     // Check if step provides validation flag
-    if (data?.areAllFilesUploaded !== undefined) {
+    if (data?.isValid !== undefined) {
+      setIsCurrentStepValid(data.isValid);
+    } else if (data?.areAllFilesUploaded !== undefined) {
       setIsCurrentStepValid(data.areAllFilesUploaded);
     } else if (data?.areAllDeclarationsChecked !== undefined) {
       // Declarations step provides this flag to indicate if all boxes are checked

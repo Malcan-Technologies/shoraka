@@ -159,15 +159,11 @@ export function FinancingStructureStep({
               <SelectValue placeholder="Select an existing contracts" />
             </SelectTrigger>
             <SelectContent>
-              {approvedContracts
-                .filter(
-                  (contract: any) => (contract.contract_details as any)?.status === "approved"
-                )
-                .map((contract: any) => (
-                  <SelectItem key={contract.id} value={contract.id}>
-                    {(contract.contract_details as any)?.title || "Untitled Contract"}
-                  </SelectItem>
-                ))}
+              {approvedContracts.map((contract: any) => (
+                <SelectItem key={contract.id} value={contract.id}>
+                  {(contract.contract_details as any)?.title || "Untitled Contract"}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         }

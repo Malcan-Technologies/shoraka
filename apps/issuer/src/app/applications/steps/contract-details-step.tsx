@@ -71,7 +71,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       approved_facility: 0 as number | string,
       utilized_facility: 0 as number | string,
       available_facility: 0 as number | string,
-      status: "pending" as "pending" | "approved",
       document: null as any,
     },
     customer: {
@@ -124,7 +123,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         approved_facility: contractDetails.approved_facility || 0,
         utilized_facility: contractDetails.utilized_facility || 0,
         available_facility: contractDetails.available_facility || 0,
-        status: contractDetails.status || "pending",
         document: contractDetails.document || null,
       },
       customer: {
@@ -169,7 +167,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
       available_facility: availableFacilityNum,
-      status: "pending" as const,
     };
 
     await updateContractMutation.mutateAsync({
@@ -323,7 +320,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
           <FormField label="Contract value">
             <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium pointer-events-none">
+              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
                 RM
               </div>
               <Input
