@@ -32,12 +32,12 @@ export function FinancingTypeStep({
     page: 1,
     pageSize: 100,
   });
-  
+
   const products = productsData?.products || [];
-  
+
   // Track which product is selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-  
+
   /**
    * Initialize with product from database
    * 
@@ -47,9 +47,17 @@ export function FinancingTypeStep({
   React.useEffect(() => {
     if (initialProductId && !selectedProductId) {
       setSelectedProductId(initialProductId);
+
+      //  Tell parent this step already has valid data
+      if (onDataChange) {
+        onDataChange({
+          product_id: initialProductId,
+        });
+      }
     }
-  }, [initialProductId, selectedProductId]);
-  
+  }, [initialProductId, selectedProductId, onDataChange]);
+
+
   /**
    * When user selects a different product
    * 
@@ -58,7 +66,7 @@ export function FinancingTypeStep({
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
-    
+
     // Pass data to parent for saving
     if (onDataChange) {
       onDataChange({
@@ -66,7 +74,7 @@ export function FinancingTypeStep({
       });
     }
   };
-  
+
   // Show loading state
   if (isLoadingProducts) {
     return (
@@ -75,7 +83,7 @@ export function FinancingTypeStep({
       </div>
     );
   }
-  
+
   // Show empty state
   if (products.length === 0) {
     return (
@@ -84,7 +92,7 @@ export function FinancingTypeStep({
       </div>
     );
   }
-  
+
   return (
     <div>
       <ProductList
