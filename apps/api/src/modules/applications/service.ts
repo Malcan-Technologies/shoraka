@@ -108,11 +108,11 @@ export class ApplicationService {
     // The repository includes issuer_organization, but TypeScript doesn't know about it
     // So we use 'as any' to access it (it's safe because we know it's included)
     const organization = (application as any).issuer_organization;
-    
+
     if (!organization) {
       throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this application");
     }
-    
+
     // Check if user is owner of the organization
     if (organization.owner_user_id === userId) {
       return; // User is owner, access granted
@@ -169,23 +169,9 @@ export class ApplicationService {
     // Extract product_id from financing_type
     const financingType = application.financing_type as any;
     const productId = financingType?.product_id;
+    return application;
 
-    let isVersionMismatch = false;
-    let latestProductVersion: number | undefined;
 
-    if (productId) {
-      const currentProduct = await this.productRepository.findById(productId);
-      if (currentProduct) {
-        latestProductVersion = currentProduct.version;
-        isVersionMismatch = application.product_version !== currentProduct.version;
-      }
-    }
-
-    return {
-      ...application,
-      isVersionMismatch,
-      latestProductVersion,
-    };
   }
 
   /**
