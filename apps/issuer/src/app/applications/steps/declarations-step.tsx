@@ -34,16 +34,26 @@ export function DeclarationsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
-   * Get declarations text array from config.
-   * Config can be string[] (legacy) or Array<{ text: string }> (current). Normalize to string[] for display.
-   */
+ * Declarations source of truth:
+ *
+ * - Declaration TEXT comes from product workflow config:
+ *   config.declarations = Array<{ text: string }>
+ *
+ * - Declaration CHECKED state is stored in DB:
+ *   application.declarations = { declarations: [{ checked: boolean }] }
+ *
+ * We intentionally do NOT store text in the database.
+ * This allows product updates without rewriting existing applications.
+ */
   const declarations = React.useMemo(() => {
     const decls = stepConfig?.declarations;
     if (!Array.isArray(decls)) return [];
-    return decls.map((d) =>
-      typeof d === "string" ? d : d != null && typeof d === "object" && "text" in d ? String((d as { text: unknown }).text ?? "") : ""
-    );
+
+    return decls
+      .map((d) => (typeof d === "object" && d?.text ? String(d.text) : ""))
+      .filter(Boolean);
   }, [stepConfig?.declarations]);
+
 
   /**
    * Track which checkboxes are checked
@@ -259,7 +269,7 @@ export function DeclarationsStep({
           })}
         </div>
       </div>
-      
+
       <div>
         <div className="border rounded-xl p-4 sm:p-6 bg-card">
           <h3 className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4">What happens next?</h3>
