@@ -73,8 +73,10 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Bank account number: digits only */
+/** Bank account number: digits only, length in range when provided */
 const BANK_ACCOUNT_REGEX = /^\d*$/;
+const BANK_ACCOUNT_MIN_LENGTH = 10;
+const BANK_ACCOUNT_MAX_LENGTH = 18;
 /** IC number: digits and dashes only (no letters) */
 const IC_NUMBER_REGEX = /^[\d-]*$/;
 /** Contact/phone: digits, spaces, and + - ( ) only */
@@ -238,8 +240,8 @@ export function CompanyDetailsStep({
       if (pendingBanking) {
         const bankAccountDetails = {
           content: [
-            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: pendingBanking.bankName },
-            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: pendingBanking.bankAccountNumber },
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: pendingBanking.bankName ?? "" },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: pendingBanking.bankAccountNumber ?? "" },
           ],
           displayArea: "Operational Information",
         };
@@ -316,9 +318,20 @@ export function CompanyDetailsStep({
     const bankNum =
       pendingBanking?.bankAccountNumber ??
       getBankField(bankAccountDetails || null, "Bank account number");
-    if (bankNum !== undefined && bankNum !== "" && !BANK_ACCOUNT_REGEX.test(String(bankNum))) {
-      errors.push("Bank account number must contain only numbers");
-      fieldErrors.bankAccountNumber = "Only numbers allowed";
+    const bankNumStr = bankNum !== undefined && bankNum !== "" ? String(bankNum).trim() : "";
+    if (bankNumStr !== "") {
+      if (!BANK_ACCOUNT_REGEX.test(bankNumStr)) {
+        errors.push("Bank account number must contain only numbers");
+        fieldErrors.bankAccountNumber = "Only numbers allowed";
+      } else if (
+        bankNumStr.length < BANK_ACCOUNT_MIN_LENGTH ||
+        bankNumStr.length > BANK_ACCOUNT_MAX_LENGTH
+      ) {
+        errors.push(
+          `Bank account number must be between ${BANK_ACCOUNT_MIN_LENGTH} and ${BANK_ACCOUNT_MAX_LENGTH} digits`
+        );
+        fieldErrors.bankAccountNumber = `Enter ${BANK_ACCOUNT_MIN_LENGTH}-${BANK_ACCOUNT_MAX_LENGTH} digits`;
+      }
     }
 
     return { errors, fieldErrors };
@@ -387,7 +400,9 @@ export function CompanyDetailsStep({
         toast.error("Please fix the errors below", {
           description: errors.slice(0, 3).join("; "),
         });
-        throw new Error(errors.join(", "));
+        const err = new Error(errors.join(", ")) as Error & { isValidationError?: boolean };
+        err.isValidationError = true;
+        throw err;
       }
 
       setFieldErrors({});
@@ -795,9 +810,13 @@ export function CompanyDetailsStep({
               aria-invalid={!!fieldErrors.bankAccountNumber}
               aria-describedby={fieldErrors.bankAccountNumber ? "err-bankAccountNumber" : undefined}
             />
-            {fieldErrors.bankAccountNumber && (
+            {fieldErrors.bankAccountNumber ? (
               <p id="err-bankAccountNumber" className="text-destructive text-sm mt-1" role="alert">
                 {fieldErrors.bankAccountNumber}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm mt-1">
+                {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
               </p>
             )}
           </div>

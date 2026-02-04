@@ -49,12 +49,12 @@ interface BusinessDetailsPayload {
   declarationConfirmed: boolean;
 }
 
-/** API/DB shape: snake_case keys */
+/** API/DB shape: snake_case keys; yes/no fields stored as boolean */
 interface BusinessDetailsSnake {
   about_your_business?: {
     what_does_company_do?: string;
     main_customers?: string;
-    single_customer_over_50_revenue?: string;
+    single_customer_over_50_revenue?: boolean;
   };
   why_raising_funds?: {
     financing_for?: string;
@@ -62,12 +62,24 @@ interface BusinessDetailsSnake {
     business_plan?: string;
     risks_delay_repayment?: string;
     backup_plan?: string;
-    raising_on_other_p2p?: string;
+    raising_on_other_p2p?: boolean;
     platform_name?: string;
     amount_raised?: string;
-    same_invoice_used?: string;
+    same_invoice_used?: boolean;
   };
   declaration_confirmed?: boolean;
+}
+
+function yesNoToBoolean(v: YesNo | ""): boolean | undefined {
+  if (v === "yes") return true;
+  if (v === "no") return false;
+  return undefined;
+}
+
+function booleanToYesNo(v: boolean | string | undefined): YesNo | "" {
+  if (v === true || v === "yes") return "yes";
+  if (v === false || v === "no") return "no";
+  return "";
 }
 
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
@@ -75,7 +87,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     about_your_business: {
       what_does_company_do: p.aboutYourBusiness.whatDoesCompanyDo ?? "",
       main_customers: p.aboutYourBusiness.mainCustomers ?? "",
-      single_customer_over_50_revenue: p.aboutYourBusiness.singleCustomerOver50Revenue ?? "",
+      single_customer_over_50_revenue: yesNoToBoolean(p.aboutYourBusiness.singleCustomerOver50Revenue),
     },
     why_raising_funds: {
       financing_for: p.whyRaisingFunds.financingFor ?? "",
@@ -83,10 +95,10 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       business_plan: p.whyRaisingFunds.businessPlan ?? "",
       risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
-      raising_on_other_p2p: p.whyRaisingFunds.raisingOnOtherP2P ?? "",
+      raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
       platform_name: p.whyRaisingFunds.platformName ?? "",
       amount_raised: p.whyRaisingFunds.amountRaised ?? "",
-      same_invoice_used: p.whyRaisingFunds.sameInvoiceUsed ?? "",
+      same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
     },
     declaration_confirmed: p.declarationConfirmed,
   };
@@ -100,7 +112,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
     aboutYourBusiness: {
       whatDoesCompanyDo: a?.what_does_company_do ?? a?.whatDoesCompanyDo ?? "",
       mainCustomers: a?.main_customers ?? a?.mainCustomers ?? "",
-      singleCustomerOver50Revenue: (a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue) as YesNo | "" ?? "",
+      singleCustomerOver50Revenue: booleanToYesNo(a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue),
     },
     whyRaisingFunds: {
       financingFor: w?.financing_for ?? w?.financingFor ?? "",
@@ -108,10 +120,10 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       businessPlan: w?.business_plan ?? w?.businessPlan ?? "",
       risksDelayRepayment: w?.risks_delay_repayment ?? w?.risksDelayRepayment ?? "",
       backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
-      raisingOnOtherP2P: (w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P) as YesNo | "" ?? "",
+      raisingOnOtherP2P: booleanToYesNo(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
       platformName: w?.platform_name ?? w?.platformName ?? "",
       amountRaised: w?.amount_raised ?? w?.amountRaised ?? "",
-      sameInvoiceUsed: (w?.same_invoice_used ?? w?.sameInvoiceUsed) as YesNo | "" ?? "",
+      sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
   };
@@ -146,9 +158,9 @@ const labelClassName =
 const inputClassName = "rounded-xl border border-border bg-background text-foreground w-full";
 const textareaClassName = "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_600px] gap-5 mt-4 pl-3 sm:pl-4 md:pl-6 max-w-[912px] items-start";
-const sectionWrapperClassName = "w-full max-w-[972px]";
-const formOuterClassName = "w-full max-w-[1004px] flex flex-col gap-8";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 pl-3 sm:pl-4 md:pl-6 w-full max-w-[1200px] items-start";
+const sectionWrapperClassName = "w-full max-w-[1200px]";
+const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-8";
 const radioSelectedLabel = "text-sm md:text-base text-foreground";
 const radioUnselectedLabel = "text-sm md:text-base text-muted-foreground";
 

@@ -513,38 +513,21 @@ export default function EditApplicationPage() {
    */
   const handleSaveAndContinue = async () => {
     try {
-      // Get the data from the current step
-      let dataToSave = stepDataRef.current;
+      // Get the data from the current step (capture saveFunction before cleanup removes it)
+      const rawStepData = stepDataRef.current;
+      const saveFunction = rawStepData && typeof rawStepData === "object" ? rawStepData.saveFunction : undefined;
 
-      //  cleanup block,
-      //
-      // Purpose:
-      // Remove UI-only fields before sending data to the backend.
-      //
-      // Why this is needed:
-      // Step components pass extra metadata to the parent for UI control
-      // (e.g. validation, unsaved-changes tracking, file upload helpers).
-      // These fields are NOT part of the domain model and must never be stored in the DB.
-      //
-      // Examples of UI-only fields:
-      // - hasPendingChanges         → used only to trigger unsaved-changes warning
-      // - areAllDeclarationsChecked → used only to enable/disable "Save and Continue"
-      // - areAllFilesUploaded       → used only for client-side validation
-      // - saveFunction              → client-side helper for uploads / side effects
-      //
-      // Design decision:
-      // We keep step components flexible and expressive,
-      // but enforce a single cleanup point in the parent
-      // to guarantee that only pure, persistent data
-      // is ever sent to the API.
-      //
-      // This protects the database schema and prevents accidental data pollution.
+      let dataToSave = rawStepData;
+
+      // Cleanup: remove UI-only fields before sending data to the backend.
+      // Step components pass extra metadata (validation, unsaved-changes, file upload helpers)
+      // that must never be stored in the DB.
       if (dataToSave && typeof dataToSave === "object") {
         const {
-          hasPendingChanges,          // UI only
-          areAllDeclarationsChecked,  // UI only
-          areAllFilesUploaded,        // UI only
-          saveFunction,               // UI only
+          hasPendingChanges,
+          areAllDeclarationsChecked,
+          areAllFilesUploaded,
+          saveFunction: _sf,
           ...rest
         } = dataToSave;
 
@@ -556,11 +539,11 @@ export default function EditApplicationPage() {
        * 
        * Some steps need to save additional data before saving the application.
        * For example:
-       * - company_details updates organization data first
+       * - company_details runs validation and updates organization data first
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
-      if (dataToSave?.saveFunction) {
-        const returnedData = await dataToSave.saveFunction();
+      if (typeof saveFunction === "function") {
+        const returnedData = await saveFunction();
 
         // If saveFunction returns data, use it (e.g., supporting documents with S3 keys)
         if (returnedData) {
@@ -643,7 +626,9 @@ export default function EditApplicationPage() {
       router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
 
     } catch (error) {
-      // Error already shown by mutation hook
+      if ((error as Error & { isValidationError?: boolean })?.isValidationError) {
+        return;
+      }
       toast.error("Failed to save. Please try again.");
     }
   };

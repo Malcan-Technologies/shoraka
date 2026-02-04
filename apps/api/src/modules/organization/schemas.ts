@@ -28,16 +28,18 @@ export const memberIdParamSchema = z.object({
 
 export const portalTypeSchema = z.enum(["investor", "issuer"]);
 
-// Bank account field schema - matches RegTank format
+// Bank account field schema - matches RegTank format (fieldValue may be omitted; coerced to string)
 export const bankAccountFieldSchema = z.object({
   cn: z.boolean(),
   fieldName: z.string(),
   fieldType: z.string(),
-  fieldValue: z.string(),
+  fieldValue: z.union([z.string(), z.undefined()]).transform((v) => v ?? ""),
 });
 
-// Bank account number: digits only
+// Bank account number: digits only, length in range when provided
 const bankAccountNumberRegex = /^\d*$/;
+const BANK_ACCOUNT_MIN_LENGTH = 10;
+const BANK_ACCOUNT_MAX_LENGTH = 18;
 
 // Bank account details schema - matches RegTank format
 export const bankAccountDetailsSchema = z
@@ -52,6 +54,18 @@ export const bankAccountDetailsSchema = z
       return bankAccountNumberRegex.test(accountField.fieldValue);
     },
     { message: "Bank account number must contain only digits" }
+  )
+  .refine(
+    (val) => {
+      const accountField = val.content.find((f) => f.fieldName === "Bank account number");
+      const v = accountField?.fieldValue?.trim() ?? "";
+      if (!v) return true;
+      const len = v.length;
+      return len >= BANK_ACCOUNT_MIN_LENGTH && len <= BANK_ACCOUNT_MAX_LENGTH;
+    },
+    {
+      message: `Bank account number must be between ${BANK_ACCOUNT_MIN_LENGTH} and ${BANK_ACCOUNT_MAX_LENGTH} digits`,
+    }
   );
 
 // Update organization profile schema (for editable fields only)

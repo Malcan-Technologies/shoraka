@@ -24,12 +24,16 @@ export const applicationIdParamSchema = z.object({
   id: z.string().cuid(),
 });
 
-const yesNoOrEmptySchema = z.union([z.enum(["yes", "no"]), z.literal("")]);
+/** Accepts boolean or legacy "yes"/"no" string; outputs boolean. */
+const yesNoBooleanSchema = z
+  .union([z.boolean(), z.enum(["yes", "no"])])
+  .transform((v) => v === true || v === "yes")
+  .optional();
 
 const aboutYourBusinessSchema = z.object({
   what_does_company_do: z.string().max(200).optional().default(""),
   main_customers: z.string().max(200).optional().default(""),
-  single_customer_over_50_revenue: yesNoOrEmptySchema.optional().default(""),
+  single_customer_over_50_revenue: yesNoBooleanSchema,
 });
 
 const whyRaisingFundsSchema = z.object({
@@ -38,10 +42,10 @@ const whyRaisingFundsSchema = z.object({
   business_plan: z.string().max(1000).optional().default(""),
   risks_delay_repayment: z.string().max(200).optional().default(""),
   backup_plan: z.string().max(200).optional().default(""),
-  raising_on_other_p2p: yesNoOrEmptySchema.optional().default(""),
+  raising_on_other_p2p: yesNoBooleanSchema,
   platform_name: z.string().optional().default(""),
   amount_raised: z.string().optional().default(""),
-  same_invoice_used: yesNoOrEmptySchema.optional().default(""),
+  same_invoice_used: yesNoBooleanSchema,
 });
 
 export const businessDetailsDataSchema = z.object({
