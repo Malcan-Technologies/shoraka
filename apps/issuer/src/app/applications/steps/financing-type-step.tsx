@@ -52,6 +52,7 @@ export function FinancingTypeStep({
       if (onDataChange) {
         onDataChange({
           product_id: initialProductId,
+          hasPendingChanges: false
         });
       }
     }
@@ -71,6 +72,7 @@ export function FinancingTypeStep({
     if (onDataChange) {
       onDataChange({
         product_id: productId,
+        hasPendingChanges: productId !== initialProductId
       });
     }
   };
