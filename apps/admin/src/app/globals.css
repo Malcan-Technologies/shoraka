@@ -120,8 +120,8 @@
 /* Override base p/li size inside onboarding/AML instruction blocks so steps render smaller */
 .instruction-steps ol li,
 .instruction-steps p.instruction-conclusion {
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 12px;
+  line-height: 12px;
 }
 
 /* CashSouk Admin Portal Theme */
