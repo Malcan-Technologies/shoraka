@@ -15,8 +15,11 @@ import {
   STEP_KEY_DISPLAY,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
-import { useHeader } from "@cashsouk/ui";
+import { useHeader, SidebarTrigger } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
+import { FinancingStructureStep } from "../../steps/financing-structure-step";
+import { ContractDetailsStep } from "../../steps/contract-details-step";
+import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
@@ -235,6 +238,33 @@ export default function EditApplicationPage() {
       );
     }
 
+    if (currentStepKey === "financing_structure") {
+      return (
+        <FinancingStructureStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
+    if (currentStepKey === "contract_details") {
+      return (
+        <ContractDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
+    if (currentStepKey === "invoice_details") {
+      return (
+        <InvoiceDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
     if (currentStepKey === "company_details") {
       return (
         <CompanyDetailsStep
@@ -266,9 +296,6 @@ export default function EditApplicationPage() {
 
     // Placeholder for steps not yet implemented (names match Application columns)
     if (
-      currentStepKey === "financing_structure" ||
-      currentStepKey === "contract_details" ||
-      currentStepKey === "invoice_details" ||
       currentStepKey === "business_details" ||
       currentStepKey === "review_and_submit"
     ) {
@@ -521,7 +548,7 @@ export default function EditApplicationPage() {
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepKey === "declarations") {
+      if (currentStepId === "declarations_1") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
 
@@ -645,12 +672,6 @@ export default function EditApplicationPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top navigation bar */}
-      <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-base sm:text-lg font-semibold">Edit Application</h1>
-      </header>
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">

@@ -50,13 +50,13 @@ interface CreateProductDialogProps {
 function hasConfiguredContent(step: { name: string; config?: Record<string, any> }): boolean {
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
-  
+
   // Financing Type step: Must have a product name
   if (stepName.includes("financing type")) {
     const hasName = config.name && typeof config.name === 'string' && config.name.trim().length > 0;
     return hasName;
   }
-  
+
   // Supporting Documents step: Must have at least one document
   if (stepName.includes("document")) {
     if (!config.categories || !Array.isArray(config.categories)) {
@@ -67,60 +67,63 @@ function hasConfiguredContent(step: { name: string; config?: Record<string, any>
     );
     return hasDocuments;
   }
-  
+
   // Declaration step: Must have at least one declaration
   if (stepName.includes("declaration")) {
     const hasDeclarations = config.declarations && Array.isArray(config.declarations) && config.declarations.length > 0;
     return hasDeclarations;
   }
-  
+
   // Other steps don't need configuration
   return true;
 }
 
 // Validation: Check if financing type step is configured
 function validateFinancingType(steps: any[]): boolean {
-  const financingTypeStep = steps.find((s) => 
+  const financingTypeStep = steps.find((s) =>
     s.name.toLowerCase().includes("financing type")
   );
-  
+
   if (!financingTypeStep) {
     return false; // Must have financing type step
   }
-  
+
   return hasConfiguredContent(financingTypeStep);
 }
 
 // Validation: Check if declaration step is configured (if it exists)
 function validateDeclaration(steps: any[]): boolean {
-  const declarationStep = steps.find((s) => 
+  const declarationStep = steps.find((s) =>
     s.name.toLowerCase().includes("declaration")
   );
-  
+
   if (!declarationStep) {
     return true; // Declaration is optional
   }
-  
+
   return hasConfiguredContent(declarationStep);
 }
 
 // Validation: Check if supporting documents step is configured (if it exists)
 function validateSupportingDocuments(steps: any[]): boolean {
-  const documentStep = steps.find((s) => 
+  const documentStep = steps.find((s) =>
     s.name.toLowerCase().includes("document")
   );
-  
+
   if (!documentStep) {
     return true; // Documents are optional
   }
-  
+
   return hasConfiguredContent(documentStep);
 }
 
 // Default workflow steps that appear when creating a new product
 const DEFAULT_WORKFLOW = [
   { id: "financing_type_1", name: "Financing Type", config: {} },
-  { id: "verify_company_info_1", name: "Verify Company Info", config: {} },
+  { id: "financing_structure_1", name: "Financing Structure", config: {} },
+  { id: "contract_details_1", name: "Contract Details", config: {} },
+  { id: "invoice_details_1", name: "Invoice Details", config: {} },
+  { id: "company_details_1", name: "Company Details", config: {} },
   { id: "supporting_documents_1", name: "Supporting Documents", config: {} },
   { id: "declarations_1", name: "Declarations", config: {} },
   { id: "review_and_submit_1", name: "Review & Submit", config: {} },
@@ -159,7 +162,7 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
         const categories = step.config.categories.filter(
           (cat: any) => cat.documents?.length > 0
         );
-        
+
         return {
           ...step,
           config: {
@@ -168,7 +171,7 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
           },
         };
       }
-      
+
       return step;
     });
   };
@@ -191,14 +194,14 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
 
       // Step 1: Upload image if pending (only financing type has images)
       const pendingFiles = Array.from(pendingFilesRef.current.entries());
-      
+
       if (pendingFiles.length > 0) {
         // There should only be one file (financing type step)
         const [stepId, file] = pendingFiles[0];
-        
+
         // Find the financing type step
         const step = cleanedWorkflow.find((s: any) => s.id === stepId);
-        
+
         if (!step || !step.config?.name) {
           toast.error("Cannot upload image", {
             description: "Please configure the financing type name before saving",
@@ -240,10 +243,10 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
       await createProduct.mutateAsync({
         workflow: cleanedWorkflow,
       });
-      
+
       // Clear pending files after successful save
       pendingFilesRef.current.clear();
-      
+
       // Close dialog on success
       onOpenChange(false);
       form.reset();
@@ -281,30 +284,30 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
             {(() => {
               const steps = form.watch("workflow") || [];
               const missingItems: string[] = [];
-              
+
               // Check each required step
-              const financingTypeStep = steps.find((s: any) => 
+              const financingTypeStep = steps.find((s: any) =>
                 s.name.toLowerCase().includes("financing type")
               );
               if (financingTypeStep && !hasConfiguredContent(financingTypeStep)) {
                 missingItems.push("Financing Type (add at least one)");
               }
-              
-              
-              const documentStep = steps.find((s: any) => 
+
+
+              const documentStep = steps.find((s: any) =>
                 s.name.toLowerCase().includes("document")
               );
               if (documentStep && !hasConfiguredContent(documentStep)) {
                 missingItems.push("Supporting Documents (add at least one)");
               }
 
-              const declarationStep = steps.find((s: any) => 
+              const declarationStep = steps.find((s: any) =>
                 s.name.toLowerCase().includes("declaration")
               );
               if (declarationStep && !hasConfiguredContent(declarationStep)) {
                 missingItems.push("Declarations (add at least one)");
               }
-              
+
               // Show missing items if any
               if (missingItems.length > 0) {
                 return (
@@ -346,7 +349,7 @@ export function CreateProductDialog({ open, onOpenChange }: CreateProductDialogP
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             type="submit"
             onClick={form.handleSubmit(onSubmit)}
             disabled={createProduct.isPending || !form.formState.isValid}

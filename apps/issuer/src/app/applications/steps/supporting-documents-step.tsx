@@ -3,7 +3,12 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, CheckIcon } from "@heroicons/react/24/outline";
+import {
+  XMarkIcon,
+  ChevronDownIcon,
+  CloudArrowUpIcon,
+  CheckIcon,
+} from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
@@ -24,15 +29,19 @@ export function SupportingDocumentsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   const categories = stepConfig?.config?.categories || [];
-  
-  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
+
+  const [uploadedFiles, setUploadedFiles] = React.useState<
+    Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>
+  >({});
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
   const [documentCuids, setDocumentCuids] = React.useState<Record<string, string>>({});
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
-  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
-  
+  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<
+    Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>
+  >({});
+
   if (isLoadingApp || !stepConfig) {
     return (
       <div className="space-y-6 sm:space-y-8 md:space-y-12">
@@ -67,7 +76,10 @@ export function SupportingDocumentsStep({
     );
   }
 
-  const buildDataToSave = (files: Record<string, { s3_key?: string; name?: string }>, uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()) => {
+  const buildDataToSave = (
+    files: Record<string, { s3_key?: string; name?: string }>,
+    uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()
+  ) => {
     return {
       categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
@@ -114,7 +126,10 @@ export function SupportingDocumentsStep({
       return;
     }
 
-    const loadedFiles: Record<string, { name: string; size: number; uploadedAt: string; s3_key: string }> = {};
+    const loadedFiles: Record<
+      string,
+      { name: string; size: number; uploadedAt: string; s3_key: string }
+    > = {};
     const loadedCuids: Record<string, string> = {};
     const loadedS3Keys: Record<string, string> = {};
 
@@ -154,7 +169,11 @@ export function SupportingDocumentsStep({
     }
   }, [application, categories]);
 
-  const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (
+    categoryIndex: number,
+    documentIndex: number,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -200,22 +219,25 @@ export function SupportingDocumentsStep({
         setUploadingKeys((prev) => new Set(prev).add(key));
 
         const existingS3Key = uploadedFiles[key]?.s3_key || lastS3Keys[key];
-        
+
         const token = await getAccessToken();
 
-        const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fileName: typedFile.name,
-            contentType: typedFile.type,
-            fileSize: typedFile.size,
-            existingS3Key: existingS3Key || undefined,
-          }),
-        });
+        const urlResponse = await fetch(
+          `${API_URL}/v1/applications/${applicationId}/upload-document-url`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fileName: typedFile.name,
+              contentType: typedFile.type,
+              fileSize: typedFile.size,
+              existingS3Key: existingS3Key || undefined,
+            }),
+          }
+        );
 
         const urlResult = await urlResponse.json();
         if (!urlResult.success) {
@@ -238,16 +260,19 @@ export function SupportingDocumentsStep({
 
         if (existingS3Key && existingS3Key !== s3Key) {
           try {
-            const deleteResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                s3Key: existingS3Key,
-              }),
-            });
+            const deleteResponse = await fetch(
+              `${API_URL}/v1/applications/${applicationId}/document`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  s3Key: existingS3Key,
+                }),
+              }
+            );
 
             if (!deleteResponse.ok) {
               console.warn("Failed to delete old file, but upload succeeded");
@@ -281,7 +306,10 @@ export function SupportingDocumentsStep({
 
     setSelectedFiles({});
 
-    const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
+    const updatedFiles: Record<
+      string,
+      { name: string; size?: number; uploadedAt?: string; s3_key?: string }
+    > = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
       const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
@@ -312,7 +340,16 @@ export function SupportingDocumentsStep({
     }
 
     return dataToSave;
-  }, [applicationId, selectedFiles, categories, uploadedFiles, documentCuids, lastS3Keys, getAccessToken, onDataChange]);
+  }, [
+    applicationId,
+    selectedFiles,
+    categories,
+    uploadedFiles,
+    documentCuids,
+    lastS3Keys,
+    getAccessToken,
+    onDataChange,
+  ]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
   React.useEffect(() => {
@@ -327,7 +364,11 @@ export function SupportingDocumentsStep({
   const areAllFilesUploaded = React.useMemo(() => {
     if (categories.length === 0) return true;
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
-      for (let documentIndex = 0; documentIndex < categories[categoryIndex].documents.length; documentIndex++) {
+      for (
+        let documentIndex = 0;
+        documentIndex < categories[categoryIndex].documents.length;
+        documentIndex++
+      ) {
         if (!isDocumentUploaded(categoryIndex, documentIndex)) {
           return false;
         }
@@ -344,10 +385,10 @@ export function SupportingDocumentsStep({
 
   React.useEffect(() => {
     if (!onDataChange) return;
-    
+
     const dataToSave = buildDataToSave(uploadedFiles);
     const hasPendingChanges = Object.keys(selectedFiles).length > 0 || hasRemovedFiles;
-    
+
     onDataChange({
       hasPendingChanges: hasPendingChanges,
       saveFunction: uploadFilesToS3,
@@ -355,19 +396,27 @@ export function SupportingDocumentsStep({
       supporting_documents: dataToSave,
       _uploadFiles: uploadFilesRef.current,
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedFiles,
+    hasRemovedFiles,
+    uploadFilesToS3,
+    areAllFilesUploaded,
+    uploadedFiles,
+    categories,
+    applicationId,
+  ]);
 
   const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
-    
+
     // Save the S3 key before removing, so we can delete it on next upload
     const currentFile = uploadedFiles[key];
     if (currentFile?.s3_key) {
       const s3Key = currentFile.s3_key;
       setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
     }
-    
+
     setUploadedFiles((prev: any) => {
       const newFiles = { ...prev };
       delete newFiles[key];
@@ -397,11 +446,12 @@ export function SupportingDocumentsStep({
     return { uploadedCount, totalCount };
   };
 
-
   if (categories.length === 0) {
     return (
       <div className="space-y-4">
-        <p className="text-muted-foreground text-center py-8">No documents required for this application.</p>
+        <p className="text-muted-foreground text-center py-8">
+          No documents required for this application.
+        </p>
       </div>
     );
   }
@@ -418,14 +468,21 @@ export function SupportingDocumentsStep({
             <div>
               <div className="flex justify-between items-center gap-2">
                 <button
-                  onClick={() => setExpandedCategories((prev: any) => ({ ...prev, [categoryIndex]: !isExpanded }))}
+                  onClick={() =>
+                    setExpandedCategories((prev: any) => ({
+                      ...prev,
+                      [categoryIndex]: !isExpanded,
+                    }))
+                  }
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity p-1 -m-1 min-w-0 flex-1"
                   type="button"
                 >
                   <ChevronDownIcon
                     className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
                   />
-                  <h3 className="text-base sm:text-lg md:text-xl font-semibold truncate">{category.name}</h3>
+                  <h3 className="text-base sm:text-lg md:text-xl font-semibold truncate">
+                    {category.name}
+                  </h3>
                 </button>
                 <div className="flex items-center gap-1 shrink-0">
                   {isComplete && (
@@ -434,7 +491,9 @@ export function SupportingDocumentsStep({
                     </div>
                   )}
                   <span className="text-sm sm:text-base md:text-[17px] leading-5 sm:leading-6 md:leading-7 text-muted-foreground whitespace-nowrap">
-                    {status.uploadedCount}/{status.totalCount} <span className="hidden sm:inline">files </span>{isComplete ? "uploaded" : "required"}
+                    {status.uploadedCount}/{status.totalCount}{" "}
+                    <span className="hidden sm:inline">files </span>
+                    {isComplete ? "uploaded" : "required"}
                   </span>
                 </div>
               </div>
@@ -450,14 +509,18 @@ export function SupportingDocumentsStep({
 
                   return (
                     <React.Fragment key={documentIndex}>
-                      <div className="text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">{document.title}</div>
+                      <div className="text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">
+                        {document.title}
+                      </div>
                       <div className="flex justify-end">
                         {isUploaded && file && !fileIsUploading ? (
                           <div className="inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full">
                             <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
                               <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                             </div>
-                            <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">{file.name}</span>
+                            <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">
+                              {file.name}
+                            </span>
                             <button
                               onClick={() => handleRemoveFile(categoryIndex, documentIndex)}
                               className="hover:text-destructive transition-colors cursor-pointer shrink-0"
@@ -467,10 +530,17 @@ export function SupportingDocumentsStep({
                             </button>
                           </div>
                         ) : (
-                          <label htmlFor={`file-${key}`} className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-base sm:text-[17px] leading-6 sm:leading-7">
+                          <label
+                            htmlFor={`file-${key}`}
+                            className="inline-flex items-center gap-1.5 text-primary font-medium cursor-pointer hover:underline text-base sm:text-[17px] leading-6 sm:leading-7"
+                          >
                             <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-                            <span className="hidden sm:inline">{fileIsUploading ? "Uploading..." : "Upload file"}</span>
-                            <span className="sm:hidden">{fileIsUploading ? "Uploading..." : "Upload"}</span>
+                            <span className="hidden sm:inline">
+                              {fileIsUploading ? "Uploading..." : "Upload file"}
+                            </span>
+                            <span className="sm:hidden">
+                              {fileIsUploading ? "Uploading..." : "Upload"}
+                            </span>
                             <Input
                               id={`file-${key}`}
                               type="file"

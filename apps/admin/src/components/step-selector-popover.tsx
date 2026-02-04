@@ -37,8 +37,29 @@ const AVAILABLE_STEPS: StepType[] = [
     },
   },
   {
-    id: "verify_company_info",
-    name: "Verify Company Info",
+    id: "financing_structure",
+    name: "Financing Structure",
+    description: "Choose how to apply for financing",
+    icon: BuildingOfficeIcon,
+    defaultConfig: {},
+  },
+  {
+    id: "contract_details",
+    name: "Contract Details",
+    description: "Contract and customer information",
+    icon: ClipboardDocumentCheckIcon,
+    defaultConfig: {},
+  },
+  {
+    id: "invoice_details",
+    name: "Invoice Details",
+    description: "Upload invoices and financing terms",
+    icon: CurrencyDollarIcon,
+    defaultConfig: {},
+  },
+  {
+    id: "company_details",
+    name: "Company Details",
     description: "Business verification and details",
     icon: BuildingOfficeIcon,
     defaultConfig: {

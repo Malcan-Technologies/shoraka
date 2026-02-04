@@ -20,6 +20,9 @@ export type ApplicationStepKey = (typeof APPLICATION_STEP_KEYS)[number];
 /** Step keys that have a dedicated step UI component in the issuer app */
 export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "financing_type",
+  "financing_structure",
+  "contract_details",
+  "invoice_details",
   "company_details",
   "supporting_documents",
   "declarations",
@@ -37,16 +40,16 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
     description: "Choose the type of financing that best suits your business needs",
   },
   financing_structure: {
-    title: "Financing Structure",
-    description: "Define the structure of your financing",
+    title: "How would you like to apply for financing?",
+    description: "Choose how you want to structure your financing application",
   },
   contract_details: {
-    title: "Contract Details",
-    description: "Review and confirm contract terms",
+    title: "Provide Contract and Customer details",
+    description: "Help us understand your contract and your customer billed under this invoice",
   },
   invoice_details: {
-    title: "Invoice Details",
-    description: "Provide invoice information",
+    title: "Upload invoice(s)",
+    description: "Provide the invoice(s) to apply for financing.",
   },
   company_details: {
     title: "Company Details",

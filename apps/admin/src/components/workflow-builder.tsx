@@ -85,43 +85,48 @@ interface SortableStepProps {
 function hasConfiguredContent(step: WorkflowStep): boolean {
   const config = step.config || {};
   const stepName = step.name.toLowerCase();
-  
+
   // Financing Type: check if name exists
   if (stepName.includes("financing type")) {
     return config.name && typeof config.name === 'string' && config.name.trim().length > 0;
   }
-  
+
   // Financing Terms: check if any field is set
   if (stepName.includes("financing terms")) {
-    return config.minInvoiceAmount || config.maxInvoiceAmount || 
+    return config.minInvoiceAmount || config.maxInvoiceAmount ||
            (config.availableTerms && config.availableTerms.length > 0);
   }
-  
+
   // Invoice Details: check if any customization is done
-  if (stepName.includes("invoice")) {
-    return config.invoiceNumberLabel || config.invoiceDateLabel || 
+  if (stepName.includes("invoice details")) {
+    return config.invoiceNumberLabel || config.invoiceDateLabel ||
            config.buyerInfoRequired !== undefined || config.uploadRequired !== undefined;
   }
-  
+
+  // New steps don't have configured state yet
+  if (stepName.includes("financing structure") || stepName.includes("contract details")) {
+    return false;
+  }
+
   // Supporting Documents: check if any documents are added
-  if (stepName.includes("document")) {
+  if (stepName.includes("supporting document")) {
     if (!config.categories || !Array.isArray(config.categories)) return false;
     const hasDocuments = config.categories.some(
       (cat: any) => cat.documents && Array.isArray(cat.documents) && cat.documents.length > 0
     );
     return hasDocuments;
   }
-  
+
   // Declaration: check if declarations array has items
   if (stepName.includes("declaration")) {
     return config.declarations && Array.isArray(config.declarations) && config.declarations.length > 0;
   }
-  
+
   // Company Info and Review & Submit never show configured badge
   if (stepName.includes("company") || stepName.includes("review")) {
     return false;
   }
-  
+
   // Default: check if config has any keys
   return Object.keys(config).length > 0;
 }
@@ -130,17 +135,17 @@ function hasConfiguredContent(step: WorkflowStep): boolean {
 // CONFIGURATION PANEL
 // Displays the right config UI based on step type
 // ============================================
-function StepConfigContent({ 
-  step, 
+function StepConfigContent({
+  step,
   onConfigure,
-  onFileSelected 
-}: { 
-  step: WorkflowStep; 
+  onFileSelected
+}: {
+  step: WorkflowStep;
   onConfigure: (config: any) => void;
   onFileSelected?: (file: File | null) => void;
 }) {
   const stepName = step.name.toLowerCase();
-  
+
   // Match step name to the correct configuration component
   if (stepName.includes("financing type")) {
     return <FinancingTypeConfig config={step.config || {}} onChange={onConfigure} onFileSelected={onFileSelected} />;
@@ -178,7 +183,7 @@ function StepConfigContent({
 // ============================================
 function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpand, onConfigure, onFileSelected }: SortableStepProps) {
   // Setup drag and drop for this step
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: step.id,
     disabled: isLocked, // Locked steps cannot be dragged
   });
@@ -201,7 +206,7 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
       )}
     >
       {/* Header - click anywhere to expand/collapse */}
-      <div 
+      <div
         className={cn(
           "flex items-center gap-2 sm:gap-3 p-3 sm:p-4 cursor-pointer",
           isExpanded && "border-b bg-muted/30"
@@ -267,9 +272,9 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
       {/* Configuration panel (shown when expanded) */}
       {isExpanded && hasConfig && (
         <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3 sm:pb-4">
-          <StepConfigContent 
-            step={step} 
-            onConfigure={(config) => onConfigure(step.id, config)} 
+          <StepConfigContent
+            step={step}
+            onConfigure={(config) => onConfigure(step.id, config)}
             onFileSelected={onFileSelected ? (file) => onFileSelected(step.id, file) : undefined}
           />
         </div>
@@ -285,7 +290,7 @@ function SortableStep({ step, isExpanded, isLocked, hasConfig, onDelete, onExpan
 export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) {
   // Track which steps are expanded (showing config)
   const [expandedSteps, setExpandedSteps] = React.useState<Set<string>>(new Set());
-  
+
   // Track step pending deletion for confirmation dialog
   const [stepToDelete, setStepToDelete] = React.useState<WorkflowStep | null>(null);
 
@@ -309,9 +314,9 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
 
     const oldIndex = steps.findIndex((s: WorkflowStep) => s.id === active.id);
     const newIndex = steps.findIndex((s: WorkflowStep) => s.id === over.id);
-    
+
     const draggedStep = steps[oldIndex];
-    
+
     // Don't allow moving "Financing Type" from first position or moving anything to first position
     const firstStep = steps[0];
     if (firstStep.name.toLowerCase().includes("financing type")) {
@@ -319,22 +324,22 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
         return;
       }
     }
-    
+
     // Don't allow moving "Review & Submit" away from last position
     // Don't allow moving anything else to the last position
     const isReviewSubmit = draggedStep.name.toLowerCase().includes("review");
     const isTargetLastPosition = newIndex === steps.length - 1;
-    
+
     if (isReviewSubmit && oldIndex === steps.length - 1) {
       // Review & Submit cannot be moved away from last position
       return;
     }
-    
+
     if (!isReviewSubmit && isTargetLastPosition) {
       // Other steps cannot be moved to last position (reserved for Review & Submit)
       return;
     }
-    
+
     // Reorder the steps
     form.setValue("workflow", arrayMove(steps, oldIndex, newIndex), {
       shouldValidate: true,
@@ -349,24 +354,24 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
       setStepToDelete(step);
     }
   };
-  
+
   // Confirm and delete a step
   const confirmDelete = () => {
     if (!stepToDelete) return;
-    
+
     const updatedSteps = (steps as WorkflowStep[]).filter((s: WorkflowStep) => s.id !== stepToDelete.id);
     form.setValue("workflow", updatedSteps, { shouldValidate: true, shouldDirty: true });
-    
+
     // Close the step if it was expanded
     setExpandedSteps((prev) => {
       const next = new Set(prev);
       next.delete(stepToDelete.id);
       return next;
     });
-    
+
     setStepToDelete(null);
   };
-  
+
   // Cancel deletion
   const cancelDelete = () => {
     setStepToDelete(null);
@@ -383,7 +388,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
 
   // Save config changes for a step
   const updateStepConfig = (id: string, config: any) => {
-    const updatedSteps = (steps as WorkflowStep[]).map((s: WorkflowStep) => 
+    const updatedSteps = (steps as WorkflowStep[]).map((s: WorkflowStep) =>
       s.id === id ? { ...s, config } : s
     );
     form.setValue("workflow", updatedSteps, { shouldValidate: true, shouldDirty: true });
@@ -392,7 +397,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
   // Add a new step (from the "Add Step" button)
   const addStep = (stepType: StepType) => {
     // Don't add if already exists
-    const exists = (steps as WorkflowStep[]).some((s: WorkflowStep) => 
+    const exists = (steps as WorkflowStep[]).some((s: WorkflowStep) =>
       s.name.toLowerCase().includes(stepType.name.toLowerCase())
     );
     if (exists) return;
@@ -402,11 +407,11 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
       name: stepType.name,
       config: stepType.defaultConfig || {},
     };
-    
+
     // Insert new steps before "Review & Submit" (always keep it last)
     const lastStep = steps[steps.length - 1];
     const isLastReviewSubmit = lastStep && lastStep.name.toLowerCase().includes("review");
-    
+
     if (isLastReviewSubmit && steps.length > 0) {
       // Insert before the last step
       const updatedSteps = [...steps.slice(0, -1), newStep, lastStep];
@@ -426,7 +431,10 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
   const resetOrder = () => {
     const defaultOrder = [
       "Financing Type",
-      "Verify Company Info",
+      "Financing Structure",
+      "Contract Details",
+      "Invoice Details",
+      "Company Details",
       "Supporting Documents",
       "Declarations",
       "Review & Submit",
@@ -457,7 +465,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
             <Bars3Icon className="h-3.5 w-3.5" /> Drag to reorder
           </span>
         </div>
-        
+
         {/* Right: Action buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Button
@@ -503,7 +511,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
                 const isLastReviewSubmit = step.name.toLowerCase().includes("review") && index === steps.length - 1;
                 const isLocked = isFirstFinancingType || isLastReviewSubmit;
                 const hasConfig = !isLastReviewSubmit; // Review & Submit has no config
-                
+
                 return (
                   <SortableStep
                     key={step.id}
@@ -529,7 +537,7 @@ export function WorkflowBuilder({ form, onFileSelected }: WorkflowBuilderProps) 
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base sm:text-lg">Delete workflow step?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm">
-              Are you sure you want to delete <span className="font-semibold text-foreground">{stepToDelete?.name}</span>? 
+              Are you sure you want to delete <span className="font-semibold text-foreground">{stepToDelete?.name}</span>?
               This will remove the step and all its configuration. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
