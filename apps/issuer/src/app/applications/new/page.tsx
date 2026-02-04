@@ -31,10 +31,15 @@ export default function NewApplicationPage() {
   const { activeOrganization } = useOrganization();
 
   // Load products from API
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+  const {
+    data: productsData,
+    isLoading: isLoadingProducts,
+    refetch: refetchProducts,
+  } = useProducts({
     page: 1,
     pageSize: 100,
   });
+
 
   // Hook to create application
   const createApplicationMutation = useCreateApplication();
@@ -136,6 +141,41 @@ export default function NewApplicationPage() {
    * Backend creates record with status=DRAFT and last_completed_step=1
    */
   const handleContinue = async () => {
+    // ===============================
+    // VERSION CHECK BEFORE CREATE
+    // ===============================
+    const { data: latestProductsData } = await refetchProducts();
+
+    const latestProducts = latestProductsData?.products || [];
+
+    const latestProduct = latestProducts.find(
+      (p: any) => p.id === selectedProductId
+    );
+
+    if (!latestProduct) {
+      toast.error("Selected product is no longer available.");
+      return;
+    }
+
+    // Compare against what the user is currently seeing on this page
+    const currentProduct = productsData?.products?.find(
+      (p: any) => p.id === selectedProductId
+    );
+
+    if (!currentProduct) {
+      toast.error("Unable to validate product version.");
+      return;
+    }
+
+    if (latestProduct.version !== currentProduct.version) {
+      toast.error(
+        "This financing product was updated. Please review it again before continuing."
+      );
+      return;
+    }
+
+
+
     // Validate we have what we need
     if (!selectedProductId) {
       toast.error("Please select a financing type");
