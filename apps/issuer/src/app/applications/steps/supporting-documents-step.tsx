@@ -503,6 +503,173 @@ export function SupportingDocumentsStep({
     );
   }
 
+return (
+   <div className="space-y-10">
+    {categories.map((category: any, categoryIndex: number) => {
+      const status = getCategoryStatus(categoryIndex);
+      const isComplete =
+        status.uploadedCount === status.totalCount && status.totalCount > 0;
+      const isExpanded = expandedCategories[categoryIndex] ?? true;
+
+      return (
+        <section key={categoryIndex} className="space-y-4">
+          {/* Section header */}
+          <div>
+            <div className="flex items-center justify-between gap-2">
+<button
+  type="button"
+  onClick={() =>
+    setExpandedCategories((prev: any) => ({
+      ...prev,
+      [categoryIndex]: !isExpanded,
+    }))
+  }
+  className="
+    w-full
+    flex items-center justify-between
+    cursor-pointer
+    text-left
+  "
+>
+  {/* Left side: chevron + title */}
+  <div className="flex items-center gap-2 min-w-0">
+    <ChevronDownIcon
+      className={`h-4 w-4 text-muted-foreground transition-transform ${
+        isExpanded ? "" : "-rotate-90"
+      }`}
+    />
+    <h2 className="text-xl font-semibold text-foreground truncate">
+      {category.name}
+    </h2>
+  </div>
+
+  {/* Right side: file counter */}
+  <span className="text-xl text-muted-foreground whitespace-nowrap">
+    {status.uploadedCount}/{status.totalCount} files required
+  </span>
+</button>
+
+            </div>
+
+            <div className="mt-2 h-px bg-border" />
+          </div>
+
+          {/* Section content */}
+          {isExpanded && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+              {category.documents.map(
+                (document: any, documentIndex: number) => {
+                  const key = `${categoryIndex}-${documentIndex}`;
+                  const isUploaded = isDocumentUploaded(
+                    categoryIndex,
+                    documentIndex
+                  );
+                  const fileIsUploading = uploadingKeys.has(key);
+                  const file = uploadedFiles[key];
+                  const templateS3Key = document.template?.s3_key;
+
+                  return (
+                    <React.Fragment key={documentIndex}>
+                      {/* Document title */}
+                      <div className="text-[16px] leading-[22px] text-muted-foreground">
+                        {document.title}
+                      </div>
+
+                      {/* FIXED ACTION COLUMN */}
+                      <div className="flex justify-end">
+<div className="flex justify-end items-start">
+  <div className="flex items-center gap-3">
+    {/* Download template */}
+    {templateS3Key && (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap"
+        onClick={async () => {
+          const token = await getAccessToken();
+          const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ s3Key: templateS3Key }),
+          });
+          const j = await resp.json();
+          if (j?.success && j.data?.downloadUrl) {
+            window.open(j.data.downloadUrl, "_blank");
+          }
+        }}
+      >
+        <ArrowDownTrayIcon className="h-4 w-4" />
+        <span>Download template</span>
+      </button>
+    )}
+
+    {/* Separator */}
+    <div className="w-px h-4 bg-border/60" />
+
+    {/* FIXED upload slot */}
+    <div className="w-[160px]">
+      {isUploaded && file && !fileIsUploading ? (
+        <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full">
+          {/* check */}
+          <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+            <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+          </div>
+
+          {/* filename (truncate) */}
+          <span className="text-[14px] font-medium truncate flex-1">
+            {file.name}
+          </span>
+
+          {/* remove */}
+          <button
+            type="button"
+            onClick={() =>
+              handleRemoveFile(categoryIndex, documentIndex)
+            }
+            className="text-muted-foreground hover:text-foreground shrink-0"
+          >
+            <XMarkIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <label
+          htmlFor={`file-${key}`}
+          className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive cursor-pointer hover:opacity-80 whitespace-nowrap w-full"
+        >
+          <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+          <span className="truncate">Upload file</span>
+          <Input
+            id={`file-${key}`}
+            type="file"
+            accept="application/pdf"
+            onChange={(e) =>
+              handleFileChange(categoryIndex, documentIndex, e)
+            }
+            className="hidden"
+            disabled={fileIsUploading}
+          />
+        </label>
+      )}
+    </div>
+  </div>
+</div>
+
+
+ 
+                      </div>
+                    </React.Fragment>
+                  );
+                }
+              )}
+            </div>
+          )}
+        </section>
+      );
+    })}
+  </div>
+)
   return (
     <div className="space-y-6 sm:space-y-8 md:space-y-12">
       {categories.map((category: any, categoryIndex: number) => {
