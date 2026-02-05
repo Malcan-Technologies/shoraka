@@ -1,0 +1,136 @@
+SECTION: ADMIN PRODUCTS
+[x] Admin can create products. 
+  - if documents are uploaded. make sure it only save to s3 after user click save and continue)
+  - saved under products/<db_id>/<here>
+[x] Products are listed in the admin section.
+  - appear from latest to oldest
+
+// multple page
+  - should work if the list span to multiple pages
+[x] Products have specific versions.
+  - always start at v1
+[x] Product version increases when an admin changes a product.
+  - make sure image store in s3, is not based on this product version (it should be based on version name that is stored in the s3_key)
+  - when update an image the version of the image should update, date stay as when the s3_key is created (prefer)
+[x] Products control which application steps are shown
+  - in the admin products page, when click edit on the product it should have a modal that shows u the workflow steps
+
+// multiple page
+  - should still have the modal when use click on the next page of the table
+[x] Products appear on the Issuer's Financing Type page.
+  - appear latest first to oldest
+[x] Admin can search for products by name.
+// multiple page
+  - should work if ther is more than 10
+  - clear filter should work
+[x] Admin can use pagination to view product lists.
+[x] Admin can delete products.
+  - when delete a product, check in s3 that the products/<db_id> is deleted which will includes all the s3_key that are associate with this path
+  - check in the db if the product is deleted 
+
+[] Every CRUD should be recorded in product logs table
+  - the metadata should store the exact worfklow and version from that specific crud action. (eg. current is {step: 1}, when i update it become {step: 2} i should store {step: 2}  with status PRODUCT_UPDATED)
+  - for delete store the last recorded worfklow and version before it is deleted with status PRODUCT_DELETED
+  - when create, teh metadata is storign the info to create that thing with status PRODUCT_CREATED
+
+  - product logs table, latest should appear first ( every admin crud should all appear under one table) !!!! not tested
+
+
+BUGS
+- when alert box content keep chagning, it overlap with the workflow step box
+- when storing document to s3, version_date_cuid.ext, the date is stored in utc time 8 hours less than current malaysia time
+
+SECTION: ISSUER APPLICATIONS
+[x] Application is created after the first step is completed.
+  - applicaiton should have status of DRAFT when first created
+  - product_version stored needs to follow the product version on that period
+  - last completed step should be 1 (1 based)
+  - financing type step, should store product id
+[ ] Application saves data at each step.
+//company details
+  - make sure 
+   for company info when update industry and number of employess, it update the issuer_organization "corporate_onboarding_data" basic info
+
+// directors and shareholder
+ - for kyc status, it get the info from director_kyc_status
+   name is coming from role field: "role": "Director, Shareholder (10%), Shareholder (10%)" | got logic to check by each comma
+  
+   status is coming from kycStatus:  APPROVED
+
+- for kyc it get from corporate entities
+  corporateShareholders field, formContent field - displayAreas - content - fieldName is Business name then get its fieldValue Shell. and its status is check under the approveStatus field "approvedStatus": "APPROVED",
+
+
+  // banking details
+  - under bank_account_details under content - bank account number and bank
+
+  // contact person
+  should store under application instead of issuer origanization contact_person field
+
+
+Supporting document
+[ ] The lastCompletedStep updates after each step is saved.
+[ ] Reloading the page resumes the application at the correct step.
+[ ] Unsaved changes trigger a warning before leaving a step.
+[ ] Switching the product in step 1 does not delete other step data.
+[ ] Users must complete organization verification to start applications.
+[ ] Users cannot skip application steps.
+[ ] Applications handle invalid step numbers in the URL.
+[ ] The system shows a message when no products are available.
+[ ] The application progress is shown to the user.
+[ ] Applications can be archived.
+
+BUGS
+- business details, amount raised should allow user to type in decimal. value should also be store as number not string  -- LUCAS
+- company detials, error msg below each field is gone -- bug from mergin !
+- copany details save and continue button should gray out when a field is not seta
+
+QUESTIONS
+- under business details has a field called is same invoice beingused, will there be any validation for this field?
+- bank details, in bank account numbers should it be store as number or stirng? current is string in db (ic also for contact person)
+
+SECTION: VERSION HANDLING
+[ ] System detects when a product's version has changed.
+[ ] New applications are blocked if the selected product is outdated.
+[ ] Existing applications show a warning if their product is updated.
+[ ] Application status remains DRAFT when a product version mismatch occurs.
+
+
+
+SECTION: FILE HANDLING
+[ ] Application files are stored with the application ID.
+[ ] Product files are stored with the product ID.
+[ ] Replacing an uploaded file updates its reference.
+[ ] Deleting a record deletes its related files from storage.
+
+
+
+CONFLICT FOUND
+User intended behavior for version mismatch on later steps: "save first then prompt".
+Actual behavior: The system blocks saving and prompts the user to restart the application immediately. It does not save the current step's data.
+
+
+
+CHANGELOG (INTERNAL)
+Started: 20 Jan 2026
+Released: 28 Jan 2026
+Implemented product creation and management in admin.
+Added application workflow based on product configuration.
+Developed application creation and step progression for issuers.
+Implemented product version checking for new and existing applications.
+Integrated file storage and referencing for applications and products.
+Added unsaved changes warning for application steps.
+Implemented application step validation and resume logic.
+Included application archiving feature.
+
+
+
+RELEASE NOTES (USER-FACING)
+Release Date: 28 Jan 2026
+What’s New
+Admins can now create and manage financing products.
+Issuers can start new financing applications.
+Applications save your progress at each step.
+The system checks for updated product versions to ensure you use the latest workflow.
+You will be warned about unsaved changes if you try to leave an application step.
+DONE
