@@ -61,6 +61,9 @@ SECTION: ISSUER APPLICATIONS
   corporateShareholders field, formContent field - displayAreas - content - fieldName is Business name then get its fieldValue Shell. and its status is check under the approveStatus field "approvedStatus": "APPROVED",
 
 
+// address 
+the info is gotten from corporate_onboarding_data under address field - business and registered
+
   // banking details
   - under bank_account_details under content - bank account number and bank
 
@@ -68,26 +71,101 @@ SECTION: ISSUER APPLICATIONS
   should store under application instead of issuer origanization contact_person field
 
 
-Supporting document
-[ ] The lastCompletedStep updates after each step is saved.
-[ ] Reloading the page resumes the application at the correct step.
-[ ] Unsaved changes trigger a warning before leaving a step.
-[ ] Switching the product in step 1 does not delete other step data.
+//Supporting document
+- upload file shouldnt upload until click save and continue
+- if got template should display a download template word and allow them to download (couldnt get the download to work because its presigned url its just to view but can view as pdf so can downlaod from there)
+- file required should update as they add ore remove the pending upload file, all must ebe met then only can save adn ocntinue
+- make sure when upload it also hav ethe version_date_cuid.ext, when replace the version should just be updated, the rest stay
+
+
+
+[x] The lastCompletedStep updates after each step is saved.
+[ x] Reloading the page resumes the application at the correct step.
+- only if dont have the ?step param then will lead to last completed step
+
+[ xxx] Unsaved changes trigger a warning before leaving a step. 
+- it should also gray out save and continue
+
+click back
+----
+declration, is ok
+supporting document is ok
+company details is not really ok // check bugs
+business details is ok
+financing type is ok
+
+reload
+---
+financing type is ok
+buisness details is ok
+company details is note really ok //same check bugs
+supporting documetns is ok
+declrations is ok
+
+clicking another link
+---
+financing type is ok
+business details is ok
+company detail is not really ok // same check bugs
+supportig document is ok
+declration is ok
+
+clicking back button at top in browser
+--- (need further testing )
+
+edit url
+finanicng ytpe is ok
+buisuenss is ok
+company is not really ok /same bug
+supporting documetn is ok
+delcration is ok
+
+
+
+[ x] Switching the product in step 1 does not delete other step data.
+- data still stay in db, 
+- if db has data for that step it will uato populate the steps also
+
+
 [ ] Users must complete organization verification to start applications.
-[ ] Users cannot skip application steps.
-[ ] Applications handle invalid step numbers in the URL.
+
+[ x] Users cannot skip application steps.
+scnerio 1
+- if user manually change step to be further then where they are at for last ocmpleted step but still within the number of workflow step then will go to their latest step + 1
+// please complete step in order
+
+scnerio 2
+- if user types 0 or less then 0 go to their last ocmpleted step
+// invalid step number 
+
+scnerio 3
+- if user typed way out of the number of workflow step go to their last completed step
+// the step no longer exist 
+
+
 [ ] The system shows a message when no products are available.
-[ ] The application progress is shown to the user.
-[ ] Applications can be archived.
+
+
+[ x] The application progress is shown to the user.
+[ x] Applications can be archived.
+- it archived whenever version mismatch and user click start new application, if not stya as draft
 
 BUGS
 - business details, amount raised should allow user to type in decimal. value should also be store as number not string  -- LUCAS
 - company detials, error msg below each field is gone -- bug from mergin !
 - copany details save and continue button should gray out when a field is not seta
+ -company detials when click save will always trigger as got changes
+
+ - version mismatch error when switch differnt product with differnt version when save and continue will still prompt it shouldnt, need ot add a check only do that test if product id is the same
 
 QUESTIONS
 - under business details has a field called is same invoice beingused, will there be any validation for this field?
 - bank details, in bank account numbers should it be store as number or stirng? current is string in db (ic also for contact person)
+
+FEATURE to add
+
+- in supporting documents after uploadign make it abel to view the uploaded file ( resume seem meaningless if cannot view back)
+
 
 SECTION: VERSION HANDLING
 [ ] System detects when a product's version has changed.
