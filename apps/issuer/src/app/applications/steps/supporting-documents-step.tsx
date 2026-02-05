@@ -604,10 +604,14 @@ export function SupportingDocumentsStep({
                                 ) : (
                                   <label
                                     htmlFor={`file-${key}`}
-                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive cursor-pointer hover:opacity-80 whitespace-nowrap w-full"
+                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80"
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">Upload file</span>
+
+                                    <span className="truncate">
+                                      {fileIsUploading ? "Uploading…" : "Upload file"}
+                                    </span>
+
                                     <Input
                                       id={`file-${key}`}
                                       type="file"
@@ -619,6 +623,7 @@ export function SupportingDocumentsStep({
                                       disabled={fileIsUploading}
                                     />
                                   </label>
+
                                 )}
                               </div>
                             </div>
