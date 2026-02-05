@@ -101,6 +101,7 @@ export function FinancingTypeStep({
         products={products}
         selectedProductId={selectedProductId}
         onProductSelect={handleProductSelect}
+          isLoading={isLoadingProducts}
       />
     </div>
   );

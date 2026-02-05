@@ -1,9 +1,62 @@
 "use client";
 
 import * as React from "react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useS3ViewUrl } from "@/hooks/use-s3";
+
+
+
+function ProductCardSkeleton() {
+  return (
+    <div className="block w-full">
+      {/* Reserve 2px border space (same as real card) */}
+      <div className="rounded-xl border-2 border-transparent">
+        {/* Visible card */}
+        <div className="w-full rounded-[10px] border border-border px-6 py-[10px]">
+          <div className="flex items-start gap-4">
+            {/* Image (56x56) */}
+            <div className="shrink-0">
+              <div className="h-[56px] w-[56px] rounded-sm border border-border bg-white overflow-hidden">
+                <Skeleton className="h-full w-full" />
+              </div>
+            </div>
+
+            {/* Text (TOP aligned like real card) */}
+            <div className="min-w-0 flex-1 pt-[2px]">
+              {/* Title line ≈ 22px text */}
+              <Skeleton className="h-[22px] w-[62%] rounded" />
+
+              {/* Description line ≈ 16px text — nudged DOWN a bit */}
+              <Skeleton className="mt-[9px] h-[16px] w-[78%] rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+}
+
+function CategorySkeleton() {
+  return (
+    <section className="space-y-4">
+      <div>
+        {/* Category header — VERY SLIGHTLY higher */}
+        <Skeleton className="mt-[4px] h-[24px] w-[160px] rounded" />
+        <div className="mt-2 h-px bg-border" />
+      </div>
+
+      <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3">
+        <ProductCardSkeleton />
+        <ProductCardSkeleton />
+      </div>
+    </section>
+  );
+}
+
+
+
+
 
 /**
  * PRODUCT IMAGE
@@ -15,7 +68,7 @@ function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
   const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
 
   if (isLoading) {
-    return <Skeleton className="w-full h-full" />;
+    return <Skeleton className="w-full h-full rounded-sm" />;
   }
 
   if (!imageUrl) {
@@ -36,6 +89,8 @@ function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
     />
   );
 }
+
+
 
 /**
  * PRODUCT CARD
@@ -60,38 +115,57 @@ interface ProductCardProps {
 function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }: ProductCardProps) {
   return (
     <label
-      className={`
-        relative flex items-start gap-3 sm:gap-4 border rounded-xl p-3 sm:p-4 cursor-pointer 
-        transition-colors
-        ${isSelected ? "border-primary" : "border-border hover:border-primary/50"}
-      `}
       onClick={() => onSelect(id)}
+      className="block w-full cursor-pointer"
     >
-      {/* Product Image */}
-      <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
-        <ProductImage s3Key={imageS3Key} alt={name} />
-      </div>
-      
-      {/* Product Info */}
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-base sm:text-lg leading-6 sm:leading-7">
-          {name}
+      {/* 
+        Outer wrapper ALWAYS reserves 2px border space 
+        so switching 1px → 2px never shifts layout
+      */}
+      <div className="rounded-xl border-2 border-transparent">
+        {/* Actual visible card */}
+        <div
+          className={[
+            "w-full rounded-[10px] transition-colors",
+            "px-6 py-[10px]", // tighter card
+            isSelected
+              ? "border-2 border-primary"
+              : "border border-border hover:border-primary/50",
+          ].join(" ")}
+        >
+          <div className="flex items-start gap-4">
+            {/* Image */}
+            <div className="shrink-0">
+              <div
+                className="h-[56px] w-[56px] rounded-sm border border-border bg-white flex items-center justify-center overflow-hidden"
+                style={{
+                  boxShadow: "0 1px 1px hsl(var(--border))",
+                }}
+              >
+                <ProductImage s3Key={imageS3Key} alt={name} />
+              </div>
+            </div>
+
+            {/* Text */}
+            <div className="min-w-0 flex-1">
+              <div className="text-[22px] leading-[28px] font-medium text-foreground line-clamp-1">
+                {name}
+              </div>
+              <div className=" text-[16px] leading-[22px] text-muted-foreground line-clamp-1">
+                {description}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="text-muted-foreground text-sm sm:text-base leading-5 sm:leading-6">
-          {description}
-        </div>
-      </div>
-      
-      {/* Checkbox */}
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-        <Checkbox
-          checked={isSelected}
-          className="rounded"
-        />
       </div>
     </label>
-  );
+  )
+
 }
+
+
+
+
 
 /**
  * PRODUCT LIST
@@ -108,9 +182,10 @@ interface ProductListProps {
   products: any[];  // Accept any product structure from API
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
+  isLoading: boolean;
 }
 
-export function ProductList({ products, selectedProductId, onProductSelect }: ProductListProps) {
+export function ProductList({ products, selectedProductId, onProductSelect, isLoading }: ProductListProps) {
   /**
    * Group products by category
    * 
@@ -120,20 +195,20 @@ export function ProductList({ products, selectedProductId, onProductSelect }: Pr
    */
   const productsByCategory = React.useMemo(() => {
     const grouped: Record<string, any[]> = {};
-    
+
     products.forEach((product: any) => {
       // Find the "Financing Type" step in the workflow
-      const financingStep = product.workflow?.find((step: any) => 
+      const financingStep = product.workflow?.find((step: any) =>
         step.name?.toLowerCase().includes("financing type")
       );
       const config = financingStep?.config || {};
-      
+
       // Extract data from config (image can be nested config.image or legacy config.s3_key)
       const category = config.category || "Other";
       const name = config.name || "Unnamed Product";
       const description = config.description || "";
       const imageUrl = config.image?.s3_key || config.s3_key || "";
-      
+
       // Create product data
       const productData = {
         id: product.id,
@@ -142,28 +217,37 @@ export function ProductList({ products, selectedProductId, onProductSelect }: Pr
         imageUrl: imageUrl,
         category: category,
       };
-      
+
       if (!grouped[category]) {
         grouped[category] = [];
       }
       grouped[category].push(productData);
     });
-    
+
     return grouped;
   }, [products]);
-  
+
+  if (isLoading) {
+    return (
+      <div className="space-y-10">
+        <CategorySkeleton />
+        <CategorySkeleton />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-10">
       {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
-        <div key={category} className="space-y-3 sm:space-y-4">
-          {/* Category Header */}
+        <section key={category} className="space-y-4">
           <div>
-            <h2 className="text-lg sm:text-xl font-semibold">{category}</h2>
+            <h2 className="text-xl font-semibold text-foreground">
+              {category}
+            </h2>
             <div className="mt-2 h-px bg-border" />
           </div>
-          
-          {/* Products in this category */}
-          <div className="space-y-3 sm:space-y-4 pl-3 sm:pl-6">
+
+          <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3"> 
             {categoryProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -176,8 +260,10 @@ export function ProductList({ products, selectedProductId, onProductSelect }: Pr
               />
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
+
+
   );
 }
