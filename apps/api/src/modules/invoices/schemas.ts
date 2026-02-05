@@ -5,8 +5,7 @@ export const invoiceDetailsSchema = z.object({
   number: z.string(),
   value: z.number(),
   maturity_date: z.string(),
-  document: documentSchema.optional(),
-  status: z.string().optional(),
+  document: documentSchema.nullable().optional(),
 });
 
 export const createInvoiceSchema = z.object({

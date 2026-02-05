@@ -114,6 +114,36 @@ async function getInvoicesByContract(req: Request, res: Response, next: NextFunc
   }
 }
 
+async function approveInvoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const invoice = await invoiceService.approveInvoice(id);
+
+    res.json({
+      success: true,
+      data: invoice,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function rejectInvoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const invoice = await invoiceService.rejectInvoice(id);
+
+    res.json({
+      success: true,
+      data: invoice,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function requestUploadUrl(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = invoiceIdParamSchema.parse(req.params);
@@ -148,6 +178,8 @@ export function createInvoiceRouter(): Router {
   router.patch("/:id", requireAuth, updateInvoice);
   router.delete("/:id", requireAuth, deleteInvoice);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
+  router.patch("/:id/approve", requireAuth, approveInvoice);
+  router.patch("/:id/reject", requireAuth, rejectInvoice);
 
   return router;
 }

@@ -10,7 +10,7 @@ import {
   useUpdateApplicationStep,
   useArchiveApplication,
 } from "@/hooks/use-applications";
-import { useCreateContract, useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
+import { useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -100,7 +100,7 @@ export default function EditApplicationPage() {
   const archiveApplicationMutation = useArchiveApplication();
 
   // Hooks for contract handling (for skip/autofill logic)
-  const createContractMutation = useCreateContract();
+  // const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
   const unlinkContractMutation = useUnlinkContract();
 
@@ -189,6 +189,21 @@ export default function EditApplicationPage() {
 
     // Return step names
     return product.workflow.map((step: any) => step.name);
+  }, [application, productsData]);
+
+  /**
+   * GET FULL WORKFLOW
+   */
+  const productWorkflow = React.useMemo(() => {
+    if (!application || !productsData) return [];
+
+    const financingType = application.financing_type as any;
+    const productId = financingType?.product_id;
+    if (!productId) return [];
+
+    const products = productsData.products || [];
+    const product = products.find((p: any) => p.id === productId);
+    return product?.workflow || [];
   }, [application, productsData]);
 
   const isLoading = isLoadingApp || isLoadingProducts;
@@ -489,11 +504,18 @@ export default function EditApplicationPage() {
       let prevStep = stepFromUrl - 1;
 
       // Handle skip logic for Back button
-      // If we are on Step 4 (Invoice Details) and structure is not 'new_contract', skip Step 3
-      if (stepFromUrl === 4) {
+      // If we are on Invoice Details and the financing type is NOT 'new_contract',
+      // we need to skip the Contract Details step.
+      if (currentStepKey === "invoice_details") {
         const savedStructure = application?.financing_structure as any;
         if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-          prevStep = stepFromUrl - 2;
+          // Find the index of the financing_structure step to go back to it
+          const structureStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
+          );
+          if (structureStepIndex !== -1) {
+            prevStep = structureStepIndex + 1; // 1-based
+          }
         }
       }
 
@@ -570,13 +592,40 @@ export default function EditApplicationPage() {
 
       // Final cleanup of frontend-only properties before saving to DB
       if (dataToSave) {
+        // Capture specific fields for invoice_details step before clearing dataToSave
+        const invoices = dataToSave.invoices;
+        const availableFacility = dataToSave.available_facility;
+
         delete (dataToSave as any).hasPendingChanges;
         delete (dataToSave as any).saveFunction;
         delete (dataToSave as any).isValid;
+        delete (dataToSave as any).validationError;
 
         // If this is a special step that saves to its own table (Contract/Invoice),
         // we don't want to send the details back to the Application table
         if (currentStepKey === "contract_details" || currentStepKey === "invoice_details") {
+          // Special handling for invoice_details to update contract available_facility
+          if (currentStepKey === "invoice_details" && application?.contract?.id) {
+             const approvedFacility = (application.contract.contract_details as any)?.approved_facility || 0;
+             if (approvedFacility > 0) {
+                // Net financing from CURRENT (DRAFT) invoices in this application
+                const currentAppDraftFinancing = (invoices || [])
+                  .filter((inv: any) => !inv.isReadOnly && inv.status === "DRAFT")
+                  .reduce((acc: number, inv: any) => acc + (inv.value || 0) * 0.8, 0);
+
+                const newAvailableFacility = Math.max(0, (availableFacility || 0) - currentAppDraftFinancing);
+
+                await updateContractMutation.mutateAsync({
+                  id: application.contract.id,
+                  data: {
+                    contract_details: {
+                      ...(application.contract.contract_details as any),
+                      available_facility: newAvailableFacility,
+                    }
+                  }
+                });
+             }
+          }
           dataToSave = {};
         }
       }
@@ -616,37 +665,19 @@ export default function EditApplicationPage() {
 
         if (structureType === "existing_contract" || structureType === "invoice_only") {
           // Skip Step 3 (Contract Details) and go to Step 4 (Invoice Details)
-          nextStep = stepFromUrl + 2;
-
-          // If existing contract, handle autofill
-          if (structureType === "existing_contract" && dataToSave.autofillContract) {
-            const autofill = dataToSave.autofillContract;
-            // First ensure a contract record exists for this application
-            const contract = await createContractMutation.mutateAsync(applicationId);
-            // Then update it with the autofill data
-            await updateContractMutation.mutateAsync({
-              id: contract.id,
-              data: {
-                contract_details: autofill.contract_details,
-                customer_details: autofill.customer_details,
-              },
-            });
+          // Find the index of the invoice_details step
+          const invoiceStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
+          );
+          if (invoiceStepIndex !== -1) {
+            nextStep = invoiceStepIndex + 1; // 1-based
           }
 
-          // If invoice-only, ensure contract is removed if it exists
+          // If invoice-only, ensure contract is unlinked
           if (structureType === "invoice_only" && application?.contract?.id) {
-            await unlinkContractMutation.mutateAsync(application.contract.id);
+            await unlinkContractMutation.mutateAsync(applicationId);
           }
-
-          // Also update Step 3 as completed in the backend so it doesn't block future navigation
-          // We do this by sending an empty update for step 3
-          // Wait, actually it's easier to just find it by index in workflowSteps
-          // But I don't have the stepId for step 3 easily here.
-          // Let's just use the current approach of setting targetStepRef.
         }
-
-        // Clean up internal flags before saving to DB
-        delete (dataToSave as any).autofillContract;
       }
 
       targetStepRef.current = nextStep;

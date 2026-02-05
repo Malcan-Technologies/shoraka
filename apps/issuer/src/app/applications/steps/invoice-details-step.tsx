@@ -78,6 +78,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     const mappedAppInvoices = appInvoices.map((inv: any) => ({
       ...inv.details,
       id: inv.id,
+      status: inv.status,
       isReadOnly: false,
     }));
 
@@ -85,11 +86,43 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       ? contractInvoices.map((inv: any) => ({
           ...inv.details,
           id: inv.id,
+          status: inv.status,
           isReadOnly: true,
         }))
       : [];
 
-    setInvoices([...mappedContractInvoices, ...mappedAppInvoices]);
+    // Deduplicate: If an invoice is in both, trust the application version (which is editable)
+    const appInvoiceIds = new Set(mappedAppInvoices.map((inv: any) => inv.id));
+    const uniqueContractInvoices = mappedContractInvoices.filter(
+      (inv: any) => !appInvoiceIds.has(inv.id)
+    );
+
+    const allInvoices = [...uniqueContractInvoices, ...mappedAppInvoices];
+
+    // Only update local state if the count changed or if it's the initial load.
+    // This prevents losing focus and lag when typing.
+    // Individual field changes are handled by local state and synced on blur.
+    setInvoices(prev => {
+      if (prev.length !== allInvoices.length) return allInvoices;
+
+      // If count is same, only update items that might have changed status or read-only state
+      // but keep our local field edits for the items we are likely editing.
+      return prev.map(p => {
+        const matching = allInvoices.find(a => a.id === p.id);
+        if (!matching) return p;
+        // Update if status, isReadOnly OR document changed
+        const docChanged = JSON.stringify(matching.document) !== JSON.stringify(p.document);
+        if (matching.status !== p.status || matching.isReadOnly !== p.isReadOnly || docChanged) {
+          return {
+            ...p,
+            status: matching.status,
+            isReadOnly: matching.isReadOnly,
+            document: matching.document
+          };
+        }
+        return p;
+      });
+    });
   }, [appInvoices, contractInvoices, isExistingContract]);
 
   // Stable reference for onDataChange callback
@@ -98,27 +131,54 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
 
+  const contractDetails = (application?.contract?.contract_details as any) || {};
+
   // Notify parent on changes
   React.useEffect(() => {
     const totalFinancingAmount = localInvoices.reduce(
       (acc, inv) => acc + (inv.value || 0) * 0.8,
       0
     );
+
+    const approvedFacility = contractDetails.approved_facility || 0;
+    const contractValue = contractDetails.value || 0;
+
+    // Calculate facility updates
+    const isValid = localInvoices.length > 0 && localInvoices.every((inv) => inv.number && inv.value > 0);
+
+    // Validation check
+    let validationError = null;
+    if (approvedFacility > 0) {
+      const currentAppDraftFinancing = localInvoices
+        .filter(inv => !inv.isReadOnly && inv.status === "DRAFT")
+        .reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
+
+      if (currentAppDraftFinancing > (contractDetails.available_facility || 0)) {
+        validationError = "Total financing amount exceeds available facility limit";
+      }
+    } else {
+       const totalInvoiceValue = localInvoices.reduce((acc, inv) => acc + (inv.value || 0), 0);
+       if (totalInvoiceValue > contractValue) {
+         validationError = "Total invoice value exceeds contract value";
+       }
+    }
+
     onDataChangeRef.current?.({
       invoices: localInvoices,
       totalFinancingAmount,
-      isValid:
-        localInvoices.length > 0 && localInvoices.every((inv) => inv.number && inv.value > 0),
-      hasPendingChanges: false, // Since each action is immediate via API
+      isValid: isValid && !validationError,
+      validationError,
+      // Pass the updated facility values if needed elsewhere
+      available_facility: contractDetails.available_facility,
+      utilized_facility: contractDetails.utilized_facility,
     });
-  }, [localInvoices]);
+  }, [localInvoices, contractDetails]);
 
   const handleAddInvoice = async () => {
     const newInvoiceDetails = {
       number: "",
       value: 0,
       maturity_date: "",
-      status: "DRAFT",
     };
 
     await createInvoiceMutation.mutateAsync({
@@ -135,7 +195,16 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     await deleteInvoiceMutation.mutateAsync({ id, applicationId });
   };
 
-  const handleUpdateInvoice = async (id: string, field: string, value: any) => {
+  const handleUpdateInvoiceLocal = (id: string, field: string, value: any) => {
+    const invoice = localInvoices.find((inv) => inv.id === id);
+    if (invoice?.status === "APPROVED") return;
+
+    setInvoices((prev) =>
+      prev.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv))
+    );
+  };
+
+  const handleUpdateInvoiceServer = async (id: string, field: string, value: any) => {
     const invoice = localInvoices.find((inv) => inv.id === id);
     if (invoice?.status === "APPROVED") return;
 
@@ -176,17 +245,22 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
         throw new Error("Failed to upload file to S3");
       }
 
+      const documentData = {
+        s3_key: s3Key,
+        file_name: file.name,
+        file_size: file.size,
+      };
+
       await updateInvoiceMutation.mutateAsync({
         id: invoiceId,
         applicationId,
         details: {
-          document: {
-            s3_key: s3Key,
-            file_name: file.name,
-            file_size: file.size,
-          },
+          document: documentData,
         },
       });
+
+      // Update local state immediately so UI switches component
+      handleUpdateInvoiceLocal(invoiceId, "document", documentData);
 
       toast.success("Invoice uploaded successfully");
     } catch (error: any) {
@@ -197,7 +271,6 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
   };
 
   const totalFinancingAmount = localInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
-  const contractDetails = (application?.contract?.contract_details as any) || {};
 
   const formatCurrency = (value: any) => {
     const num =
@@ -208,6 +281,24 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     })}`;
   };
 
+  // Status badge component
+  const StatusBadge = ({ status }: { status?: string }) => {
+    if (!status) return null;
+
+    const colors: Record<string, string> = {
+      DRAFT: "bg-slate-100 text-slate-700",
+      SUBMITTED: "bg-blue-100 text-blue-700",
+      APPROVED: "bg-green-100 text-green-700",
+      REJECTED: "bg-red-100 text-red-700",
+    };
+
+    return (
+      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider", colors[status] || colors.DRAFT)}>
+        {status}
+      </span>
+    );
+  };
+
   if (isLoadingApp || isLoadingInvoices) {
     return (
       <div className="space-y-12 pb-8">
@@ -216,6 +307,14 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       </div>
     );
   }
+
+  // Calculate real-time facility values for display
+  const approvedFacility = contractDetails.approved_facility || 0;
+  const currentAppDraftFinancing = localInvoices
+    .filter(inv => !inv.isReadOnly && inv.status === "DRAFT")
+    .reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
+
+  const displayAvailableFacility = Math.max(0, (contractDetails.available_facility || 0) - currentAppDraftFinancing);
 
   return (
     <div className="space-y-12 pb-8">
@@ -247,7 +346,16 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           </div>
           <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
             <span>Available facility</span>
-            <span>{formatCurrency(contractDetails.available_facility)}</span>
+            <div className="flex items-center gap-2">
+              <span className={cn(approvedFacility > 0 && displayAvailableFacility < 0 && "text-destructive font-bold")}>
+                {formatCurrency(approvedFacility > 0 ? displayAvailableFacility : contractDetails.available_facility)}
+              </span>
+              {approvedFacility > 0 && currentAppDraftFinancing > 0 && (
+                <span className="text-[10px] text-muted-foreground font-normal italic">
+                  (Includes {formatCurrency(currentAppDraftFinancing)} from new invoices)
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -278,11 +386,12 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
               <TableHeader className="bg-muted/30">
                 <TableRow className="hover:bg-transparent border-b">
                   <TableHead className="w-[180px] min-w-[150px]">Invoice</TableHead>
-                  <TableHead className="w-[200px] min-w-[150px]">Invoice value</TableHead>
-                  <TableHead className="w-[200px] min-w-[180px]">Maturity date</TableHead>
-                  <TableHead className="min-w-[200px]">Max financing amount (80%)</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  <TableHead className="w-[180px] min-w-[140px]">Invoice value</TableHead>
+                  <TableHead className="w-[180px] min-w-[160px]">Maturity date</TableHead>
+                  <TableHead className="min-w-[180px]">Max financing amount (80%)</TableHead>
                   <TableHead className="w-[180px] min-w-[150px]">Documents</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -300,20 +409,28 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                       )}
                     >
                       <TableCell>
-                        {!isDisabled ? (
-                          <Input
-                            value={invoice.number}
-                            onChange={(e) =>
-                              handleUpdateInvoice(invoice.id, "number", e.target.value)
-                            }
-                            className="h-9 rounded-md"
-                            placeholder="#Invoice number"
-                          />
-                        ) : (
-                          <span className="font-medium text-muted-foreground">
-                            {invoice.number}
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {!isDisabled ? (
+                            <Input
+                              value={invoice.number}
+                              onChange={(e) =>
+                                handleUpdateInvoiceLocal(invoice.id, "number", e.target.value)
+                              }
+                              onBlur={(e) =>
+                                handleUpdateInvoiceServer(invoice.id, "number", e.target.value)
+                              }
+                              className="h-9 rounded-md"
+                              placeholder="#Invoice number"
+                            />
+                          ) : (
+                            <span className="font-medium text-muted-foreground">
+                              {invoice.number}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={invoice.status} />
                       </TableCell>
                       <TableCell>
                         {!isDisabled ? (
@@ -321,7 +438,14 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             type="number"
                             value={invoice.value || ""}
                             onChange={(e) =>
-                              handleUpdateInvoice(
+                                handleUpdateInvoiceLocal(
+                                invoice.id,
+                                "value",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onBlur={(e) =>
+                                handleUpdateInvoiceServer(
                                 invoice.id,
                                 "value",
                                 parseFloat(e.target.value) || 0
@@ -342,7 +466,10 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             type="date"
                             value={invoice.maturity_date}
                             onChange={(e) =>
-                              handleUpdateInvoice(invoice.id, "maturity_date", e.target.value)
+                                handleUpdateInvoiceLocal(invoice.id, "maturity_date", e.target.value)
+                            }
+                            onBlur={(e) =>
+                                handleUpdateInvoiceServer(invoice.id, "maturity_date", e.target.value)
                             }
                             className="h-9 rounded-md"
                           />
@@ -387,7 +514,10 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                                 <button
                                   className="hover:text-destructive transition-colors cursor-pointer shrink-0 ml-1"
                                   type="button"
-                                  onClick={() => handleUpdateInvoice(invoice.id, "document", null)}
+                                  onClick={() => {
+                                    handleUpdateInvoiceLocal(invoice.id, "document", null);
+                                    handleUpdateInvoiceServer(invoice.id, "document", null);
+                                  }}
                                 >
                                   <XMarkIcon className="h-3.5 w-3.5" />
                                 </button>
@@ -446,6 +576,17 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
             </Table>
           </div>
         </div>
+
+        {/* Validation Error */}
+        {(approvedFacility > 0 ? (currentAppDraftFinancing > (contractDetails.available_facility || 0)) : (localInvoices.reduce((acc, inv) => acc + (inv.value || 0), 0) > (contractDetails.value || 0))) && (
+          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+            <XMarkIcon className="h-5 w-5" />
+            {approvedFacility > 0
+              ? "Total financing amount exceeds available facility limit. Please adjust invoice values."
+              : "Total invoice value exceeds contract value. Please adjust invoice values."}
+          </div>
+        )}
+
         <p className="text-center text-sm italic text-muted-foreground mt-4">
           Estimated fees based on 15% p.a. but exact amount will only be decided in offer letter
         </p>

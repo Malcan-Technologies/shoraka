@@ -1,6 +1,7 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { invoiceService } from "../invoices/service";
 import { CreateApplicationInput, UpdateApplicationStepInput } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
@@ -166,6 +167,21 @@ export class ApplicationService {
     // Only update application column if mapping exists
     if (fieldName) {
       (updateData as any)[fieldName] = input.data as Prisma.InputJsonValue;
+
+      // Special handling for financing_structure to link existing contract
+      if (fieldName === "financing_structure") {
+        const structureData = input.data as any;
+        const prevStructure = application.financing_structure as any;
+
+        if (structureData.structure_type === "existing_contract" && structureData.existing_contract_id) {
+          updateData.contract_id = structureData.existing_contract_id;
+        } else if (structureData.structure_type === "invoice_only") {
+          updateData.contract_id = null;
+        } else if (structureData.structure_type === "new_contract" && prevStructure?.structure_type === "existing_contract") {
+          // If switching from existing back to new contract, clear the shared link
+          updateData.contract_id = null;
+        }
+      }
     }
 
     // Update last_completed_step if this is a new step
@@ -174,6 +190,26 @@ export class ApplicationService {
     }
 
     return this.repository.update(id, updateData);
+  }
+
+  /**
+   * Update application status
+   */
+  async updateApplicationStatus(id: string, status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "ARCHIVED", userId: string): Promise<Application> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
+    const updatedApplication = await this.repository.update(id, {
+      status,
+      updated_at: new Date(),
+    });
+
+    // If status transitioned to SUBMITTED, transition invoices too
+    if (status === "SUBMITTED") {
+      await invoiceService.transitionInvoicesToSubmitted(id);
+    }
+
+    return updatedApplication;
   }
 
   /**

@@ -78,7 +78,6 @@ export function useUpdateInvoice() {
   return useMutation({
     mutationFn: async ({
       id,
-      applicationId,
       details,
     }: {
       id: string;

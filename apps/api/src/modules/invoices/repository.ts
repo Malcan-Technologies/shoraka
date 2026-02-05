@@ -52,8 +52,34 @@ export class InvoiceRepository {
 
   async findByContractId(contractId: string): Promise<Invoice[]> {
     return prisma.invoice.findMany({
+      where: {
+        contract_id: contractId,
+        status: {
+          in: ["SUBMITTED", "APPROVED"],
+        },
+      },
+      orderBy: { created_at: "asc" },
+    });
+  }
+
+  async findAllByContractId(contractId: string): Promise<Invoice[]> {
+    return prisma.invoice.findMany({
       where: { contract_id: contractId },
       orderBy: { created_at: "asc" },
+    });
+  }
+
+  async updateStatus(id: string, status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"): Promise<Invoice> {
+    return prisma.invoice.update({
+      where: { id },
+      data: { status },
+    });
+  }
+
+  async updateManyStatus(ids: string[], status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"): Promise<void> {
+    await prisma.invoice.updateMany({
+      where: { id: { in: ids } },
+      data: { status },
     });
   }
 }

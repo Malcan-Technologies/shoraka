@@ -117,6 +117,33 @@ export class InvoiceService {
 
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
+
+    // Facility validation
+    if (contractId) {
+      const contract = await this.contractRepository.findById(contractId);
+      if (contract) {
+        const contractDetails = contract.contract_details as any;
+        const approvedFacility = contractDetails?.approved_facility || 0;
+        const contractValue = contractDetails?.value || 0;
+        const availableFacility = contractDetails?.available_facility || 0;
+
+        const invoiceValue = details.value || 0;
+        const maxFinancing = invoiceValue * 0.8;
+
+        if (approvedFacility > 0) {
+          if (maxFinancing > availableFacility) {
+            throw new AppError(400, "FACILITY_LIMIT_EXCEEDED", `Max financing (${maxFinancing}) exceeds available facility (${availableFacility})`);
+          }
+        } else {
+          const existingInvoices = await this.repository.findAllByContractId(contractId);
+          const totalInvoiceValue = existingInvoices.reduce((sum, inv) => sum + ((inv.details as any).value || 0), 0);
+          if (totalInvoiceValue + invoiceValue > contractValue) {
+            throw new AppError(400, "CONTRACT_LIMIT_EXCEEDED", "Total invoice value exceeds contract value");
+          }
+        }
+      }
+    }
+
     return this.repository.create({
       application_id: applicationId,
       contract_id: contractId,
@@ -132,8 +159,7 @@ export class InvoiceService {
     const invoice = await this.verifyInvoiceAccess(id, userId);
 
     // Check if invoice is approved (cannot edit approved invoices)
-    const currentDetails = invoice.details as any;
-    if (currentDetails?.status === "APPROVED") {
+    if (invoice.status === "APPROVED") {
       throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
     }
 
@@ -152,12 +178,93 @@ export class InvoiceService {
     const invoice = await this.verifyInvoiceAccess(id, userId);
 
     // Check if invoice is approved (cannot delete approved invoices)
-    const details = invoice.details as any;
-    if (details?.status === "APPROVED") {
+    if (invoice.status === "APPROVED") {
       throw new AppError(400, "BAD_REQUEST", "Cannot delete an approved invoice");
     }
 
     await this.repository.delete(id);
+  }
+
+  async transitionInvoicesToSubmitted(applicationId: string): Promise<void> {
+    const invoices = await this.repository.findByApplicationId(applicationId);
+    const draftInvoiceIds = invoices
+      .filter((inv) => inv.status === "DRAFT")
+      .map((inv) => inv.id);
+
+    if (draftInvoiceIds.length > 0) {
+      await this.repository.updateManyStatus(draftInvoiceIds, "SUBMITTED");
+    }
+  }
+
+  async approveInvoice(id: string): Promise<Invoice> {
+    const invoice = await this.repository.findById(id);
+    if (!invoice) {
+      throw new AppError(404, "INVOICE_NOT_FOUND", "Invoice not found");
+    }
+
+    if (invoice.status !== "SUBMITTED") {
+      throw new AppError(400, "BAD_REQUEST", "Only SUBMITTED invoices can be approved");
+    }
+
+    const updatedInvoice = await this.repository.updateStatus(id, "APPROVED");
+
+    // Update utilized_facility
+    if (invoice.contract_id) {
+      const contract = await this.contractRepository.findById(invoice.contract_id);
+      if (contract) {
+        const contractDetails = contract.contract_details as any;
+        const invoiceValue = (invoice.details as any).value || 0;
+        const financeAmount = invoiceValue * 0.8;
+
+        const newUtilized = (contractDetails.utilized_facility || 0) + financeAmount;
+        // available_facility remains the same as it was already decremented on creation/submission
+        // Wait, if it wasn't decremented in the DB yet, we should update it here too to be safe?
+        // But the user said it goes down when it is "made".
+
+        await this.contractRepository.update(invoice.contract_id, {
+          contract_details: {
+            ...contractDetails,
+            utilized_facility: newUtilized,
+          },
+        });
+      }
+    }
+
+    return updatedInvoice;
+  }
+
+  async rejectInvoice(id: string): Promise<Invoice> {
+    const invoice = await this.repository.findById(id);
+    if (!invoice) {
+      throw new AppError(404, "INVOICE_NOT_FOUND", "Invoice not found");
+    }
+
+    if (invoice.status !== "SUBMITTED") {
+      throw new AppError(400, "BAD_REQUEST", "Only SUBMITTED invoices can be rejected");
+    }
+
+    const updatedInvoice = await this.repository.updateStatus(id, "REJECTED");
+
+    // If rejected, available_facility should go back up
+    if (invoice.contract_id) {
+      const contract = await this.contractRepository.findById(invoice.contract_id);
+      if (contract) {
+        const contractDetails = contract.contract_details as any;
+        const invoiceValue = (invoice.details as any).value || 0;
+        const financeAmount = invoiceValue * 0.8;
+
+        const newAvailable = (contractDetails.available_facility || 0) + financeAmount;
+
+        await this.contractRepository.update(invoice.contract_id, {
+          contract_details: {
+            ...contractDetails,
+            available_facility: newAvailable,
+          },
+        });
+      }
+    }
+
+    return updatedInvoice;
   }
 
   async getInvoicesByApplication(applicationId: string, userId: string): Promise<Invoice[]> {

@@ -90,11 +90,17 @@ export class ContractService {
       return existingContract;
     }
 
-    return this.repository.create({
-      application_id: applicationId,
+    const contract = await this.repository.create({
       issuer_organization_id: application.issuer_organization_id,
       status: "DRAFT",
     });
+
+    // Link it to the application
+    await this.applicationRepository.update(applicationId, {
+      contract_id: contract.id,
+    });
+
+    return contract;
   }
 
   async getContract(id: string, userId: string): Promise<Contract> {
@@ -109,9 +115,11 @@ export class ContractService {
     });
   }
 
-  async unlinkContract(id: string, userId: string): Promise<void> {
-    await this.verifyContractAccess(id, userId);
-    return this.repository.unlinkFromApplication(id);
+  async unlinkContract(applicationId: string, userId: string): Promise<void> {
+    const application = await this.verifyApplicationAccess(applicationId, userId);
+    if (!application.contract_id) return;
+
+    return this.repository.unlinkFromApplication(application.contract_id, applicationId);
   }
 
   async getApprovedContracts(userId: string, organizationId: string): Promise<Contract[]> {

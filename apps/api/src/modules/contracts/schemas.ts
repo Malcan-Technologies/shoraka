@@ -16,7 +16,7 @@ export const contractDetailsSchema = z.object({
   approved_facility: z.number(),
   utilized_facility: z.number(),
   available_facility: z.number(),
-  document: documentSchema.optional(),
+  document: documentSchema.nullable().optional(),
 });
 
 export const customerDetailsSchema = z.object({
@@ -25,7 +25,7 @@ export const customerDetailsSchema = z.object({
   ssm_number: z.string(),
   country: z.string(),
   is_related_party: z.boolean(),
-  document: documentSchema.optional(),
+  document: documentSchema.nullable().optional(),
 });
 
 export const createContractSchema = z.object({

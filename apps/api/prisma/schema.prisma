@@ -325,10 +325,11 @@ model Application {
   supporting_documents   Json?
   declarations           Json?
   review_and_submit      Json?
+  contract_id            String?
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  contract               Contract?
+  contract               Contract?          @relation(fields: [contract_id], references: [id])
   invoices               Invoice[]
 
   @@map("applications")
@@ -338,12 +339,11 @@ model Contract {
   id                     String             @id @default(cuid())
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
-  application_id         String?            @unique
   contract_details       Json?
   customer_details       Json?
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
-  application            Application?       @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
 
@@ -351,14 +351,15 @@ model Contract {
 }
 
 model Invoice {
-  id             String      @id @default(cuid())
+  id             String        @id @default(cuid())
   contract_id    String?
   application_id String
+  status         InvoiceStatus @default(DRAFT)
   details        Json
-  created_at     DateTime    @default(now())
-  updated_at     DateTime    @updatedAt
-  application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract       Contract?   @relation(fields: [contract_id], references: [id])
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  application    Application   @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract       Contract?     @relation(fields: [contract_id], references: [id])
 
   @@index([contract_id])
   @@index([application_id])
@@ -630,6 +631,13 @@ enum ApplicationStatus {
 }
 
 enum ContractStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum InvoiceStatus {
   DRAFT
   SUBMITTED
   APPROVED

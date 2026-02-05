@@ -61,6 +61,7 @@ import type {
   Product,
   GetProductsResponse,
   Application,
+  ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationStepInput,
   Contract,
@@ -976,6 +977,10 @@ export class ApiClient {
     return this.patch<Application>(`/v1/applications/${id}/step`, data);
   }
 
+  async updateApplicationStatus(id: string, status: ApplicationStatus): Promise<ApiResponse<Application> | ApiError> {
+    return this.patch<Application>(`/v1/applications/${id}/status`, { status });
+  }
+
   async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
@@ -1167,6 +1172,14 @@ export class ApiClient {
 
   async getInvoicesByContract(contractId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
     return this.get<Invoice[]>(`/v1/invoices/by-contract/${contractId}`);
+  }
+
+  async approveInvoice(id: string): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.patch<Invoice>(`/v1/invoices/${id}/approve`, {});
+  }
+
+  async rejectInvoice(id: string): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.patch<Invoice>(`/v1/invoices/${id}/reject`, {});
   }
 
   async requestInvoiceUploadUrl(

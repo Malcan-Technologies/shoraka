@@ -3,13 +3,11 @@ import { Contract, Prisma, ContractStatus } from "@prisma/client";
 
 export class ContractRepository {
   async create(data: {
-    application_id: string;
     issuer_organization_id: string;
     status?: ContractStatus;
   }): Promise<Contract> {
     return prisma.contract.create({
       data: {
-        application_id: data.application_id,
         issuer_organization_id: data.issuer_organization_id,
         status: data.status ?? "DRAFT",
       },
@@ -20,7 +18,7 @@ export class ContractRepository {
     return prisma.contract.findUnique({
       where: { id },
       include: {
-        application: true,
+        applications: true,
         issuer_organization: true,
         invoices: true,
       },
@@ -28,9 +26,11 @@ export class ContractRepository {
   }
 
   async findByApplicationId(applicationId: string): Promise<Contract | null> {
-    return prisma.contract.findUnique({
-      where: { application_id: applicationId },
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { contract: true }
     });
+    return application?.contract ?? null;
   }
 
   async update(id: string, data: Prisma.ContractUpdateInput): Promise<Contract> {
@@ -40,10 +40,10 @@ export class ContractRepository {
     });
   }
 
-  async unlinkFromApplication(id: string): Promise<void> {
-    await (prisma.contract as any).update({
-      where: { id },
-      data: { application_id: null },
+  async unlinkFromApplication(contractId: string, applicationId: string): Promise<void> {
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { contract_id: null },
     });
   }
 
