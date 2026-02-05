@@ -360,6 +360,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     []
   );
 
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col w-[calc(100vw-1rem)] max-w-4xl max-h-[min(90vh,90dvh)] overflow-hidden rounded-xl border-border p-4 gap-3 sm:w-full sm:max-h-[90vh] sm:p-6 sm:gap-4 [&>div]:min-h-0">
@@ -480,26 +481,51 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         )}
 
         {!isEdit || product ? (
-          <div className="shrink-0 flex flex-col gap-2 min-w-0">
+          // <div className="shrink-0 flex flex-col gap-4 min-w-0">
+            // <div className="shrink-0 flex flex-col gap-0 min-w-0">
+              <div className="shrink-0 flex flex-col gap-4 min-w-0">
+
+
             {steps.length > 0 && !isSaving && !saveTriggered && (() => {
               const requiredErrors = getRequiredStepErrors(steps);
               if (requiredErrors.length === 0) return null;
+
+    
+
               return (
-                <div className="mx-0 -mt-1 rounded-lg border border-amber-500/70 bg-amber-50 px-3 py-2.5 text-sm leading-6 dark:border-amber-500/50 dark:bg-amber-950/40 sm:mx-4 sm:-mt-3 sm:px-4 sm:py-3">
-                  <div className="flex items-start gap-2 sm:gap-3">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" aria-hidden />
+                // <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+                  // <div className="my-4 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+                    <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+
+
+
+                  <div className="flex items-start gap-2.5">
+                    {/* <AlertTriangle
+                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
+                      aria-hidden
+                    /> */}
+                    <AlertTriangle
+  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500 ml-1"
+  aria-hidden
+/>
+
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                        {isEdit ? "Complete these before saving" : "Complete these before create"}
+                        {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
                       </p>
-                      <ul className="mt-1 list-disc list-inside space-y-1 text-amber-900 dark:text-amber-100">
+
+                      <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
                         {requiredErrors.map((msg, i) => {
                           const [label, rest] = msg.split(":");
 
                           return (
-                            <li key={i} className="text-xs leading-4">
-                              <span className="font-medium">{label}:</span>
-                              {rest}
+                            <li key={i} className="text-sm leading-6">
+                              <span className="font-medium text-amber-900 dark:text-amber-100">
+                                {label}
+                              </span>
+                              <span className="text-amber-800/90 dark:text-amber-200/90">
+                                : {rest}
+                              </span>
                             </li>
                           );
                         })}
@@ -507,13 +533,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
 
 
-
-
-
-
                     </div>
                   </div>
                 </div>
+
               );
             })()}
             <DialogFooter className="shrink-0 flex-wrap gap-2">
