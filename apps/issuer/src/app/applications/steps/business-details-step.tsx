@@ -152,17 +152,51 @@ interface BusinessDetailsStepProps {
   onDataChange?: (data: any) => void;
 }
 
-const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+const sectionHeaderClassName =
+  "text-base sm:text-lg md:text-xl font-semibold";
+
 const labelClassName =
   "text-sm md:text-base leading-6 text-foreground min-h-10 flex items-start";
-const inputClassName = "rounded-xl border border-border bg-background text-foreground w-full";
-const textareaClassName = "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
+
+/**
+ * Inputs
+ */
+const inputClassName =
+  "rounded-xl border border-border bg-background text-foreground w-full";
+
+const textareaClassName =
+  "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
+
+/**
+ * Core form grid
+ * ❌ removed pl-3 / sm:pl-4 / md:pl-6
+ * ✅ alignment now matches Financing Type + other steps
+ */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 pl-3 sm:pl-4 md:pl-6 w-full max-w-[1200px] items-start";
-const sectionWrapperClassName = "w-full max-w-[1200px]";
-const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-8";
-const radioSelectedLabel = "text-sm md:text-base text-foreground";
-const radioUnselectedLabel = "text-sm md:text-base text-muted-foreground";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start pl-3";
+
+/**
+ * Section wrapper
+ */
+const sectionWrapperClassName =
+  "w-full max-w-[1200px]";
+
+/**
+ * Outer form spacing
+ * gap-8 = consistent section separation
+ */
+const formOuterClassName =
+  "w-full max-w-[1200px] flex flex-col gap-10";
+
+/**
+ * Radio labels
+ */
+const radioSelectedLabel =
+  "text-sm md:text-base text-foreground";
+
+const radioUnselectedLabel =
+  "text-sm md:text-base text-muted-foreground";
+
 
 function CustomRadio({
   name,
@@ -319,208 +353,195 @@ export function BusinessDetailsStep({
 
   if (isLoadingApp || !isInitialized) {
     return (
-      <div className="space-y-6 md:space-y-8">
-        <div className="space-y-4">
-          <div>
-            <h3 className={sectionHeaderClassName}>About your business</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className="space-y-4">
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-10 rounded-xl" />
-          </div>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className="space-y-4">
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-24 rounded-xl" />
-          </div>
-        </div>
-      </div>
+    <BusinessDetailsSkeleton />
     );
   }
 
-  return (
-    <div className={formOuterClassName}>
-      {/* About your business — 972 Fill × 371 Hug */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <h3 className={sectionHeaderClassName}>About your business</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={rowGridClassName}>
-          <Label htmlFor="what-does-company-do" className={labelClassName}>
-            What does your company do?
-          </Label>
-          <TextareaWithCharCount
-            id="what-does-company-do"
-            value={aboutYourBusiness.whatDoesCompanyDo}
-            onChange={(e) =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                whatDoesCompanyDo: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
-          />
-          <Label htmlFor="main-customers" className={labelClassName}>
-            Who are your main customers?
-          </Label>
-          <TextareaWithCharCount
-            id="main-customers"
-            value={aboutYourBusiness.mainCustomers}
-            onChange={(e) =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                mainCustomers: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
-          />
-          <Label className={labelClassName}>
-            Does any single customer make up more than 50% of your revenue?
-          </Label>
-          <div className="flex gap-6 items-center">
-            <CustomRadio
-              name="singleCustomerOver50Revenue"
-              value="yes"
-              checked={aboutYourBusiness.singleCustomerOver50Revenue === "yes"}
-              onChange={() =>
-                setAboutYourBusiness((prev) => ({
-                  ...prev,
-                  singleCustomerOver50Revenue: "yes",
-                }))
-              }
-              label="Yes"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-            <CustomRadio
-              name="singleCustomerOver50Revenue"
-              value="no"
-              checked={aboutYourBusiness.singleCustomerOver50Revenue === "no"}
-              onChange={() =>
-                setAboutYourBusiness((prev) => ({
-                  ...prev,
-                  singleCustomerOver50Revenue: "no",
-                }))
-              }
-              label="NO"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-          </div>
-        </div>
-      </section>
+return (
+  <div className={formOuterClassName}>
+    {/* ===================== ABOUT YOUR BUSINESS ===================== */}
+    <section className={`${sectionWrapperClassName} space-y-4`}>
+      <div>
+        <h3 className={sectionHeaderClassName}>About your business</h3>
+        <div className="mt-2 h-px bg-border" />
+      </div>
 
-      {/* Why are you raising funds? — 972 Fill × 889 Hug */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-          <div className="mt-2 h-px bg-border" />
+      <div className={rowGridClassName}>
+        <Label htmlFor="what-does-company-do" className={labelClassName}>
+          What does your company do?
+        </Label>
+        <TextareaWithCharCount
+          id="what-does-company-do"
+          value={aboutYourBusiness.whatDoesCompanyDo}
+          onChange={(e) =>
+            setAboutYourBusiness((prev) => ({
+              ...prev,
+              whatDoesCompanyDo: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
+        />
+
+        <Label htmlFor="main-customers" className={labelClassName}>
+          Who are your main customers?
+        </Label>
+        <TextareaWithCharCount
+          id="main-customers"
+          value={aboutYourBusiness.mainCustomers}
+          onChange={(e) =>
+            setAboutYourBusiness((prev) => ({
+              ...prev,
+              mainCustomers: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
+        />
+
+        <Label className={labelClassName}>
+          Does any single customer make up more than 50% of your revenue?
+        </Label>
+        <div className="flex gap-6 items-center">
+          <CustomRadio
+            name="singleCustomerOver50Revenue"
+            value="yes"
+            checked={aboutYourBusiness.singleCustomerOver50Revenue === "yes"}
+            onChange={() =>
+              setAboutYourBusiness((prev) => ({
+                ...prev,
+                singleCustomerOver50Revenue: "yes",
+              }))
+            }
+            label="Yes"
+            selectedLabelClass={radioSelectedLabel}
+            unselectedLabelClass={radioUnselectedLabel}
+          />
+          <CustomRadio
+            name="singleCustomerOver50Revenue"
+            value="no"
+            checked={aboutYourBusiness.singleCustomerOver50Revenue === "no"}
+            onChange={() =>
+              setAboutYourBusiness((prev) => ({
+                ...prev,
+                singleCustomerOver50Revenue: "no",
+              }))
+            }
+            label="No"
+            selectedLabelClass={radioSelectedLabel}
+            unselectedLabelClass={radioUnselectedLabel}
+          />
         </div>
-        <div className={rowGridClassName}>
-          <Label htmlFor="financing-for" className={labelClassName}>
-            What is this financing for?
-          </Label>
-          <TextareaWithCharCount
-            id="financing-for"
-            value={whyRaisingFunds.financingFor}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                financingFor: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
-          />
-          <Label htmlFor="how-funds-used" className={labelClassName}>
-            How will the funds be used?
-          </Label>
-          <TextareaWithCharCount
-            id="how-funds-used"
-            value={whyRaisingFunds.howFundsUsed}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                howFundsUsed: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
-          />
-          <Label htmlFor="business-plan" className={labelClassName}>
-            Tell us about your business plan
-          </Label>
-          <TextareaWithCharCount
-            id="business-plan"
-            value={whyRaisingFunds.businessPlan}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                businessPlan: e.target.value.slice(0, 1000),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={1000}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
-          />
-          <Label htmlFor="risks-delay-repayment" className={labelClassName}>
-            Are there any risks that may delay repayment of your invoices?
-          </Label>
-          <TextareaWithCharCount
-            id="risks-delay-repayment"
-            value={whyRaisingFunds.risksDelayRepayment}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                risksDelayRepayment: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
-          />
-          <Label htmlFor="backup-plan" className={labelClassName}>
-            If payment is delayed, what is your backup plan?
-          </Label>
-          <TextareaWithCharCount
-            id="backup-plan"
-            value={whyRaisingFunds.backupPlan}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                backupPlan: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
-          />
-          <Label className={labelClassName}>
-            Are you currently raising/applying funds on any other P2P platforms?
-          </Label>
-          <div className="flex gap-6 items-center">
-            <CustomRadio
+      </div>
+    </section>
+
+    {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
+    <section className={`${sectionWrapperClassName} space-y-4`}>
+      <div>
+        <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
+        <div className="mt-2 h-px bg-border" />
+      </div>
+
+      <div className={rowGridClassName}>
+        <Label htmlFor="financing-for" className={labelClassName}>
+          What is this financing for?
+        </Label>
+        <TextareaWithCharCount
+          id="financing-for"
+          value={whyRaisingFunds.financingFor}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              financingFor: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+        />
+
+        <Label htmlFor="how-funds-used" className={labelClassName}>
+          How will the funds be used?
+        </Label>
+        <TextareaWithCharCount
+          id="how-funds-used"
+          value={whyRaisingFunds.howFundsUsed}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              howFundsUsed: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+        />
+
+        <Label htmlFor="business-plan" className={labelClassName}>
+          Tell us about your business plan
+        </Label>
+        <TextareaWithCharCount
+          id="business-plan"
+          value={whyRaisingFunds.businessPlan}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              businessPlan: e.target.value.slice(0, 1000),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={1000}
+          className={textareaClassName}
+          countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+        />
+
+        <Label htmlFor="risks-delay-repayment" className={labelClassName}>
+          Are there any risks that may delay repayment of your invoices?
+        </Label>
+        <TextareaWithCharCount
+          id="risks-delay-repayment"
+          value={whyRaisingFunds.risksDelayRepayment}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              risksDelayRepayment: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+        />
+
+        <Label htmlFor="backup-plan" className={labelClassName}>
+          If payment is delayed, what is your backup plan?
+        </Label>
+        <TextareaWithCharCount
+          id="backup-plan"
+          value={whyRaisingFunds.backupPlan}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              backupPlan: e.target.value.slice(0, 200),
+            }))
+          }
+          placeholder="Add details"
+          maxLength={200}
+          className={textareaClassName}
+          countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+        />
+
+        <Label className={labelClassName}>
+          Are you currently raising/applying funds on any other P2P platforms?
+        </Label>
+        <div className="flex gap-6 items-center">
+                   <CustomRadio
               name="raisingOnOtherP2P"
               value="yes"
               checked={whyRaisingFunds.raisingOnOtherP2P === "yes"}
@@ -548,49 +569,50 @@ export function BusinessDetailsStep({
               selectedLabelClass={radioSelectedLabel}
               unselectedLabelClass={radioUnselectedLabel}
             />
-          </div>
-          <Label htmlFor="platform-name" className={labelClassName}>
-            Name of platform
-          </Label>
+        </div>
+
+        <Label htmlFor="platform-name" className={labelClassName}>
+          Name of platform
+        </Label>
+        <Input
+          id="platform-name"
+          value={whyRaisingFunds.platformName}
+          onChange={(e) =>
+            setWhyRaisingFunds((prev) => ({
+              ...prev,
+              platformName: e.target.value,
+            }))
+          }
+          placeholder="e.g. CARPAY"
+          className={inputClassName}
+        />
+
+        <Label htmlFor="amount-raised" className={labelClassName}>
+          Amount raised
+        </Label>
+        <div className="flex items-center rounded-xl border border-border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary">
+          <span className="pl-4 text-foreground text-sm md:text-base shrink-0">RM</span>
           <Input
-            id="platform-name"
-            value={whyRaisingFunds.platformName}
+            id="amount-raised"
+            type="text"
+            inputMode="numeric"
+            value={whyRaisingFunds.amountRaised}
             onChange={(e) =>
               setWhyRaisingFunds((prev) => ({
                 ...prev,
-                platformName: e.target.value,
+                amountRaised: restrictDigitsOnly(e.target.value),
               }))
             }
-            placeholder="e.g. CARPAY"
-            className={inputClassName}
+            placeholder="0"
+            className="border-0 rounded-none focus-visible:ring-0 shadow-none flex-1"
           />
-          <Label htmlFor="amount-raised" className={labelClassName}>
-            Amount raised
-          </Label>
-          <div className="flex items-center rounded-xl border border-border bg-background overflow-hidden w-full max-w-[600px] sm:max-w-none focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-0">
-            <span className="pl-4 text-foreground text-sm md:text-base shrink-0" aria-hidden>
-              RM{" "}
-            </span>
-            <Input
-              id="amount-raised"
-              type="text"
-              inputMode="numeric"
-              value={whyRaisingFunds.amountRaised}
-              onChange={(e) =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  amountRaised: restrictDigitsOnly(e.target.value),
-                }))
-              }
-              placeholder="0"
-              className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none min-w-0 flex-1"
-            />
-          </div>
-          <Label className={labelClassName}>
-            Is the same invoice being used?
-          </Label>
-          <div className="flex gap-6 items-center">
-            <CustomRadio
+        </div>
+
+        <Label className={labelClassName}>
+          Is the same invoice being used?
+        </Label>
+        <div className="flex gap-6 items-center">
+           <CustomRadio
               name="sameInvoiceUsed"
               value="yes"
               checked={whyRaisingFunds.sameInvoiceUsed === "yes"}
@@ -618,28 +640,131 @@ export function BusinessDetailsStep({
               selectedLabelClass={radioSelectedLabel}
               unselectedLabelClass={radioUnselectedLabel}
             />
+        </div>
+      </div>
+    </section>
+
+    {/* ===================== DECLARATIONS ===================== */}
+    <section className={`${sectionWrapperClassName} space-y-4`}>
+      <div>
+        <h3 className={sectionHeaderClassName}>Declarations</h3>
+        <div className="mt-2 h-px bg-border" />
+      </div>
+
+      <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <Checkbox
+            checked={declarationConfirmed}
+            onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
+            className="mt-0.5 rounded-[4px]"
+          />
+          <span className="text-sm md:text-base leading-6 text-foreground">
+            {DECLARATION_TEXT}
+          </span>
+        </label>
+      </div>
+    </section>
+  </div>
+);
+
+}
+
+function BusinessDetailsSkeleton() {
+  return (
+    <div className={`${formOuterClassName} mt-1`}>
+      {/* ===================== ABOUT YOUR BUSINESS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-5`}>
+        <div>
+          <Skeleton className="h-6 w-[220px]" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className={rowGridClassName}>
+          {/* What does your company do */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Main customers */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Single customer > 50% */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
           </div>
         </div>
       </section>
 
-      {/* Declarations — 972 Fill × 141 Hug */}
+      {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
       <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
-          <h3 className={sectionHeaderClassName}>Declarations</h3>
+          <Skeleton className="h-6 w-[260px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
+
+        <div className={rowGridClassName}>
+          {/* Financing for */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Funds usage */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Business plan */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[160px] w-full rounded-xl" />
+
+          {/* Risks */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Backup plan */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Other P2P */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
+          </div>
+
+          {/* Platform name */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          {/* Amount raised */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          {/* Same invoice */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== DECLARATIONS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <Skeleton className="h-6 w-[160px]" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
         <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
-          <label className="flex items-start gap-2 sm:gap-3 cursor-pointer">
-            <Checkbox
-              checked={declarationConfirmed}
-              onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
-              boldCheck
-              className="mt-0.5 rounded-[4px] data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-            />
-            <span className="text-sm md:text-base leading-6 text-foreground">
-              {DECLARATION_TEXT}
-            </span>
-          </label>
+          <div className="flex items-start gap-3">
+            <Skeleton className="h-4 w-4 rounded-sm mt-1" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[92%]" />
+              <Skeleton className="h-4 w-[85%]" />
+            </div>
+          </div>
         </div>
       </section>
     </div>
