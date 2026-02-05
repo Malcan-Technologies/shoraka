@@ -162,7 +162,7 @@ const labelClassName =
  * Inputs
  */
 const inputClassName =
-  "rounded-xl border border-border bg-background text-foreground w-full";
+  "rounded-xl border border-border bg-background text-foreground w-full h-11";
 
 const textareaClassName =
   "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
@@ -173,7 +173,7 @@ const textareaClassName =
  * ✅ alignment now matches Financing Type + other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start pl-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start px-3";
 
 /**
  * Section wrapper
@@ -604,7 +604,7 @@ return (
               }))
             }
             placeholder="0"
-            className="border-0 rounded-none focus-visible:ring-0 shadow-none flex-1"
+            className="border-0 rounded-none focus-visible:ring-0 shadow-none flex-1 h-11"
           />
         </div>
 

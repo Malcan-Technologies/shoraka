@@ -287,7 +287,7 @@ export default function NewApplicationPage() {
           <Button
             onClick={handleContinue}
             disabled={!selectedProductId || createApplicationMutation.isPending}
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-[17px] font-semibold px-6 py-3 rounded-xl"
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-[17px] font-semibold px-6 py-3 rounded-xl h-11"
           >
             {createApplicationMutation.isPending ? "Creating..." : "Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />

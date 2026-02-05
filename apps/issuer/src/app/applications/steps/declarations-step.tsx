@@ -243,7 +243,7 @@ export function DeclarationsStep({
    * Right side: Info panel about what happens next
    */
 return (
-  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 px-3">
   {/* ================= LEFT: DECLARATIONS ================= */}
   <div className="rounded-xl border border-border bg-background p-6">
     <div className="space-y-5">
@@ -259,14 +259,14 @@ return (
             "
           >
             {/* Checkbox */}
-            <div className="pt-[2px] shrink-0">
+            <div className="shrink-0">
               <Checkbox
                 checked={isChecked}
                 onCheckedChange={(checked) =>
                   handleToggle(index, checked === true)
                 }
                 className="
-                  rounded-[4px]
+                  rounded-sm
                   border-destructive
                   data-[state=checked]:bg-destructive
                   data-[state=checked]:border-destructive
@@ -289,6 +289,7 @@ return (
     <h3 className="text-lg font-semibold text-foreground mb-4">
       What happens next?
     </h3>
+    <div className="mt-2 h-px bg-border" />
 
     <ul className="list-disc pl-5 space-y-3 text-[16px] leading-[24px] text-foreground">
       <li>After submission, your application will be reviewed by our team.</li>

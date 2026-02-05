@@ -135,13 +135,13 @@ function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-const inputClassName = "bg-muted rounded-xl border border-border";
-const inputClassNameEditable = "rounded-xl border border-border bg-background text-foreground";
-const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
+const inputClassName = "bg-muted rounded-xl border border-border h-11";
+const inputClassNameEditable = "rounded-xl border border-border bg-background text-foreground h-11";
+const labelClassName = "text-sm md:text-base leading-6 text-foreground";
 const labelClassNameEditable = "text-sm md:text-base leading-6 text-foreground";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 pl-3 sm:pl-4 md:pl-6";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4 mt-4 sm:mt-6 pl-3 sm:pl-4 md:pl-6";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 px-3";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 sm:mt-6 px-3";
 
 export function CompanyDetailsStep({
   applicationId,
@@ -624,7 +624,7 @@ export function CompanyDetailsStep({
    * Display all company information in read-only format
    */
   return (
-  <div className="space-y-10">
+    <div className="space-y-10 px-3">
     {/* Company Info Section */}
     <div className="space-y-4">
       <div>
@@ -1257,7 +1257,7 @@ function EditAddressDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto px-3">
         <DialogHeader>
           <DialogTitle>Edit Address</DialogTitle>
           <DialogDescription className="text-[15px]">
@@ -1269,7 +1269,7 @@ function EditAddressDialog({
             <h4 className="text-base font-semibold">Business address</h4>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="business-line1">Address line 1</Label>
+                <Label htmlFor="business-line1" className="text-sm font-medium">Address line 1</Label>
                 <Input
                   id="business-line1"
                   value={businessAddress.line1}
@@ -1279,7 +1279,7 @@ function EditAddressDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="business-line2">Address line 2</Label>
+                <Label htmlFor="business-line2" className="text-sm font-medium">Address line 2</Label>
                 <Input
                   id="business-line2"
                   value={businessAddress.line2}
@@ -1290,7 +1290,7 @@ function EditAddressDialog({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="business-city">City</Label>
+                  <Label htmlFor="business-city" className="text-sm font-medium">City</Label>
                   <Input
                     id="business-city"
                     value={businessAddress.city}
@@ -1300,7 +1300,7 @@ function EditAddressDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="business-postal-code">Postal code</Label>
+                  <Label htmlFor="business-postal-code" className="text-sm font-medium">Postal code</Label>
                   <Input
                     id="business-postal-code"
                     value={businessAddress.postalCode}
@@ -1312,7 +1312,7 @@ function EditAddressDialog({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="business-state">State</Label>
+                  <Label htmlFor="business-state" className="text-sm font-medium">State</Label>
                   <Input
                     id="business-state"
                     value={businessAddress.state}
@@ -1322,7 +1322,7 @@ function EditAddressDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="business-country">Country</Label>
+                  <Label htmlFor="business-country" className="text-sm font-medium">Country</Label>
                   <Input
                     id="business-country"
                     value={businessAddress.country}
@@ -1351,7 +1351,7 @@ function EditAddressDialog({
             {!registeredAddressSameAsBusiness && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="registered-line1">Address line 1</Label>
+                  <Label htmlFor="registered-line1" className="text-sm font-medium">Address line 1</Label>
                   <Input
                     id="registered-line1"
                     value={registeredAddress.line1}
@@ -1361,7 +1361,7 @@ function EditAddressDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="registered-line2">Address line 2</Label>
+                  <Label htmlFor="registered-line2" className="text-sm font-medium">Address line 2</Label>
                   <Input
                     id="registered-line2"
                     value={registeredAddress.line2}
@@ -1372,7 +1372,7 @@ function EditAddressDialog({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="registered-city">City</Label>
+                    <Label htmlFor="registered-city" className="text-sm font-medium">City</Label>
                     <Input
                       id="registered-city"
                       value={registeredAddress.city}
@@ -1382,7 +1382,7 @@ function EditAddressDialog({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registered-postal-code">Postal code</Label>
+                    <Label htmlFor="registered-postal-code" className="text-sm font-medium">Postal code</Label>
                     <Input
                       id="registered-postal-code"
                       value={registeredAddress.postalCode}
@@ -1394,7 +1394,7 @@ function EditAddressDialog({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="registered-state">State</Label>
+                    <Label htmlFor="registered-state" className="text-sm font-medium">State</Label>
                     <Input
                       id="registered-state"
                       value={registeredAddress.state}
@@ -1404,7 +1404,7 @@ function EditAddressDialog({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registered-country">Country</Label>
+                    <Label htmlFor="registered-country" className="text-sm font-medium">Country</Label>
                     <Input
                       id="registered-country"
                       value={registeredAddress.country}

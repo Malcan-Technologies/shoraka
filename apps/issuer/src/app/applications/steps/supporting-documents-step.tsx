@@ -471,7 +471,7 @@ export function SupportingDocumentsStep({
   }
 
   return (
-    <div className="space-y-10">
+   <div className="space-y-10 px-3">
       {isLoadingApp || !stepConfig ? (
         <SupportingDocumentsSkeleton />
       ) : (categories.map((category: any, categoryIndex: number) => {
@@ -524,7 +524,7 @@ export function SupportingDocumentsStep({
 
             {/* Section content */}
             {isExpanded && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 px-3">
                 {category.documents.map(
                   (document: any, documentIndex: number) => {
                     const key = `${categoryIndex}-${documentIndex}`;
@@ -551,7 +551,7 @@ export function SupportingDocumentsStep({
                               {templateS3Key && (
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap"
+                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6"
                                   onClick={async () => {
                                     const token = await getAccessToken();
                                     const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
@@ -579,7 +579,7 @@ export function SupportingDocumentsStep({
                               {/* FIXED upload slot */}
                               <div className="w-[160px]">
                                 {isUploaded && file && !fileIsUploading ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full">
+                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
                                     {/* check */}
                                     <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
                                       <CheckIconSolid className="h-2.5 w-2.5 text-background" />
@@ -604,7 +604,7 @@ export function SupportingDocumentsStep({
                                 ) : (
                                   <label
                                     htmlFor={`file-${key}`}
-                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80"
+                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 
@@ -670,7 +670,7 @@ function SupportingDocumentsSkeleton() {
           </div>
 
           {/* ===== Section content ===== */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-7 gap-x-6 pl-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
             {[1, 2, 3].map((row) => (
               <React.Fragment key={row}>
                 {/* Document title */}
@@ -687,7 +687,7 @@ function SupportingDocumentsSkeleton() {
                       <div className="w-px h-4 bg-border/60" />
 
                       {/* Fixed upload slot */}
-                      <Skeleton className="h-[26px] w-[160px] rounded-sm" />
+                      <Skeleton className="h-6 w-[160px] rounded-sm" />
                     </div>
                   </div>
                 </div>

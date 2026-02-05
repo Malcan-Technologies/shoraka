@@ -884,7 +884,7 @@ export default function EditApplicationPage() {
           <Button
             variant="outline"
             onClick={handleBack}
-            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1"
+            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
@@ -898,7 +898,7 @@ export default function EditApplicationPage() {
               !isCurrentStepValid ||
               !isStepMapped
             }
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2"
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
@@ -920,12 +920,14 @@ export default function EditApplicationPage() {
             <Button
               variant="outline"
               onClick={() => setIsUnsavedChangesModalOpen(false)}
+              className="h-11"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmLeave}
+              className="h-11"
             >
               Leave without saving
             </Button>

@@ -96,7 +96,7 @@ export function FinancingTypeStep({
   }
 
   return (
-    <div>
+    <div className="px-3">
       <ProductList
         products={products}
         selectedProductId={selectedProductId}
