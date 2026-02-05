@@ -309,8 +309,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const hasChanges = !isEdit
     ? true
     : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
-      Object.keys(pendingSupportingDocTemplates).length > 0 ||
-      !workflowDeepEqual(buildPayloadFromSteps(steps), initialWorkflowRef.current);
+    Object.keys(pendingSupportingDocTemplates).length > 0 ||
+    !workflowDeepEqual(buildPayloadFromSteps(steps), initialWorkflowRef.current);
 
   /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
   const editedStepIds = useMemo(() => {
@@ -471,8 +471,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                           );
                         })}
                       </div>
-                  </SortableContext>
-                </DndContext>
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </div>
@@ -492,11 +492,25 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                       <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
                         {isEdit ? "Complete these before saving" : "Complete these before create"}
                       </p>
-                      <ul className="mt-1 list-disc list-inside space-y-0.5 text-sm text-amber-800 dark:text-amber-200">
-                        {requiredErrors.map((msg, i) => (
-                          <li key={i}>{msg}</li>
-                        ))}
+                      <ul className="mt-1 list-disc list-inside space-y-1 text-amber-900 dark:text-amber-100">
+                        {requiredErrors.map((msg, i) => {
+                          const [label, rest] = msg.split(":");
+
+                          return (
+                            <li key={i} className="text-xs leading-4">
+                              <span className="font-medium">{label}:</span>
+                              {rest}
+                            </li>
+                          );
+                        })}
                       </ul>
+
+
+
+
+
+
+
                     </div>
                   </div>
                 </div>
