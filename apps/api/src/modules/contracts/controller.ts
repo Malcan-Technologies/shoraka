@@ -111,6 +111,18 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
   }
 }
 
+async function unlinkContract(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = contractIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    await contractService.unlinkContract(id, userId);
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+}
+
 export function createContractRouter(): Router {
   const router = Router();
 
@@ -118,6 +130,7 @@ export function createContractRouter(): Router {
   router.get("/approved", requireAuth, getApprovedContracts);
   router.get("/:id", requireAuth, getContract);
   router.patch("/:id", requireAuth, updateContract);
+  router.post("/:id/unlink", requireAuth, unlinkContract);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
 
   return router;

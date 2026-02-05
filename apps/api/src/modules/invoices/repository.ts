@@ -49,4 +49,11 @@ export class InvoiceRepository {
       orderBy: { created_at: "asc" },
     });
   }
+
+  async findByContractId(contractId: string): Promise<Invoice[]> {
+    return prisma.invoice.findMany({
+      where: { contract_id: contractId },
+      orderBy: { created_at: "asc" },
+    });
+  }
 }

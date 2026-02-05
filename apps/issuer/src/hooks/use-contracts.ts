@@ -94,3 +94,28 @@ export function useUpdateContract() {
     },
   });
 }
+
+export function useUnlinkContract() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.unlinkContract(id);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["contract", id] });
+      queryClient.invalidateQueries({ queryKey: ["application"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to unlink contract", {
+        description: error.message,
+      });
+    },
+  });
+}

@@ -1,25 +1,27 @@
 import { InvoiceRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { Invoice, Prisma } from "@prisma/client";
+import { Invoice } from "@prisma/client";
 import {
   generateInvoiceDocumentKey,
   generatePresignedUploadUrl,
   getFileExtension,
   validateDocument,
 } from "../../lib/s3/client";
-import { logger } from "../../lib/logger";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
   private applicationRepository: ApplicationRepository;
   private organizationRepository: OrganizationRepository;
+  private contractRepository: ContractRepository;
 
   constructor() {
     this.repository = new InvoiceRepository();
     this.applicationRepository = new ApplicationRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.contractRepository = new ContractRepository();
   }
 
   private async verifyInvoiceAccess(invoiceId: string, userId: string): Promise<Invoice> {
@@ -83,6 +85,36 @@ export class InvoiceService {
     return application;
   }
 
+  private async verifyContractAccess(contractId: string, userId: string): Promise<any> {
+    const contract = await this.contractRepository.findById(contractId);
+    if (!contract) {
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+    }
+
+    const organizationId = contract.issuer_organization_id;
+    const organization = (contract as any).issuer_organization;
+
+    if (!organization) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this contract");
+    }
+
+    if (organization.owner_user_id === userId) {
+      return contract;
+    }
+
+    const member = await this.organizationRepository.getOrganizationMember(
+      organizationId,
+      userId,
+      "issuer"
+    );
+
+    if (!member) {
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this contract.");
+    }
+
+    return contract;
+  }
+
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
     return this.repository.create({
@@ -131,6 +163,11 @@ export class InvoiceService {
   async getInvoicesByApplication(applicationId: string, userId: string): Promise<Invoice[]> {
     await this.verifyApplicationAccess(applicationId, userId);
     return this.repository.findByApplicationId(applicationId);
+  }
+
+  async getInvoicesByContract(contractId: string, userId: string): Promise<Invoice[]> {
+    await this.verifyContractAccess(contractId, userId);
+    return this.repository.findByContractId(contractId);
   }
 
   private generateCuid(): string {

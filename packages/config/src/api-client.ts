@@ -1114,6 +1114,10 @@ export class ApiClient {
     return this.patch<Contract>(`/v1/contracts/${id}`, data);
   }
 
+  async unlinkContract(id: string): Promise<ApiResponse<void> | ApiError> {
+    return this.post<void>(`/v1/contracts/${id}/unlink`, {});
+  }
+
   async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
     return this.get<Contract[]>(`/v1/contracts/approved?organizationId=${organizationId}`);
   }
@@ -1159,6 +1163,10 @@ export class ApiClient {
 
   async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
     return this.get<Invoice[]>(`/v1/invoices/by-application/${applicationId}`);
+  }
+
+  async getInvoicesByContract(contractId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+    return this.get<Invoice[]>(`/v1/invoices/by-contract/${contractId}`);
   }
 
   async requestInvoiceUploadUrl(

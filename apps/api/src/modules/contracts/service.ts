@@ -109,6 +109,11 @@ export class ContractService {
     });
   }
 
+  async unlinkContract(id: string, userId: string): Promise<void> {
+    await this.verifyContractAccess(id, userId);
+    return this.repository.unlinkFromApplication(id);
+  }
+
   async getApprovedContracts(userId: string, organizationId: string): Promise<Contract[]> {
     // Basic verification: user must belong to the organization
     const member = await this.organizationRepository.getOrganizationMember(

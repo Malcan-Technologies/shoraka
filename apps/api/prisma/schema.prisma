@@ -338,12 +338,12 @@ model Contract {
   id                     String             @id @default(cuid())
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
-  application_id         String             @unique
+  application_id         String?            @unique
   contract_details       Json?
   customer_details       Json?
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
-  application            Application        @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  application            Application?       @relation(fields: [application_id], references: [id], onDelete: Cascade)
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
 

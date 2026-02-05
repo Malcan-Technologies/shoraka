@@ -40,6 +40,13 @@ export class ContractRepository {
     });
   }
 
+  async unlinkFromApplication(id: string): Promise<void> {
+    await (prisma.contract as any).update({
+      where: { id },
+      data: { application_id: null },
+    });
+  }
+
   async findApprovedByOrganization(organizationId: string): Promise<Contract[]> {
     // Return contracts that are either top-level APPROVED
     // or have status: "approved" in their contract_details JSON

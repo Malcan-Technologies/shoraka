@@ -10,7 +10,7 @@ import {
   useUpdateApplicationStep,
   useArchiveApplication,
 } from "@/hooks/use-applications";
-import { useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
+import { useCreateContract, useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -102,6 +102,7 @@ export default function EditApplicationPage() {
   // Hooks for contract handling (for skip/autofill logic)
   const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
+  const unlinkContractMutation = useUnlinkContract();
 
   /**
    * VERSION MISMATCH CHECK
@@ -632,12 +633,13 @@ export default function EditApplicationPage() {
             });
           }
 
+          // If invoice-only, ensure contract is removed if it exists
+          if (structureType === "invoice_only" && application?.contract?.id) {
+            await unlinkContractMutation.mutateAsync(application.contract.id);
+          }
+
           // Also update Step 3 as completed in the backend so it doesn't block future navigation
           // We do this by sending an empty update for step 3
-          // Get step 3 configuration
-          const step3 = (application as any).issuer_organization?.applications?.find(
-            (a: any) => a.id === applicationId
-          )?.product?.workflow?.[stepFromUrl]; // workflow index is 0-based, so stepFromUrl is step 2 (index 1), step 3 is index 2.
           // Wait, actually it's easier to just find it by index in workflowSteps
           // But I don't have the stepId for step 3 easily here.
           // Let's just use the current approach of setting targetStepRef.

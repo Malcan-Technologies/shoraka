@@ -23,6 +23,24 @@ export function useInvoices(applicationId: string) {
   });
 }
 
+export function useInvoicesByContract(contractId: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["invoices", "contract", contractId],
+    queryFn: async () => {
+      if (!contractId) return [];
+      const response = await apiClient.getInvoicesByContract(contractId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    enabled: !!contractId,
+  });
+}
+
 export function useCreateInvoice() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

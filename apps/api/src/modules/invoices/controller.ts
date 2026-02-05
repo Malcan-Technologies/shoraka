@@ -98,6 +98,22 @@ async function getInvoicesByApplication(req: Request, res: Response, next: NextF
   }
 }
 
+async function getInvoicesByContract(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { contractId } = z.object({ contractId: z.string().cuid() }).parse(req.params);
+    const userId = getUserId(req);
+    const invoices = await invoiceService.getInvoicesByContract(contractId, userId);
+
+    res.json({
+      success: true,
+      data: invoices,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function requestUploadUrl(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = invoiceIdParamSchema.parse(req.params);
@@ -127,6 +143,7 @@ export function createInvoiceRouter(): Router {
 
   router.post("/", requireAuth, createInvoice);
   router.get("/by-application/:applicationId", requireAuth, getInvoicesByApplication);
+  router.get("/by-contract/:contractId", requireAuth, getInvoicesByContract);
   router.get("/:id", requireAuth, getInvoice);
   router.patch("/:id", requireAuth, updateInvoice);
   router.delete("/:id", requireAuth, deleteInvoice);

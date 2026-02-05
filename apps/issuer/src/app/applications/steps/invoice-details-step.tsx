@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import {
   useInvoices,
+  useInvoicesByContract,
   useCreateInvoice,
   useUpdateInvoice,
   useDeleteInvoice,
@@ -48,7 +49,22 @@ interface InvoiceDetailsStepProps {
 
 export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-  const { data: invoicesData = [], isLoading: isLoadingInvoices } = useInvoices(applicationId);
+
+  // Check if we are using an existing contract
+  const financingStructure = application?.financing_structure as any;
+  const isExistingContract = financingStructure?.structure_type === "existing_contract";
+  const existingContractId = financingStructure?.existing_contract_id;
+
+  // Fetch invoices based on mode
+  const { data: appInvoicesRaw, isLoading: isLoadingAppInvoices } = useInvoices(applicationId);
+  const { data: contractInvoicesRaw, isLoading: isLoadingContractInvoices } =
+    useInvoicesByContract(existingContractId);
+
+  const appInvoices = React.useMemo(() => appInvoicesRaw || [], [appInvoicesRaw]);
+  const contractInvoices = React.useMemo(() => contractInvoicesRaw || [], [contractInvoicesRaw]);
+
+  const isLoadingInvoices = isLoadingAppInvoices || (isExistingContract && isLoadingContractInvoices);
+
   const createInvoiceMutation = useCreateInvoice();
   const updateInvoiceMutation = useUpdateInvoice();
   const deleteInvoiceMutation = useDeleteInvoice();
@@ -59,15 +75,22 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
   // Sync local state with server data
   React.useEffect(() => {
-    if (invoicesData) {
-      setInvoices(
-        invoicesData.map((inv: any) => ({
+    const mappedAppInvoices = appInvoices.map((inv: any) => ({
+      ...inv.details,
+      id: inv.id,
+      isReadOnly: false,
+    }));
+
+    const mappedContractInvoices = isExistingContract
+      ? contractInvoices.map((inv: any) => ({
           ...inv.details,
           id: inv.id,
+          isReadOnly: true,
         }))
-      );
-    }
-  }, [invoicesData]);
+      : [];
+
+    setInvoices([...mappedContractInvoices, ...mappedAppInvoices]);
+  }, [appInvoices, contractInvoices, isExistingContract]);
 
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
@@ -265,6 +288,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
               <TableBody>
                 {localInvoices.map((invoice) => {
                   const isApproved = invoice.status === "APPROVED";
+                  const isDisabled = invoice.isReadOnly || isApproved;
                   const maxFinancing = (invoice.value || 0) * 0.8;
 
                   return (
@@ -272,11 +296,11 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                       key={invoice.id}
                       className={cn(
                         "border-b last:border-0 h-[72px]",
-                        isApproved && "bg-muted/30 opacity-70"
+                        isDisabled && "bg-muted/30 opacity-70"
                       )}
                     >
                       <TableCell>
-                        {!isApproved ? (
+                        {!isDisabled ? (
                           <Input
                             value={invoice.number}
                             onChange={(e) =>
@@ -292,7 +316,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                         )}
                       </TableCell>
                       <TableCell>
-                        {!isApproved ? (
+                        {!isDisabled ? (
                           <Input
                             type="number"
                             value={invoice.value || ""}
@@ -313,7 +337,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                         )}
                       </TableCell>
                       <TableCell>
-                        {!isApproved ? (
+                        {!isDisabled ? (
                           <Input
                             type="date"
                             value={invoice.maturity_date}
@@ -338,7 +362,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                         <span
                           className={cn(
                             "font-medium",
-                            isApproved ? "text-muted-foreground" : "text-foreground"
+                            isDisabled ? "text-muted-foreground" : "text-foreground"
                           )}
                         >
                           {formatCurrency(maxFinancing)}
@@ -350,7 +374,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             <div
                               className={cn(
                                 "inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full",
-                                isApproved && "opacity-70 bg-muted/30"
+                                isDisabled && "opacity-70 bg-muted/30"
                               )}
                             >
                               <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
@@ -359,7 +383,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                               <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">
                                 {invoice.document.file_name}
                               </span>
-                              {!isApproved && (
+                              {!isDisabled && (
                                 <button
                                   className="hover:text-destructive transition-colors cursor-pointer shrink-0 ml-1"
                                   type="button"
@@ -370,7 +394,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                               )}
                             </div>
                           ) : (
-                            !isApproved && (
+                            !isDisabled && (
                               <label className="flex items-center gap-2 text-[#800000] font-medium hover:underline text-sm cursor-pointer">
                                 <CloudUpload className="h-4 w-4" />
                                 {isUploading[invoice.id] ? "Uploading..." : "Upload file"}
@@ -391,7 +415,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2 pr-2">
-                          {!isApproved && (
+                          {!isDisabled && (
                             <button
                               onClick={() => handleDeleteInvoice(invoice.id)}
                               disabled={deleteInvoiceMutation.isPending}
