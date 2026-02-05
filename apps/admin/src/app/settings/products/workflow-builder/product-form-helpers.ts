@@ -35,10 +35,11 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
   return steps.map((s) => {
     const step = s as Step;
     let config = { ...(step.config ?? {}) };
-    const stepKey = getStepKeyFromStepId(step.id ?? "");
-    if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent == null)) {
-      config = { ...config, max_financing_rate_percent: 80 };
-    }
+    //  keep exmaple of how to use this
+    // const stepKey = getStepKeyFromStepId(step.id ?? "");
+    // if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent == null)) {
+    //   config = { ...config, max_financing_rate_percent: 80 };
+    // }
     const { _pendingImage: _, ...configForApi } = config;
     return { ...step, config: configForApi };
   });

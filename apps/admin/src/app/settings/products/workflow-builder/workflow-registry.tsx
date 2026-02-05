@@ -23,7 +23,6 @@ import { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY, getStepKeyFromStepId } from "@
 import { FinancingTypeConfig } from "./step-configs/financing-type-config";
 import { FinancingStructureConfig } from "./step-configs/financing-structure-config";
 import { ContractDetailsConfig } from "./step-configs/contract-details-config";
-import { InvoiceDetailsConfig } from "./step-configs/invoice-details-config";
 import { CompanyDetailsConfig } from "./step-configs/company-details-config";
 import { BusinessDetailsConfig } from "./step-configs/business-details-config";
 import { SupportingDocumentsConfig } from "./step-configs/supporting-documents-config";
@@ -37,6 +36,7 @@ export type { ApplicationStepKey };
 export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
   "financing_structure",
   "contract_details",
+  "invoice_details",
   "company_details",
   "business_details",
   "review_and_submit",
@@ -45,11 +45,10 @@ export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
 type ConfigComponentProps = { config: unknown; onChange: (config: unknown) => void };
 
 /** Step key → component that renders that step's config form. */
-export const STEP_CONFIG_MAP: Record<ApplicationStepKey, React.ComponentType<ConfigComponentProps>> = {
+export const STEP_CONFIG_MAP: Partial<Record<ApplicationStepKey, React.ComponentType<ConfigComponentProps>>> = {
   financing_type: FinancingTypeConfig,
   financing_structure: FinancingStructureConfig,
   contract_details: ContractDetailsConfig,
-  invoice_details: InvoiceDetailsConfig,
   company_details: CompanyDetailsConfig,
   business_details: BusinessDetailsConfig,
   supporting_documents: SupportingDocumentsConfig,
