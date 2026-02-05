@@ -208,8 +208,8 @@ export function ProductsList() {
             ) : (
               products.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="text-sm">
-                    <p className="font-medium truncate" title={productName(p)}>
+                  <TableCell >
+                    <p className="text-sm font-medium truncate" title={productName(p)}>
                       {productName(p)}
                     </p>
                   </TableCell>
@@ -221,26 +221,24 @@ export function ProductsList() {
                     {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
                   </TableCell>
                   <TableCell className="text-left whitespace-nowrap">
-                    <div className="flex items-center justify-start gap-1">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 gap-1.5 text-sm"
+                        className="h-8 "
                         onClick={() => openEditProduct(p)}
                         aria-label={`Edit ${productName(p)}`}
                       >
-                        <PencilSquareIcon className="h-4 w-4 shrink-0" />
-                        Edit
+                        <PencilSquareIcon className="h-4 w-4 "/>
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 gap-1.5 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                        className="h-8  text-destructive hover:bg-destructive/10"
                         onClick={() => setProductToDelete(p)}
                         aria-label={`Delete ${productName(p)}`}
                       >
-                        <TrashIcon className="h-4 w-4 shrink-0" />
-                        Delete
+                        <TrashIcon className="h-4 w-4"/>
                       </Button>
                     </div>
                   </TableCell>
