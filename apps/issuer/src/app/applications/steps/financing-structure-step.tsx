@@ -88,6 +88,20 @@ export function FinancingStructureStep({
       existing_contract_id: selectedStructure === "existing_contract" ? selectedContractId : null,
     };
 
+    // If existing contract is selected, provide the details for autofill
+    let additionalData = {};
+    if (selectedStructure === "existing_contract" && selectedContractId) {
+      const contract = approvedContracts.find((c: any) => c.id === selectedContractId);
+      if (contract) {
+        additionalData = {
+          autofillContract: {
+            contract_details: contract.contract_details,
+            customer_details: contract.customer_details,
+          },
+        };
+      }
+    }
+
     // Check if selection is valid to proceed
     const isValid =
       selectedStructure !== null &&
@@ -95,9 +109,10 @@ export function FinancingStructureStep({
 
     onDataChangeRef.current({
       ...dataToSave,
+      ...additionalData,
       isValid,
     });
-  }, [selectedStructure, selectedContractId, isInitialized]);
+  }, [selectedStructure, selectedContractId, isInitialized, approvedContracts]);
 
   /**
    * Handle structure type selection
@@ -115,6 +130,10 @@ export function FinancingStructureStep({
    */
   const handleContractSelect = (contractId: string) => {
     setSelectedContractId(contractId);
+    // Also select this option when choosing a contract
+    if (selectedStructure !== "existing_contract") {
+      setSelectedStructure("existing_contract");
+    }
   };
 
   // Loading state

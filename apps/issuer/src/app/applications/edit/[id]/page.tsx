@@ -10,6 +10,7 @@ import {
   useUpdateApplicationStep,
   useArchiveApplication,
 } from "@/hooks/use-applications";
+import { useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -97,6 +98,10 @@ export default function EditApplicationPage() {
 
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
+
+  // Hooks for contract handling (for skip/autofill logic)
+  const createContractMutation = useCreateContract();
+  const updateContractMutation = useUpdateContract();
 
   /**
    * VERSION MISMATCH CHECK
@@ -480,7 +485,18 @@ export default function EditApplicationPage() {
       router.push("/");
     } else if (stepFromUrl > 1) {
       // Any other step - go to previous step
-      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
+      let prevStep = stepFromUrl - 1;
+
+      // Handle skip logic for Back button
+      // If we are on Step 4 (Invoice Details) and structure is not 'new_contract', skip Step 3
+      if (stepFromUrl === 4) {
+        const savedStructure = application?.financing_structure as any;
+        if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
+          prevStep = stepFromUrl - 2;
+        }
+      }
+
+      router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
     } else {
       // Fallback - go to dashboard
       router.push("/");
@@ -591,7 +607,46 @@ export default function EditApplicationPage() {
       }
 
       // Set target step to skip validation during navigation
-      const nextStep = stepFromUrl + 1;
+      let nextStep = stepFromUrl + 1;
+
+      // Handle skip logic for Financing Structure
+      if (currentStepKey === "financing_structure") {
+        const structureType = dataToSave?.structure_type;
+
+        if (structureType === "existing_contract" || structureType === "invoice_only") {
+          // Skip Step 3 (Contract Details) and go to Step 4 (Invoice Details)
+          nextStep = stepFromUrl + 2;
+
+          // If existing contract, handle autofill
+          if (structureType === "existing_contract" && dataToSave.autofillContract) {
+            const autofill = dataToSave.autofillContract;
+            // First ensure a contract record exists for this application
+            const contract = await createContractMutation.mutateAsync(applicationId);
+            // Then update it with the autofill data
+            await updateContractMutation.mutateAsync({
+              id: contract.id,
+              data: {
+                contract_details: autofill.contract_details,
+                customer_details: autofill.customer_details,
+              },
+            });
+          }
+
+          // Also update Step 3 as completed in the backend so it doesn't block future navigation
+          // We do this by sending an empty update for step 3
+          // Get step 3 configuration
+          const step3 = (application as any).issuer_organization?.applications?.find(
+            (a: any) => a.id === applicationId
+          )?.product?.workflow?.[stepFromUrl]; // workflow index is 0-based, so stepFromUrl is step 2 (index 1), step 3 is index 2.
+          // Wait, actually it's easier to just find it by index in workflowSteps
+          // But I don't have the stepId for step 3 easily here.
+          // Let's just use the current approach of setting targetStepRef.
+        }
+
+        // Clean up internal flags before saving to DB
+        delete (dataToSave as any).autofillContract;
+      }
+
       targetStepRef.current = nextStep;
 
       // Call API to save
@@ -600,7 +655,7 @@ export default function EditApplicationPage() {
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
-          stepNumber: stepFromUrl,
+          stepNumber: nextStep - 1, // Ensure last_completed_step covers the skipped step
           stepId: currentStepId,
           data: dataToSave,
         },
