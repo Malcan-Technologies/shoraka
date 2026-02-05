@@ -23,8 +23,8 @@ function ProductCardSkeleton() {
 
             {/* Text (TOP aligned like real card) */}
             <div className="min-w-0 flex-1 pt-[2px]">
-              {/* Title line ≈ 22px text */}
-              <Skeleton className="h-[22px] w-[62%] rounded" />
+              {/* Title line ≈ 20px text */}
+              <Skeleton className="h-[20px] w-[62%] rounded" />
 
               {/* Description line ≈ 16px text — nudged DOWN a bit */}
               <Skeleton className="mt-[9px] h-[16px] w-[78%] rounded" />
@@ -148,7 +148,7 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }
 
             {/* Text */}
             <div className="min-w-0 flex-1">
-              <div className="text-[22px] leading-[28px] font-medium text-foreground line-clamp-1">
+              <div className="text-[20px] leading-[28px] font-medium text-foreground line-clamp-1">
                 {name}
               </div>
               <div className=" text-[16px] leading-[22px] text-muted-foreground line-clamp-1">
@@ -229,7 +229,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
 
   if (isLoading) {
     return (
-      <div className="space-y-10">
+      <div className="mt-1 space-y-10">
         <CategorySkeleton />
         <CategorySkeleton />
       </div>
@@ -247,7 +247,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
             <div className="mt-2 h-px bg-border" />
           </div>
 
-          <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3"> 
+          <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3">
             {categoryProducts.map((product) => (
               <ProductCard
                 key={product.id}
