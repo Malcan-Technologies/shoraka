@@ -128,17 +128,37 @@ export class InvoiceService {
         const availableFacility = contractDetails?.available_facility || 0;
 
         const invoiceValue = details.value || 0;
-        const maxFinancing = invoiceValue * 0.8;
+        const financeAmount = invoiceValue * 0.8;
 
         if (approvedFacility > 0) {
-          if (maxFinancing > availableFacility) {
-            throw new AppError(400, "FACILITY_LIMIT_EXCEEDED", `Max financing (${maxFinancing}) exceeds available facility (${availableFacility})`);
+          if (financeAmount > availableFacility) {
+            throw new AppError(
+              400,
+              "FACILITY_LIMIT_EXCEEDED",
+              `Max financing (${financeAmount}) exceeds available facility (${availableFacility})`
+            );
           }
+
+          // Decrement available capacity immediately as per requirement
+          await this.contractRepository.update(contractId, {
+            contract_details: {
+              ...contractDetails,
+              available_facility: availableFacility - financeAmount,
+            },
+          });
         } else {
           const existingInvoices = await this.repository.findAllByContractId(contractId);
-          const totalInvoiceValue = existingInvoices.reduce((sum, inv) => sum + ((inv.details as any).value || 0), 0);
-          if (totalInvoiceValue + invoiceValue > contractValue) {
-            throw new AppError(400, "CONTRACT_LIMIT_EXCEEDED", "Total invoice value exceeds contract value");
+          const totalFinancingAmount = existingInvoices.reduce(
+            (sum, inv) => sum + ((inv.details as any).value || 0) * 0.8,
+            0
+          );
+
+          if (totalFinancingAmount + financeAmount > contractValue) {
+            throw new AppError(
+              400,
+              "CONTRACT_LIMIT_EXCEEDED",
+              "Total financing amount exceeds contract value"
+            );
           }
         }
       }
@@ -163,6 +183,51 @@ export class InvoiceService {
       throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
     }
 
+    // Capacity validation and adjustment
+    const oldFinanceAmount = ((invoice.details as any).value || 0) * 0.8;
+    const newFinanceAmount =
+      (details.value !== undefined ? details.value : ((invoice.details as any).value || 0)) * 0.8;
+    const diff = newFinanceAmount - oldFinanceAmount;
+
+    if (diff !== 0 && invoice.contract_id && invoice.status !== "REJECTED") {
+      const contract = await this.contractRepository.findById(invoice.contract_id);
+      if (contract) {
+        const contractDetails = contract.contract_details as any;
+        const approvedFacility = contractDetails?.approved_facility || 0;
+        const availableFacility = contractDetails?.available_facility || 0;
+
+        if (approvedFacility > 0) {
+          if (diff > availableFacility) {
+            throw new AppError(
+              400,
+              "FACILITY_LIMIT_EXCEEDED",
+              `Updated financing diff (${diff}) exceeds available facility (${availableFacility})`
+            );
+          }
+
+          // Update available capacity
+          await this.contractRepository.update(invoice.contract_id, {
+            contract_details: {
+              ...contractDetails,
+              available_facility: availableFacility - diff,
+            },
+          });
+        } else {
+          const contractValue = contractDetails?.value || 0;
+          const existingInvoices = await this.repository.findAllByContractId(invoice.contract_id);
+          const totalFinancing = existingInvoices.reduce(
+            (sum, inv) =>
+              sum + (inv.id === id ? newFinanceAmount : ((inv.details as any).value || 0) * 0.8),
+            0
+          );
+
+          if (totalFinancing > contractValue) {
+            throw new AppError(400, "CONTRACT_LIMIT_EXCEEDED", "Total financing exceeds contract value");
+          }
+        }
+      }
+    }
+
     const updatedDetails = {
       ...(invoice.details as object),
       ...details,
@@ -180,6 +245,22 @@ export class InvoiceService {
     // Check if invoice is approved (cannot delete approved invoices)
     if (invoice.status === "APPROVED") {
       throw new AppError(400, "BAD_REQUEST", "Cannot delete an approved invoice");
+    }
+
+    // Restore capacity if not rejected and has contract
+    if (invoice.contract_id && invoice.status !== "REJECTED") {
+      const contract = await this.contractRepository.findById(invoice.contract_id);
+      if (contract) {
+        const contractDetails = contract.contract_details as any;
+        const financeAmount = ((invoice.details as any).value || 0) * 0.8;
+
+        await this.contractRepository.update(invoice.contract_id, {
+          contract_details: {
+            ...contractDetails,
+            available_facility: (contractDetails.available_facility || 0) + financeAmount,
+          },
+        });
+      }
     }
 
     await this.repository.delete(id);

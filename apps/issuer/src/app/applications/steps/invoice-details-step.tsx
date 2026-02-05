@@ -53,6 +53,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
   // Check if we are using an existing contract
   const financingStructure = application?.financing_structure as any;
   const isExistingContract = financingStructure?.structure_type === "existing_contract";
+  const isInvoiceOnly = financingStructure?.structure_type === "invoice_only";
   const existingContractId = financingStructure?.existing_contract_id;
 
   // Fetch invoices based on mode
@@ -72,6 +73,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
   const [localInvoices, setInvoices] = React.useState<any[]>([]);
   const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
+  const [localValidationError, setLocalValidationError] = React.useState<string | null>(null);
 
   // Sync local state with server data
   React.useEffect(() => {
@@ -133,35 +135,33 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
   const contractDetails = (application?.contract?.contract_details as any) || {};
 
+  const totalFinancingAmount = localInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
+
   // Notify parent on changes
   React.useEffect(() => {
-    const totalFinancingAmount = localInvoices.reduce(
-      (acc, inv) => acc + (inv.value || 0) * 0.8,
-      0
-    );
-
-    const approvedFacility = contractDetails.approved_facility || 0;
-    const contractValue = contractDetails.value || 0;
+    const approvedFacilityAmt = contractDetails.approved_facility || 0;
+    const contractValueAmt = contractDetails.value || 0;
 
     // Calculate facility updates
     const isValid = localInvoices.length > 0 && localInvoices.every((inv) => inv.number && inv.value > 0);
 
     // Validation check
     let validationError = null;
-    if (approvedFacility > 0) {
-      const currentAppDraftFinancing = localInvoices
-        .filter(inv => !inv.isReadOnly && inv.status === "DRAFT")
-        .reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
-
-      if (currentAppDraftFinancing > (contractDetails.available_facility || 0)) {
-        validationError = "Total financing amount exceeds available facility limit";
+    if (!isInvoiceOnly) {
+      if (approvedFacilityAmt > 0) {
+        if (totalFinancingAmount > approvedFacilityAmt) {
+          validationError =
+            "Total financing amount exceeds approved facility limit. Please adjust invoice values.";
+        }
+      } else {
+        if (totalFinancingAmount > contractValueAmt) {
+          validationError =
+            "Total financing amount exceeds contract value. Please adjust invoice values.";
+        }
       }
-    } else {
-       const totalInvoiceValue = localInvoices.reduce((acc, inv) => acc + (inv.value || 0), 0);
-       if (totalInvoiceValue > contractValue) {
-         validationError = "Total invoice value exceeds contract value";
-       }
     }
+
+    setLocalValidationError(validationError);
 
     onDataChangeRef.current?.({
       invoices: localInvoices,
@@ -172,7 +172,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       available_facility: contractDetails.available_facility,
       utilized_facility: contractDetails.utilized_facility,
     });
-  }, [localInvoices, contractDetails]);
+  }, [localInvoices, contractDetails, isInvoiceOnly, totalFinancingAmount]);
 
   const handleAddInvoice = async () => {
     const newInvoiceDetails = {
@@ -270,8 +270,6 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     }
   };
 
-  const totalFinancingAmount = localInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
-
   const formatCurrency = (value: any) => {
     const num =
       typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
@@ -309,56 +307,54 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
   }
 
   // Calculate real-time facility values for display
-  const approvedFacility = contractDetails.approved_facility || 0;
-  const currentAppDraftFinancing = localInvoices
-    .filter(inv => !inv.isReadOnly && inv.status === "DRAFT")
-    .reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
-
-  const displayAvailableFacility = Math.max(0, (contractDetails.available_facility || 0) - currentAppDraftFinancing);
+  const approvedFacilityAmt = contractDetails.approved_facility || 0;
+  const displayAvailableFacility =
+    approvedFacilityAmt > 0
+      ? approvedFacilityAmt - totalFinancingAmount
+      : (contractDetails.value || 0) - totalFinancingAmount;
 
   return (
     <div className="space-y-12 pb-8">
       {/* Contract Summary Section */}
-      <section className="space-y-6">
-        <h2 className="text-xl font-bold">Contract</h2>
-        <div className="space-y-4 border rounded-xl p-6 bg-card/50">
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Contract title</span>
-            <span>{contractDetails.title || "-"}</span>
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Customer</span>
-            <span>{(application?.contract?.customer_details as any)?.name || "-"}</span>
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Contract value</span>
-            <span className="font-medium text-foreground">
-              {formatCurrency(contractDetails.value)}
-            </span>
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Approved facility</span>
-            <span>{formatCurrency(contractDetails.approved_facility)}</span>
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Utilised facility</span>
-            <span>{formatCurrency(contractDetails.utilized_facility)}</span>
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-            <span>Available facility</span>
-            <div className="flex items-center gap-2">
-              <span className={cn(approvedFacility > 0 && displayAvailableFacility < 0 && "text-destructive font-bold")}>
-                {formatCurrency(approvedFacility > 0 ? displayAvailableFacility : contractDetails.available_facility)}
+      {!isInvoiceOnly && (
+        <section className="space-y-6">
+          <h2 className="text-xl font-bold">Contract</h2>
+          <div className="space-y-4 border rounded-xl p-6 bg-card/50">
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Contract title</span>
+              <span>{contractDetails.title || "-"}</span>
+            </div>
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Customer</span>
+              <span>{(application?.contract?.customer_details as any)?.name || "-"}</span>
+            </div>
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Contract value</span>
+              <span className="font-medium text-foreground">
+                {formatCurrency(contractDetails.value)}
               </span>
-              {approvedFacility > 0 && currentAppDraftFinancing > 0 && (
-                <span className="text-[10px] text-muted-foreground font-normal italic">
-                  (Includes {formatCurrency(currentAppDraftFinancing)} from new invoices)
+            </div>
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Approved facility</span>
+              <span>{formatCurrency(contractDetails.approved_facility)}</span>
+            </div>
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Utilised facility</span>
+              <span>{formatCurrency(contractDetails.utilized_facility)}</span>
+            </div>
+            <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
+              <span>Available facility</span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(displayAvailableFacility < 0 && "text-destructive font-bold")}
+                >
+                  {formatCurrency(displayAvailableFacility)}
                 </span>
-              )}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Invoices Table Section */}
       <section className="space-y-6">
@@ -578,12 +574,10 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
         </div>
 
         {/* Validation Error */}
-        {(approvedFacility > 0 ? (currentAppDraftFinancing > (contractDetails.available_facility || 0)) : (localInvoices.reduce((acc, inv) => acc + (inv.value || 0), 0) > (contractDetails.value || 0))) && (
-          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+        {localValidationError && (
+          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-6">
             <XMarkIcon className="h-5 w-5" />
-            {approvedFacility > 0
-              ? "Total financing amount exceeds available facility limit. Please adjust invoice values."
-              : "Total invoice value exceeds contract value. Please adjust invoice values."}
+            {localValidationError}
           </div>
         )}
 

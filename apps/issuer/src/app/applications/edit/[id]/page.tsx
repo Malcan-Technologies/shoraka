@@ -161,6 +161,9 @@ export default function EditApplicationPage() {
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
 
+  // Track last step for navigation direction
+  const lastStepRef = React.useRef<number>(stepFromUrl);
+
   /**
    * GET WORKFLOW STEPS
    *
@@ -237,6 +240,41 @@ export default function EditApplicationPage() {
   const currentStepId = currentStepConfig?.id || "";
   // Derive step key from ID (e.g., "company_details_1" -> "company_details")
   const currentStepKey = getStepKeyFromStepId(currentStepId);
+
+  /**
+   * AUTOMATIC STEP SKIPPING
+   *
+   * Protect against landing on skipped steps (e.g., via browser back button or direct URL).
+   * Ensures the user skips forward to Invoice Details if moving forward,
+   * or skips backward to Financing Structure if moving backward.
+   */
+  React.useEffect(() => {
+    if (!application || !productWorkflow.length) return;
+
+    if (currentStepKey === "contract_details") {
+      const savedStructure = application.financing_structure as any;
+      if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
+        if (lastStepRef.current <= stepFromUrl) {
+          // Moving forward (or direct entry) -> skip to invoice details
+          const invoiceStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
+          );
+          if (invoiceStepIndex !== -1) {
+            router.replace(`/applications/edit/${applicationId}?step=${invoiceStepIndex + 1}`);
+          }
+        } else {
+          // Moving backward -> skip back to financing structure
+          const structureStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
+          );
+          if (structureStepIndex !== -1) {
+            router.replace(`/applications/edit/${applicationId}?step=${structureStepIndex + 1}`);
+          }
+        }
+      }
+    }
+    lastStepRef.current = stepFromUrl;
+  }, [application, currentStepKey, productWorkflow, applicationId, router, stepFromUrl]);
 
   /**
    * Check if current step is mapped to a component
