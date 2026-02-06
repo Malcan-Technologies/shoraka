@@ -140,8 +140,6 @@ const inputClassNameEditable = "rounded-xl border border-border bg-background te
 const labelClassName = "text-sm md:text-base leading-6 text-foreground";
 const labelClassNameEditable = "text-sm md:text-base leading-6 text-foreground";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 px-3";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 sm:mt-6 px-3";
 
 export function CompanyDetailsStep({
   applicationId,
@@ -673,7 +671,8 @@ return (
               setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
             }}
             placeholder="eg. 10"
-            className={inputClassNameEditable}
+            className={`${inputClassNameEditable} ${fieldErrors.numberOfEmployees ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            aria-invalid={!!fieldErrors.numberOfEmployees}
           />
           {fieldErrors.numberOfEmployees && (
             <p className="text-destructive text-sm mt-1">
@@ -775,7 +774,10 @@ return (
               setPendingBanking((prev) => ({ ...prev, bankName: value }))
             }
           >
-            <SelectTrigger className={inputClassNameEditable}>
+            <SelectTrigger
+              className={`${inputClassNameEditable} ${fieldErrors.bankName ? "border-destructive focus:ring-destructive" : ""}`}
+              aria-invalid={!!fieldErrors.bankName}
+            >
               <SelectValue placeholder="Select bank" />
             </SelectTrigger>
             <SelectContent>
@@ -805,7 +807,8 @@ return (
               }))
             }
             placeholder="Enter account number"
-            className={inputClassNameEditable}
+            className={`${inputClassNameEditable} ${fieldErrors.bankAccountNumber ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            aria-invalid={!!fieldErrors.bankAccountNumber}
           />
 
           {fieldErrors.bankAccountNumber ? (
@@ -837,7 +840,8 @@ return (
               setContactPerson((prev) => ({ ...prev, name: e.target.value }))
             }
             placeholder="eg. John Doe"
-            className={inputClassNameEditable}
+            className={`${inputClassNameEditable} ${fieldErrors.name ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            aria-invalid={!!fieldErrors.name}
           />
           {fieldErrors.name && (
             <p className="text-destructive text-sm mt-1">
@@ -854,7 +858,8 @@ return (
               setContactPerson((prev) => ({ ...prev, position: e.target.value }))
             }
             placeholder="eg. CEO"
-            className={inputClassNameEditable}
+            className={`${inputClassNameEditable} ${fieldErrors.position ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            aria-invalid={!!fieldErrors.position}
           />
           {fieldErrors.position && (
             <p className="text-destructive text-sm mt-1">
@@ -874,7 +879,8 @@ return (
               }))
             }
             placeholder="eg. 1234567890"
-            className={inputClassNameEditable}
+            className={`${inputClassNameEditable} ${fieldErrors.ic ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            aria-invalid={!!fieldErrors.ic}
           />
           {fieldErrors.ic && (
             <p className="text-destructive text-sm mt-1">
@@ -892,7 +898,8 @@ return (
             onChange={(v) =>
               setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
             }
-            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px]"
+            className={`h-11 rounded-xl border px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px] ${fieldErrors.contact ? "border-destructive [&:focus-within]:ring-2 [&:focus-within]:ring-destructive" : "border-input"}`}
+            aria-invalid={!!fieldErrors.contact}
           />
           {fieldErrors.contact && (
             <p className="text-destructive text-sm mt-1">

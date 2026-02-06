@@ -172,8 +172,9 @@ const textareaClassName =
  * ❌ removed pl-3 / sm:pl-4 / md:pl-6
  * ✅ alignment now matches Financing Type + other steps
  */
+/** Same grid and gaps as company-details-step (Company info section) */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 w-full max-w-[1200px] items-start px-3";
 
 /**
  * Section wrapper
@@ -251,8 +252,12 @@ function CustomRadio({
   );
 }
 
-function restrictDigitsOnly(value: string): string {
-  return value.replace(/\D/g, "");
+/** Allow digits and at most one decimal point for amount raised */
+function restrictAmountRaised(value: string): string {
+  const allowed = value.replace(/[^\d.]/g, "");
+  const parts = allowed.split(".");
+  if (parts.length <= 1) return allowed;
+  return `${parts[0]}.${parts.slice(1).join("").replace(/\D/g, "")}`;
 }
 
 function TextareaWithCharCount({
@@ -318,7 +323,7 @@ export function BusinessDetailsStep({
     setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
-      amountRaised: restrictDigitsOnly(initial.whyRaisingFunds.amountRaised),
+      amountRaised: initial.whyRaisingFunds.amountRaised ?? "",
     });
     setDeclarationConfirmed(initial.declarationConfirmed);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
@@ -600,7 +605,7 @@ return (
             onChange={(e) =>
               setWhyRaisingFunds((prev) => ({
                 ...prev,
-                amountRaised: restrictDigitsOnly(e.target.value),
+                amountRaised: restrictAmountRaised(e.target.value),
               }))
             }
             placeholder="0"
