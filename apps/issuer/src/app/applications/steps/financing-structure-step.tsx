@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -112,7 +111,7 @@ export function FinancingStructureStep({
       ...additionalData,
       isValid,
     });
-  }, [selectedStructure, selectedContractId, isInitialized, approvedContracts]);
+  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized]);
 
   /**
    * Handle structure type selection
@@ -215,67 +214,6 @@ interface OptionCardProps {
 function OptionCard({ title, description, isSelected, onClick, rightContent }: OptionCardProps) {
   return (
     <div
-  role="button"
-  tabIndex={0}
-  onClick={onClick}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onClick();
-    }
-  }}
-  className="block w-full cursor-pointer focus:outline-none focus:ring-primary/20"
->
-  {/* OUTER WRAPPER — reserve border space */}
-  <div className="rounded-xl border-2 border-transparent">
-    {/* VISIBLE ROW */}
-    <div
-      className={[
-        "w-full rounded-[10px] transition-colors",
-        "px-6 py-[12px]", // ✅ slightly taller
-        isSelected
-          ? "border-2 border-primary"
-          : "border border-border hover:border-primary/50",
-      ].join(" ")}
-    >
-      <div className="flex items-start justify-between gap-4">
-        {/* Left */}
-        <div className="flex items-start gap-4">
-          {/* Radio */}
-          <div className="mt-[6px] shrink-0">
-            <div
-              className={[
-                "h-4 w-4 rounded-full border-2 flex items-center justify-center",
-                isSelected
-                  ? "border-primary"
-                  : "border-muted-foreground/40",
-              ].join(" ")}
-            >
-              {isSelected && (
-                <div className="h-2 w-2 rounded-full bg-primary" />
-              )}
-            </div>
-          </div>
-
-          {/* Text */}
-          <div className="min-w-0 flex-1">
-            <div className="text-[20px] leading-[28px] font-medium text-foreground">
-              {title}
-            </div>
-            <div className="text-[16px] leading-[22px] text-muted-foreground">
-              {description}
-            </div>
-          </div>
-        </div>
-
-        {rightContent && <div className="shrink-0">{rightContent}</div>}
-      </div>
-    </div>
-  </div>
-</div>
-  )
-  return (
-    <div
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -287,25 +225,22 @@ function OptionCard({ title, description, isSelected, onClick, rightContent }: O
       }}
       className="block w-full cursor-pointer focus:outline-none focus:ring-primary/20"
     >
-      {/* 
-        OUTER WRAPPER
-        Reserves 2px border space (EXACTLY like Financing Type)
-      */}
+      {/* OUTER WRAPPER — reserve border space */}
       <div className="rounded-xl border-2 border-transparent">
         {/* VISIBLE ROW */}
         <div
           className={[
             "w-full rounded-[10px] transition-colors",
-            "px-6 py-[10px]",
+            "px-6 py-[12px]",
             isSelected
               ? "border-2 border-primary"
               : "border border-border hover:border-primary/50",
           ].join(" ")}
         >
           <div className="flex items-start justify-between gap-4">
-            {/* Left: radio + text */}
+            {/* Left */}
             <div className="flex items-start gap-4">
-              {/* Radio indicator */}
+              {/* Radio */}
               <div className="mt-[6px] shrink-0">
                 <div
                   className={[
@@ -332,7 +267,6 @@ function OptionCard({ title, description, isSelected, onClick, rightContent }: O
               </div>
             </div>
 
-            {/* Right content */}
             {rightContent && <div className="shrink-0">{rightContent}</div>}
           </div>
         </div>

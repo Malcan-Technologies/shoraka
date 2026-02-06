@@ -52,7 +52,7 @@ const COUNTRIES = [
 
 export function ContractDetailsStep({ applicationId, onDataChange }: ContractDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-  const contractId = application?.contract?.id;
+  const contractId = (application as any)?.contract?.id;
 
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();

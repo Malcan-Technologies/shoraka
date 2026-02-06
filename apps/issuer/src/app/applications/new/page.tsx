@@ -16,10 +16,10 @@ import { ProgressIndicator } from "../components/progress-indicator";
 
 /**
  * NEW APPLICATION PAGE
- * 
+ *
  * This is where users start a new loan application.
  * It's Step 1: User selects which financing product they want.
- * 
+ *
  * Flow:
  * 1. Load all available products from API
  * 2. User selects one product
@@ -49,7 +49,7 @@ export default function NewApplicationPage() {
 
   /**
    * ORGANIZATION VERIFICATION CHECK
-   * 
+   *
    * Only allow access if organization is verified (onboardingStatus === "COMPLETED").
    * If not verified, redirect to dashboard with error message.
    */
@@ -72,7 +72,7 @@ export default function NewApplicationPage() {
 
   /**
     * AUTO-SELECT FIRST PRODUCT
-    * 
+    *
     * When products load, automatically select the first one.
     * This gives users a default choice and shows the workflow immediately.
     */
@@ -84,10 +84,10 @@ export default function NewApplicationPage() {
 
   /**
    * GET WORKFLOW STEPS
-   * 
+   *
    * Get the list of steps from the selected product.
    * This shows users what the complete journey will look like.
-   * 
+   *
    * Example: ["Financing Type", "Verify Company Info", "Documents", "Declarations"]
    */
   const workflowSteps = React.useMemo(() => {
@@ -133,11 +133,11 @@ export default function NewApplicationPage() {
 
   /**
    * When user clicks "Continue"
-   * 
+   *
    * Creates application in DB with:
    * - productId
    * - organizationId
-   * 
+   *
    * Backend creates record with status=DRAFT and last_completed_step=1
    */
   const handleContinue = async () => {

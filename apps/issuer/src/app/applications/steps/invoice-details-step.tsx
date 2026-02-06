@@ -133,7 +133,8 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
 
-  const contractDetails = (application?.contract?.contract_details as any) || {};
+  // Only use contract details if not invoice_only structure
+  const contractDetails = isInvoiceOnly ? {} : (((application as any)?.contract?.contract_details as any) || {});
 
   const totalFinancingAmount = localInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
 
@@ -181,9 +182,12 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       maturity_date: "",
     };
 
+    // Only pass contractId if not invoice_only structure
+    const contractIdToUse = isInvoiceOnly ? undefined : (application as any)?.contract?.id;
+
     await createInvoiceMutation.mutateAsync({
       applicationId,
-      contractId: application?.contract?.id,
+      contractId: contractIdToUse,
       details: newInvoiceDetails,
     });
   };
@@ -329,7 +333,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
               <div className="font-medium text-foreground">{(application?.contract?.customer_details as any)?.name || "-"}</div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Contract value</span>
+              <div className="text-muted-foreground">Approved facility</div>
               <span className="font-medium text-foreground">
                 {formatCurrency(contractDetails.value)}
               </span>

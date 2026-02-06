@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { SidebarTrigger } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
+import { useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -16,7 +16,11 @@ import {
   STEP_KEY_DISPLAY,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
+import { useHeader, SidebarTrigger } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
+import { FinancingStructureStep } from "../../steps/financing-structure-step";
+import { ContractDetailsStep } from "../../steps/contract-details-step";
+import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
@@ -29,9 +33,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FinancingStructureStep } from "../../steps/financing-structure-step";
-import { ContractDetailsStep } from "../../steps/contract-details-step";
-import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 
 type ApplicationBlockReason =
   | "PRODUCT_DELETED"
@@ -41,13 +42,13 @@ type ApplicationBlockReason =
 
 /**
  * EDIT APPLICATION PAGE
- * 
+ *
  * This is where users complete their application after creating it.
- * 
+ *
  * URL Format: /applications/edit/[id]?step=2
  * - [id] = application ID
  * - ?step= = which step to show (1, 2, 3, etc.)
- * 
+ *
  * Flow:
  * 1. Load application from DB
  * 2. Check which step user wants to see
@@ -57,6 +58,12 @@ type ApplicationBlockReason =
  * 6. Save data to DB and go to next step
  */
 export default function EditApplicationPage() {
+  const { setTitle } = useHeader();
+
+  React.useEffect(() => {
+    setTitle("Edit Application");
+  }, [setTitle]);
+
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -76,7 +83,19 @@ export default function EditApplicationPage() {
   });
 
   // Load application from DB
-  const { data: application, isLoading: isLoadingApp, refetch: refetchApplication } = useApplication(applicationId);
+  const {
+    data: application,
+    isLoading: isLoadingApp,
+    error: appError,
+  } = useApplication(applicationId);
+
+  // Handle application error (e.g. 404)
+  React.useEffect(() => {
+    if (appError) {
+      toast.error("Application not found or access denied");
+      router.push("/");
+    }
+  }, [appError, router]);
 
   React.useEffect(() => {
     if (!applicationId) return;
@@ -97,6 +116,10 @@ export default function EditApplicationPage() {
 
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
+
+  // Hooks for contract handling (for skip/autofill logic)
+  const updateContractMutation = useUpdateContract();
+  const unlinkContractMutation = useUnlinkContract();
 
   /**
    * APPLICATION BLOCK REASON
@@ -135,7 +158,7 @@ export default function EditApplicationPage() {
 
   /**
    * HANDLE RESTART APPLICATION
-   * 
+   *
    * Archive current application and redirect to /new
    */
   const handleRestartApplication = async () => {
@@ -170,11 +193,14 @@ export default function EditApplicationPage() {
 
 
   // Track if we just saved and are navigating to next step
-  // This prevents validation from running with stale data immediately after save
-  const justSavedRef = React.useRef(false);
+  // Store the target step number to skip validation for that step once
+  const targetStepRef = React.useRef<number | null>(null);
 
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
+
+  // Track last step for navigation direction
+  const lastStepRef = React.useRef<number>(stepFromUrl);
 
   /**
  * EFFECTIVE PRODUCT ID
@@ -194,26 +220,6 @@ export default function EditApplicationPage() {
   }, [stepFromUrl, selectedProductId, application]);
 
   /**
-   * PRODUCT ID TO CHECK FOR VERSION MISMATCH
-   *
-   * - Step 1:
-   *   - if user selected a product → check that
-   *   - else → check saved application product
-   * - Step 2+:
-   *   - always check saved application product
-   */
-  const productIdToCheck = React.useMemo(() => {
-    const savedProductId = (application?.financing_type as any)?.product_id;
-
-    if (stepFromUrl === 1) {
-      return selectedProductId ?? savedProductId ?? null;
-    }
-
-    return savedProductId ?? null;
-  }, [stepFromUrl, selectedProductId, application]);
-
-
-  /**
   * GET WORKFLOW STEPS
   *
   * Workflow must reflect the EFFECTIVE product:
@@ -230,6 +236,19 @@ export default function EditApplicationPage() {
     if (!product?.workflow) return [];
 
     return product.workflow.map((step: any) => step.name);
+  }, [effectiveProductId, productsData]);
+
+  /**
+   * GET FULL WORKFLOW
+   */
+  const productWorkflow = React.useMemo(() => {
+    if (!effectiveProductId || !productsData) return [];
+
+    const product = productsData.products?.find(
+      (p: any) => p.id === effectiveProductId
+    );
+
+    return product?.workflow || [];
   }, [effectiveProductId, productsData]);
 
 
@@ -282,6 +301,41 @@ export default function EditApplicationPage() {
     currentStepKey !== null &&
     APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any);
 
+  /**
+   * AUTOMATIC STEP SKIPPING
+   *
+   * Protect against landing on skipped steps (e.g., via browser back button or direct URL).
+   * Ensures the user skips forward to Invoice Details if moving forward,
+   * or skips backward to Financing Structure if moving backward.
+   */
+  React.useEffect(() => {
+    if (!application || !productWorkflow.length) return;
+
+    if (currentStepKey === "contract_details") {
+      const savedStructure = application.financing_structure as any;
+      if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
+        if (lastStepRef.current <= stepFromUrl) {
+          // Moving forward (or direct entry) -> skip to invoice details
+          const invoiceStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
+          );
+          if (invoiceStepIndex !== -1) {
+            router.replace(`/applications/edit/${applicationId}?step=${invoiceStepIndex + 1}`);
+          }
+        } else {
+          // Moving backward -> skip back to financing structure
+          const structureStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
+          );
+          if (structureStepIndex !== -1) {
+            router.replace(`/applications/edit/${applicationId}?step=${structureStepIndex + 1}`);
+          }
+        }
+      }
+    }
+    lastStepRef.current = stepFromUrl;
+  }, [application, currentStepKey, productWorkflow, applicationId, router, stepFromUrl]);
+
 
   // Get custom title/description or fall back to workflow step name
   const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
@@ -291,7 +345,7 @@ export default function EditApplicationPage() {
 
   /**
    * RENDER STEP COMPONENT
-   * 
+   *
    * Based on the step ID, render the appropriate component.
    * Each step component handles its own data and passes it to parent via onDataChange.
    */
@@ -372,16 +426,12 @@ export default function EditApplicationPage() {
       );
     }
 
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        Coming soon...
-      </div>
-    );
+    return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
   };
 
   /**
    * RESUME LOGIC
-   * 
+   *
    * If user visits /applications/edit/123 without ?step=
    * Redirect them to their last completed step
    */
@@ -397,28 +447,27 @@ export default function EditApplicationPage() {
 
   /**
    * STEP VALIDATION
-   * 
+   *
    * Prevent users from skipping steps by typing URL manually
-   * 
+   *
    * Rules:
    * - User can only access steps 1 through (last_completed_step + 1)
    * - Example: If last_completed_step = 2, user can access steps 1, 2, or 3
    * - Trying to access step 5 → redirect to step 3 with error
    * - Step must exist in the current product workflow
-   * 
+   *
    * Why? We want users to complete steps in order and ensure steps exist.
    */
   React.useEffect(() => {
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
 
-    // Skip validation if we just saved and are navigating to next step
-    // This prevents false "complete steps in order" error when data is still updating
-    if (justSavedRef.current) {
-      // Reset the flag after a short delay to allow validation to run normally next time
-      const timer = setTimeout(() => {
-        justSavedRef.current = false;
-      }, 500);
-      return () => clearTimeout(timer);
+    // Skip validation if we just saved and are navigating to this step
+    if (targetStepRef.current !== null && stepFromUrl === targetStepRef.current) {
+      const lastCompleted = application.last_completed_step || 1;
+      if (lastCompleted >= targetStepRef.current - 1) {
+        targetStepRef.current = null;
+      }
+      return;
     }
 
     const lastCompleted = application.last_completed_step || 1;
@@ -445,11 +494,20 @@ export default function EditApplicationPage() {
       router.replace(`/applications/edit/${applicationId}?step=${lastCompleted}`);
       return;
     }
-  }, [application, applicationId, stepFromUrl, router, isLoadingApp, isLoadingProducts, workflowSteps]);
+  }, [
+    application,
+    applicationId,
+    stepFromUrl,
+    router,
+    isLoadingApp,
+    isLoadingProducts,
+    workflowSteps,
+    applicationBlockReason,
+  ]);
 
   /**
    * UNSAVED CHANGES WARNING
-   * 
+   *
    * If user has unsaved changes and tries to leave:
    * - Browser back → show modal
    * - Browser refresh/close → show browser warning
@@ -539,7 +597,7 @@ export default function EditApplicationPage() {
 
   /**
    * Handle back button click
-   * 
+   *
    * Logic:
    * - If on step 1 (first step) → go to dashboard
    * - If on step 2+ → go to previous step (step 1 shows financing type with DB data)
@@ -556,7 +614,25 @@ export default function EditApplicationPage() {
       router.push("/");
     } else if (stepFromUrl > 1) {
       // Any other step - go to previous step
-      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
+      let prevStep = stepFromUrl - 1;
+
+      // Handle skip logic for Back button
+      // If we are on Invoice Details and the financing type is NOT 'new_contract',
+      // we need to skip the Contract Details step.
+      if (currentStepKey === "invoice_details") {
+        const savedStructure = application?.financing_structure as any;
+        if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
+          // Find the index of the financing_structure step to go back to it
+          const structureStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
+          );
+          if (structureStepIndex !== -1) {
+            prevStep = structureStepIndex + 1; // 1-based
+          }
+        }
+      }
+
+      router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
     } else {
       // Fallback - go to dashboard
       router.push("/");
@@ -565,15 +641,15 @@ export default function EditApplicationPage() {
 
   /**
    * SAVE AND CONTINUE
-   * 
+   *
    * This is called when user clicks "Save and Continue" button.
-   * 
+   *
    * Flow:
    * 1. Get data from current step
    * 2. Call API to save data
    * 3. Clear unsaved changes flag
    * 4. Navigate to next step
-   * 
+   *
    * The data is stored in stepDataRef by child step components.
    */
   const handleSaveAndContinue = async () => {
@@ -588,40 +664,42 @@ export default function EditApplicationPage() {
         return;
       }
 
-      // Get the data from the current step (capture saveFunction before cleanup removes it)
-      const rawStepData = stepDataRef.current;
-      const saveFunction = rawStepData && typeof rawStepData === "object" ? rawStepData.saveFunction : undefined;
+      // Get the data from the current step
+      const rawData = stepDataRef.current;
+      let dataToSave = rawData ? { ...rawData } : null;
 
-      let dataToSave = rawStepData;
-
-      // Cleanup: remove UI-only fields before sending data to the backend.
-      // Step components pass extra metadata (validation, unsaved-changes, file upload helpers)
-      // that must never be stored in the DB.
-      if (dataToSave && typeof dataToSave === "object") {
-        const {
-          hasPendingChanges,
-          areAllDeclarationsChecked,
-          areAllFilesUploaded,
-          saveFunction: _sf,
-          ...rest
-        } = dataToSave;
-
-        dataToSave = rest;
+      // Remove isValid from JSON as it's only for frontend communication
+      if (dataToSave && "isValid" in dataToSave) {
+        delete dataToSave.isValid;
       }
+
+      console.log(dataToSave);
 
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
-       * 
+       *
        * Some steps need to save additional data before saving the application.
        * For example:
-       * - company_details runs validation and updates organization data first
+       * - company_details updates organization data first
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
-      if (typeof saveFunction === "function") {
-        const returnedData = await saveFunction();
+      if (dataToSave?.saveFunction) {
+        const returnedData = await dataToSave.saveFunction();
+
+        // Remove saveFunction from the data being sent to API
+        delete dataToSave.saveFunction;
 
         // If saveFunction returns data, use it (e.g., supporting documents with S3 keys)
         if (returnedData) {
+          // Remove isValid from returned data if present
+          if (
+            typeof returnedData === "object" &&
+            returnedData !== null &&
+            "isValid" in returnedData
+          ) {
+            delete (returnedData as any).isValid;
+          }
+
           // For supporting documents, the returned data IS the complete categories structure
           // We need to wrap it in supporting_documents key
           if (currentStepKey === "supporting_documents") {
@@ -635,13 +713,57 @@ export default function EditApplicationPage() {
         }
       }
 
+      // Final cleanup of frontend-only properties before saving to DB
+      if (dataToSave) {
+        // Capture specific fields for invoice_details step before clearing dataToSave
+        const invoices = dataToSave.invoices;
+        const availableFacility = dataToSave.available_facility;
+
+        delete (dataToSave as any).hasPendingChanges;
+        delete (dataToSave as any).saveFunction;
+        delete (dataToSave as any).isValid;
+        delete (dataToSave as any).validationError;
+
+        // If this is a special step that saves to its own table (Contract/Invoice),
+        // we don't want to send the details back to the Application table
+        if (currentStepKey === "contract_details" || currentStepKey === "invoice_details") {
+          // Special handling for invoice_details to update contract available_facility
+          // Only update if there's a contract linked AND it's not invoice_only structure
+          const financingStructure = (application as any)?.financing_structure as any;
+          const isInvoiceOnly = financingStructure?.structure_type === "invoice_only";
+
+          if (currentStepKey === "invoice_details" && (application as any)?.contract?.id && !isInvoiceOnly) {
+             const approvedFacility = ((application as any).contract.contract_details as any)?.approved_facility || 0;
+             if (approvedFacility > 0) {
+                // Net financing from CURRENT (DRAFT) invoices in this application
+                const currentAppDraftFinancing = (invoices || [])
+                  .filter((inv: any) => !inv.isReadOnly && inv.status === "DRAFT")
+                  .reduce((acc: number, inv: any) => acc + (inv.value || 0) * 0.8, 0);
+
+                const newAvailableFacility = Math.max(0, (availableFacility || 0) - currentAppDraftFinancing);
+
+                await updateContractMutation.mutateAsync({
+                  id: (application as any).contract.id,
+                  data: {
+                    contract_details: {
+                      ...((application as any).contract.contract_details as any),
+                      available_facility: newAvailableFacility,
+                    }
+                  }
+                });
+             }
+          }
+          dataToSave = {};
+        }
+      }
+
       /**
        * DECLARATIONS VALIDATION
-       * 
+       *
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepKey === "declarations") {
+      if (currentStepId === "declarations_1") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
 
@@ -651,21 +773,9 @@ export default function EditApplicationPage() {
         }
       }
 
-      if (currentStepKey === "business_details") {
-        if (!dataToSave?.declaration_confirmed) {
-          toast.error("Please confirm the declaration to continue");
-          return;
-        }
-        dataToSave = {
-          about_your_business: dataToSave.about_your_business,
-          why_raising_funds: dataToSave.why_raising_funds,
-          declaration_confirmed: dataToSave.declaration_confirmed,
-        };
-      }
-
       // For now, we're using placeholder data
       // Later, step components will update stepDataRef with real data
-      if (!dataToSave) {
+      if (dataToSave === null) {
         // No data yet - just navigate for now
         toast.success("Step completed");
         setHasUnsavedChanges(false);
@@ -673,37 +783,52 @@ export default function EditApplicationPage() {
         return;
       }
 
+      // Set target step to skip validation during navigation
+      let nextStep = stepFromUrl + 1;
+
+      // Handle skip logic for Financing Structure
+      if (currentStepKey === "financing_structure") {
+        const structureType = dataToSave?.structure_type;
+
+        if (structureType === "existing_contract" || structureType === "invoice_only") {
+          // Skip Step 3 (Contract Details) and go to Step 4 (Invoice Details)
+          // Find the index of the invoice_details step
+          const invoiceStepIndex = productWorkflow.findIndex(
+            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
+          );
+          if (invoiceStepIndex !== -1) {
+            nextStep = invoiceStepIndex + 1; // 1-based
+          }
+
+          // If invoice-only, ensure contract is unlinked
+          if (structureType === "invoice_only" && (application as any)?.contract?.id) {
+            await unlinkContractMutation.mutateAsync(applicationId);
+          }
+        }
+      }
+
+      targetStepRef.current = nextStep;
+
       // Call API to save
       // API endpoint: PATCH /v1/applications/:id/step
       // Body: { stepNumber: 1, stepId: "financing_type", data: {...} }
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
-          stepNumber: stepFromUrl,
+          stepNumber: nextStep - 1, // Ensure last_completed_step covers the skipped step
           stepId: currentStepId,
           data: dataToSave,
         },
       });
-
-      // Wait for application data to refetch before navigating
-      // This prevents the validation effect from running with stale data
-      await refetchApplication();
-
-      // Set flag to skip validation temporarily after save
-      // This prevents false "complete steps in order" error
-      justSavedRef.current = true;
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
       // Go to next step
-      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-
+      router.push(`/applications/edit/${applicationId}?step=${nextStep}`);
     } catch (error) {
-      if ((error as Error & { isValidationError?: boolean })?.isValidationError) {
-        return;
-      }
+      // Error already shown by mutation hook
       toast.error("Failed to save. Please try again.");
     }
   };
@@ -716,13 +841,13 @@ export default function EditApplicationPage() {
 
   /**
    * Callback for step components to pass data to parent
-   * 
+   *
    * Step components will call this when data changes:
    * onDataChange({ company_name: "ABC Corp", ... })
-   * 
+   *
    * Some components (like supporting documents) provide hasPendingChanges flag
    * to indicate if there are actual unsaved changes vs just initial data load
-   * 
+   *
    * We store it in a ref so we always have the latest data
    */
   const handleDataChange = (data: any) => {
@@ -737,7 +862,9 @@ export default function EditApplicationPage() {
     }
 
     // Check if step provides validation flag
-    if (data?.areAllFilesUploaded !== undefined) {
+    if (data?.isValid !== undefined) {
+      setIsCurrentStepValid(data.isValid);
+    } else if (data?.areAllFilesUploaded !== undefined) {
       setIsCurrentStepValid(data.areAllFilesUploaded);
     } else if (data?.areAllDeclarationsChecked !== undefined) {
       // Declarations step provides this flag to indicate if all boxes are checked
