@@ -623,8 +623,8 @@ export function CompanyDetailsStep({
    * 
    * Display all company information in read-only format
    */
-  return (
-    <div className="space-y-10 px-3">
+return (
+  <div className="space-y-10 px-3">
     {/* Company Info Section */}
     <div className="space-y-4">
       <div>
@@ -786,6 +786,12 @@ export function CompanyDetailsStep({
               ))}
             </SelectContent>
           </Select>
+
+          {fieldErrors.bankName && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.bankName}
+            </p>
+          )}
         </div>
 
         <div className={labelClassNameEditable}>Bank account number</div>
@@ -801,9 +807,16 @@ export function CompanyDetailsStep({
             placeholder="Enter account number"
             className={inputClassNameEditable}
           />
-          <p className="text-muted-foreground text-sm mt-1">
-            {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
-          </p>
+
+          {fieldErrors.bankAccountNumber ? (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.bankAccountNumber}
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-sm mt-1">
+              {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -817,48 +830,76 @@ export function CompanyDetailsStep({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
         <div className={labelClassNameEditable}>Applicant name</div>
-        <Input
-          value={contactPerson.name ?? ""}
-          onChange={(e) =>
-            setContactPerson((prev) => ({ ...prev, name: e.target.value }))
-          }
-          placeholder="eg. John Doe"
-          className={inputClassNameEditable}
-        />
+        <div>
+          <Input
+            value={contactPerson.name ?? ""}
+            onChange={(e) =>
+              setContactPerson((prev) => ({ ...prev, name: e.target.value }))
+            }
+            placeholder="eg. John Doe"
+            className={inputClassNameEditable}
+          />
+          {fieldErrors.name && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.name}
+            </p>
+          )}
+        </div>
 
         <div className={labelClassNameEditable}>Applicant position</div>
-        <Input
-          value={contactPerson.position ?? ""}
-          onChange={(e) =>
-            setContactPerson((prev) => ({ ...prev, position: e.target.value }))
-          }
-          placeholder="eg. CEO"
-          className={inputClassNameEditable}
-        />
+        <div>
+          <Input
+            value={contactPerson.position ?? ""}
+            onChange={(e) =>
+              setContactPerson((prev) => ({ ...prev, position: e.target.value }))
+            }
+            placeholder="eg. CEO"
+            className={inputClassNameEditable}
+          />
+          {fieldErrors.position && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.position}
+            </p>
+          )}
+        </div>
 
         <div className={labelClassNameEditable}>Applicant IC no</div>
-        <Input
-          value={contactPerson.ic ?? ""}
-          onChange={(e) =>
-            setContactPerson((prev) => ({
-              ...prev,
-              ic: restrictIcNumber(e.target.value),
-            }))
-          }
-          placeholder="eg. 1234567890"
-          className={inputClassNameEditable}
-        />
+        <div>
+          <Input
+            value={contactPerson.ic ?? ""}
+            onChange={(e) =>
+              setContactPerson((prev) => ({
+                ...prev,
+                ic: restrictIcNumber(e.target.value),
+              }))
+            }
+            placeholder="eg. 1234567890"
+            className={inputClassNameEditable}
+          />
+          {fieldErrors.ic && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.ic}
+            </p>
+          )}
+        </div>
 
         <div className={labelClassNameEditable}>Applicant contact</div>
-        <PhoneInput
-          international
-          defaultCountry="MY"
-          value={contactPerson.contact ?? undefined}
-          onChange={(v) =>
-            setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
-          }
-          className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px]"
-        />
+        <div>
+          <PhoneInput
+            international
+            defaultCountry="MY"
+            value={contactPerson.contact ?? undefined}
+            onChange={(v) =>
+              setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
+            }
+            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px]"
+          />
+          {fieldErrors.contact && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.contact}
+            </p>
+          )}
+        </div>
       </div>
     </div>
 
@@ -886,316 +927,8 @@ export function CompanyDetailsStep({
   </div>
 );
 
-  return (
-    <div className="space-y-6 md:space-y-8">
-      {/* Company Info Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Company info</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={gridClassName}>
-          <div className={labelClassName}>Company name</div>
-          <Input
-            value={basicInfo?.businessName || "eg. Company Name"}
-            disabled
-            className={inputClassName}
-          />
-          <div className={labelClassName}>Type of entity</div>
-          <Input
-            value={basicInfo?.entityType || "eg. Private Limited Company"}
-            disabled
-            className={inputClassName}
-          />
-          <div className={labelClassName}>SSM no</div>
-          <Input
-            value={basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
-            disabled
-            className={inputClassName}
-          />
-          <div className={labelClassNameEditable}>Industry</div>
-          <Input
-            value={displayIndustry ?? ""}
-            onChange={(e) =>
-              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
-            }
-            placeholder="eg. Technology"
-            className={inputClassNameEditable}
-          />
-          <div className={labelClassNameEditable}>Number of employees</div>
-          <div>
-            <Input
-              value={displayNumberOfEmployees?.toString() ?? ""}
-              onChange={(e) => {
-                const v = restrictDigitsOnly(e.target.value);
-                setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
-                if (fieldErrors.numberOfEmployees) setFieldErrors((prev) => { const next = { ...prev }; delete next.numberOfEmployees; return next; });
-              }}
-              placeholder="eg. 10"
-              className={inputClassNameEditable}
-              aria-invalid={!!fieldErrors.numberOfEmployees}
-              aria-describedby={fieldErrors.numberOfEmployees ? "err-numberOfEmployees" : undefined}
-            />
-            {fieldErrors.numberOfEmployees && (
-              <p id="err-numberOfEmployees" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.numberOfEmployees}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* Address Section */}
-      <div className="space-y-4">
-        <div>
-          <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Address</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditAddressOpen(true)}
-              className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-            >
-              Edit
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={sectionGridClassName}>
-          <div className={labelClassName}>Business address</div>
-          <Input
-            value={formatAddress(displayBusinessAddress)}
-            disabled
-            className={inputClassName}
-          />
-          <div className={labelClassName}>Registered address</div>
-          <Input
-            value={formatAddress(displayRegisteredAddress)}
-            disabled
-            className={inputClassName}
-          />
-        </div>
-      </div>
 
-      {/* Directors & Shareholders Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={sectionGridClassName}>
-          {!hasDirectorsOrShareholders ? (
-            <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
-              No directors or shareholders found
-            </p>
-          ) : (
-            <>
-              {combinedList.map((item) => (
-                <React.Fragment key={item.key}>
-                  <div className={labelClassName}>{item.roleLabel}</div>
-                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                      {item.name}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                      {item.ownership}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    {item.statusVerified ? (
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-[17px] leading-7 text-green-600">
-                          {item.statusType === "kyb" ? "KYB" : "KYC"}
-                        </span>
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-                </React.Fragment>
-              ))}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Banking Details Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Banking details</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={gridClassName}>
-          <div className={labelClassNameEditable}>Bank name</div>
-          <div>
-            <Select
-              value={displayBankName ?? ""}
-              onValueChange={(value) => {
-                setPendingBanking((prev) => ({ ...prev, bankName: value }));
-                if (fieldErrors.bankName) setFieldErrors((prev) => { const next = { ...prev }; delete next.bankName; return next; });
-              }}
-            >
-              <SelectTrigger
-                className={inputClassNameEditable}
-                aria-invalid={!!fieldErrors.bankName}
-                aria-describedby={fieldErrors.bankName ? "err-bankName" : undefined}
-              >
-                <SelectValue placeholder="Select bank" />
-              </SelectTrigger>
-              <SelectContent>
-                {MALAYSIAN_BANKS.map((bank) => (
-                  <SelectItem key={bank.value} value={bank.value}>
-                    {bank.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {fieldErrors.bankName && (
-              <p id="err-bankName" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.bankName}
-              </p>
-            )}
-          </div>
-          <div className={labelClassNameEditable}>Bank account number</div>
-          <div>
-            <Input
-              value={displayAccountNumber ?? ""}
-              onChange={(e) => {
-                const v = restrictDigitsOnly(e.target.value);
-                setPendingBanking((prev) => ({ ...prev, bankAccountNumber: v }));
-                if (fieldErrors.bankAccountNumber) setFieldErrors((prev) => { const next = { ...prev }; delete next.bankAccountNumber; return next; });
-              }}
-              placeholder="Enter account number"
-              className={inputClassNameEditable}
-              aria-invalid={!!fieldErrors.bankAccountNumber}
-              aria-describedby={fieldErrors.bankAccountNumber ? "err-bankAccountNumber" : undefined}
-            />
-            {fieldErrors.bankAccountNumber ? (
-              <p id="err-bankAccountNumber" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.bankAccountNumber}
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-sm mt-1">
-                {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Contact Person Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Contact Person</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={gridClassName}>
-          <div className={labelClassNameEditable}>Applicant name</div>
-          <div>
-            <Input
-              value={contactPerson.name ?? ""}
-              onChange={(e) => {
-                setContactPerson((prev) => ({ ...prev, name: e.target.value }));
-                if (fieldErrors.name) setFieldErrors((prev) => { const next = { ...prev }; delete next.name; return next; });
-              }}
-              placeholder="eg. John Doe"
-              className={inputClassNameEditable}
-              aria-invalid={!!fieldErrors.name}
-              aria-describedby={fieldErrors.name ? "err-contact-name" : undefined}
-            />
-            {fieldErrors.name && (
-              <p id="err-contact-name" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.name}
-              </p>
-            )}
-          </div>
-          <div className={labelClassNameEditable}>Applicant position</div>
-          <div>
-            <Input
-              value={contactPerson.position ?? ""}
-              onChange={(e) => {
-                setContactPerson((prev) => ({ ...prev, position: e.target.value }));
-                if (fieldErrors.position) setFieldErrors((prev) => { const next = { ...prev }; delete next.position; return next; });
-              }}
-              placeholder="eg. CEO"
-              className={inputClassNameEditable}
-              aria-invalid={!!fieldErrors.position}
-              aria-describedby={fieldErrors.position ? "err-contact-position" : undefined}
-            />
-            {fieldErrors.position && (
-              <p id="err-contact-position" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.position}
-              </p>
-            )}
-          </div>
-          <div className={labelClassNameEditable}>Applicant IC no</div>
-          <div>
-            <Input
-              value={contactPerson.ic ?? ""}
-              onChange={(e) => {
-                const v = restrictIcNumber(e.target.value);
-                setContactPerson((prev) => ({ ...prev, ic: v }));
-                if (fieldErrors.ic) setFieldErrors((prev) => { const next = { ...prev }; delete next.ic; return next; });
-              }}
-              placeholder="eg. 1234567890"
-              className={inputClassNameEditable}
-              aria-invalid={!!fieldErrors.ic}
-              aria-describedby={fieldErrors.ic ? "err-contact-ic" : undefined}
-            />
-            {fieldErrors.ic && (
-              <p id="err-contact-ic" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.ic}
-              </p>
-            )}
-          </div>
-          <div className={labelClassNameEditable}>Applicant contact</div>
-          <div>
-            <PhoneInput
-              international
-              defaultCountry="MY"
-              value={contactPerson.contact ?? undefined}
-              onChange={(v) => {
-                setContactPerson((prev) => ({ ...prev, contact: v ?? "" }));
-                if (fieldErrors.contact) setFieldErrors((prev) => { const next = { ...prev }; delete next.contact; return next; });
-              }}
-              className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
-              aria-invalid={!!fieldErrors.contact}
-              aria-describedby={fieldErrors.contact ? "err-contact-contact" : undefined}
-            />
-            {fieldErrors.contact && (
-              <p id="err-contact-contact" className="text-destructive text-sm mt-1" role="alert">
-                {fieldErrors.contact}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <EditAddressDialog
-        open={isEditAddressOpen}
-        onOpenChange={setIsEditAddressOpen}
-        businessAddress={{
-          line1: displayBusinessAddress?.line1 || "",
-          line2: displayBusinessAddress?.line2 || "",
-          city: displayBusinessAddress?.city || "",
-          postalCode: displayBusinessAddress?.postalCode || "",
-          state: displayBusinessAddress?.state || "",
-          country: displayBusinessAddress?.country || "Malaysia",
-        }}
-        registeredAddress={{
-          line1: displayRegisteredAddress?.line1 || "",
-          line2: displayRegisteredAddress?.line2 || "",
-          city: displayRegisteredAddress?.city || "",
-          postalCode: displayRegisteredAddress?.postalCode || "",
-          state: displayRegisteredAddress?.state || "",
-          country: displayRegisteredAddress?.country || "Malaysia",
-        }}
-        onSave={handleSaveAddress}
-      />
-    </div>
-  );
 }
 
 /**
