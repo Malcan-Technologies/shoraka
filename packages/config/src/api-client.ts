@@ -1212,7 +1212,18 @@ export class ApiClient {
     id: string,
     s3Key: string
   ): Promise<ApiResponse<{ message: string }> | ApiError> {
-    return this.delete<{ message: string }>(`/v1/invoices/${id}/document?s3Key=${encodeURIComponent(s3Key)}`);
+    return this.delete<{ message: string }>(`/v1/invoices/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
+  }
+
+  async deleteContractDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/contracts/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
   }
 }
 

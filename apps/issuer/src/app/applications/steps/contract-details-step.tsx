@@ -109,9 +109,14 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
   /**
    * CREATE CONTRACT IF IT DOESN'T EXIST
+   * 
+   * FIX: Use ref guard to prevent duplicate contract creation due to React re-renders
+   * before contractId is populated from query invalidation.
    */
+  const hasTriggeredCreateRef = React.useRef(false);
   React.useEffect(() => {
-    if (application && !contractId && !createContractMutation.isPending && !isInitialized) {
+    if (application && !contractId && !createContractMutation.isPending && !isInitialized && !hasTriggeredCreateRef.current) {
+      hasTriggeredCreateRef.current = true;
       createContractMutation.mutate(applicationId);
     }
   }, [application, contractId, createContractMutation, applicationId, isInitialized]);
@@ -206,7 +211,12 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * SAVE FUNCTION
    */
   const handleSave = React.useCallback(async () => {
-    if (!contractId) return;
+    if (!contractId) {
+      toast.error("Contract not ready", {
+        description: "Please wait for the contract to be created before saving.",
+      });
+      throw new Error("Contract ID is missing");
+    }
 
     // Upload pending files first
     const token = await getAccessToken();
@@ -242,6 +252,15 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
       if (!uploadRes.ok) {
         throw new Error("Failed to upload contract document to S3");
+      }
+
+      // Delete old file if S3 key changed
+      if (existingS3Key && existingS3Key !== s3Key) {
+        try {
+          await apiClient.deleteContractDocument(contractId, existingS3Key);
+        } catch (error) {
+          console.warn("Failed to delete old contract document:", error);
+        }
       }
 
       updatedFormData.contract.document = {
@@ -281,6 +300,15 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
       if (!uploadRes.ok) {
         throw new Error("Failed to upload consent document to S3");
+      }
+
+      // Delete old file if S3 key changed
+      if (existingS3Key && existingS3Key !== s3Key) {
+        try {
+          await apiClient.deleteContractDocument(contractId, existingS3Key);
+        } catch (error) {
+          console.warn("Failed to delete old consent document:", error);
+        }
       }
 
       updatedFormData.customer.document = {
@@ -341,40 +369,42 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     };
   }, [contractId, formData, pendingFiles, updateContractMutation, getAccessToken]);
 
-  // Notify parent on mount/initialization or data change
+  // Notify parent on data change
+  // FIX: Remove isInitialized gate to ensure saveFunction is always available
   React.useEffect(() => {
-    if (isInitialized && onDataChangeRef.current) {
-      const hasFormChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
-      const hasPendingFileUploads = Object.keys(pendingFiles).length > 0;
-      const hasPendingChanges = hasFormChanges || hasPendingFileUploads;
+    if (!onDataChangeRef.current) return;
 
-      // Check if all fields are filled (including pending files)
-      const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
-      const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
+    const hasFormChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
+    const hasPendingFileUploads = Object.keys(pendingFiles).length > 0;
+    const hasPendingChanges = hasFormChanges || hasPendingFileUploads;
 
-      const isCurrentStepValid =
-        !!formData.contract.title &&
-        !!formData.contract.description &&
-        !!formData.contract.number &&
-        (formData.contract.value !== "" && formData.contract.value !== 0) &&
-        !!formData.contract.start_date &&
-        !!formData.contract.end_date &&
-        hasContractDocument &&
-        !!formData.customer.name &&
-        !!formData.customer.entity_type &&
-        !!formData.customer.ssm_number &&
-        !!formData.customer.country &&
-        hasConsentDocument;
+    // Check if all fields are filled (including pending files)
+    const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
+    const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
-      onDataChangeRef.current({
-        ...formData,
-        isValid: isCurrentStepValid,
-        isCurrentStepValid,
-        saveFunction: handleSave,
-        hasPendingChanges,
-      });
-    }
-  }, [formData, isInitialized, initialData, handleSave, pendingFiles]);
+    const isCurrentStepValid =
+      !!contractId &&
+      !!formData.contract.title &&
+      !!formData.contract.description &&
+      !!formData.contract.number &&
+      (formData.contract.value !== "" && formData.contract.value !== 0) &&
+      !!formData.contract.start_date &&
+      !!formData.contract.end_date &&
+      hasContractDocument &&
+      !!formData.customer.name &&
+      !!formData.customer.entity_type &&
+      !!formData.customer.ssm_number &&
+      !!formData.customer.country &&
+      hasConsentDocument;
+
+    onDataChangeRef.current({
+      ...formData,
+      isValid: isCurrentStepValid,
+      isCurrentStepValid,
+      saveFunction: handleSave,
+      hasPendingChanges,
+    });
+  }, [formData, initialData, handleSave, pendingFiles, contractId]);
 
   const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
     setFormData((prev) => ({
