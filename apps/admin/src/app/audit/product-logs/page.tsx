@@ -328,8 +328,13 @@ export default function ProductLogsPage() {
                 ) : (
                   logs.map((log) => {
                     const metadata = log.metadata as Record<string, unknown> | null;
-                    const productName = (metadata?.name as string) || (metadata?.title as string) || "—";
-                    const productId = log.product_id || "—";
+                    const workflow = (metadata?.workflow as unknown[]) ?? [];
+                    const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
+                    const productName =
+                      (first?.config?.name as string) ||
+                      (first?.config?.type?.name as string) ||
+                      "";
+                    const productId = log.product_id ?? "";
 
                     return (
                       <TableRow key={log.id}>
@@ -350,10 +355,12 @@ export default function ProductLogsPage() {
                           {getEventTypeBadge(log.event_type)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          <div className="max-w-[250px]">
-                            <p className="font-medium text-sm truncate">{productName}</p>
-                            {productId !== "—" && (
-                              <p className="text-xs text-muted-foreground">
+                          <div className="max-w-[250px] min-w-[140px]">
+                            <p className="font-medium text-sm truncate" title={productName || undefined}>
+                              {productName || "—"}
+                            </p>
+                            {productId && (
+                              <p className="text-xs text-muted-foreground truncate" title={productId}>
                                 ID: {productId}
                               </p>
                             )}

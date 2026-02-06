@@ -2,15 +2,11 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import {
-  useApplication,
-  useUpdateApplicationStep,
-  useArchiveApplication,
-} from "@/hooks/use-applications";
-import { useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
+import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -20,13 +16,10 @@ import {
   STEP_KEY_DISPLAY,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
-import { useHeader, SidebarTrigger } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
-import { FinancingStructureStep } from "../../steps/financing-structure-step";
-import { ContractDetailsStep } from "../../steps/contract-details-step";
-import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
+import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import {
   Dialog,
@@ -37,15 +30,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+type ApplicationBlockReason =
+  | "PRODUCT_DELETED"
+  | "PRODUCT_VERSION_CHANGED"
+  | null;
+
+
 /**
  * EDIT APPLICATION PAGE
- *
+ * 
  * This is where users complete their application after creating it.
- *
+ * 
  * URL Format: /applications/edit/[id]?step=2
  * - [id] = application ID
  * - ?step= = which step to show (1, 2, 3, etc.)
- *
+ * 
  * Flow:
  * 1. Load application from DB
  * 2. Check which step user wants to see
@@ -55,12 +54,6 @@ import {
  * 6. Save data to DB and go to next step
  */
 export default function EditApplicationPage() {
-  const { setTitle } = useHeader();
-
-  React.useEffect(() => {
-    setTitle("Edit Application");
-  }, [setTitle]);
-
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -72,26 +65,29 @@ export default function EditApplicationPage() {
   // URL uses ?step=1, ?step=2, etc. (1-based for users)
   const stepFromUrl = parseInt(searchParams.get("step") || "1");
 
+
   // Load products to get workflow steps
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+  const { data: productsData, isLoading: isLoadingProducts, refetch: refetchProducts, } = useProducts({
     page: 1,
     pageSize: 100,
   });
 
   // Load application from DB
-  const {
-    data: application,
-    isLoading: isLoadingApp,
-    error: appError,
-  } = useApplication(applicationId);
+  const { data: application, isLoading: isLoadingApp, refetch: refetchApplication } = useApplication(applicationId);
 
-  // Handle application error (e.g. 404)
   React.useEffect(() => {
-    if (appError) {
-      toast.error("Application not found or access denied");
-      router.push("/");
-    }
-  }, [appError, router]);
+    if (!applicationId) return;
+    refetchProducts();
+  }, [stepFromUrl, applicationId, refetchProducts]);
+
+
+  // //  FORCE FRESH DATA WHEN STEP CHANGES
+  // React.useEffect(() => {
+  //   if (!applicationId) return;
+
+  //   refetchApplication(); // refresh application row
+  //   refetchProducts();    // refresh product versions
+  // }, [stepFromUrl, applicationId, refetchApplication, refetchProducts]);
 
   // Hook to update application step
   const updateStepMutation = useUpdateApplicationStep();
@@ -99,37 +95,44 @@ export default function EditApplicationPage() {
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
 
-  // Hooks for contract handling (for skip/autofill logic)
-  // const createContractMutation = useCreateContract();
-  const updateContractMutation = useUpdateContract();
-  const unlinkContractMutation = useUnlinkContract();
-
   /**
-   * VERSION MISMATCH CHECK
+   * APPLICATION BLOCK REASON
    *
-   * Compare application's product version with current product version.
-   * If mismatch, user must restart with latest version.
+   * Determines whether the application can continue
+   * under the currently selected product.
+   *
+   * - PRODUCT_DELETED: product no longer exists
+   * - PRODUCT_VERSION_CHANGED: product exists but version differs
    */
-  const versionMismatch = React.useMemo(() => {
-    if (!application || !productsData) return false;
+  const applicationBlockReason = React.useMemo<ApplicationBlockReason>(() => {
+    if (!application || !productsData) return null;
 
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
+    const productId = (application.financing_type as any)?.product_id;
+    if (!productId) return null;
 
-    if (!productId) return false;
+    const product = productsData.products?.find(
+      (p: any) => p.id === productId
+    );
 
-    const products = productsData.products || [];
-    const currentProduct = products.find((p: any) => p.id === productId);
+    // Product was deleted or is no longer available
+    if (!product) {
+      return "PRODUCT_DELETED";
+    }
 
-    if (!currentProduct) return false;
+    // Product exists but version changed
+    if (application.product_version !== product.version) {
+      return "PRODUCT_VERSION_CHANGED";
+    }
 
-    // Compare versions
-    return application.product_version !== currentProduct.version;
+    return null;
   }, [application, productsData]);
+
+
+
 
   /**
    * HANDLE RESTART APPLICATION
-   *
+   * 
    * Archive current application and redirect to /new
    */
   const handleRestartApplication = async () => {
@@ -154,150 +157,143 @@ export default function EditApplicationPage() {
   // Track where user wanted to go (for modal)
   const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
 
+  /**
+ * Selected product ID on Financing Type step.
+ * This represents user intent before saving.
+ */
+  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
+  console.log("selectedProductId (state):", selectedProductId);
+
+
+
   // Track if we just saved and are navigating to next step
-  // Store the target step number to skip validation for that step once
-  const targetStepRef = React.useRef<number | null>(null);
+  // This prevents validation from running with stale data immediately after save
+  const justSavedRef = React.useRef(false);
 
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
 
-  // Track last step for navigation direction
-  const lastStepRef = React.useRef<number>(stepFromUrl);
+  /**
+ * EFFECTIVE PRODUCT ID
+ *
+ * Determines which product the UI should be based on.
+ * - Step 1: use selected product if user clicked one, otherwise fallback to saved application product
+ * - Step 2+: always use saved application product
+ */
+  const effectiveProductId = React.useMemo(() => {
+    const savedProductId = (application?.financing_type as any)?.product_id;
+
+    if (stepFromUrl === 1) {
+      return selectedProductId ?? savedProductId ?? null;
+    }
+
+    return savedProductId ?? null;
+  }, [stepFromUrl, selectedProductId, application]);
 
   /**
-   * GET WORKFLOW STEPS
+   * PRODUCT ID TO CHECK FOR VERSION MISMATCH
    *
-   * Get the list of steps from the product workflow.
-   * Each product defines its own workflow steps.
-   *
-   * Example workflow (step keys match Application columns and API stepIdToColumn):
-   * Financing Type, Financing Structure, Contract Details, Invoice Details,
-   * Company Details, Business Details, Supporting Documents, Declarations, Review And Submit
-   * Step IDs from product: e.g. financing_type_1, company_details_1, declarations_1
+   * - Step 1:
+   *   - if user selected a product → check that
+   *   - else → check saved application product
+   * - Step 2+:
+   *   - always check saved application product
    */
+  const productIdToCheck = React.useMemo(() => {
+    const savedProductId = (application?.financing_type as any)?.product_id;
+
+    if (stepFromUrl === 1) {
+      return selectedProductId ?? savedProductId ?? null;
+    }
+
+    return savedProductId ?? null;
+  }, [stepFromUrl, selectedProductId, application]);
+
+
+  /**
+  * GET WORKFLOW STEPS
+  *
+  * Workflow must reflect the EFFECTIVE product:
+  * - selected product on step 1
+  * - saved product on later steps
+  */
   const workflowSteps = React.useMemo(() => {
-    if (!application || !productsData) return [];
+    if (!effectiveProductId || !productsData) return [];
 
-    // Get product ID from application
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
+    const product = productsData.products?.find(
+      (p: any) => p.id === effectiveProductId
+    );
 
-    if (!productId) return [];
+    if (!product?.workflow) return [];
 
-    // Find the product
-    const products = productsData.products || [];
-    const product = products.find((p: any) => p.id === productId);
-
-    if (!product || !product.workflow) return [];
-
-    // Return step names
     return product.workflow.map((step: any) => step.name);
-  }, [application, productsData]);
+  }, [effectiveProductId, productsData]);
 
-  /**
-   * GET FULL WORKFLOW
-   */
-  const productWorkflow = React.useMemo(() => {
-    if (!application || !productsData) return [];
 
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
-    if (!productId) return [];
-
-    const products = productsData.products || [];
-    const product = products.find((p: any) => p.id === productId);
-    return product?.workflow || [];
-  }, [application, productsData]);
+  const displayStepNames = React.useMemo(
+    () =>
+      workflowSteps.map((name: string) =>
+        name === "Verify Company Info" ? "Company details" : name
+      ),
+    [workflowSteps]
+  );
 
   const isLoading = isLoadingApp || isLoadingProducts;
+  const showBlockingSkeleton =
+    isLoading || !application || applicationBlockReason !== null;
 
-  /**
-   * GET CURRENT STEP INFO
-   *
-   * Get the workflow step configuration for the current step.
-   * This tells us which component to render and what config to pass.
-   */
+  const isProgressLoading = isLoadingProducts || !workflowSteps.length;
+
+
   const currentStepConfig = React.useMemo(() => {
     if (!application || !productsData) return null;
 
-    // Get product
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
+    const productId = (application.financing_type as any)?.product_id;
     if (!productId) return null;
 
-    const products = productsData.products || [];
-    const product = products.find((p: any) => p.id === productId);
-    if (!product || !product.workflow) return null;
+    const product = productsData.products?.find(
+      (p: any) => p.id === productId
+    );
 
-    // Get current step from workflow (0-based index)
-    const stepIndex = stepFromUrl - 1;
-    const step = product.workflow[stepIndex];
+    if (!product?.workflow) return null;
 
-    return step || null;
+    return product.workflow[stepFromUrl - 1] ?? null;
   }, [application, productsData, stepFromUrl]);
 
-  // Get the step ID (e.g., "financing_type_1", "company_details_123")
+
+
+
+  // Get the step ID (e.g., "financing_type_1", "verify_company_info_1")
   const currentStepId = currentStepConfig?.id || "";
-  // Derive step key from ID (e.g., "company_details_1" -> "company_details")
-  const currentStepKey = getStepKeyFromStepId(currentStepId);
-
-  /**
-   * AUTOMATIC STEP SKIPPING
-   *
-   * Protect against landing on skipped steps (e.g., via browser back button or direct URL).
-   * Ensures the user skips forward to Invoice Details if moving forward,
-   * or skips backward to Financing Structure if moving backward.
-   */
-  React.useEffect(() => {
-    if (!application || !productWorkflow.length) return;
-
-    if (currentStepKey === "contract_details") {
-      const savedStructure = application.financing_structure as any;
-      if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-        if (lastStepRef.current <= stepFromUrl) {
-          // Moving forward (or direct entry) -> skip to invoice details
-          const invoiceStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
-          );
-          if (invoiceStepIndex !== -1) {
-            router.replace(`/applications/edit/${applicationId}?step=${invoiceStepIndex + 1}`);
-          }
-        } else {
-          // Moving backward -> skip back to financing structure
-          const structureStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
-          );
-          if (structureStepIndex !== -1) {
-            router.replace(`/applications/edit/${applicationId}?step=${structureStepIndex + 1}`);
-          }
-        }
-      }
-    }
-    lastStepRef.current = stepFromUrl;
-  }, [application, currentStepKey, productWorkflow, applicationId, router, stepFromUrl]);
+  // Derive step key; treat "verify_company_info" (admin workflow) as "company_details"
+  const rawKey = currentStepId.replace(/_\d+$/, "");
+  const currentStepKey =
+    getStepKeyFromStepId(currentStepId) ??
+    (rawKey === "verify_company_info" ? ("company_details" as const) : null);
 
   /**
    * Check if current step is mapped to a component
    * Step key must match Application column and have a corresponding step file.
    */
-  const isStepMapped = React.useMemo(
-    () => currentStepKey !== null && APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any),
-    [currentStepKey]
-  );
+  const isStepMapped =
+    currentStepKey !== null &&
+    APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any);
+
 
   // Get custom title/description or fall back to workflow step name
   const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
     title: workflowSteps[stepFromUrl - 1] || "Loading...",
-    description: "Complete this step to continue",
+    description: "Complete this step to continue"
   };
 
   /**
    * RENDER STEP COMPONENT
-   *
+   * 
    * Based on the step ID, render the appropriate component.
    * Each step component handles its own data and passes it to parent via onDataChange.
    */
   const renderStepComponent = () => {
+
     // Get product ID from application
     const financingType = application?.financing_type as any;
     const savedProductId = financingType?.product_id;
@@ -305,26 +301,20 @@ export default function EditApplicationPage() {
     // Match step key (Application column name) to component
     if (currentStepKey === "financing_type") {
       return (
-        <FinancingTypeStep initialProductId={savedProductId} onDataChange={handleDataChange} />
+        <FinancingTypeStep
+          initialProductId={savedProductId}
+          onDataChange={handleDataChange}
+        />
       );
-    }
-
-    if (currentStepKey === "financing_structure") {
-      return (
-        <FinancingStructureStep applicationId={applicationId} onDataChange={handleDataChange} />
-      );
-    }
-
-    if (currentStepKey === "contract_details") {
-      return <ContractDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
-    }
-
-    if (currentStepKey === "invoice_details") {
-      return <InvoiceDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
     }
 
     if (currentStepKey === "company_details") {
-      return <CompanyDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
+      return (
+        <CompanyDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+        />
+      );
     }
 
     if (currentStepKey === "declarations") {
@@ -332,6 +322,15 @@ export default function EditApplicationPage() {
         <DeclarationsStep
           applicationId={applicationId}
           stepConfig={currentStepConfig?.config}
+          onDataChange={handleDataChange}
+        />
+      );
+    }
+
+    if (currentStepKey === "business_details") {
+      return (
+        <BusinessDetailsStep
+          applicationId={applicationId}
           onDataChange={handleDataChange}
         />
       );
@@ -348,16 +347,29 @@ export default function EditApplicationPage() {
     }
 
     // Placeholder for steps not yet implemented (names match Application columns)
-    if (currentStepKey === "business_details" || currentStepKey === "review_and_submit") {
-      return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
+    if (
+      currentStepKey === "financing_structure" ||
+      currentStepKey === "contract_details" ||
+      currentStepKey === "invoice_details" ||
+      currentStepKey === "review_and_submit"
+    ) {
+      return (
+        <div className="text-center py-12 text-muted-foreground">
+          Coming soon...
+        </div>
+      );
     }
 
-    return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Coming soon...
+      </div>
+    );
   };
 
   /**
    * RESUME LOGIC
-   *
+   * 
    * If user visits /applications/edit/123 without ?step=
    * Redirect them to their last completed step
    */
@@ -373,27 +385,28 @@ export default function EditApplicationPage() {
 
   /**
    * STEP VALIDATION
-   *
+   * 
    * Prevent users from skipping steps by typing URL manually
-   *
+   * 
    * Rules:
    * - User can only access steps 1 through (last_completed_step + 1)
    * - Example: If last_completed_step = 2, user can access steps 1, 2, or 3
    * - Trying to access step 5 → redirect to step 3 with error
    * - Step must exist in the current product workflow
-   *
+   * 
    * Why? We want users to complete steps in order and ensure steps exist.
    */
   React.useEffect(() => {
-    if (!application || isLoadingApp || isLoadingProducts) return;
+    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
 
-    // Skip validation if we just saved and are navigating to this step
-    if (targetStepRef.current !== null && stepFromUrl === targetStepRef.current) {
-      const lastCompleted = application.last_completed_step || 1;
-      if (lastCompleted >= targetStepRef.current - 1) {
-        targetStepRef.current = null;
-      }
-      return;
+    // Skip validation if we just saved and are navigating to next step
+    // This prevents false "complete steps in order" error when data is still updating
+    if (justSavedRef.current) {
+      // Reset the flag after a short delay to allow validation to run normally next time
+      const timer = setTimeout(() => {
+        justSavedRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
     }
 
     const lastCompleted = application.last_completed_step || 1;
@@ -420,19 +433,11 @@ export default function EditApplicationPage() {
       router.replace(`/applications/edit/${applicationId}?step=${lastCompleted}`);
       return;
     }
-  }, [
-    application,
-    applicationId,
-    stepFromUrl,
-    router,
-    isLoadingApp,
-    isLoadingProducts,
-    workflowSteps,
-  ]);
+  }, [application, applicationId, stepFromUrl, router, isLoadingApp, isLoadingProducts, workflowSteps]);
 
   /**
    * UNSAVED CHANGES WARNING
-   *
+   * 
    * If user has unsaved changes and tries to leave:
    * - Browser back → show modal
    * - Browser refresh/close → show browser warning
@@ -522,7 +527,7 @@ export default function EditApplicationPage() {
 
   /**
    * Handle back button click
-   *
+   * 
    * Logic:
    * - If on step 1 (first step) → go to dashboard
    * - If on step 2+ → go to previous step (step 1 shows financing type with DB data)
@@ -539,25 +544,7 @@ export default function EditApplicationPage() {
       router.push("/");
     } else if (stepFromUrl > 1) {
       // Any other step - go to previous step
-      let prevStep = stepFromUrl - 1;
-
-      // Handle skip logic for Back button
-      // If we are on Invoice Details and the financing type is NOT 'new_contract',
-      // we need to skip the Contract Details step.
-      if (currentStepKey === "invoice_details") {
-        const savedStructure = application?.financing_structure as any;
-        if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-          // Find the index of the financing_structure step to go back to it
-          const structureStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
-          );
-          if (structureStepIndex !== -1) {
-            prevStep = structureStepIndex + 1; // 1-based
-          }
-        }
-      }
-
-      router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
+      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
     } else {
       // Fallback - go to dashboard
       router.push("/");
@@ -566,55 +553,63 @@ export default function EditApplicationPage() {
 
   /**
    * SAVE AND CONTINUE
-   *
+   * 
    * This is called when user clicks "Save and Continue" button.
-   *
+   * 
    * Flow:
    * 1. Get data from current step
    * 2. Call API to save data
    * 3. Clear unsaved changes flag
    * 4. Navigate to next step
-   *
+   * 
    * The data is stored in stepDataRef by child step components.
    */
   const handleSaveAndContinue = async () => {
     try {
-      // Get the data from the current step
-      const rawData = stepDataRef.current;
-      let dataToSave = rawData ? { ...rawData } : null;
-
-      // Remove isValid from JSON as it's only for frontend communication
-      if (dataToSave && "isValid" in dataToSave) {
-        delete dataToSave.isValid;
+      /**
+ * HARD SAFETY GUARD — VERSION MISMATCH
+ *
+ * If a version mismatch exists, do NOT allow saving.
+ * This guarantees the DB is never mutated with incompatible data.
+ */
+      if (applicationBlockReason !== null) {
+        return;
       }
 
-      console.log(dataToSave);
+      // Get the data from the current step (capture saveFunction before cleanup removes it)
+      const rawStepData = stepDataRef.current;
+      const saveFunction = rawStepData && typeof rawStepData === "object" ? rawStepData.saveFunction : undefined;
+
+      let dataToSave = rawStepData;
+
+      // Cleanup: remove UI-only fields before sending data to the backend.
+      // Step components pass extra metadata (validation, unsaved-changes, file upload helpers)
+      // that must never be stored in the DB.
+      if (dataToSave && typeof dataToSave === "object") {
+        const {
+          hasPendingChanges,
+          areAllDeclarationsChecked,
+          areAllFilesUploaded,
+          saveFunction: _sf,
+          ...rest
+        } = dataToSave;
+
+        dataToSave = rest;
+      }
 
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
-       *
+       * 
        * Some steps need to save additional data before saving the application.
        * For example:
-       * - company_details updates organization data first
+       * - company_details runs validation and updates organization data first
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
-      if (dataToSave?.saveFunction) {
-        const returnedData = await dataToSave.saveFunction();
-
-        // Remove saveFunction from the data being sent to API
-        delete dataToSave.saveFunction;
+      if (typeof saveFunction === "function") {
+        const returnedData = await saveFunction();
 
         // If saveFunction returns data, use it (e.g., supporting documents with S3 keys)
         if (returnedData) {
-          // Remove isValid from returned data if present
-          if (
-            typeof returnedData === "object" &&
-            returnedData !== null &&
-            "isValid" in returnedData
-          ) {
-            delete (returnedData as any).isValid;
-          }
-
           // For supporting documents, the returned data IS the complete categories structure
           // We need to wrap it in supporting_documents key
           if (currentStepKey === "supporting_documents") {
@@ -628,53 +623,13 @@ export default function EditApplicationPage() {
         }
       }
 
-      // Final cleanup of frontend-only properties before saving to DB
-      if (dataToSave) {
-        // Capture specific fields for invoice_details step before clearing dataToSave
-        const invoices = dataToSave.invoices;
-        const availableFacility = dataToSave.available_facility;
-
-        delete (dataToSave as any).hasPendingChanges;
-        delete (dataToSave as any).saveFunction;
-        delete (dataToSave as any).isValid;
-        delete (dataToSave as any).validationError;
-
-        // If this is a special step that saves to its own table (Contract/Invoice),
-        // we don't want to send the details back to the Application table
-        if (currentStepKey === "contract_details" || currentStepKey === "invoice_details") {
-          // Special handling for invoice_details to update contract available_facility
-          if (currentStepKey === "invoice_details" && application?.contract?.id) {
-             const approvedFacility = (application.contract.contract_details as any)?.approved_facility || 0;
-             if (approvedFacility > 0) {
-                // Net financing from CURRENT (DRAFT) invoices in this application
-                const currentAppDraftFinancing = (invoices || [])
-                  .filter((inv: any) => !inv.isReadOnly && inv.status === "DRAFT")
-                  .reduce((acc: number, inv: any) => acc + (inv.value || 0) * 0.8, 0);
-
-                const newAvailableFacility = Math.max(0, (availableFacility || 0) - currentAppDraftFinancing);
-
-                await updateContractMutation.mutateAsync({
-                  id: application.contract.id,
-                  data: {
-                    contract_details: {
-                      ...(application.contract.contract_details as any),
-                      available_facility: newAvailableFacility,
-                    }
-                  }
-                });
-             }
-          }
-          dataToSave = {};
-        }
-      }
-
       /**
        * DECLARATIONS VALIDATION
-       *
+       * 
        * For declarations step, check if all boxes are checked.
        * We check the declarations array directly.
        */
-      if (currentStepId === "declarations_1") {
+      if (currentStepKey === "declarations") {
         const declarations = dataToSave?.declarations || [];
         const allChecked = declarations.every((d: any) => d.checked === true);
 
@@ -684,9 +639,21 @@ export default function EditApplicationPage() {
         }
       }
 
+      if (currentStepKey === "business_details") {
+        if (!dataToSave?.declaration_confirmed) {
+          toast.error("Please confirm the declaration to continue");
+          return;
+        }
+        dataToSave = {
+          about_your_business: dataToSave.about_your_business,
+          why_raising_funds: dataToSave.why_raising_funds,
+          declaration_confirmed: dataToSave.declaration_confirmed,
+        };
+      }
+
       // For now, we're using placeholder data
       // Later, step components will update stepDataRef with real data
-      if (dataToSave === null) {
+      if (!dataToSave) {
         // No data yet - just navigate for now
         toast.success("Step completed");
         setHasUnsavedChanges(false);
@@ -694,52 +661,37 @@ export default function EditApplicationPage() {
         return;
       }
 
-      // Set target step to skip validation during navigation
-      let nextStep = stepFromUrl + 1;
-
-      // Handle skip logic for Financing Structure
-      if (currentStepKey === "financing_structure") {
-        const structureType = dataToSave?.structure_type;
-
-        if (structureType === "existing_contract" || structureType === "invoice_only") {
-          // Skip Step 3 (Contract Details) and go to Step 4 (Invoice Details)
-          // Find the index of the invoice_details step
-          const invoiceStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
-          );
-          if (invoiceStepIndex !== -1) {
-            nextStep = invoiceStepIndex + 1; // 1-based
-          }
-
-          // If invoice-only, ensure contract is unlinked
-          if (structureType === "invoice_only" && application?.contract?.id) {
-            await unlinkContractMutation.mutateAsync(applicationId);
-          }
-        }
-      }
-
-      targetStepRef.current = nextStep;
-
       // Call API to save
       // API endpoint: PATCH /v1/applications/:id/step
       // Body: { stepNumber: 1, stepId: "financing_type", data: {...} }
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
-          stepNumber: nextStep - 1, // Ensure last_completed_step covers the skipped step
+          stepNumber: stepFromUrl,
           stepId: currentStepId,
           data: dataToSave,
         },
       });
+
+      // Wait for application data to refetch before navigating
+      // This prevents the validation effect from running with stale data
+      await refetchApplication();
+
+      // Set flag to skip validation temporarily after save
+      // This prevents false "complete steps in order" error
+      justSavedRef.current = true;
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
       // Go to next step
-      router.push(`/applications/edit/${applicationId}?step=${nextStep}`);
+      router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+
     } catch (error) {
-      // Error already shown by mutation hook
+      if ((error as Error & { isValidationError?: boolean })?.isValidationError) {
+        return;
+      }
       toast.error("Failed to save. Please try again.");
     }
   };
@@ -752,26 +704,35 @@ export default function EditApplicationPage() {
 
   /**
    * Callback for step components to pass data to parent
-   *
+   * 
    * Step components will call this when data changes:
    * onDataChange({ company_name: "ABC Corp", ... })
-   *
+   * 
    * Some components (like supporting documents) provide hasPendingChanges flag
    * to indicate if there are actual unsaved changes vs just initial data load
-   *
+   * 
    * We store it in a ref so we always have the latest data
    */
   const handleDataChange = (data: any) => {
     stepDataRef.current = data;
 
+    /**
+ * Financing Type step:
+ * capture selected product ID as STATE (reactive)
+ */
+    if (data?.product_id) {
+      setSelectedProductId(data.product_id);
+    }
+
     // Check if step provides validation flag
-    if (data?.isValid !== undefined) {
-      setIsCurrentStepValid(data.isValid);
-    } else if (data?.areAllFilesUploaded !== undefined) {
+    if (data?.areAllFilesUploaded !== undefined) {
       setIsCurrentStepValid(data.areAllFilesUploaded);
     } else if (data?.areAllDeclarationsChecked !== undefined) {
       // Declarations step provides this flag to indicate if all boxes are checked
       setIsCurrentStepValid(data.areAllDeclarationsChecked);
+    } else if (data?.isDeclarationConfirmed !== undefined) {
+      // Business details step: declaration checkbox must be checked
+      setIsCurrentStepValid(data.isDeclarationConfirmed);
     } else {
       // Default to valid if step doesn't provide validation
       setIsCurrentStepValid(true);
@@ -788,35 +749,101 @@ export default function EditApplicationPage() {
   };
 
   // Show loading state while fetching application
-  if (isLoading || !application) {
+  if (showBlockingSkeleton) {
     return (
-      <div className="flex flex-col h-full">
-        <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Skeleton className="h-5 sm:h-6 w-28 sm:w-32" />
-        </header>
+      <>
+        <div className="flex flex-col h-full">
+          <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Skeleton className="h-5 sm:h-6 w-28 sm:w-32" />
+          </header>
 
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4">
-          <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
-            <Skeleton className="h-7 sm:h-9 w-48 sm:w-64 mb-2" />
-            <Skeleton className="h-4 sm:h-5 w-64 sm:w-96 mb-6 sm:mb-8" />
-            <Skeleton className="h-64 sm:h-96 w-full" />
-          </div>
-        </main>
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+            <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
+              {/* Title skeleton */}
+              <Skeleton className="h-7 sm:h-9 w-48 sm:w-64 mb-2" />
+              <Skeleton className="h-4 sm:h-5 w-64 sm:w-96 mb-6 sm:mb-8" />
 
-        <footer className="sticky bottom-0 border-t bg-background">
-          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
-            <Skeleton className="h-11 sm:h-12 w-full sm:w-32 rounded-xl order-2 sm:order-1" />
-            <Skeleton className="h-11 sm:h-12 w-full sm:w-48 rounded-xl order-1 sm:order-2" />
-          </div>
-        </footer>
-      </div>
+              {/* Progress indicator skeleton */}
+              <ProgressIndicator
+                steps={displayStepNames.length ? displayStepNames : ["", "", "", ""]}
+                currentStep={stepFromUrl}
+                isLoading
+              />
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-border w-full mt-6" />
+
+            {/* Content skeleton */}
+            <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
+              <Skeleton className="h-64 sm:h-96 w-full" />
+            </div>
+
+          </main>
+
+          <footer className="sticky bottom-0 border-t bg-background">
+            <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
+              <Skeleton className="h-11 sm:h-12 w-full sm:w-32 rounded-xl order-2 sm:order-1" />
+              <Skeleton className="h-11 sm:h-12 w-full sm:w-48 rounded-xl order-1 sm:order-2" />
+            </div>
+          </footer>
+        </div>
+
+        <Dialog open={applicationBlockReason !== null} onOpenChange={() => { }}>
+          <DialogContent className="[&>button]:hidden">
+            <DialogHeader>
+              <DialogTitle>
+                {applicationBlockReason === "PRODUCT_DELETED"
+                  ? "Product No Longer Available"
+                  : "Product Updated"}
+              </DialogTitle>
+
+              <DialogDescription>
+                {applicationBlockReason === "PRODUCT_DELETED" ? (
+                  <>
+                    The financing product used for this application has been removed
+                    and is no longer available. To continue, please start a new
+                    application with a different product.
+                  </>
+                ) : (
+                  <>
+                    This financing product has been updated with new requirements.
+                    To continue, you’ll need to restart your application using the
+                    latest version.
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter>
+              <Button
+                onClick={handleRestartApplication}
+                className="w-full"
+                disabled={archiveApplicationMutation.isPending}
+              >
+                {archiveApplicationMutation.isPending
+                  ? "Restarting..."
+                  : "Start New Application"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      </>
     );
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Top navigation bar */}
+      <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-base sm:text-lg font-semibold">Edit Application</h1>
+      </header>
+
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
@@ -831,7 +858,11 @@ export default function EditApplicationPage() {
           </div>
 
           {/* Progress Indicator */}
-          <ProgressIndicator steps={workflowSteps} currentStep={stepFromUrl} isLoading={false} />
+          <ProgressIndicator
+            steps={displayStepNames}
+            currentStep={stepFromUrl}
+            isLoading={isProgressLoading}
+          />
         </div>
 
         {/* Divider */}
@@ -841,6 +872,9 @@ export default function EditApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
           {renderStepComponent()}
         </div>
+
+
+
       </main>
 
       {/* Bottom buttons */}
@@ -850,7 +884,7 @@ export default function EditApplicationPage() {
           <Button
             variant="outline"
             onClick={handleBack}
-            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1"
+            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
@@ -859,8 +893,12 @@ export default function EditApplicationPage() {
           {/* Continue button */}
           <Button
             onClick={handleSaveAndContinue}
-            disabled={updateStepMutation.isPending || !isCurrentStepValid || !isStepMapped}
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2"
+            disabled={
+              updateStepMutation.isPending ||
+              !isCurrentStepValid ||
+              !isStepMapped
+            }
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
             {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
@@ -868,27 +906,6 @@ export default function EditApplicationPage() {
         </div>
       </footer>
 
-      {/* Version Mismatch Modal (Blocking) */}
-      <Dialog open={versionMismatch} onOpenChange={() => {}}>
-        <DialogContent className="[&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle>Product Updated</DialogTitle>
-            <DialogDescription>
-              This product has been updated with new features and requirements. Please restart your
-              application to continue.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              onClick={handleRestartApplication}
-              className="w-full"
-              disabled={archiveApplicationMutation.isPending}
-            >
-              {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Unsaved Changes Modal */}
       <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
@@ -900,10 +917,18 @@ export default function EditApplicationPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUnsavedChangesModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsUnsavedChangesModalOpen(false)}
+              className="h-11"
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleConfirmLeave}>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmLeave}
+              className="h-11"
+            >
               Leave without saving
             </Button>
           </DialogFooter>

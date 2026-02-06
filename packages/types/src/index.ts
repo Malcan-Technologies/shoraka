@@ -117,6 +117,8 @@ export interface Application {
   last_completed_step: number;
   financing_type?: any;
   financing_structure?: any;
+  contract_details?: any;
+  invoice_details?: any;
   company_details?: any;
   business_details?: any;
   supporting_documents?: any;
@@ -125,10 +127,35 @@ export interface Application {
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
-  isVersionMismatch?: boolean;
-  latestProductVersion?: number;
-  contract?: Contract | null;
-  invoices?: Invoice[];
+}
+
+export interface CreateApplicationInput {
+  productId: string;
+  issuerOrganizationId: string;
+}
+
+export interface UpdateApplicationStepInput {
+  stepNumber: number;
+  stepId: string;
+  data: Record<string, any>;
+}
+
+export interface Product {
+  id: string;
+  version: number;
+  workflow: any[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetProductsResponse {
+  products: Product[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
 }
 
 export type ContractStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
@@ -194,35 +221,6 @@ export interface Invoice {
   details: InvoiceDetails;
   created_at: string;
   updated_at: string;
-}
-
-export interface CreateApplicationInput {
-  productId: string;
-  issuerOrganizationId: string;
-}
-
-export interface UpdateApplicationStepInput {
-  stepNumber: number;
-  stepId: string;
-  data: Record<string, any>;
-}
-
-export interface Product {
-  id: string;
-  version: number;
-  workflow: any[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GetProductsResponse {
-  products: Product[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalCount: number;
-    totalPages: number;
-  };
 }
 
 export * from "./activity-config";

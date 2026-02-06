@@ -1,8 +1,11 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
-import { invoiceService } from "../invoices/service";
-import { CreateApplicationInput, UpdateApplicationStepInput } from "./schemas";
+import {
+  CreateApplicationInput,
+  UpdateApplicationStepInput,
+  businessDetailsDataSchema,
+} from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
 import {
@@ -27,22 +30,66 @@ export class ApplicationService {
   }
 
   /**
-   * Map step ID to database field name
+   * Map step ID to database field name.
+   * Exact match first; then strip trailing _<digits> and map by base id (e.g. business_details_1738... -> business_details).
    */
   private getFieldNameForStepId(stepId: string): keyof Application | null {
-    const stepIdToColumn: Partial<Record<string, keyof Application>> = {
-      // step id: field name in application column
+    const stepIdToColumn: Record<string, keyof Application> = {
       "financing_type_1": "financing_type",
       "financing_structure_1": "financing_structure",
-      // contract_details_1 and invoice_details_1 are stored in their own tables
+      "contract_details_1": "contract_details",
+      "invoice_details_1": "invoice_details",
       "company_details_1": "company_details",
+      "verify_company_info_1": "company_details",
       "business_details_1": "business_details",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
     };
 
-    return stepIdToColumn[stepId] || null;
+    const exact = stepIdToColumn[stepId];
+    if (exact) return exact;
+
+    const baseId = stepId.replace(/_\d+$/, "");
+    const baseToColumn: Record<string, keyof Application> = {
+      financing_type: "financing_type",
+      financing_structure: "financing_structure",
+      contract_details: "contract_details",
+      invoice_details: "invoice_details",
+      company_details: "company_details",
+      verify_company_info: "company_details",
+      business_details: "business_details",
+      supporting_documents: "supporting_documents",
+      declarations: "declarations",
+      review_and_submit: "review_and_submit",
+    };
+    return baseToColumn[baseId] ?? null;
+  }
+
+  /**
+   * Validate company_details payload: contact_person.ic (digits/dashes only), contact (phone chars only)
+   */
+  private validateCompanyDetailsData(data: Record<string, unknown>): void {
+    const contactPerson = data?.contact_person as Record<string, unknown> | undefined;
+    if (!contactPerson) return;
+
+    const ic = typeof contactPerson.ic === "string" ? contactPerson.ic : "";
+    if (ic && !/^[\d-]*$/.test(ic)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Applicant IC number must contain only numbers and dashes (no letters)"
+      );
+    }
+
+    const contact = typeof contactPerson.contact === "string" ? contactPerson.contact : "";
+    if (contact && !/^[\d\s+\-()]*$/.test(contact)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Applicant contact must contain only numbers and valid phone characters (+, -, spaces, parentheses)"
+      );
+    }
   }
 
   /**
@@ -122,23 +169,9 @@ export class ApplicationService {
     // Extract product_id from financing_type
     const financingType = application.financing_type as any;
     const productId = financingType?.product_id;
+    return application;
 
-    let isVersionMismatch = false;
-    let latestProductVersion: number | undefined;
 
-    if (productId) {
-      const currentProduct = await this.productRepository.findById(productId);
-      if (currentProduct) {
-        latestProductVersion = currentProduct.version;
-        isVersionMismatch = application.product_version !== currentProduct.version;
-      }
-    }
-
-    return {
-      ...application,
-      isVersionMismatch,
-      latestProductVersion,
-    };
   }
 
   /**
@@ -154,35 +187,26 @@ export class ApplicationService {
     }
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
-    const isSpecialStep = ["contract_details_1", "invoice_details_1"].includes(input.stepId);
-
-    if (!fieldName && !isSpecialStep) {
+    if (!fieldName) {
       throw new AppError(400, "INVALID_STEP_ID", `Invalid step ID: ${input.stepId}`);
     }
 
-    const updateData: Prisma.ApplicationUpdateInput = {
-      updated_at: new Date(),
-    };
+    if (fieldName === "company_details") {
+      this.validateCompanyDetailsData(input.data as Record<string, unknown>);
+    }
 
-    // Only update application column if mapping exists
-    if (fieldName) {
-      (updateData as any)[fieldName] = input.data as Prisma.InputJsonValue;
-
-      // Special handling for financing_structure to link existing contract
-      if (fieldName === "financing_structure") {
-        const structureData = input.data as any;
-        const prevStructure = application.financing_structure as any;
-
-        if (structureData.structure_type === "existing_contract" && structureData.existing_contract_id) {
-          updateData.contract_id = structureData.existing_contract_id;
-        } else if (structureData.structure_type === "invoice_only") {
-          updateData.contract_id = null;
-        } else if (structureData.structure_type === "new_contract" && prevStructure?.structure_type === "existing_contract") {
-          // If switching from existing back to new contract, clear the shared link
-          updateData.contract_id = null;
-        }
+    if (fieldName === "business_details") {
+      const result = businessDetailsDataSchema.safeParse(input.data);
+      if (!result.success) {
+        const message = result.error.errors.map((e) => e.message).join("; ");
+        throw new AppError(400, "VALIDATION_ERROR", message);
       }
     }
+
+    const updateData: Prisma.ApplicationUpdateInput = {
+      [fieldName]: input.data as Prisma.InputJsonValue,
+      updated_at: new Date(),
+    };
 
     // Update last_completed_step if this is a new step
     if (input.stepNumber >= application.last_completed_step) {
@@ -190,26 +214,6 @@ export class ApplicationService {
     }
 
     return this.repository.update(id, updateData);
-  }
-
-  /**
-   * Update application status
-   */
-  async updateApplicationStatus(id: string, status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "ARCHIVED", userId: string): Promise<Application> {
-    // Verify user has access to this application
-    await this.verifyApplicationAccess(id, userId);
-
-    const updatedApplication = await this.repository.update(id, {
-      status,
-      updated_at: new Date(),
-    });
-
-    // If status transitioned to SUBMITTED, transition invoices too
-    if (status === "SUBMITTED") {
-      await invoiceService.transitionInvoicesToSubmitted(id);
-    }
-
-    return updatedApplication;
   }
 
   /**

@@ -223,6 +223,61 @@ export async function s3ObjectExists(key: string): Promise<boolean> {
 }
 
 /**
+ * Generate a short cuid-like string for S3 keys (same pattern as site-documents).
+ */
+function generateCuidForKey(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${timestamp}${random}`;
+}
+
+/**
+ * Parse a product S3 key. Format: products/{productId}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if the key does not match.
+ */
+export function parseProductS3Key(key: string): {
+  productId: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  const match = key.match(/^products\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.([a-z0-9]+)$/i);
+  if (!match) return null;
+  return {
+    productId: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5].toLowerCase(),
+  };
+}
+
+/**
+ * Generate S3 key for product files (image or document template). Same filename pattern as site-documents.
+ * Format: products/{productId}/v{version}-{date}-{cuid}.{ext} (e.g. v5-2025-12-31-mjtow2sbsibauldb.pdf)
+ * When existingKey is provided and parses successfully, reuses the same date and cuid and only bumps the version (for in-place replace).
+ */
+export function generateProductS3Key(params: {
+  productId: string;
+  version: number;
+  extension: string;
+  /** When replacing an existing file, pass its s3_key so the new key keeps the same date and cuid (only version changes). */
+  existingKey?: string;
+}): string {
+  const prefix = `products/${params.productId}/`;
+  if (params.existingKey?.trim()) {
+    const parsed = parseProductS3Key(params.existingKey.trim());
+    if (parsed && parsed.productId === params.productId) {
+      return `${prefix}v${params.version}-${parsed.date}-${parsed.cuid}.${params.extension}`;
+    }
+  }
+  const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const cuid = generateCuidForKey();
+  return `${prefix}v${params.version}-${date}-${cuid}.${params.extension}`;
+}
+
+/**
  * Generate S3 key for site documents
  * Format: site-documents/{type}/{version}-{date}-{cuid}.{ext}
  */
@@ -246,6 +301,7 @@ export function getFileExtension(fileName: string): string {
 }
 
 /**
+<<<<<<< HEAD
  * Generate S3 key for product images
  * Format: products/{financing-type-name}/v1-{date}-{cuid}.{ext}
  * Matches the site documents naming convention: v1_date_id.ext
@@ -326,6 +382,8 @@ export function generateProductImageKeyWithVersion(params: {
 }
 
 /**
+=======
+>>>>>>> feature/finance-application
  * Validate file type and size for site documents
  */
 export function validateSiteDocument(params: {
@@ -339,34 +397,6 @@ export function validateSiteDocument(params: {
     return {
       valid: false,
       error: `Invalid content type. Allowed types: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
-    };
-  }
-
-  if (params.fileSize > MAX_FILE_SIZE) {
-    return {
-      valid: false,
-      error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate file type and size for product images (financing type)
- * Only PNG images are allowed for financing type product images
- */
-export function validateProductImage(params: {
-  contentType: string;
-  fileSize: number;
-}): { valid: boolean; error?: string } {
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const ALLOWED_CONTENT_TYPES = ["image/png"];
-
-  if (!ALLOWED_CONTENT_TYPES.includes(params.contentType.toLowerCase())) {
-    return {
-      valid: false,
-      error: `Invalid content type. Only PNG images are allowed for product images.`,
     };
   }
 

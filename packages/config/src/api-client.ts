@@ -50,12 +50,6 @@ import type {
   GetProductLogsParams,
   ProductLogsResponse,
   ExportProductLogsParams,
-  RequestProductImageUploadUrlInput,
-  RequestProductImageUploadUrlResponse,
-  RequestProductImageDownloadUrlInput,
-  ProductImageDownloadUrlResponse,
-  RequestProductImageReplaceUrlInput,
-  RequestProductImageReplaceUrlResponse,
   GetActivitiesParams,
   ActivitiesResponse,
   Product,
@@ -902,34 +896,6 @@ export class ApiClient {
     return response.blob();
   }
 
-  // Product Images
-  async requestProductImageUploadUrl(
-    data: RequestProductImageUploadUrlInput
-  ): Promise<ApiResponse<RequestProductImageUploadUrlResponse> | ApiError> {
-    return this.post<RequestProductImageUploadUrlResponse>(
-      `/v1/products/images/upload-url`,
-      data
-    );
-  }
-
-  async requestProductImageDownloadUrl(
-    data: RequestProductImageDownloadUrlInput
-  ): Promise<ApiResponse<ProductImageDownloadUrlResponse> | ApiError> {
-    return this.post<ProductImageDownloadUrlResponse>(
-      `/v1/products/images/download-url`,
-      data
-    );
-  }
-
-  async requestProductImageReplaceUrl(
-    data: RequestProductImageReplaceUrlInput
-  ): Promise<ApiResponse<RequestProductImageReplaceUrlResponse> | ApiError> {
-    return this.post<RequestProductImageReplaceUrlResponse>(
-      `/v1/products/images/replace-url`,
-      data
-    );
-  }
-
   // Activities
   async getActivities(params: GetActivitiesParams): Promise<ApiResponse<ActivitiesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
@@ -963,6 +929,50 @@ export class ApiClient {
   async getProduct(id: string): Promise<ApiResponse<Product> | ApiError> {
     return this.get<Product>(`/v1/products/${id}`);
   }
+
+  async createProduct(data: { workflow: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+    return this.post<Product>("/v1/products", data);
+  }
+
+  async updateProduct(
+    id: string,
+    data: { workflow?: unknown[]; completeCreate?: boolean }
+  ): Promise<ApiResponse<Product> | ApiError> {
+    return this.patch<Product>(`/v1/products/${id}`, data);
+  }
+
+  async deleteProduct(id: string): Promise<ApiResponse<unknown> | ApiError> {
+    return this.delete<unknown>(`/v1/products/${id}`);
+  }
+
+  /** Request presigned URL for product image (admin). PNG only, 5MB max. */
+  async requestProductImageUploadUrl(
+    productId: string,
+    body: { fileName: string; contentType: string; fileSize?: number }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/products/${productId}/upload-image-url`,
+      body
+    );
+  }
+
+  /** Request presigned URL for product document template (admin). Backend loads product and returns uploadUrl + s3Key for slot. */
+  async requestProductTemplateUploadUrl(
+    productId: string,
+    body: {
+      categoryKey: string;
+      templateIndex: number;
+      fileName: string;
+      contentType: string;
+      fileSize?: number;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/products/${productId}/upload-template-url`,
+      body
+    );
+  }
+
 
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {

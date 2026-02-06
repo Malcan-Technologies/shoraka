@@ -4,36 +4,7 @@ import { z } from "zod";
 export const dateRangeValues = ["24h", "7d", "30d", "all"] as const;
 export type DateRangeValue = (typeof dateRangeValues)[number];
 
-// Workflow step schema
-const workflowStepSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  config: z.record(z.unknown()).optional(),
-});
-
-// Create product input schema - workflow is an array of steps
-export const createProductSchema = z.object({
-  workflow: z.array(workflowStepSchema),
-});
-
-// Update product input schema
-export const updateProductSchema = z.object({
-  workflow: z.array(workflowStepSchema).optional(),
-});
-
-// Product ID parameter schema
-export const productIdParamSchema = z.object({
-  id: z.string().cuid(),
-});
-
-// Query parameters for listing products
-export const listProductsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(10),
-  search: z.string().optional(),
-});
-
-// Product log event types
+// Product log event types (audit trail for product lifecycle events)
 export const productEventTypes = [
   "PRODUCT_CREATED",
   "PRODUCT_UPDATED",
@@ -64,40 +35,54 @@ export const exportProductLogsQuerySchema = z.object({
 
 export type ExportProductLogsQuery = z.infer<typeof exportProductLogsQuerySchema>;
 
-// Product image upload URL request schema
-export const requestProductImageUploadUrlSchema = z.object({
+// Query params for products list (admin)
+export const getProductsListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(10),
+  search: z.string().optional(),
+});
+
+export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;
+
+// Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
+export const createProductBodySchema = z.object({
+  workflow: z.array(z.unknown()).min(1),
+});
+
+export type CreateProductBody = z.infer<typeof createProductBodySchema>;
+
+// Body for PATCH /v1/products/:id. Version auto-increments unless completeCreate is true (used only to complete the first save after create).
+export const updateProductBodySchema = z.object({
+  workflow: z.array(z.unknown()).optional(),
+  completeCreate: z.boolean().optional(),
+});
+
+export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
+
+const ALLOWED_DOCUMENT_TEMPLATE_TYPES = ["application/pdf"];
+const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPE = "image/png";
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+// POST /v1/products/:id/upload-image-url — PNG only, 5MB max.
+export const productUploadImageUrlBodySchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.string().min(1),
-  fileSize: z.number().int().positive(),
-  financingTypeName: z.string().min(1), // Financing type name for folder structure
+  contentType: z.literal(ALLOWED_IMAGE_TYPE),
+  fileSize: z.number().max(MAX_IMAGE_SIZE_BYTES, "Image must be 5MB or less").optional(),
 });
 
-export type RequestProductImageUploadUrlInput = z.infer<
-  typeof requestProductImageUploadUrlSchema
->;
+export type ProductUploadImageUrlBody = z.infer<typeof productUploadImageUrlBodySchema>;
 
-// Product image download URL request schema
-export const requestProductImageDownloadUrlSchema = z.object({
-  s3Key: z.string().min(1),
-});
-
-export type RequestProductImageDownloadUrlInput = z.infer<
-  typeof requestProductImageDownloadUrlSchema
->;
-
-// Product image replace URL request schema (uses existing S3 key)
-export const requestProductImageReplaceUrlSchema = z.object({
-  s3Key: z.string().min(1), // Existing S3 key to replace
+// POST /v1/products/:id/upload-template-url — backend loads product, gets current template key at slot, returns uploadUrl + s3Key.
+export const productUploadTemplateUrlBodySchema = z.object({
+  categoryKey: z.string().min(1),
+  templateIndex: z.number().int().min(0),
   fileName: z.string().min(1),
-  contentType: z.string().min(1),
-  fileSize: z.number().int().positive(),
+  contentType: z.string().refine((v) => ALLOWED_DOCUMENT_TEMPLATE_TYPES.includes(v), {
+    message: "Only PDF is allowed for document templates",
+  }),
+  fileSize: z.number().max(MAX_TEMPLATE_SIZE_BYTES, "Template must be 5MB or less").optional(),
 });
 
-export type RequestProductImageReplaceUrlInput = z.infer<
-  typeof requestProductImageReplaceUrlSchema
->;
+export type ProductUploadTemplateUrlBody = z.infer<typeof productUploadTemplateUrlBodySchema>;
 
-// Type exports
-export type CreateProductInput = z.infer<typeof createProductSchema>;
-export type UpdateProductInput = z.infer<typeof updateProductSchema>;
-export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;

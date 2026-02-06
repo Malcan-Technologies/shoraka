@@ -11,11 +11,11 @@ import { siteDocumentAdminRouter } from "./modules/site-documents/admin-controll
 import { siteDocumentUserRouter } from "./modules/site-documents/user-controller";
 import { documentLogRouter } from "./modules/site-documents/log-controller";
 import { productLogRouter } from "./modules/products/log-controller";
+import { productsRouter } from "./modules/products/products-controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
-import { createProductRouter } from "./modules/products/controller";
 import { createApplicationRouter } from "./modules/applications/controller";
 import { createContractRouter } from "./modules/contracts/controller";
 import { createInvoiceRouter } from "./modules/invoices/controller";
@@ -79,11 +79,16 @@ export function registerRoutes(app: Application): void {
   // Organization routes
   v1Router.use("/organizations", createOrganizationRouter());
 
-  v1Router.use("/products", createProductRouter());
-
   v1Router.use("/applications", createApplicationRouter());
   v1Router.use("/contracts", createContractRouter());
   v1Router.use("/invoices", createInvoiceRouter());
+
+  // Products list (admin only) – GET /v1/products, GET /v1/products/:id
+  if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
+    v1Router.use("/products", devAuthBypass, requireRole(UserRole.ADMIN), productsRouter);
+  } else {
+    v1Router.use("/products", requireAuth, requireRole(UserRole.ADMIN), productsRouter);
+  }
 
   // RegTank routes (require authentication)
   v1Router.use("/regtank", requireAuth, regTankRouter);

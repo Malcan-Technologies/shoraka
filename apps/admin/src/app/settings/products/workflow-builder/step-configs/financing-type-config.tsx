@@ -1,0 +1,250 @@
+"use client";
+
+import * as React from "react";
+import { Label } from "../../../../../components/ui/label";
+import { Input } from "../../../../../components/ui/input";
+import { Skeleton } from "../../../../../components/ui/skeleton";
+import { Textarea } from "../../../../../components/ui/textarea";
+import { PhotoIcon } from "@heroicons/react/24/outline";
+import { useS3ViewUrl } from "../../../../../hooks/use-s3";
+import { toast } from "sonner";
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Image stored in config.image: S3 key, file_name, optional size in bytes. */
+export interface FinancingTypeImageShape {
+  s3_key: string;
+  file_name: string;
+  file_size?: number;
+}
+
+/** Financing type step config: category, name, description, image. Stored in workflow step config. */
+export interface FinancingTypeConfigShape {
+  category?: string;
+  name?: string;
+  description?: string;
+  /** Nested image object. Legacy: top-level s3_key is still read for backward compat. */
+  image?: FinancingTypeImageShape;
+}
+
+function getImage(c: Record<string, unknown> | undefined): FinancingTypeImageShape | null {
+  const img = c?.image as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
+  const s3_key = (img?.s3_key ?? c?.s3_key) as string | undefined;
+  if (!s3_key?.trim()) return null;
+  const fileName = (img?.file_name ?? img?.filename) as string | undefined;
+  return {
+    s3_key,
+    file_name: fileName ?? "",
+    file_size: img?.file_size as number | undefined,
+  };
+}
+
+function getConfig(config: unknown): FinancingTypeConfigShape & { imageData: FinancingTypeImageShape | null } {
+  const c = config as Record<string, unknown> | undefined;
+  const imageData = getImage(c);
+  return {
+    category: (c?.category as string) ?? "",
+    name: (c?.name as string) ?? "",
+    description: (c?.description as string) ?? "",
+    image: imageData ? { s3_key: imageData.s3_key, file_name: imageData.file_name, file_size: imageData.file_size } : undefined,
+    imageData,
+  };
+}
+
+export function FinancingTypeConfig({
+  config,
+  onChange,
+  onPendingImageChange,
+}: {
+  config: unknown;
+  onChange: (config: unknown) => void;
+  onPendingImageChange?: (file: File | null) => void;
+}) {
+  const current = getConfig(config);
+  const [pendingFile, setPendingFile] = React.useState<File | null>(null);
+  const [previewDataUrl, setPreviewDataUrl] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const base = (config as Record<string, unknown>) ?? {};
+
+  const imageData = current.imageData;
+  const s3Key = imageData?.s3_key ?? "";
+  const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
+  const [imgError, setImgError] = React.useState(false);
+
+  const hasPreview = pendingFile !== null || imageData !== null;
+
+  // Preview: pending file → FileReader.readAsDataURL (data URL). Saved image → S3 view URL.
+  React.useEffect(() => {
+    if (!pendingFile) {
+      setPreviewDataUrl(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPreviewDataUrl(reader.result as string);
+    reader.readAsDataURL(pendingFile);
+  }, [pendingFile]);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [s3Key]);
+
+  const update = React.useCallback(
+    (updates: Partial<FinancingTypeConfigShape>) => {
+      const { imageData: _omit, ...rest } = current;
+      const next = { ...base, ...rest, ...updates } as Record<string, unknown>;
+      if ("image" in updates) {
+        next.image = updates.image;
+        delete next.s3_key;
+      }
+      onChange(next);
+    },
+    [config, onChange, current]
+  );
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setPendingFile(null);
+      onPendingImageChange?.(null);
+      return;
+    }
+    if (file.type !== "image/png") {
+      toast.error("Only PNG images are allowed");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast.error("Image must be 5MB or less");
+      e.target.value = "";
+      return;
+    }
+    setPendingFile(file);
+    onPendingImageChange?.(file);
+  };
+
+  const handleRemove = () => {
+    setPendingFile(null);
+    onPendingImageChange?.(null);
+    update({ image: undefined });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Pending file → data URL from FileReader. Else saved image (s3_key) → presigned view URL.
+  const previewSrc = pendingFile && previewDataUrl ? previewDataUrl : viewUrl && !imgError ? viewUrl : null;
+  const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
+
+  return (
+    <div className="grid gap-3 pt-2 text-sm leading-6 sm:gap-4 min-w-0">
+      <div className="grid gap-2 min-w-0">
+        <Label htmlFor="ft-name" className="text-sm font-medium">Name</Label>
+        <Input
+          id="ft-name"
+          value={current.name}
+          onChange={(e) => update({ name: e.target.value })}
+          placeholder="e.g. Account Receivable (AR) Financing"
+          className="text-sm leading-6"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="ft-category" className="text-sm font-medium">Category</Label>
+        <Input
+          id="ft-category"
+          value={current.category}
+          onChange={(e) => update({ category: e.target.value })}
+          placeholder="e.g. Invoice financing"
+          className="text-sm leading-6"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="ft-description" className="text-sm font-medium">Description</Label>
+        <Textarea
+          id="ft-description"
+          value={current.description}
+          onChange={(e) => update({ description: e.target.value })}
+          placeholder="Short description shown on the card"
+          className="text-sm leading-6"
+        />
+      </div>
+      <div className="space-y-2 min-w-0">
+        <Label htmlFor="ft-image" className="text-sm font-medium">Image</Label>
+        <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200 min-w-0 w-full">
+          <Input
+            ref={fileInputRef}
+            id="ft-image"
+            type="file"
+            accept="image/png"
+            onChange={handleFileSelect}
+            className={hasPreview ? "sr-only" : "border-0 bg-transparent p-0 h-auto file:text-sm file:font-medium"}
+            tabIndex={hasPreview ? -1 : undefined}
+          />
+          {hasPreview ? (
+            <div className="flex min-w-0 flex-col gap-3 animate-in fade-in-0 duration-200 sm:flex-row sm:items-center sm:gap-4">
+              <div className="w-14 h-14 shrink-0 rounded-md border border-border bg-background overflow-hidden flex items-center justify-center">
+                {previewLoading ? (
+                  <Skeleton className="w-full h-full" />
+                ) : previewSrc ? (
+                  <img
+                    src={previewSrc}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  <PhotoIcon className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 sm:basis-0 sm:overflow-hidden">
+                {(pendingFile || imageData?.file_name || imageData?.file_size != null) && (
+                  <p
+                    className="text-sm font-medium block max-w-full min-w-0 break-words sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap"
+                    title={
+                      pendingFile
+                        ? pendingFile.name
+                        : imageData?.file_name || (imageData?.file_size != null ? "Image" : undefined)
+                    }
+                  >
+                    {pendingFile
+                      ? `${pendingFile.name} (${formatFileSize(pendingFile.size)})`
+                      : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
+                  </p>
+                )}
+                <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {viewUrl && !pendingFile ? (
+                    <a
+                      href={viewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline focus:outline-none"
+                    >
+                      View
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="hover:underline focus:underline focus:outline-none"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    className="text-muted-foreground hover:underline hover:text-destructive focus:underline focus:outline-none"
+                  >
+                    Remove
+                  </button>
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

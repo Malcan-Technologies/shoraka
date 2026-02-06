@@ -34,15 +34,26 @@ export function DeclarationsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
-   * Get declarations array from config
-   * 
-   * The product workflow has: config.declarations = ["text 1", "text 2", ...]
-   * We use useMemo to avoid re-creating the array on every render.
-   */
+ * Declarations source of truth:
+ *
+ * - Declaration TEXT comes from product workflow config:
+ *   config.declarations = Array<{ text: string }>
+ *
+ * - Declaration CHECKED state is stored in DB:
+ *   application.declarations = { declarations: [{ checked: boolean }] }
+ *
+ * We intentionally do NOT store text in the database.
+ * This allows product updates without rewriting existing applications.
+ */
   const declarations = React.useMemo(() => {
     const decls = stepConfig?.declarations;
-    return Array.isArray(decls) ? decls : [];
+    if (!Array.isArray(decls)) return [];
+
+    return decls
+      .map((d) => (typeof d === "object" && d?.text ? String(d.text) : ""))
+      .filter(Boolean);
   }, [stepConfig?.declarations]);
+
 
   /**
    * Track which checkboxes are checked
@@ -231,43 +242,70 @@ export function DeclarationsStep({
    * Left side: Checkboxes with declaration text
    * Right side: Info panel about what happens next
    */
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 sm:gap-6">
-      <div>
-        <div className="border rounded-xl p-4 sm:p-6 bg-card space-y-4 sm:space-y-6">
-          {declarations.map((declaration: string, index: number) => {
-            const isChecked = checkedDeclarations[index] || false;
+return (
+  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 px-3">
+  {/* ================= LEFT: DECLARATIONS ================= */}
+  <div className="rounded-xl border border-border bg-background p-6">
+    <div className="space-y-5">
+      {declarations.map((declaration: string, index: number) => {
+        const isChecked = checkedDeclarations[index] || false;
 
-            return (
-              <label
-                key={index}
-                className="flex items-start gap-2 sm:gap-3 py-2 sm:py-0 cursor-pointer transition-colors hover:opacity-80"
-              >
-                <div className="shrink-0 mt-1">
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={(checked) => handleToggle(index, checked === true)}
-                    className="rounded data-[state=checked]:bg-foreground data-[state=checked]:border-foreground data-[state=checked]:text-background"
-                  />
-                </div>
-                <span className="text-base sm:text-[17px] leading-6 sm:leading-7 text-foreground break-words flex-1">
-                  {declaration}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-      
-      <div>
-        <div className="border rounded-xl p-4 sm:p-6 bg-card">
-          <h3 className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4">What happens next?</h3>
-          <ul className="pl-4 md:pl-6 text-sm sm:text-base leading-5 sm:leading-6 text-foreground list-disc space-y-2">
-          </ul>
-          <p className="mt-3 sm:mt-4 text-sm sm:text-base leading-5 sm:leading-6 text-muted-foreground">
-          </p>
-        </div>
-      </div>
+        return (
+          <label
+            key={index}
+            className="
+              flex items-start gap-4
+              cursor-pointer
+            "
+          >
+            {/* Checkbox */}
+            <div className="shrink-0">
+              <Checkbox
+                checked={isChecked}
+                onCheckedChange={(checked) =>
+                  handleToggle(index, checked === true)
+                }
+                className="
+                  rounded-sm
+                  border-destructive
+                  data-[state=checked]:bg-destructive
+                  data-[state=checked]:border-destructive
+                "
+              />
+            </div>
+
+            {/* Text */}
+            <span className="text-[16px] leading-[24px] text-foreground">
+              {declaration}
+            </span>
+          </label>
+        );
+      })}
     </div>
-  );
+  </div>
+
+  {/* ================= RIGHT: WHAT HAPPENS NEXT ================= */}
+  <div className="rounded-xl border border-border bg-background p-6">
+    <h3 className="text-lg font-semibold text-foreground mb-4">
+      What happens next?
+    </h3>
+    <div className="mt-2 h-px bg-border" />
+
+    <ul className="list-disc pl-5 space-y-3 text-[16px] leading-[24px] text-foreground">
+      <li>After submission, your application will be reviewed by our team.</li>
+      <li>If additional information is required, we will contact you for confirmation.</li>
+      <li>
+        Once approved, your financing request will be listed on the platform
+        for investors.
+      </li>
+    </ul>
+
+    <p className="mt-5 text-[15px] leading-[22px] text-muted-foreground">
+      Submitting this application confirms that all declarations provided are
+      accurate and complete.
+    </p>
+  </div>
+</div>
+
+)
 }
