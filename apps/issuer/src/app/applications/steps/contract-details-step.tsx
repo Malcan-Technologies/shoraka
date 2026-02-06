@@ -288,7 +288,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     <div className="space-y-12 pb-8">
       {/* Contract Details Section */}
       <section className="space-y-6">
-        <h2 className="text-xl font-bold">Contract details</h2>
+        <h2 className="text-base sm:text-lg md:text-xl font-semibold">Contract details</h2>
 
         <div className="space-y-4">
           <FormField label="Contract title">
@@ -296,7 +296,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.contract.title}
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               placeholder="Mining Rig Repair 12654"
-              className="rounded-xl"
+              className="rounded-xl border border-border bg-background text-foreground"
             />
           </FormField>
 
@@ -305,7 +305,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.contract.description}
               onChange={(e) => handleInputChange("contract", "description", e.target.value)}
               placeholder="Add contract description"
-              className="rounded-xl min-h-[100px]"
+              className="rounded-xl border border-border bg-background text-foreground min-h-[100px]"
             />
           </FormField>
 
@@ -314,7 +314,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.contract.number}
               onChange={(e) => handleInputChange("contract", "number", e.target.value)}
               placeholder="20212345678"
-              className="rounded-xl"
+              className="rounded-xl border border-border bg-background text-foreground"
             />
           </FormField>
 
@@ -330,7 +330,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                   handleInputChange("contract", "value", val);
                 }}
                 placeholder="5,000,000"
-                className="rounded-xl pl-12"
+                className="rounded-xl border border-border bg-background text-foreground pl-12"
               />
             </div>
           </FormField>
@@ -341,7 +341,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                 type="date"
                 value={formData.contract.start_date}
                 onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
-                className="rounded-xl pr-10"
+                className="rounded-xl border border-border bg-background text-foreground pr-10"
               />
               <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
             </div>
@@ -353,7 +353,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                 type="date"
                 value={formData.contract.end_date}
                 onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
-                className="rounded-xl pr-10"
+                className="rounded-xl border border-border bg-background text-foreground pr-10"
               />
               <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
             </div>
@@ -372,7 +372,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
       {/* Customer Details Section */}
       <section className="space-y-6">
-        <h2 className="text-xl font-bold">Customer details</h2>
+        <h2 className="text-base sm:text-lg md:text-xl font-semibold">Customer details</h2>
 
         <div className="space-y-4">
           <FormField label="Customer name">
@@ -380,7 +380,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
               placeholder="Petronas Chemical Bhd"
-              className="rounded-xl"
+              className="rounded-xl border border-border bg-background text-foreground"
             />
           </FormField>
 
@@ -389,7 +389,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
             >
-              <SelectTrigger className="rounded-xl">
+              <SelectTrigger className="rounded-xl border border-border bg-background text-foreground">
                 <SelectValue placeholder="Select entity type" />
               </SelectTrigger>
               <SelectContent>
@@ -407,7 +407,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.customer.ssm_number}
               onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
               placeholder="20212345678"
-              className="rounded-xl"
+              className="rounded-xl border border-border bg-background text-foreground"
             />
           </FormField>
 
@@ -416,7 +416,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               value={formData.customer.country}
               onValueChange={(value) => handleInputChange("customer", "country", value)}
             >
-              <SelectTrigger className="rounded-xl">
+              <SelectTrigger className="rounded-xl border border-border bg-background text-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -444,9 +444,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                 <RadioGroupItem
                   value="yes"
                   id="related-yes"
-                  className="text-primary border-primary"
+                  className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
                 />
-                <Label htmlFor="related-yes" className="text-base cursor-pointer">
+                <Label htmlFor="related-yes" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
                   Yes
                 </Label>
               </div>
@@ -454,9 +454,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                 <RadioGroupItem
                   value="no"
                   id="related-no"
-                  className="text-primary border-primary"
+                  className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
                 />
-                <Label htmlFor="related-no" className="text-base cursor-pointer">
+                <Label htmlFor="related-no" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
                   NO
                 </Label>
               </div>
@@ -530,10 +530,10 @@ function FileUploadArea({
 
   if (uploadedFile) {
     return (
-      <div className="border border-border rounded-xl p-4 flex items-center justify-between bg-card/50">
+      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between bg-card/50">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-full bg-primary/10">
-            <CheckCircle2 className="h-5 w-5 text-primary" />
+          <div className="p-1 rounded-full bg-primary/10">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
           </div>
           <div>
             <div className="text-sm font-medium">{uploadedFile.file_name}</div>
@@ -547,9 +547,9 @@ function FileUploadArea({
             e.stopPropagation();
             onRemove?.();
           }}
-          className="p-2 hover:bg-muted rounded-full transition-colors"
+          className="p-1 hover:bg-muted rounded-full transition-colors"
         >
-          <X className="h-4 w-4 text-muted-foreground" />
+          <X className="h-3 w-3 text-muted-foreground" />
         </button>
       </div>
     );
@@ -558,7 +558,7 @@ function FileUploadArea({
   return (
     <div
       onClick={handleClick}
-      className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors bg-card/50"
+      className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors bg-card/50"
     >
       <input
         type="file"
@@ -567,8 +567,8 @@ function FileUploadArea({
         accept=".pdf,application/pdf"
         className="hidden"
       />
-      <div className="p-3 rounded-full bg-background border shadow-sm">
-        <CloudUpload className="h-6 w-6 text-muted-foreground" />
+      <div className="p-2 rounded-full bg-background border shadow-sm">
+        <CloudUpload className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="text-center">
         <span className="text-base font-semibold text-primary">

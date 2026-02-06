@@ -291,7 +291,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     };
 
     return (
-      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider", colors[status] || colors.DRAFT)}>
+      <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider", colors[status] || colors.DRAFT)}>
         {status}
       </span>
     );
@@ -300,8 +300,8 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
   if (isLoadingApp || isLoadingInvoices) {
     return (
       <div className="space-y-12 pb-8">
-        <Skeleton className="h-[200px] w-full rounded-xl" />
-        <Skeleton className="h-[400px] w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-96 w-full rounded-xl" />
       </div>
     );
   }
@@ -318,15 +318,15 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       {/* Contract Summary Section */}
       {!isInvoiceOnly && (
         <section className="space-y-6">
-          <h2 className="text-xl font-bold">Contract</h2>
-          <div className="space-y-4 border rounded-xl p-6 bg-card/50">
+          <h2 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h2>
+          <div className="space-y-4 border rounded-xl px-4 py-4 bg-card/50">
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Contract title</span>
-              <span>{contractDetails.title || "-"}</span>
+              <div className="text-muted-foreground">Contract title</div>
+              <div className="font-medium text-foreground">{contractDetails.title || "-"}</div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Customer</span>
-              <span>{(application?.contract?.customer_details as any)?.name || "-"}</span>
+              <div className="text-muted-foreground">Customer</div>
+              <div className="font-medium text-foreground">{(application?.contract?.customer_details as any)?.name || "-"}</div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
               <span>Contract value</span>
@@ -335,15 +335,15 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
               </span>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Approved facility</span>
-              <span>{formatCurrency(contractDetails.approved_facility)}</span>
+              <div className="text-muted-foreground">Approved facility</div>
+              <div className="font-medium text-foreground">{formatCurrency(contractDetails.approved_facility)}</div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Utilised facility</span>
-              <span>{formatCurrency(contractDetails.utilized_facility)}</span>
+              <div className="text-muted-foreground">Utilised facility</div>
+              <div className="font-medium text-foreground">{formatCurrency(contractDetails.utilized_facility)}</div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-[348px_1fr] gap-2 md:gap-4">
-              <span>Available facility</span>
+              <div className="text-muted-foreground">Available facility</div>
               <div className="flex items-center gap-2">
                 <span
                   className={cn(displayAvailableFacility < 0 && "text-destructive font-bold")}
@@ -360,7 +360,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="max-w-2xl">
-            <h2 className="text-xl font-bold">Invoices</h2>
+            <h2 className="text-base sm:text-lg md:text-xl font-semibold">Invoices</h2>
             <p className="text-sm text-muted-foreground mt-1">
               You may include multiple invoices in a single financing request, provided all invoices
               relate to the same underlying contract with the buyer
@@ -369,7 +369,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           <Button
             onClick={handleAddInvoice}
             disabled={createInvoiceMutation.isPending}
-            className="bg-[#800000] hover:bg-[#600000] text-white rounded-lg flex items-center gap-2 w-full sm:w-auto justify-center"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="h-4 w-4" />
             {createInvoiceMutation.isPending ? "Adding..." : "Add invoice"}
@@ -415,7 +415,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                               onBlur={(e) =>
                                 handleUpdateInvoiceServer(invoice.id, "number", e.target.value)
                               }
-                              className="h-9 rounded-md"
+                              className="h-9 rounded-md border border-input bg-background text-foreground"
                               placeholder="#Invoice number"
                             />
                           ) : (
@@ -447,7 +447,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                                 Math.max(0, parseFloat(e.target.value) || 0)
                               )
                             }
-                            className="h-9 rounded-md"
+                            className="h-9 rounded-md border border-input bg-background text-foreground"
                             placeholder="0"
                           />
                         ) : (
@@ -467,7 +467,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             onBlur={(e) =>
                                 handleUpdateInvoiceServer(invoice.id, "maturity_date", e.target.value)
                             }
-                            className="h-9 rounded-md"
+                            className="h-9 rounded-md border border-input bg-background text-foreground"
                           />
                         ) : (
                           <span className="text-muted-foreground">
@@ -496,12 +496,12 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                           {invoice.document ? (
                             <div
                               className={cn(
-                                "inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-sm px-2 py-1 max-w-full",
+                                "inline-flex items-center gap-2 bg-background text-foreground border border-border rounded-md px-2 py-1 max-w-full",
                                 isDisabled && "opacity-70 bg-muted/30"
                               )}
                             >
-                              <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
-                                <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                              <div className="w-4 h-4 rounded-full flex items-center justify-center bg-foreground shrink-0">
+                                <CheckIconSolid className="h-3 w-3 text-background" />
                               </div>
                               <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">
                                 {invoice.document.file_name}
@@ -515,14 +515,14 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                                     handleUpdateInvoiceServer(invoice.id, "document", null);
                                   }}
                                 >
-                                  <XMarkIcon className="h-3.5 w-3.5" />
+                                  <XMarkIcon className="h-4 w-4" />
                                 </button>
                               )}
                             </div>
                           ) : (
                             !isDisabled && (
-                              <label className="flex items-center gap-2 text-[#800000] font-medium hover:underline text-sm cursor-pointer">
-                                <CloudUpload className="h-4 w-4" />
+                              <label className="flex items-center gap-2 text-primary font-medium hover:underline text-sm cursor-pointer">
+                                <CloudUpload className="h-5 w-5" />
                                 {isUploading[invoice.id] ? "Uploading..." : "Upload file"}
                                 <input
                                   type="file"
@@ -545,7 +545,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             <button
                               onClick={() => handleDeleteInvoice(invoice.id)}
                               disabled={deleteInvoiceMutation.isPending}
-                              className="p-2 text-muted-foreground hover:text-destructive hover:bg-muted rounded-md transition-colors"
+                              className="p-1 text-muted-foreground hover:text-destructive hover:bg-muted rounded-md transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -561,7 +561,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                   <TableCell>
                     <div className="space-y-1">
                       <div className="text-foreground">{formatCurrency(totalFinancingAmount)}</div>
-                      <div className="text-m text-muted-foreground font-normal">
+                      <div className="text-sm text-muted-foreground font-normal">
                         Total financing amount
                       </div>
                     </div>

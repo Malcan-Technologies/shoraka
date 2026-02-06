@@ -141,7 +141,7 @@ export function FinancingStructureStep({
     return (
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
         ))}
       </div>
     );
@@ -166,7 +166,7 @@ export function FinancingStructureStep({
         rightContent={
           <Select value={selectedContractId} onValueChange={handleContractSelect}>
             <SelectTrigger
-              className="w-[280px]"
+              className="w-[280px] rounded-xl border border-border bg-background text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 // Also select this option when clicking the dropdown
@@ -225,7 +225,7 @@ function OptionCard({ title, description, isSelected, onClick, rightContent }: O
         }
       }}
       className={cn(
-        "w-full text-left rounded-xl border-2 p-5 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20",
+        "w-full text-left rounded-xl border-2 px-4 py-4 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20",
         "hover:border-primary/50",
         isSelected ? "border-primary bg-background" : "border-border bg-card"
       )}
@@ -236,11 +236,11 @@ function OptionCard({ title, description, isSelected, onClick, rightContent }: O
           <div className="mt-0.5 shrink-0">
             <div
               className={cn(
-                "h-5 w-5 rounded-full border-2 flex items-center justify-center",
+                "h-4 w-4 rounded-full border-2 flex items-center justify-center",
                 isSelected ? "border-primary" : "border-muted-foreground/40"
               )}
             >
-              {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+              {isSelected && <div className="h-2 w-2 rounded-full bg-primary" />}
             </div>
           </div>
 

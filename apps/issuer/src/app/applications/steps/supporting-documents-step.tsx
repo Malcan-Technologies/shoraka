@@ -674,14 +674,14 @@ function SupportingDocumentsSkeleton() {
             {[1, 2, 3].map((row) => (
               <React.Fragment key={row}>
                 {/* Document title */}
-                <Skeleton className="h-5 w-[260px]" />
+                <Skeleton className="h-5 w-64" />
 
                 {/* Action column (exact alignment) */}
                 <div className="flex justify-end">
                   <div className="flex justify-end items-start">
                     <div className="flex items-center gap-3">
                       {/* Download template */}
-                      <Skeleton className="h-5 w-[120px]" />
+                      <Skeleton className="h-5 w-32" />
 
                       {/* Separator */}
                       <div className="w-px h-4 bg-border/60" />
