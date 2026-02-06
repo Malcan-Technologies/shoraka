@@ -196,9 +196,26 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   React.useEffect(() => {
     if (isInitialized && onDataChangeRef.current) {
       const hasPendingChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
+      
+      // Check if all fields are filled
+      const isCurrentStepValid = 
+        !!formData.contract.title && 
+        !!formData.contract.description && 
+        !!formData.contract.number && 
+        (formData.contract.value !== "" && formData.contract.value !== 0) && 
+        !!formData.contract.start_date && 
+        !!formData.contract.end_date && 
+        !!formData.contract.document &&
+        !!formData.customer.name && 
+        !!formData.customer.entity_type && 
+        !!formData.customer.ssm_number && 
+        !!formData.customer.country && 
+        !!formData.customer.document;
+      
       onDataChangeRef.current({
         ...formData,
-        isValid: !!formData.contract.title && !!formData.customer.name,
+        isValid: isCurrentStepValid,
+        isCurrentStepValid,
         saveFunction: handleSave,
         hasPendingChanges,
       });
@@ -271,206 +288,197 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     }
   };
 
+  const inputClassName = "h-11 rounded-xl border border-border bg-background text-foreground";
+  const labelClassName = "text-sm md:text-base leading-6 text-foreground";
+  const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
+
   if (isLoadingApp || (contractId && isLoadingContract)) {
     return (
-      <div className="space-y-12 pb-8">
-        <Skeleton className="h-8 w-48 mb-6" />
-        <div className="space-y-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-xl" />
-          ))}
-        </div>
-      </div>
+      <CompanyDetailsSkeleton />
     );
   }
 
   return (
-    <div className="space-y-12 pb-8">
+    <div className="space-y-10 px-3">
       {/* Contract Details Section */}
-      <section className="space-y-6">
-        <h2 className="text-base sm:text-lg md:text-xl font-semibold">Contract details</h2>
+      <section className="space-y-4">
+        <div>
+          <h3 className={sectionHeaderClassName}>Contract details</h3>
+          <div className="mt-2 h-px bg-border" />
+        </div>
 
-        <div className="space-y-4">
-          <FormField label="Contract title">
+        <div className={sectionGridClassName}>
+          <Label className={labelClassName}>Contract title</Label>
+          <Input
+            value={formData.contract.title}
+            onChange={(e) => handleInputChange("contract", "title", e.target.value)}
+            placeholder="Mining Rig Repair 12654"
+            className={inputClassName}
+          />
+
+          <Label className={labelClassName}>Contract description</Label>
+          <Textarea
+            value={formData.contract.description}
+            onChange={(e) => handleInputChange("contract", "description", e.target.value)}
+            placeholder="Add contract description"
+            className={inputClassName + " min-h-[100px]"}
+          />
+
+          <Label className={labelClassName}>Contract number</Label>
+          <Input
+            value={formData.contract.number}
+            onChange={(e) => handleInputChange("contract", "number", e.target.value)}
+            placeholder="20212345678"
+            className={inputClassName}
+          />
+
+          <Label className={labelClassName}>Contract value</Label>
+          <div className="relative">
+            <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+              RM
+            </div>
             <Input
-              value={formData.contract.title}
-              onChange={(e) => handleInputChange("contract", "title", e.target.value)}
-              placeholder="Mining Rig Repair 12654"
-              className="rounded-xl border border-border bg-background text-foreground"
+              value={formData.contract.value === 0 ? "" : formData.contract.value}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9.]/g, "");
+                handleInputChange("contract", "value", val);
+              }}
+              placeholder="5,000,000"
+              className={inputClassName + " pl-12"}
             />
-          </FormField>
+          </div>
 
-          <FormField label="Contract description">
-            <Textarea
-              value={formData.contract.description}
-              onChange={(e) => handleInputChange("contract", "description", e.target.value)}
-              placeholder="Add contract description"
-              className="rounded-xl border border-border bg-background text-foreground min-h-[100px]"
-            />
-          </FormField>
-
-          <FormField label="Contract number">
+          <Label className={labelClassName}>Contract start date</Label>
+          <div className="relative">
             <Input
-              value={formData.contract.number}
-              onChange={(e) => handleInputChange("contract", "number", e.target.value)}
-              placeholder="20212345678"
-              className="rounded-xl border border-border bg-background text-foreground"
+              type="date"
+              value={formData.contract.start_date?.slice(0, 10) || ""}
+              onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
+              className={inputClassName + " pr-10"}
             />
-          </FormField>
+            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          </div>
 
-          <FormField label="Contract value">
-            <div className="relative">
-              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                RM
-              </div>
-              <Input
-                value={formData.contract.value === 0 ? "" : formData.contract.value}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9.]/g, "");
-                  handleInputChange("contract", "value", val);
-                }}
-                placeholder="5,000,000"
-                className="rounded-xl border border-border bg-background text-foreground pl-12"
-              />
-            </div>
-          </FormField>
-
-          <FormField label="Contract start date">
-            <div className="relative">
-              <Input
-                type="date"
-                value={formData.contract.start_date}
-                onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
-                className="rounded-xl border border-border bg-background text-foreground pr-10"
-              />
-              <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            </div>
-          </FormField>
-
-          <FormField label="Contract end date">
-            <div className="relative">
-              <Input
-                type="date"
-                value={formData.contract.end_date}
-                onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
-                className="rounded-xl border border-border bg-background text-foreground pr-10"
-              />
-              <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            </div>
-          </FormField>
-
-          <FormField label="Upload contract">
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("contract", file)}
-              isUploading={isUploading.contract}
-              uploadedFile={formData.contract.document}
-              onRemove={() => handleInputChange("contract", "document", null as any)}
+          <Label className={labelClassName}>Contract end date</Label>
+          <div className="relative">
+            <Input
+              type="date"
+              value={formData.contract.end_date?.slice(0, 10) || ""}
+              onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
+              className={inputClassName + " pr-10"}
             />
-          </FormField>
+            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          </div>
+
+          <Label className={labelClassName}>Upload contract</Label>
+          <FileUploadArea
+            onFileSelect={(file) => handleFileUpload("contract", file)}
+            isUploading={isUploading.contract}
+            uploadedFile={formData.contract.document}
+            onRemove={() => handleInputChange("contract", "document", null as any)}
+          />
         </div>
       </section>
 
       {/* Customer Details Section */}
-      <section className="space-y-6">
-        <h2 className="text-base sm:text-lg md:text-xl font-semibold">Customer details</h2>
+      <section className="space-y-4">
+        <div>
+          <h3 className={sectionHeaderClassName}>Customer details</h3>
+          <div className="mt-2 h-px bg-border" />
+        </div>
 
-        <div className="space-y-4">
-          <FormField label="Customer name">
-            <Input
-              value={formData.customer.name}
-              onChange={(e) => handleInputChange("customer", "name", e.target.value)}
-              placeholder="Petronas Chemical Bhd"
-              className="rounded-xl border border-border bg-background text-foreground"
-            />
-          </FormField>
+        <div className={sectionGridClassName}>
+          <Label className={labelClassName}>Customer name</Label>
+          <Input
+            value={formData.customer.name}
+            onChange={(e) => handleInputChange("customer", "name", e.target.value)}
+            placeholder="Petronas Chemical Bhd"
+            className={inputClassName}
+          />
 
-          <FormField label="Customer entity type">
-            <Select
-              value={formData.customer.entity_type}
-              onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
-            >
-              <SelectTrigger className="rounded-xl border border-border bg-background text-foreground">
-                <SelectValue placeholder="Select entity type" />
-              </SelectTrigger>
-              <SelectContent>
-                {ENTITY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
+          <Label className={labelClassName}>Customer entity type</Label>
+          <Select
+            value={formData.customer.entity_type}
+            onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
+          >
+            <SelectTrigger className={inputClassName}>
+              <SelectValue placeholder="Select entity type" />
+            </SelectTrigger>
+            <SelectContent>
+              {ENTITY_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <FormField label="Customer SSM number">
-            <Input
-              value={formData.customer.ssm_number}
-              onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
-              placeholder="20212345678"
-              className="rounded-xl border border-border bg-background text-foreground"
-            />
-          </FormField>
+          <Label className={labelClassName}>Customer SSM number</Label>
+          <Input
+            value={formData.customer.ssm_number}
+            onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
+            placeholder="20212345678"
+            className={inputClassName}
+          />
 
-          <FormField label="Customer country">
-            <Select
-              value={formData.customer.country}
-              onValueChange={(value) => handleInputChange("customer", "country", value)}
-            >
-              <SelectTrigger className="rounded-xl border border-border bg-background text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRIES.map((country) => (
-                  <SelectItem key={country.code} value={country.code}>
-                    <div className="flex items-center gap-2">
-                      <span>{country.flag}</span>
-                      <span>{country.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
+          <Label className={labelClassName}>Customer country</Label>
+          <Select
+            value={formData.customer.country}
+            onValueChange={(value) => handleInputChange("customer", "country", value)}
+          >
+            <SelectTrigger className={inputClassName}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map((country) => (
+                <SelectItem key={country.code} value={country.code}>
+                  <div className="flex items-center gap-2">
+                    <span>{country.flag}</span>
+                    <span>{country.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <FormField label="is customer related to issuer?">
-            <RadioGroup
-              value={formData.customer.is_related_party ? "yes" : "no"}
-              onValueChange={(value) =>
-                handleInputChange("customer", "is_related_party", value === "yes")
-              }
-              className="flex items-center gap-6"
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem
-                  value="yes"
-                  id="related-yes"
-                  className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
-                />
-                <Label htmlFor="related-yes" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
-                  Yes
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem
-                  value="no"
-                  id="related-no"
-                  className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
-                />
-                <Label htmlFor="related-no" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
-                  NO
-                </Label>
-              </div>
-            </RadioGroup>
-          </FormField>
+          <Label className={labelClassName}>is customer related to issuer?</Label>
+          <RadioGroup
+            value={formData.customer.is_related_party ? "yes" : "no"}
+            onValueChange={(value) =>
+              handleInputChange("customer", "is_related_party", value === "yes")
+            }
+            className="flex items-center gap-6 h-11"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="yes"
+                id="related-yes"
+                className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
+              />
+              <Label htmlFor="related-yes" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
+                Yes
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="no"
+                id="related-no"
+                className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
+              />
+              <Label htmlFor="related-no" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
+                NO
+              </Label>
+            </div>
+          </RadioGroup>
 
-          <FormField label="Upload customer consent">
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("consent", file)}
-              isUploading={isUploading.consent}
-              uploadedFile={formData.customer.document}
-              onRemove={() => handleInputChange("customer", "document", null as any)}
-            />
-          </FormField>
+          <Label className={labelClassName}>Upload customer consent</Label>
+          <FileUploadArea
+            onFileSelect={(file) => handleFileUpload("consent", file)}
+            isUploading={isUploading.consent}
+            uploadedFile={formData.customer.document}
+            onRemove={() => handleInputChange("customer", "document", null as any)}
+          />
         </div>
       </section>
     </div>
@@ -577,6 +585,108 @@ function FileUploadArea({
         {!isUploading && <span className="text-base text-muted-foreground"> or drag and drop</span>}
       </div>
       <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
+    </div>
+  );
+}
+
+function CompanyDetailsSkeleton() {
+  return (
+    <div className="mt-1 space-y-10">
+      {/* ================= Company Info ================= */}
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      </section>
+
+      {/* ================= Address ================= */}
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      </section>
+
+      {/* ================= Directors & Shareholders ================= */}
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+          {[1, 2].map((i) => (
+            <React.Fragment key={i}>
+              <Skeleton className="h-[22px] w-40" />
+              <Skeleton className="h-[22px] w-full" />
+            </React.Fragment>
+          ))}
+        </div>
+      </section>
+
+      {/* ================= Banking ================= */}
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      </section>
+
+      {/* ================= Contact Person ================= */}
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          <Skeleton className="h-[22px] w-40" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      </section>
     </div>
   );
 }

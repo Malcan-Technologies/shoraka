@@ -188,7 +188,6 @@ export default function EditApplicationPage() {
  * This represents user intent before saving.
  */
   const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
-  console.log("selectedProductId (state):", selectedProductId);
 
 
 
