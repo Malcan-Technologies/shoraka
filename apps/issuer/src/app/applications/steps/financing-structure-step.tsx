@@ -215,6 +215,67 @@ interface OptionCardProps {
 function OptionCard({ title, description, isSelected, onClick, rightContent }: OptionCardProps) {
   return (
     <div
+  role="button"
+  tabIndex={0}
+  onClick={onClick}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick();
+    }
+  }}
+  className="block w-full cursor-pointer focus:outline-none focus:ring-primary/20"
+>
+  {/* OUTER WRAPPER — reserve border space */}
+  <div className="rounded-xl border-2 border-transparent">
+    {/* VISIBLE ROW */}
+    <div
+      className={[
+        "w-full rounded-[10px] transition-colors",
+        "px-6 py-[12px]", // ✅ slightly taller
+        isSelected
+          ? "border-2 border-primary"
+          : "border border-border hover:border-primary/50",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-4">
+        {/* Left */}
+        <div className="flex items-start gap-4">
+          {/* Radio */}
+          <div className="mt-[6px] shrink-0">
+            <div
+              className={[
+                "h-4 w-4 rounded-full border-2 flex items-center justify-center",
+                isSelected
+                  ? "border-primary"
+                  : "border-muted-foreground/40",
+              ].join(" ")}
+            >
+              {isSelected && (
+                <div className="h-2 w-2 rounded-full bg-primary" />
+              )}
+            </div>
+          </div>
+
+          {/* Text */}
+          <div className="min-w-0 flex-1">
+            <div className="text-[20px] leading-[28px] font-medium text-foreground">
+              {title}
+            </div>
+            <div className="text-[16px] leading-[22px] text-muted-foreground">
+              {description}
+            </div>
+          </div>
+        </div>
+
+        {rightContent && <div className="shrink-0">{rightContent}</div>}
+      </div>
+    </div>
+  </div>
+</div>
+  )
+  return (
+    <div
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -224,35 +285,57 @@ function OptionCard({ title, description, isSelected, onClick, rightContent }: O
           onClick();
         }
       }}
-      className={cn(
-        "w-full text-left rounded-xl border-2 px-4 py-4 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20",
-        "hover:border-primary/50",
-        isSelected ? "border-primary bg-background" : "border-border bg-card"
-      )}
+      className="block w-full cursor-pointer focus:outline-none focus:ring-primary/20"
     >
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-start gap-4">
-          {/* Radio indicator */}
-          <div className="mt-0.5 shrink-0">
-            <div
-              className={cn(
-                "h-4 w-4 rounded-full border-2 flex items-center justify-center",
-                isSelected ? "border-primary" : "border-muted-foreground/40"
-              )}
-            >
-              {isSelected && <div className="h-2 w-2 rounded-full bg-primary" />}
-            </div>
-          </div>
+      {/* 
+        OUTER WRAPPER
+        Reserves 2px border space (EXACTLY like Financing Type)
+      */}
+      <div className="rounded-xl border-2 border-transparent">
+        {/* VISIBLE ROW */}
+        <div
+          className={[
+            "w-full rounded-[10px] transition-colors",
+            "px-6 py-[10px]",
+            isSelected
+              ? "border-2 border-primary"
+              : "border border-border hover:border-primary/50",
+          ].join(" ")}
+        >
+          <div className="flex items-start justify-between gap-4">
+            {/* Left: radio + text */}
+            <div className="flex items-start gap-4">
+              {/* Radio indicator */}
+              <div className="mt-[6px] shrink-0">
+                <div
+                  className={[
+                    "h-4 w-4 rounded-full border-2 flex items-center justify-center",
+                    isSelected
+                      ? "border-primary"
+                      : "border-muted-foreground/40",
+                  ].join(" ")}
+                >
+                  {isSelected && (
+                    <div className="h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </div>
+              </div>
 
-          {/* Text content */}
-          <div className="space-y-1">
-            <div className="text-base font-semibold text-foreground">{title}</div>
-            <div className="text-sm text-muted-foreground">{description}</div>
+              {/* Text */}
+              <div className="min-w-0 flex-1">
+                <div className="text-[20px] leading-[28px] font-medium text-foreground">
+                  {title}
+                </div>
+                <div className="text-[16px] leading-[22px] text-muted-foreground">
+                  {description}
+                </div>
+              </div>
+            </div>
+
+            {/* Right content */}
+            {rightContent && <div className="shrink-0">{rightContent}</div>}
           </div>
         </div>
-
-        {/* Right content (e.g., dropdown) */}
-        {rightContent && <div className="shrink-0">{rightContent}</div>}
       </div>
     </div>
   );
