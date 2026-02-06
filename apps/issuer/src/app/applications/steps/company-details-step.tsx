@@ -120,7 +120,6 @@ const BANK_ACCOUNT_MAX_LENGTH = 18;
 const IC_NUMBER_REGEX = /^\d*$/;
 /** Number of employees: positive integer (digits only, non-zero) */
 function isValidNumberOfEmployees(value: string): boolean {
-  if (!value.trim()) return true;
   const n = Number.parseInt(value.trim(), 10);
   return Number.isInteger(n) && n > 0 && value.trim().replace(/^0+/, "") !== "";
 }
@@ -347,10 +346,21 @@ export function CompanyDetailsStep({
       if (contactErrors.some((e) => e.includes("position"))) fieldErrors.position = "Required";
     }
 
+    const industry = pendingCompanyInfo?.industry;
+    if (industry !== undefined && !industry.trim()) {
+      errors.push("Industry is required");
+      fieldErrors.industry = "Required";
+    }
+
     const numEmp = pendingCompanyInfo?.numberOfEmployees;
-    if (numEmp !== undefined && numEmp !== "" && !isValidNumberOfEmployees(numEmp)) {
-      errors.push("Number of employees must be a positive whole number");
-      fieldErrors.numberOfEmployees = "Enter a positive whole number";
+    if (numEmp !== undefined) {
+      if (!numEmp.trim()) {
+        errors.push("Number of employees is required");
+        fieldErrors.numberOfEmployees = "Required";
+      } else if (!isValidNumberOfEmployees(numEmp)) {
+        errors.push("Number of employees must be a positive whole number");
+        fieldErrors.numberOfEmployees = "Enter a positive whole number";
+      }
     }
 
     const bankNameDisplay =
@@ -442,6 +452,9 @@ export function CompanyDetailsStep({
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
 
+    const { errors: initialErrors } = validateAll();
+    const isCurrentStepValid = initialErrors.length === 0;
+
     const saveFunctionWithValidation = async () => {
       const { errors, fieldErrors: nextFieldErrors } = validateAll();
       setFieldErrors(nextFieldErrors);
@@ -482,6 +495,7 @@ export function CompanyDetailsStep({
       },
       saveFunction: saveFunctionWithValidation,
       hasPendingChanges: hasPendingChanges,
+      isCurrentStepValid: isCurrentStepValid,
     });
   }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateAll, hasPendingChanges]);
 
@@ -655,14 +669,21 @@ return (
         />
 
         <div className={labelClassNameEditable}>Industry</div>
-        <Input
-          value={displayIndustry ?? ""}
-          onChange={(e) =>
-            setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
-          }
-          placeholder="eg. Technology"
-          className={inputClassNameEditable}
-        />
+        <div>
+          <Input
+            value={displayIndustry ?? ""}
+            onChange={(e) =>
+              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
+            }
+            placeholder="eg. Technology"
+            className={inputClassNameEditable}
+          />
+          {fieldErrors.industry && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.industry}
+            </p>
+          )}
+        </div>
 
         <div className={labelClassNameEditable}>Number of employees</div>
         <div>
@@ -892,7 +913,7 @@ return (
             onChange={(v) =>
               setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
             }
-            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-base"
+            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px]"
           />
           {fieldErrors.contact && (
             <p className="text-destructive text-sm mt-1">
@@ -993,7 +1014,7 @@ function EditAddressDialog({
       <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto px-3">
         <DialogHeader>
           <DialogTitle>Edit Address</DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="text-[15px]">
             Update your business address and registered address.
           </DialogDescription>
         </DialogHeader>
@@ -1008,7 +1029,7 @@ function EditAddressDialog({
                   value={businessAddress.line1}
                   onChange={(e) => updateBusinessAddress("line1", e.target.value)}
                   placeholder="Street Address"
-                  className="h-11 rounded-xl border border-input bg-background text-foreground"
+                  className="h-11 rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -1018,7 +1039,7 @@ function EditAddressDialog({
                   value={businessAddress.line2}
                   onChange={(e) => updateBusinessAddress("line2", e.target.value)}
                   placeholder="Apartment, suite, etc. (optional)"
-                  className="h-11 rounded-xl border border-input bg-background text-foreground"
+                  className="h-11 rounded-xl"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1029,7 +1050,7 @@ function EditAddressDialog({
                     value={businessAddress.city}
                     onChange={(e) => updateBusinessAddress("city", e.target.value)}
                     placeholder="Enter city"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1039,7 +1060,7 @@ function EditAddressDialog({
                     value={businessAddress.postalCode}
                     onChange={(e) => updateBusinessAddress("postalCode", restrictDigitsOnly(e.target.value))}
                     placeholder="Enter postal code (numbers only)"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
               </div>
@@ -1051,7 +1072,7 @@ function EditAddressDialog({
                     value={businessAddress.state}
                     onChange={(e) => updateBusinessAddress("state", e.target.value)}
                     placeholder="Enter state"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1061,7 +1082,7 @@ function EditAddressDialog({
                     value={businessAddress.country}
                     onChange={(e) => updateBusinessAddress("country", e.target.value)}
                     placeholder="Enter country"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
               </div>
@@ -1090,7 +1111,7 @@ function EditAddressDialog({
                     value={registeredAddress.line1}
                     onChange={(e) => updateRegisteredAddress("line1", e.target.value)}
                     placeholder="Street Address"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1100,7 +1121,7 @@ function EditAddressDialog({
                     value={registeredAddress.line2}
                     onChange={(e) => updateRegisteredAddress("line2", e.target.value)}
                     placeholder="Apartment, suite, etc. (optional)"
-                    className="h-11 rounded-xl border border-input bg-background text-foreground"
+                    className="h-11 rounded-xl"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1111,7 +1132,7 @@ function EditAddressDialog({
                       value={registeredAddress.city}
                       onChange={(e) => updateRegisteredAddress("city", e.target.value)}
                       placeholder="Enter city"
-                      className="h-11 rounded-xl border border-input bg-background text-foreground"
+                      className="h-11 rounded-xl"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1121,7 +1142,7 @@ function EditAddressDialog({
                       value={registeredAddress.postalCode}
                       onChange={(e) => updateRegisteredAddress("postalCode", restrictDigitsOnly(e.target.value))}
                       placeholder="Enter postal code (numbers only)"
-                      className="h-11 rounded-xl border border-input bg-background text-foreground"
+                      className="h-11 rounded-xl"
                     />
                   </div>
                 </div>
@@ -1133,7 +1154,7 @@ function EditAddressDialog({
                       value={registeredAddress.state}
                       onChange={(e) => updateRegisteredAddress("state", e.target.value)}
                       placeholder="Enter state"
-                      className="h-11 rounded-xl border border-input bg-background text-foreground"
+                      className="h-11 rounded-xl"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1143,7 +1164,7 @@ function EditAddressDialog({
                       value={registeredAddress.country}
                       onChange={(e) => updateRegisteredAddress("country", e.target.value)}
                       placeholder="Enter country"
-                      className="h-11 rounded-xl border border-input bg-background text-foreground"
+                      className="h-11 rounded-xl"
                     />
                   </div>
                 </div>
@@ -1169,24 +1190,24 @@ function CompanyDetailsSkeleton() {
       {/* ================= Company Info ================= */}
       <section className="space-y-4">
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-56" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
@@ -1194,15 +1215,15 @@ function CompanyDetailsSkeleton() {
       {/* ================= Address ================= */}
       <section className="space-y-4">
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-56" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
@@ -1210,15 +1231,15 @@ function CompanyDetailsSkeleton() {
       {/* ================= Directors & Shareholders ================= */}
       <section className="space-y-4">
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-56" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
           {[1, 2].map((i) => (
             <React.Fragment key={i}>
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-[22px] w-40" />
+              <Skeleton className="h-[22px] w-full" />
             </React.Fragment>
           ))}
         </div>
@@ -1227,15 +1248,15 @@ function CompanyDetailsSkeleton() {
       {/* ================= Banking ================= */}
       <section className="space-y-4">
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-56" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
@@ -1243,21 +1264,21 @@ function CompanyDetailsSkeleton() {
       {/* ================= Contact Person ================= */}
       <section className="space-y-4">
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-56" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-[22px] w-40" />
           <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
