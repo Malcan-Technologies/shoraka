@@ -431,20 +431,20 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                       <TableCell>
                         {!isDisabled ? (
                           <Input
-                            type="number"
+                            min={0}
                             value={invoice.value || ""}
                             onChange={(e) =>
-                                handleUpdateInvoiceLocal(
+                              handleUpdateInvoiceLocal(
                                 invoice.id,
                                 "value",
-                                parseFloat(e.target.value) || 0
+                                Math.max(0, parseFloat(e.target.value) || 0)
                               )
                             }
                             onBlur={(e) =>
-                                handleUpdateInvoiceServer(
+                              handleUpdateInvoiceServer(
                                 invoice.id,
                                 "value",
-                                parseFloat(e.target.value) || 0
+                                Math.max(0, parseFloat(e.target.value) || 0)
                               )
                             }
                             className="h-9 rounded-md"
@@ -557,11 +557,11 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                 })}
                 {/* Total row */}
                 <TableRow className="bg-muted/10 font-bold border-t-2 h-[72px]">
-                  <TableCell colSpan={3}></TableCell>
+                  <TableCell colSpan={4}></TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <div className="text-foreground">{formatCurrency(totalFinancingAmount)}</div>
-                      <div className="text-[10px] text-muted-foreground font-normal">
+                      <div className="text-m text-muted-foreground font-normal">
                         Total financing amount
                       </div>
                     </div>
@@ -581,7 +581,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           </div>
         )}
 
-        <p className="text-center text-sm italic text-muted-foreground mt-4">
+        <p className="text-right text-sm italic text-muted-foreground mt-4">
           Estimated fees based on 15% p.a. but exact amount will only be decided in offer letter
         </p>
       </section>
