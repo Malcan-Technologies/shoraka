@@ -27,6 +27,7 @@ export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "business_details",
   "supporting_documents",
   "declarations",
+  "review_and_submit",
 ];
 
 export interface StepKeyDisplay {

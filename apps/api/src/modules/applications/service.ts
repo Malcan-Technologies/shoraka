@@ -372,6 +372,62 @@ export class ApplicationService {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
   }
+
+  /**
+   * Update application status and perform cleanup
+   */
+  async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const updateData: Prisma.ApplicationUpdateInput = {
+      status: status as any,
+      updated_at: new Date(),
+    };
+
+    // If submitting, perform cleanup of unused steps
+    if (status === "SUBMITTED") {
+      // Get product to find active steps
+      const financingType = application.financing_type as any;
+      const productId = financingType?.product_id;
+      
+      if (productId) {
+        const product = await this.productRepository.findById(productId);
+        if (product) {
+          const workflow = (product.workflow as any[]) || [];
+          const activeStepKeys = new Set(workflow.map((step: any) => {
+            const rawKey = step.id.replace(/_\d+$/, "");
+            if (rawKey === "verify_company_info") return "company_details";
+            return rawKey;
+          }));
+
+          const allStepColumns = [
+            "financing_type",
+            "financing_structure",
+            "company_details",
+            "business_details",
+            "supporting_documents",
+            "declarations",
+          ];
+
+          allStepColumns.forEach(col => {
+            if (!activeStepKeys.has(col)) {
+              (updateData as any)[col] = Prisma.JsonNull;
+            }
+          });
+        }
+      }
+      
+      (updateData as any).submitted_at = new Date();
+    }
+
+    return this.repository.update(id, updateData);
+  }
 }
 
 export const applicationService = new ApplicationService();

@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useApplication, useUpdateApplicationStep, useArchiveApplication } from "@/hooks/use-applications";
+import { useApplication, useUpdateApplicationStep, useArchiveApplication, useUpdateApplicationStatus } from "@/hooks/use-applications";
 import { useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
+import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
 import {
   Dialog,
   DialogContent,
@@ -116,6 +117,9 @@ export default function EditApplicationPage() {
 
   // Hook to archive application
   const archiveApplicationMutation = useArchiveApplication();
+
+  // Hook to update application status
+  const updateStatusMutation = useUpdateApplicationStatus();
 
   // Hooks for contract handling (for skip/autofill logic)
   const updateContractMutation = useUpdateContract();
@@ -414,17 +418,11 @@ export default function EditApplicationPage() {
       return <InvoiceDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
     }
 
-    // Placeholder for steps not yet implemented (names match Application columns)
-    if (
-      currentStepKey === "review_and_submit"
-    ) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          Coming soon...
-        </div>
-      );
+    if (currentStepKey === "review_and_submit") {
+      return <ReviewAndSubmitStep applicationId={applicationId} onDataChange={handleDataChange} />;
     }
 
+    // Placeholder for steps not yet implemented (names match Application columns)
     return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
   };
 
@@ -808,9 +806,20 @@ export default function EditApplicationPage() {
 
       targetStepRef.current = nextStep;
 
-      // Call API to save
-      // API endpoint: PATCH /v1/applications/:id/step
-      // Body: { stepNumber: 1, stepId: "financing_type", data: {...} }
+      // If this is the final submission, use updateStatusMutation
+      if (currentStepKey === "review_and_submit") {
+        await updateStatusMutation.mutateAsync({
+          id: applicationId,
+          status: "SUBMITTED",
+        });
+
+        setHasUnsavedChanges(false);
+        toast.success("Application submitted successfully!");
+        router.push("/applications");
+        return;
+      }
+
+      // Call API to save step data
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -1033,12 +1042,17 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
+              updateStatusMutation.isPending ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending ? "Saving..." : "Save and Continue"}
+            {updateStepMutation.isPending || updateStatusMutation.isPending
+              ? "Saving..."
+              : currentStepKey === "review_and_submit"
+              ? "Submit Application"
+              : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
