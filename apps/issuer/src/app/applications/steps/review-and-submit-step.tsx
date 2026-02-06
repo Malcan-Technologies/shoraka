@@ -33,10 +33,11 @@ interface ReviewAndSubmitStepProps {
   onDataChange?: (data: any) => void;
 }
 
-const labelClassName = "text-muted-foreground text-sm sm:text-[15px]";
-const valueClassName = "text-foreground font-medium text-sm sm:text-[15px]";
-const sectionHeaderClassName = "text-base sm:text-lg font-bold text-foreground mb-4";
-const rowGridClassName = "grid grid-cols-[1fr_2fr] gap-x-4 gap-y-3 sm:gap-y-4";
+const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
+const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-6 gap-y-4 mt-4 px-3";
+const inputClassName = "flex items-center text-foreground min-h-[28px]";
 
 export function ReviewAndSubmitStep({
   applicationId,
@@ -51,6 +52,77 @@ export function ReviewAndSubmitStep({
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
+
+  /**
+   * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
+   */
+  const combinedList = React.useMemo(() => {
+    const directorsDisplay = entitiesData?.directorsDisplay ?? [];
+    const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
+    const corporateShareholders = entitiesData?.corporateShareholders ?? [];
+    
+    const seen = new Set<string>();
+    const result: any[] = [];
+
+    const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
+
+    // Process directors first
+    directorsDisplay.forEach((d: any) => {
+      const normalized = normalizeName(d.name);
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        const isAlsoShareholder = d.ownershipLabel !== "—";
+        result.push({
+          type: "director",
+          name: d.name,
+          roleLabel: isAlsoShareholder ? "Director, Shareholder" : "Director",
+          ownership: d.ownershipLabel,
+          statusType: "kyc",
+          statusVerified: d.kycVerified,
+          key: `dir-${normalized}`,
+        });
+      }
+    });
+
+    // Process shareholders who are NOT directors
+    shareholdersDisplay.forEach((s: any) => {
+      const normalized = normalizeName(s.name);
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        result.push({
+          type: "shareholder",
+          name: s.name,
+          roleLabel: "Shareholder",
+          ownership: s.ownershipLabel,
+          statusType: "kyc",
+          statusVerified: s.kycVerified,
+          key: `sh-${normalized}`,
+        });
+      }
+    });
+
+    // Process corporate shareholders
+    corporateShareholders.forEach((corp: any) => {
+      const shareField = corp.formContent?.displayAreas?.[0]?.content?.find(
+        (f: any) => f.fieldName === "% of Shares"
+      );
+      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
+      const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
+      const kybApproved = corp.approveStatus === "APPROVED";
+      
+      result.push({
+        type: "corporate_shareholder",
+        name: corp.businessName || corp.companyName || "—",
+        roleLabel: "Corporate Shareholder",
+        ownership: ownershipLabel,
+        statusType: "kyb",
+        statusVerified: kybApproved,
+        key: `corp-${corp.requestId}`,
+      });
+    });
+
+    return result;
+  }, [entitiesData]);
 
   // Invoices
   const financingStructure = application?.financing_structure as any;
@@ -101,7 +173,6 @@ export function ReviewAndSubmitStep({
   }));
 
   const financingType = (application?.financing_type as any) || {};
-  const businessDetails = (application as any)?.business_details || {};
   const contractDetails = (contract?.contract_details as any) || {};
   const customerDetails = (contract?.customer_details as any) || {};
   const basicInfo = corporateInfo?.basicInfo;
@@ -123,33 +194,17 @@ export function ReviewAndSubmitStep({
   const categories = supportingDocs?.categories || [];
 
   return (
-    <div className="space-y-12 pb-20 max-w-5xl mx-auto">
-      {/* Financing Details */}
-      {activeStepKeys.has("financing_type") && (
-        <section>
-          <h2 className={sectionHeaderClassName}>Financing details</h2>
-          <div className="bg-muted/30 rounded-xl p-4 flex items-start gap-4 border border-border">
-            <div className="bg-background p-2 rounded-lg border border-border shadow-sm">
-              <CheckIconSolid className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-bold text-foreground">{selectedProduct?.name || financingType.product_name || "Account Receivable (AR) Financing"}</h3>
-              <p className="text-sm text-muted-foreground">Get funding against your issued invoices under Islamic financing principles</p>
-            </div>
-          </div>
-        </section>
-      )}
-
+    <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Contract */}
       {activeStepKeys.has("contract_details") && (
-        <section>
-          <h2 className={sectionHeaderClassName}>Contract</h2>
-          <div className={rowGridClassName}>
+        <section className="space-y-6">
+          <h3 className={sectionHeaderClassName}>Contract</h3>
+          <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
             <div className={valueClassName}>{contractDetails.title || "—"}</div>
             
             <div className={labelClassName}>Contract status</div>
-            <div className={cn(valueClassName, "text-primary")}>New submission (Pending approval)</div>
+            <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
             
             <div className={labelClassName}>Customer</div>
             <div className={valueClassName}>{customerDetails.name || "—"}</div>
@@ -158,27 +213,26 @@ export function ReviewAndSubmitStep({
             <div className={valueClassName}>{formatCurrency(contractDetails.value)}</div>
             
             <div className={labelClassName}>Approved facility</div>
-            <div className={valueClassName}>{formatCurrency(contractDetails.approved_facility)}</div>
+            <div className={valueClassName}>{"-------"}</div>
             
             <div className={labelClassName}>Utilised facility</div>
-            <div className={valueClassName}>{formatCurrency(contractDetails.utilized_facility)}</div>
+            <div className={valueClassName}>{"-------"}</div>
             
             <div className={labelClassName}>Available facility</div>
-            <div className={valueClassName}>{formatCurrency(contractDetails.available_facility)}</div>
+            <div className={valueClassName}>{"-------"}</div>
           </div>
         </section>
       )}
 
       {/* Invoices */}
       {activeStepKeys.has("invoice_details") && (
-        <section>
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <h2 className={sectionHeaderClassName}>Invoices</h2>
-              <p className="text-sm text-muted-foreground">You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer</p>
-            </div>
+        <section className="space-y-6">
+          <div>
+            <h3 className={sectionHeaderClassName}>Invoices</h3>
+            <p className="text-sm text-muted-foreground mt-2">You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer</p>
           </div>
-          <div className="border rounded-xl overflow-hidden">
+          
+          <div className="border rounded-xl overflow-hidden bg-card">
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/30 border-b">
                 <tr>
@@ -225,9 +279,9 @@ export function ReviewAndSubmitStep({
       {/* Company Info */}
       {activeStepKeys.has("company_details") && (
         <>
-          <section>
-            <h2 className={sectionHeaderClassName}>Company info</h2>
-            <div className={rowGridClassName}>
+          <section className="space-y-6">
+            <h3 className={sectionHeaderClassName}>Company info</h3>
+            <div className={gridClassName}>
               <div className={labelClassName}>Company name</div>
               <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
               
@@ -249,70 +303,41 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Director & Shareholders */}
-          <section>
-            <h2 className={sectionHeaderClassName}>Director & Shareholders</h2>
-            <div className="space-y-4">
-              {(entitiesData?.directorsDisplay || []).map((d: any, i: number) => (
-                <div key={`dir-${i}`} className={rowGridClassName}>
-                  <div className={labelClassName}>{d.ownershipLabel !== "—" ? "Director, Shareholder" : "Director"}</div>
-                  <div className="flex items-center gap-4">
-                    <span className={valueClassName}>{d.name}</span>
-                    <span className="text-muted-foreground text-sm">{d.ownershipLabel}</span>
-                    {d.kycVerified && (
-                      <div className="flex items-center gap-1 text-green-600 text-sm">
-                        <CheckCircleIcon className="h-4 w-4" />
-                        KYC
+          <section className="space-y-6">
+            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+            <div className={gridClassName}>
+              {(combinedList || []).map((item: any) => (
+                <React.Fragment key={item.key}>
+                  <div className={labelClassName}>{item.roleLabel}</div>
+                  <div className="flex items-center gap-3 h-11">
+                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap truncate">
+                      {item.name}
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                      {item.ownership}
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    {item.statusVerified ? (
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                        <span className="text-[17px] leading-7 text-green-600">
+                          {item.statusType === "kyb" ? "KYB" : "KYC"}
+                        </span>
                       </div>
+                    ) : (
+                      <div />
                     )}
                   </div>
-                </div>
+                </React.Fragment>
               ))}
-              {(entitiesData?.shareholdersDisplay || [])
-                .filter((s: any) => !entitiesData?.directorsDisplay?.some((d: any) => d.name.trim().toLowerCase() === s.name.trim().toLowerCase()))
-                .map((s: any, i: number) => (
-                  <div key={`sh-${i}`} className={rowGridClassName}>
-                    <div className={labelClassName}>Shareholder</div>
-                    <div className="flex items-center gap-4">
-                      <span className={valueClassName}>{s.name}</span>
-                      <span className="text-muted-foreground text-sm">{s.ownershipLabel}</span>
-                      {s.kycVerified && (
-                        <div className="flex items-center gap-1 text-green-600 text-sm">
-                          <CheckCircleIcon className="h-4 w-4" />
-                          KYC
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              {(entitiesData?.corporateShareholders || []).map((corp: any, i: number) => {
-                const shareField = corp.formContent?.displayAreas?.[0]?.content?.find((f: any) => f.fieldName === "% of Shares");
-                const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
-                const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
-                const kybApproved = corp.approveStatus === "APPROVED";
-                
-                return (
-                  <div key={`corp-${i}`} className={rowGridClassName}>
-                    <div className={labelClassName}>Corporate Shareholder</div>
-                    <div className="flex items-center gap-4">
-                      <span className={valueClassName}>{corp.businessName || corp.companyName || "—"}</span>
-                      <span className="text-muted-foreground text-sm">{ownershipLabel}</span>
-                      {kybApproved && (
-                        <div className="flex items-center gap-1 text-green-600 text-sm">
-                          <CheckCircleIcon className="h-4 w-4" />
-                          KYB
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </section>
 
           {/* Banking details */}
-          <section>
-            <h2 className={sectionHeaderClassName}>Banking details</h2>
-            <div className={rowGridClassName}>
+          <section className="space-y-6">
+            <h3 className={sectionHeaderClassName}>Banking details</h3>
+            <div className={gridClassName}>
               <div className={labelClassName}>Bank name</div>
               <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
               
@@ -322,9 +347,9 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Address */}
-          <section>
-            <h2 className={sectionHeaderClassName}>Address</h2>
-            <div className={rowGridClassName}>
+          <section className="space-y-6">
+            <h3 className={sectionHeaderClassName}>Address</h3>
+            <div className={gridClassName}>
               <div className={labelClassName}>Business address</div>
               <div className={valueClassName}>{formatAddress(businessAddress)}</div>
               
@@ -334,9 +359,9 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Contact Person */}
-          <section>
-            <h2 className={sectionHeaderClassName}>Contact Person</h2>
-            <div className={rowGridClassName}>
+          <section className="space-y-6">
+            <h3 className={sectionHeaderClassName}>Contact Person</h3>
+            <div className={gridClassName}>
               <div className={labelClassName}>Applicant name</div>
               <div className={valueClassName}>{contactPerson.name || "—"}</div>
               
@@ -353,78 +378,20 @@ export function ReviewAndSubmitStep({
         </>
       )}
 
-      {/* Business Details */}
-      {activeStepKeys.has("business_details") && (
-        <section>
-          <h2 className={sectionHeaderClassName}>Business details</h2>
-          <div className="space-y-8">
-            <div>
-              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">About your business</h3>
-              <div className={rowGridClassName}>
-                <div className={labelClassName}>What does your company do?</div>
-                <div className={valueClassName}>{businessDetails.about_your_business?.what_does_company_do || "—"}</div>
-                
-                <div className={labelClassName}>Who are your main customers?</div>
-                <div className={valueClassName}>{businessDetails.about_your_business?.main_customers || "—"}</div>
-                
-                <div className={labelClassName}>Does any single customer make up more than 50% of your revenue?</div>
-                <div className={valueClassName}>{businessDetails.about_your_business?.single_customer_over_50_revenue ? "Yes" : "No"}</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">Why are you raising funds?</h3>
-              <div className={rowGridClassName}>
-                <div className={labelClassName}>What is this financing for?</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.financing_for || "—"}</div>
-                
-                <div className={labelClassName}>How will the funds be used?</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.how_funds_used || "—"}</div>
-                
-                <div className={labelClassName}>Tell us about your business plan</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.business_plan || "—"}</div>
-                
-                <div className={labelClassName}>Are there any risks that may delay repayment of your invoices?</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.risks_delay_repayment || "—"}</div>
-                
-                <div className={labelClassName}>If payment is delayed, what is your backup plan?</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.backup_plan || "—"}</div>
-                
-                <div className={labelClassName}>Are you currently raising/applying funds on any other P2P platforms?</div>
-                <div className={valueClassName}>{businessDetails.why_raising_funds?.raising_on_other_p2p ? "Yes" : "No"}</div>
-
-                {businessDetails.why_raising_funds?.raising_on_other_p2p && (
-                  <>
-                    <div className={labelClassName}>Name of platform</div>
-                    <div className={valueClassName}>{businessDetails.why_raising_funds?.platform_name || "—"}</div>
-                    
-                    <div className={labelClassName}>Amount raised</div>
-                    <div className={valueClassName}>{businessDetails.why_raising_funds?.amount_raised ? formatCurrency(businessDetails.why_raising_funds.amount_raised) : "—"}</div>
-                    
-                    <div className={labelClassName}>Is the same invoice being used?</div>
-                    <div className={valueClassName}>{businessDetails.why_raising_funds?.same_invoice_used ? "Yes" : "No"}</div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Legal docs */}
       {activeStepKeys.has("supporting_documents") && (
-        <section>
-          <h2 className={sectionHeaderClassName}>Legal docs</h2>
-          <div className="space-y-3">
+        <section className="space-y-6">
+          <h3 className={sectionHeaderClassName}>Legal docs</h3>
+          <div className="space-y-3 px-3">
             {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-              <div key={i} className="flex justify-between items-center py-2 border-b last:border-0">
+              <div key={i} className="flex justify-between items-center py-2">
                 <span className={labelClassName}>{doc.title}</span>
                 {doc.file ? (
-                  <div className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-0.5 text-xs">
+                  <div className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-xs">
                     <div className="w-3.5 h-3.5 rounded-full bg-foreground flex items-center justify-center">
                       <CheckIconSolid className="h-2 w-2 text-background" />
                     </div>
-                    {doc.file.file_name}
+                    <span className="font-medium">{doc.file.file_name}</span>
                   </div>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">Not provided</span>
