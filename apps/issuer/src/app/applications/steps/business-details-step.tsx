@@ -310,6 +310,47 @@ export function BusinessDetailsStep({
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
 
+  const validateBusinessDetails = React.useCallback(() => {
+    const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
+    const {
+      financingFor,
+      howFundsUsed,
+      businessPlan,
+      risksDelayRepayment,
+      backupPlan,
+      raisingOnOtherP2P,
+      platformName,
+      amountRaised,
+      sameInvoiceUsed,
+    } = whyRaisingFunds;
+
+    if (
+      !whatDoesCompanyDo.trim() ||
+      !mainCustomers.trim() ||
+      !singleCustomerOver50Revenue.trim() ||
+      !financingFor.trim() ||
+      !howFundsUsed.trim() ||
+      !businessPlan.trim() ||
+      !risksDelayRepayment.trim() ||
+      !backupPlan.trim() ||
+      !raisingOnOtherP2P.trim() ||
+      !declarationConfirmed
+    ) {
+      return false;
+    }
+
+    if (raisingOnOtherP2P === "yes") {
+      if (
+        !platformName.trim() ||
+        !amountRaised.trim() ||
+        !sameInvoiceUsed.trim()
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed]);
+
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
 
@@ -348,8 +389,9 @@ export function BusinessDetailsStep({
       ...snakePayload,
       hasPendingChanges,
       isDeclarationConfirmed: declarationConfirmed,
+      isCurrentStepValid: validateBusinessDetails(),
     });
-  }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized]);
+  }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
   if (isLoadingApp || !isInitialized) {
     return (

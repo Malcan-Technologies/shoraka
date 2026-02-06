@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "../components/ui/sidebar";
+import { SidebarInset, SidebarProvider, Header } from "@cashsouk/ui";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
@@ -30,7 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <SidebarProvider>
               <AppSidebar />
-              <SidebarInset>{children}</SidebarInset>
+              <SidebarInset>
+                <Header />
+                {children}
+              </SidebarInset>
             </SidebarProvider>
             <Toaster />
           </AuthGuard>

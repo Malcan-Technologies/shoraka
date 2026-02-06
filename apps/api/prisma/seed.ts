@@ -180,6 +180,41 @@ async function main() {
 
   logger.info(`✅ Organizations created: ${investorOrg.name} and ${issuerOrg.name}`);
 
+  // Seed Product
+  logger.info("🌱 Seeding product data...");
+  const product = await prisma.product.create({
+    data: {
+      version: 1,
+      workflow: [
+        { id: "financing_type_1", name: "Financing Type" },
+        { id: "financing_structure_1", name: "Financing Structure" },
+        { id: "contract_details_1", name: "Contract Details" },
+        { id: "invoice_details_1", name: "Invoice Details" },
+        { id: "company_details_1", name: "Company Details" },
+        { id: "business_details_1", name: "Business Details" },
+        { id: "supporting_documents_1", name: "Supporting Documents" },
+        { id: "declarations_1", name: "Declarations" },
+        { id: "review_and_submit_1", name: "Review and Submit" },
+      ],
+    },
+  });
+  logger.info(`✅ Product created: ${product.id}`);
+
+  // Seed Application for the issuer organization
+  logger.info("🌱 Seeding application data...");
+  const application = await prisma.application.create({
+    data: {
+      issuer_organization_id: issuerOrg.id,
+      product_version: product.version,
+      status: "DRAFT",
+      last_completed_step: 1,
+      financing_type: {
+        product_id: product.id,
+      },
+    },
+  });
+  logger.info(`✅ Application created: ${application.id}`);
+
   logger.info("🌱 Seeding audit log data for activity feed...");
 
   // Seed Onboarding Logs

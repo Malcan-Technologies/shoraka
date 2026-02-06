@@ -71,6 +71,31 @@ export function useUpdateApplicationStep() {
   });
 }
 
+export function useUpdateApplicationStatus() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const response = await apiClient.updateApplicationStatus(id, status as any);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update application status", {
+        description: error.message,
+      });
+    },
+  });
+}
+
 export function useArchiveApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

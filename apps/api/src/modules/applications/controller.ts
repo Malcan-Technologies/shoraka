@@ -162,6 +162,32 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+const updateStatusSchema = z.object({
+  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"]),
+});
+
+/**
+ * Update application status
+ * PATCH /v1/applications/:id/status
+ */
+async function updateApplicationStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const { status } = updateStatusSchema.parse(req.body);
+    const userId = getUserId(req);
+
+    const result = await applicationService.updateApplicationStatus(id, status, userId);
+
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Create router for application routes
  */
@@ -169,7 +195,7 @@ export function createApplicationRouter(): Router {
   const router = Router();
 
   router.post("/", requireAuth, createApplication);
-  
+
   // More specific routes must come before parameterized routes
   router.post(
     "/:id/upload-document-url",
@@ -178,8 +204,9 @@ export function createApplicationRouter(): Router {
   );
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
+  router.patch("/:id/status", requireAuth, updateApplicationStatus);
   router.post("/:id/archive", requireAuth, archiveApplication);
-  
+
   // Parameterized route comes last
   router.get("/:id", requireAuth, getApplication);
 

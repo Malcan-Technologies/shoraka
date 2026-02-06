@@ -4,11 +4,16 @@ import { useState, useEffect } from "react";
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Badge, Skeleton, ActivityToolbar } from "@cashsouk/ui";
+import { ActivityItem, Badge, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import { Header } from "../../components/header";
 
 export default function ActivityPage() {
+  const { setTitle } = useHeader();
+
+  useEffect(() => {
+    setTitle("Activity");
+  }, [setTitle]);
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [eventTypes, setEventTypes] = useState<string[]>([]);
@@ -49,7 +54,6 @@ export default function ActivityPage() {
 
   return (
     <>
-      <Header title="Dashboard" />
       <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         <Card className="border-none shadow-none bg-transparent">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">

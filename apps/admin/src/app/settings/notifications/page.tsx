@@ -22,6 +22,9 @@ import {
 } from "../../../components/ui/select";
 import { Badge } from "../../../components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
+import { SidebarTrigger } from "../../../components/ui/sidebar";
+import { Separator } from "../../../components/ui/separator";
+import { SystemHealthIndicator } from "../../../components/system-health-indicator";
 import { toast } from "sonner";
 import {
   Send,
@@ -47,6 +50,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../components/ui/table";
 
 const TARGET_CONFIG: Record<string, { label: string; color: string }> = {
   ALL_USERS: { label: "All Users", color: "bg-blue-500" },
@@ -74,7 +85,7 @@ function getTargetBadge(targetType: string) {
   return (
     <Badge
       variant="outline"
-      className="text-xs font-semibold px-2 py-0.5 flex items-center gap-1.5 w-fit whitespace-nowrap"
+      className="text-xs font-medium px-2 py-0.5 flex items-center gap-1.5 w-fit whitespace-nowrap"
       style={{
         backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
         borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
@@ -281,18 +292,23 @@ export default function NotificationsAdminPage() {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Notification Management</h1>
-          <p className="text-muted-foreground">
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-lg font-semibold">Notification Management</h1>
+        <div className="ml-auto">
+          <SystemHealthIndicator />
+        </div>
+      </header>
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+          <p className="text-muted-foreground -mt-4">
             Manage system-wide notification settings and send custom alerts.
           </p>
-        </div>
-      </div>
 
-      <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
+          <Tabs defaultValue="config" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             Configuration
@@ -308,7 +324,7 @@ export default function NotificationsAdminPage() {
         </TabsList>
 
         <TabsContent value="config" className="space-y-6">
-          <div className="grid gap-8 md:grid-cols-1">
+          <div className="grid gap-6 md:grid-cols-1">
             {/* Notification Types Settings */}
             <Card>
               <CardHeader>
@@ -356,13 +372,13 @@ export default function NotificationsAdminPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="divide-y">
                     {types
                       .filter((type: any) => type.category === "SYSTEM" || type.category === "AUTHENTICATION")
                       .map((type: any) => (
                         <div
                           key={type.id}
-                          className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                          className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
                         >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
@@ -396,7 +412,7 @@ export default function NotificationsAdminPage() {
         </TabsContent>
 
         <TabsContent value="custom" className="space-y-6">
-          <div className="grid gap-8 md:grid-cols-2 items-start">
+          <div className="grid gap-6 md:grid-cols-2 items-start">
             {/* Custom Notification Form */}
             <Card>
               <CardHeader>
@@ -626,11 +642,11 @@ export default function NotificationsAdminPage() {
                       No saved groups found. Create one to get started.
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="divide-y">
                       {groups.map((group: any) => (
                         <div
                           key={group.id}
-                          className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                          className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
                         >
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
@@ -772,118 +788,87 @@ export default function NotificationsAdminPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-                    <table className="w-full text-sm table-fixed">
-                      <thead className="bg-muted/30 border-b">
-                        <tr>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[110px]">
-                            Timestamp
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[140px]">
-                            Admin
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[140px]">
-                            Target
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[130px]">
-                            Type
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[250px]">
-                            Message
-                          </th>
-                          <th className="p-4 text-center font-semibold text-muted-foreground text-sm w-[90px]">
-                            Recipients
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[110px]">
-                            IP Address
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[170px]">
-                            Device
-                          </th>
-                          <th className="p-4 text-left font-semibold text-muted-foreground text-sm w-[80px]">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+                          <TableHead className="text-sm font-semibold">Admin</TableHead>
+                          <TableHead className="text-sm font-semibold">Target</TableHead>
+                          <TableHead className="text-sm font-semibold">Type</TableHead>
+                          <TableHead className="text-sm font-semibold">Message</TableHead>
+                          <TableHead className="text-sm font-semibold">Recipients</TableHead>
+                          <TableHead className="text-sm font-semibold">IP Address</TableHead>
+                          <TableHead className="text-sm font-semibold">Device</TableHead>
+                          <TableHead className="text-sm font-semibold">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {logs.map((log: any) => (
-                          <tr key={log.id} className="hover:bg-muted/10 transition-colors">
-                            <td className="p-4 whitespace-nowrap">
-                              <div className="text-sm text-slate-900">
-                                {format(new Date(log.created_at), "MMM d, yyyy")}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {format(new Date(log.created_at), "HH:mm")}
-                              </div>
-                            </td>
-                            <td className="p-4">
+                          <TableRow key={log.id} className="hover:bg-muted/50 transition-colors">
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell>
                               <div className="flex flex-col min-w-0">
                                 <span
-                                  className="text-sm font-medium truncate text-slate-900"
+                                  className="text-sm font-medium truncate"
                                   title={`${log.admin.first_name} ${log.admin.last_name}`}
                                 >
                                   {log.admin.first_name} {log.admin.last_name}
                                 </span>
                                 <span
-                                  className="text-xs text-muted-foreground truncate lowercase"
+                                  className="text-xs text-muted-foreground truncate"
                                   title={log.admin.email}
                                 >
                                   {log.admin.email}
                                 </span>
                               </div>
-                            </td>
-                            <td className="p-4">{getTargetBadge(log.target_type)}</td>
-                            <td className="p-4">
+                            </TableCell>
+                            <TableCell>{getTargetBadge(log.target_type)}</TableCell>
+                            <TableCell>
                               <div
-                                className="text-xs font-medium text-slate-700 whitespace-normal break-words"
+                                className="text-xs font-bold text-slate-700 whitespace-normal break-words"
                                 title={log.notification_type?.name}
                               >
                                 {log.notification_type?.name || "Custom"}
                               </div>
-                            </td>
-                            <td className="p-4">
-                              <div
-                                className="font-medium text-slate-900 truncate mb-0.5 text-sm"
-                                title={log.title}
-                              >
-                                {log.title}
+                            </TableCell>
+                            <TableCell>
+                              <div className="max-w-[300px]">
+                                <div
+                                  className="text-sm font-medium truncate mb-0.5"
+                                  title={log.title}
+                                >
+                                  {log.title}
+                                </div>
+                                <div className="text-xs text-muted-foreground line-clamp-1">
+                                  {log.message}
+                                </div>
                               </div>
-                              <div className="text-xs text-muted-foreground line-clamp-1">
-                                {log.message}
-                              </div>
-                            </td>
-                            <td className="p-4 text-center">
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-medium text-xs">
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium text-xs">
                                 <Users className="h-3 w-3" />
                                 {log.recipient_count}
                               </div>
-                            </td>
-                            <td className="p-4 font-mono text-sm text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
                               {log.ip_address || "—"}
-                            </td>
-                            <td className="p-4 text-sm text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
                               {log.device_info ? (
-                                <span
-                                  title={log.user_agent}
-                                  className="line-clamp-2 block leading-snug"
-                                >
+                                <span title={log.user_agent} className="line-clamp-2 leading-snug">
                                   {log.device_info}
-                                </span>
-                              ) : log.user_agent ? (
-                                <span
-                                  title={log.user_agent}
-                                  className="line-clamp-2 block leading-snug"
-                                >
-                                  {log.user_agent.split("/")[0]}
                                 </span>
                               ) : (
                                 "—"
                               )}
-                            </td>
-                            <td className="p-4">
+                            </TableCell>
+                            <TableCell className="text-right">
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 gap-1 text-sm"
+                                className="h-8 gap-1"
                                 onClick={() => {
                                   setSelectedLog(log);
                                   setIsLogDetailsOpen(true);
@@ -892,16 +877,16 @@ export default function NotificationsAdminPage() {
                                 <Eye className="h-4 w-4" />
                                 View
                               </Button>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
 
                   {/* Pagination for Logs */}
                   {paginationLogs && paginationLogs.pages > 1 && (
-                    <div className="flex items-center justify-between border-t pt-4 px-2">
+                    <div className="flex items-center justify-between border-t px-6 py-4">
                       <div className="text-sm text-muted-foreground">
                         Showing {Math.min((page - 1) * limit + 1, paginationLogs.total)}-
                         {Math.min(page * limit, paginationLogs.total)} of {paginationLogs.total}
@@ -1099,5 +1084,7 @@ export default function NotificationsAdminPage() {
         </DialogContent>
       </Dialog>
     </div>
+  </div>
+</>
   );
 }

@@ -17,10 +17,9 @@ import {
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
 import { redirectToLanding } from "../../lib/auth";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { AccountTypeSelector } from "../../components/account-type-selector";
+import { useHeader } from "@cashsouk/ui";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 
@@ -30,21 +29,22 @@ const ISSUER_URL = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001"
 type OnboardingStep = "welcome" | "name-input" | "account-type";
 
 function OnboardingStartPageContent() {
+  const { setTitle } = useHeader();
+
+  useEffect(() => {
+    setTitle("Onboarding");
+  }, [setTitle]);
+
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
   const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
   const [savingName, setSavingName] = useState(false);
   const [onboardingStarted, setOnboardingStarted] = useState(false);
 
-  // Handle hydration
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Note: We do NOT redirect users away from this page based on active organization status.
   // This page is for adding NEW organizations, so users should be able to access it
@@ -207,11 +207,6 @@ function OnboardingStartPageContent() {
   if (loading || orgLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Skeleton className="h-6 w-28" />
-        </header>
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
           <div className="w-full max-w-md">
             <div className="flex justify-center mb-8">
@@ -251,15 +246,6 @@ function OnboardingStartPageContent() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        {mounted ? (
-          <SidebarTrigger className="-ml-1" />
-        ) : (
-          <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-        )}
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Onboarding</h1>
-      </header>
       <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
         <div className="w-full max-w-md flex flex-col items-center">
           {/* Logo */}
@@ -405,11 +391,6 @@ export default function OnboardingStartPage() {
     <Suspense
       fallback={
         <>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-            <Skeleton className="-ml-1 h-7 w-7 rounded-md" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Skeleton className="h-6 w-28" />
-          </header>
           <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>

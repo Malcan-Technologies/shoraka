@@ -197,7 +197,7 @@ export function DeclarationsStep({
                   className="flex items-start gap-2 sm:gap-3 py-3"
                 >
                   <div className="shrink-0 mt-1">
-                    <Skeleton className="h-[18px] w-[18px] rounded" />
+                    <Skeleton className="h-4 w-4 rounded" />
                   </div>
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-5 w-full" />
@@ -211,7 +211,7 @@ export function DeclarationsStep({
         <div>
           <div className="border rounded-xl p-4 sm:p-6 bg-card">
             <Skeleton className="h-6 w-40 mb-3" />
-            <div className="pl-[18px] space-y-2">
+            <div className="pl-5 space-y-2">
               <Skeleton className="h-5 w-full" />
               <Skeleton className="h-5 w-full" />
               <Skeleton className="h-5 w-3/4" />
@@ -275,7 +275,7 @@ return (
             </div>
 
             {/* Text */}
-            <span className="text-[16px] leading-[24px] text-foreground">
+            <span className="text-base leading-6 text-foreground">
               {declaration}
             </span>
           </label>
@@ -291,7 +291,7 @@ return (
     </h3>
     <div className="mt-2 h-px bg-border" />
 
-    <ul className="list-disc pl-5 space-y-3 text-[16px] leading-[24px] text-foreground">
+    <ul className="list-disc pl-5 space-y-3 text-base leading-6 text-foreground">
       <li>After submission, your application will be reviewed by our team.</li>
       <li>If additional information is required, we will contact you for confirmation.</li>
       <li>
@@ -300,7 +300,7 @@ return (
       </li>
     </ul>
 
-    <p className="mt-5 text-[15px] leading-[22px] text-muted-foreground">
+    <p className="mt-5 text-sm leading-6 text-muted-foreground">
       Submitting this application confirms that all declarations provided are
       accurate and complete.
     </p>

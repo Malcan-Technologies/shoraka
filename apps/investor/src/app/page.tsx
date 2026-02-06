@@ -13,9 +13,16 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { DepositCard } from "../components/deposit-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
-import { Header } from "../components/header";
+import { useHeader } from "@cashsouk/ui";
 
 function InvestorDashboardContent() {
+  const { setTitle } = useHeader();
+
+  // Set header title
+  useEffect(() => {
+    setTitle("Dashboard");
+  }, [setTitle]);
+
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const {
@@ -167,7 +174,6 @@ function InvestorDashboardContent() {
 
   return (
     <>
-      <Header title="Dashboard" />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
         {/* Grey transparent overlay when account is rejected */}
         {isRejected && (

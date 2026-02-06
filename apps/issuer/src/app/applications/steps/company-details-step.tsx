@@ -120,7 +120,6 @@ const BANK_ACCOUNT_MAX_LENGTH = 18;
 const IC_NUMBER_REGEX = /^\d*$/;
 /** Number of employees: positive integer (digits only, non-zero) */
 function isValidNumberOfEmployees(value: string): boolean {
-  if (!value.trim()) return true;
   const n = Number.parseInt(value.trim(), 10);
   return Number.isInteger(n) && n > 0 && value.trim().replace(/^0+/, "") !== "";
 }
@@ -347,10 +346,21 @@ export function CompanyDetailsStep({
       if (contactErrors.some((e) => e.includes("position"))) fieldErrors.position = "Required";
     }
 
+    const industry = pendingCompanyInfo?.industry;
+    if (industry !== undefined && !industry.trim()) {
+      errors.push("Industry is required");
+      fieldErrors.industry = "Required";
+    }
+
     const numEmp = pendingCompanyInfo?.numberOfEmployees;
-    if (numEmp !== undefined && numEmp !== "" && !isValidNumberOfEmployees(numEmp)) {
-      errors.push("Number of employees must be a positive whole number");
-      fieldErrors.numberOfEmployees = "Enter a positive whole number";
+    if (numEmp !== undefined) {
+      if (!numEmp.trim()) {
+        errors.push("Number of employees is required");
+        fieldErrors.numberOfEmployees = "Required";
+      } else if (!isValidNumberOfEmployees(numEmp)) {
+        errors.push("Number of employees must be a positive whole number");
+        fieldErrors.numberOfEmployees = "Enter a positive whole number";
+      }
     }
 
     const bankNameDisplay =
@@ -442,6 +452,9 @@ export function CompanyDetailsStep({
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
 
+    const { errors: initialErrors } = validateAll();
+    const isCurrentStepValid = initialErrors.length === 0;
+
     const saveFunctionWithValidation = async () => {
       const { errors, fieldErrors: nextFieldErrors } = validateAll();
       setFieldErrors(nextFieldErrors);
@@ -482,6 +495,7 @@ export function CompanyDetailsStep({
       },
       saveFunction: saveFunctionWithValidation,
       hasPendingChanges: hasPendingChanges,
+      isCurrentStepValid: isCurrentStepValid,
     });
   }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateAll, hasPendingChanges]);
 
@@ -655,14 +669,21 @@ return (
         />
 
         <div className={labelClassNameEditable}>Industry</div>
-        <Input
-          value={displayIndustry ?? ""}
-          onChange={(e) =>
-            setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
-          }
-          placeholder="eg. Technology"
-          className={inputClassNameEditable}
-        />
+        <div>
+          <Input
+            value={displayIndustry ?? ""}
+            onChange={(e) =>
+              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
+            }
+            placeholder="eg. Technology"
+            className={inputClassNameEditable}
+          />
+          {fieldErrors.industry && (
+            <p className="text-destructive text-sm mt-1">
+              {fieldErrors.industry}
+            </p>
+          )}
+        </div>
 
         <div className={labelClassNameEditable}>Number of employees</div>
         <div>
