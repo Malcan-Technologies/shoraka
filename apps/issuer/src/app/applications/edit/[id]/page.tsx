@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
