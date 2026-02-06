@@ -193,11 +193,11 @@ export class ApplicationService {
       const updateData: Prisma.ApplicationUpdateInput = {
         updated_at: new Date(),
       };
-      
+
       if (input.stepNumber >= application.last_completed_step) {
         updateData.last_completed_step = input.stepNumber;
       }
-      
+
       return this.repository.update(id, updateData);
     }
 
@@ -224,25 +224,25 @@ export class ApplicationService {
       if (structureData?.structure_type === "existing_contract" && structureData?.existing_contract_id) {
         // Validate the contract before linking
         const contract = await this.contractRepository.findById(structureData.existing_contract_id);
-        
+
         if (!contract) {
           throw new AppError(404, "CONTRACT_NOT_FOUND", "The selected contract does not exist.");
         }
-        
+
         if (contract.issuer_organization_id !== application.issuer_organization_id) {
           throw new AppError(403, "FORBIDDEN", "Cannot link contract from a different organization.");
         }
-        
+
         if (contract.status !== "APPROVED") {
           throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved contracts can be linked to applications.");
         }
-        
+
         // Link the existing contract to this application
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
-      } else if (structureData?.structure_type === "invoice_only") {
+      }  else if (structureData?.structure_type === "invoice_only") {
         // Unlink any contract if invoice-only is selected
         updateData.contract = { disconnect: true };
-        
+
         // Also clear contract_id from all invoices for this application
         await prisma.invoice.updateMany({
           where: { application_id: id },
@@ -395,7 +395,7 @@ export class ApplicationService {
       // Get product to find active steps
       const financingType = application.financing_type as any;
       const productId = financingType?.product_id;
-      
+
       if (productId) {
         const product = await this.productRepository.findById(productId);
         if (product) {
@@ -422,7 +422,7 @@ export class ApplicationService {
           });
         }
       }
-      
+
       (updateData as any).submitted_at = new Date();
     }
 

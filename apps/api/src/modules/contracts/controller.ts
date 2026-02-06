@@ -8,6 +8,7 @@ import {
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { z } from "zod";
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -98,12 +99,35 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       contentType: input.contentType,
       fileSize: input.fileSize,
       type: input.type,
+      existingS3Key: input.existingS3Key,
       userId,
     });
 
     res.json({
       success: true,
       data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const deleteDocumentSchema = z.object({
+  s3Key: z.string(),
+});
+
+async function deleteDocument(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = contractIdParamSchema.parse(req.params);
+    const input = deleteDocumentSchema.parse(req.body);
+    const userId = getUserId(req);
+
+    await contractService.deleteDocument(id, input.s3Key, userId);
+
+    res.json({
+      success: true,
+      data: { message: "Document deleted successfully" },
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -132,6 +156,7 @@ export function createContractRouter(): Router {
   router.patch("/:id", requireAuth, updateContract);
   router.post("/:id/unlink", requireAuth, unlinkContract);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
+  router.delete("/:id/document", requireAuth, deleteDocument);
 
   return router;
 }

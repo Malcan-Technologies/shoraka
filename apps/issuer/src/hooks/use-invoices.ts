@@ -63,9 +63,8 @@ export function useCreateInvoice() {
       queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to create invoice", {
-        description: error.message,
-      });
+      // Errors are handled by UI validation banner
+      console.warn("Invoice creation error:", error.message);
     },
   });
 }
@@ -95,9 +94,8 @@ export function useUpdateInvoice() {
       queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to update invoice", {
-        description: error.message,
-      });
+      // Errors are handled by UI validation banner
+      console.warn("Invoice update error:", error.message);
     },
   });
 }

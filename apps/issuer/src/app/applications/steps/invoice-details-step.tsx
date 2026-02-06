@@ -74,9 +74,11 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
   const [localInvoices, setInvoices] = React.useState<any[]>([]);
   const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
   const [localValidationError, setLocalValidationError] = React.useState<string | null>(null);
-
   // Track pending invoice files (not uploaded to S3 yet)
   const [pendingInvoiceFiles, setPendingInvoiceFiles] = React.useState<Record<string, File>>({});
+
+  // Track existing S3 keys for versioning
+  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
 
   // Track initial state for hasPendingChanges calculation
   const initialInvoicesRef = React.useRef<string>("");
@@ -107,6 +109,17 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
     const allInvoices = [...uniqueContractInvoices, ...mappedAppInvoices];
 
+    // Track existing S3 keys for versioning - merge with previous to preserve keys
+    setLastS3Keys(prev => {
+      const s3Keys: Record<string, string> = { ...prev };
+      allInvoices.forEach((inv: any) => {
+        if (inv.document?.s3_key && inv.document.s3_key !== "pending") {
+          s3Keys[inv.id] = inv.document.s3_key;
+        }
+      });
+      return s3Keys;
+    });
+
     // Only update local state if the count changed or if it's the initial load.
     // This prevents losing focus and lag when typing.
     // Individual field changes are handled by local state and synced on blur.
@@ -118,14 +131,18 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       return prev.map(p => {
         const matching = allInvoices.find(a => a.id === p.id);
         if (!matching) return p;
-        // Update if status, isReadOnly OR document changed
+        
+        // Preserve local pending document (s3_key: "pending") during sync
+        const hasPendingFile = p.document?.s3_key === "pending";
         const docChanged = JSON.stringify(matching.document) !== JSON.stringify(p.document);
-        if (matching.status !== p.status || matching.isReadOnly !== p.isReadOnly || docChanged) {
+        
+        if (matching.status !== p.status || matching.isReadOnly !== p.isReadOnly || (docChanged && !hasPendingFile)) {
           return {
             ...p,
             status: matching.status,
             isReadOnly: matching.isReadOnly,
-            document: matching.document
+            // Keep local pending document, otherwise use server document
+            document: hasPendingFile ? p.document : matching.document
           };
         }
         return p;
@@ -159,10 +176,18 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
     for (const [invoiceId, file] of filesToUpload) {
       try {
+        // Find existing S3 key for this invoice - check both current state and tracked keys
+        const invoice = localInvoices.find(inv => inv.id === invoiceId);
+        const documentS3Key = invoice?.document?.s3_key;
+        const existingS3Key = (documentS3Key && documentS3Key !== "pending")
+          ? documentS3Key
+          : lastS3Keys[invoiceId];
+
         const response = await apiClient.requestInvoiceUploadUrl(invoiceId, {
           fileName: file.name,
           contentType: file.type,
           fileSize: file.size,
+          existingS3Key: existingS3Key,
         });
 
         if (!response.success) {
@@ -183,6 +208,15 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           throw new Error("Failed to upload file to S3");
         }
 
+        // Delete old file if S3 key changed
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            await apiClient.deleteInvoiceDocument(invoiceId, existingS3Key);
+          } catch (error) {
+            console.warn("Failed to delete old invoice document:", error);
+          }
+        }
+
         const documentData = {
           s3_key: s3Key,
           file_name: file.name,
@@ -197,8 +231,9 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
           },
         });
 
-        // Update local state
+        // Update local state and lastS3Keys
         handleUpdateInvoiceLocal(invoiceId, "document", documentData);
+        setLastS3Keys(prev => ({ ...prev, [invoiceId]: s3Key }));
       } catch (error: any) {
         toast.error("Upload failed", { description: error.message });
         throw error;
@@ -210,19 +245,47 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
 
     // Update initial state after save
     initialInvoicesRef.current = JSON.stringify(localInvoices);
-  }, [pendingInvoiceFiles, localInvoices, getAccessToken, applicationId, updateInvoiceMutation]);
+  }, [pendingInvoiceFiles, localInvoices, lastS3Keys, getAccessToken, applicationId, updateInvoiceMutation]);
 
   // Notify parent on changes
   React.useEffect(() => {
     const approvedFacilityAmt = contractDetails.approved_facility || 0;
     const contractValueAmt = contractDetails.value || 0;
 
-    // Calculate facility updates
-    const isValid = localInvoices.length > 0 && localInvoices.every((inv) => inv.number && inv.value > 0);
-
-    // Validation check
+    // Validation checks
     let validationError = null;
-    if (!isInvoiceOnly) {
+
+    // 1. Check if there are any invoices
+    if (localInvoices.length === 0) {
+      validationError = "Please add at least one invoice.";
+    }
+
+    // 2. Check each invoice has: number, value > 0, maturity_date, AND document
+    if (!validationError) {
+      const invalidInvoice = localInvoices.find((inv) => {
+        const hasNumber = inv.number && inv.number.trim() !== "";
+        const hasValue = inv.value && inv.value > 0;
+        const hasDate = inv.maturity_date && inv.maturity_date.trim() !== "";
+        const hasDocument = (inv.document?.s3_key && inv.document.s3_key !== "pending") || pendingInvoiceFiles[inv.id];
+
+        return !hasNumber || !hasValue || !hasDate || !hasDocument;
+      });
+
+      if (invalidInvoice) {
+        validationError = "Each invoice must have a number, value, maturity date, and uploaded document.";
+      }
+    }
+
+    // 3. When using existing contract, ensure at least 1 new (application-level) invoice
+    if (!validationError && isExistingContract) {
+      const newInvoicesCount = appInvoices.length;
+      if (newInvoicesCount === 0) {
+        validationError = "You must add at least one new invoice to this application.";
+      }
+    }
+
+    // 4. Facility validation (only if not invoice_only)
+    if (!validationError && !isInvoiceOnly) {
       if (approvedFacilityAmt > 0) {
         if (totalFinancingAmount > approvedFacilityAmt) {
           validationError =
@@ -243,17 +306,19 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     const hasPendingFileUploads = Object.keys(pendingInvoiceFiles).length > 0;
     const hasPendingChanges = currentState !== initialInvoicesRef.current || hasPendingFileUploads;
 
+    const isValid = !validationError;
+
     onDataChangeRef.current?.({
       invoices: localInvoices,
       totalFinancingAmount,
-      isValid: isValid && !validationError,
+      isValid,
       validationError,
       available_facility: contractDetails.available_facility,
       utilized_facility: contractDetails.utilized_facility,
       hasPendingChanges,
-      saveFunction: hasPendingFileUploads ? uploadPendingInvoiceFiles : undefined,
+      saveFunction: uploadPendingInvoiceFiles,
     });
-  }, [localInvoices, contractDetails, isInvoiceOnly, totalFinancingAmount, pendingInvoiceFiles, uploadPendingInvoiceFiles]);
+  }, [localInvoices, contractDetails, isInvoiceOnly, totalFinancingAmount, pendingInvoiceFiles, uploadPendingInvoiceFiles, isExistingContract, appInvoices.length]);
 
   const handleAddInvoice = async () => {
     const newInvoiceDetails = {
@@ -292,11 +357,24 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     const invoice = localInvoices.find((inv) => inv.id === id);
     if (invoice?.status === "APPROVED") return;
 
-    await updateInvoiceMutation.mutateAsync({
-      id,
-      applicationId,
-      details: { [field]: value },
-    });
+    // Store old value in case we need to revert
+    const oldValue = invoice?.[field];
+
+    try {
+      await updateInvoiceMutation.mutateAsync({
+        id,
+        applicationId,
+        details: { [field]: value },
+      });
+    } catch (error) {
+      // Revert local state on error
+      if (oldValue !== undefined) {
+        setInvoices((prev) =>
+          prev.map((inv) => (inv.id === id ? { ...inv, [field]: oldValue } : inv))
+        );
+      }
+      // Error toast already shown by mutation hook
+    }
   };
 
   const handleFileUpload = async (invoiceId: string, file: File) => {
@@ -552,29 +630,15 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                           {invoice.document ? (
                             <div
                               className={cn(
-                                "inline-flex items-center gap-2 border rounded-md px-2 py-1 max-w-full",
-                                invoice.document.s3_key === "pending"
-                                  ? "bg-yellow-50 border-yellow-300 text-yellow-900"
-                                  : "bg-background text-foreground border-border",
+                                "inline-flex items-center gap-2 bg-background text-foreground border-2 border-border rounded-sm px-2 py-1 max-w-full",
                                 isDisabled && "opacity-70 bg-muted/30"
                               )}
                             >
-                              <div className={cn(
-                                "w-4 h-4 rounded-full flex items-center justify-center shrink-0",
-                                invoice.document.s3_key === "pending"
-                                  ? "bg-yellow-500"
-                                  : "bg-foreground"
-                              )}>
-                                <CheckIconSolid className={cn(
-                                  "h-3 w-3",
-                                  invoice.document.s3_key === "pending"
-                                    ? "text-yellow-900"
-                                    : "text-background"
-                                )} />
+                              <div className="w-3.5 h-3.5 rounded flex items-center justify-center bg-foreground shrink-0">
+                                <CheckIconSolid className="h-3 w-3 text-background" />
                               </div>
                               <span className="text-sm truncate max-w-[120px] sm:max-w-[200px]">
                                 {invoice.document.file_name}
-                                {invoice.document.s3_key === "pending" && " (pending)"}
                               </span>
                               {!isDisabled && (
                                 <button
@@ -598,8 +662,8 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
                             </div>
                           ) : (
                             !isDisabled && (
-                              <label className="flex items-center gap-2 text-primary font-medium hover:underline text-sm cursor-pointer">
-                                <CloudUpload className="h-5 w-5" />
+                              <label className="flex items-center gap-2 text-[#800000] font-medium hover:underline text-sm cursor-pointer">
+                                <CloudUpload className="h-4 w-4" />
                                 {isUploading[invoice.id] ? "Uploading..." : "Upload file"}
                                 <input
                                   type="file"

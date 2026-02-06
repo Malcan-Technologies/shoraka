@@ -47,4 +47,5 @@ export const requestContractUploadUrlSchema = z.object({
   contentType: z.string(),
   fileSize: z.number(),
   type: z.enum(["contract", "consent"]),
+  existingS3Key: z.string().optional(),
 });

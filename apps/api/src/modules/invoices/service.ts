@@ -6,9 +6,11 @@ import { AppError } from "../../lib/http/error-handler";
 import { Invoice } from "@prisma/client";
 import {
   generateInvoiceDocumentKey,
+  generateInvoiceDocumentKeyWithVersion,
   generatePresignedUploadUrl,
   getFileExtension,
   validateDocument,
+  deleteS3Object,
 } from "../../lib/s3/client";
 
 export class InvoiceService {
@@ -118,49 +120,31 @@ export class InvoiceService {
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
 
-    // Facility validation
+    // Facility validation - available_facility is single source of truth
     if (contractId) {
       const contract = await this.contractRepository.findById(contractId);
       if (contract) {
         const contractDetails = contract.contract_details as any;
-        const approvedFacility = contractDetails?.approved_facility || 0;
-        const contractValue = contractDetails?.value || 0;
         const availableFacility = contractDetails?.available_facility || 0;
 
         const invoiceValue = details.value || 0;
         const financeAmount = invoiceValue * 0.8;
 
-        if (approvedFacility > 0) {
-          if (financeAmount > availableFacility) {
-            throw new AppError(
-              400,
-              "FACILITY_LIMIT_EXCEEDED",
-              `Max financing (${financeAmount}) exceeds available facility (${availableFacility})`
-            );
-          }
-
-          // Decrement available capacity immediately as per requirement
-          await this.contractRepository.update(contractId, {
-            contract_details: {
-              ...contractDetails,
-              available_facility: availableFacility - financeAmount,
-            },
-          });
-        } else {
-          const existingInvoices = await this.repository.findAllByContractId(contractId);
-          const totalFinancingAmount = existingInvoices.reduce(
-            (sum, inv) => sum + ((inv.details as any).value || 0) * 0.8,
-            0
+        if (financeAmount > availableFacility) {
+          throw new AppError(
+            400,
+            "FACILITY_LIMIT_EXCEEDED",
+            `Max financing (${financeAmount}) exceeds available facility (${availableFacility})`
           );
-
-          if (totalFinancingAmount + financeAmount > contractValue) {
-            throw new AppError(
-              400,
-              "CONTRACT_LIMIT_EXCEEDED",
-              "Total financing amount exceeds contract value"
-            );
-          }
         }
+
+        // Decrement available facility
+        await this.contractRepository.update(contractId, {
+          contract_details: {
+            ...contractDetails,
+            available_facility: availableFacility - financeAmount,
+          },
+        });
       }
     }
 
@@ -183,7 +167,7 @@ export class InvoiceService {
       throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
     }
 
-    // Capacity validation and adjustment
+    // Capacity validation and adjustment - available_facility is single source of truth
     const oldFinanceAmount = ((invoice.details as any).value || 0) * 0.8;
     const newFinanceAmount =
       (details.value !== undefined ? details.value : ((invoice.details as any).value || 0)) * 0.8;
@@ -193,38 +177,23 @@ export class InvoiceService {
       const contract = await this.contractRepository.findById(invoice.contract_id);
       if (contract) {
         const contractDetails = contract.contract_details as any;
-        const approvedFacility = contractDetails?.approved_facility || 0;
         const availableFacility = contractDetails?.available_facility || 0;
 
-        if (approvedFacility > 0) {
-          if (diff > availableFacility) {
-            throw new AppError(
-              400,
-              "FACILITY_LIMIT_EXCEEDED",
-              `Updated financing diff (${diff}) exceeds available facility (${availableFacility})`
-            );
-          }
-
-          // Update available capacity
-          await this.contractRepository.update(invoice.contract_id, {
-            contract_details: {
-              ...contractDetails,
-              available_facility: availableFacility - diff,
-            },
-          });
-        } else {
-          const contractValue = contractDetails?.value || 0;
-          const existingInvoices = await this.repository.findAllByContractId(invoice.contract_id);
-          const totalFinancing = existingInvoices.reduce(
-            (sum, inv) =>
-              sum + (inv.id === id ? newFinanceAmount : ((inv.details as any).value || 0) * 0.8),
-            0
+        if (diff > availableFacility) {
+          throw new AppError(
+            400,
+            "FACILITY_LIMIT_EXCEEDED",
+            `Updated financing diff (${diff}) exceeds available facility (${availableFacility})`
           );
-
-          if (totalFinancing > contractValue) {
-            throw new AppError(400, "CONTRACT_LIMIT_EXCEEDED", "Total financing exceeds contract value");
-          }
         }
+
+        // Update available facility
+        await this.contractRepository.update(invoice.contract_id, {
+          contract_details: {
+            ...contractDetails,
+            available_facility: availableFacility - diff,
+          },
+        });
       }
     }
 
@@ -367,6 +336,7 @@ export class InvoiceService {
     fileName: string;
     contentType: string;
     fileSize: number;
+    existingS3Key?: string;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyInvoiceAccess(params.invoiceId, params.userId);
@@ -381,13 +351,29 @@ export class InvoiceService {
     }
 
     const extension = getFileExtension(params.fileName) || "pdf";
-    const cuid = this.generateCuid();
+    let s3Key: string;
 
-    const s3Key = generateInvoiceDocumentKey({
-      invoiceId: params.invoiceId,
-      cuid,
-      extension,
-    });
+    // If existingS3Key is provided, increment version and reuse the same cuid
+    if (params.existingS3Key) {
+      const versionedKey = generateInvoiceDocumentKeyWithVersion({
+        existingS3Key: params.existingS3Key,
+        extension,
+      });
+      
+      if (!versionedKey) {
+        throw new AppError(400, "INVALID_S3_KEY", "Failed to parse existing S3 key for versioning");
+      }
+      
+      s3Key = versionedKey;
+    } else {
+      // Generate new key with version 1
+      const cuid = this.generateCuid();
+      s3Key = generateInvoiceDocumentKey({
+        invoiceId: params.invoiceId,
+        cuid,
+        extension,
+      });
+    }
 
     const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
       key: s3Key,
@@ -396,6 +382,16 @@ export class InvoiceService {
     });
 
     return { uploadUrl, s3Key, expiresIn };
+  }
+
+  async deleteDocument(invoiceId: string, s3Key: string, userId: string): Promise<void> {
+    await this.verifyInvoiceAccess(invoiceId, userId);
+
+    try {
+      await deleteS3Object(s3Key);
+    } catch (error) {
+      throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
+    }
   }
 }
 

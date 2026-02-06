@@ -155,12 +155,35 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       fileName: input.fileName,
       contentType: input.contentType,
       fileSize: input.fileSize,
+      existingS3Key: input.existingS3Key,
       userId,
     });
 
     res.json({
       success: true,
       data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const deleteDocumentSchema = z.object({
+  s3Key: z.string(),
+});
+
+async function deleteDocument(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const input = deleteDocumentSchema.parse(req.body);
+    const userId = getUserId(req);
+
+    await invoiceService.deleteDocument(id, input.s3Key, userId);
+
+    res.json({
+      success: true,
+      data: { message: "Document deleted successfully" },
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -178,6 +201,7 @@ export function createInvoiceRouter(): Router {
   router.patch("/:id", requireAuth, updateInvoice);
   router.delete("/:id", requireAuth, deleteInvoice);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
+  router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/approve", requireAuth, approveInvoice);
   router.patch("/:id/reject", requireAuth, rejectInvoice);
 

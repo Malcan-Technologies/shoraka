@@ -26,4 +26,5 @@ export const requestInvoiceUploadUrlSchema = z.object({
   fileName: z.string(),
   contentType: z.string(),
   fileSize: z.number(),
+  existingS3Key: z.string().optional(),
 });

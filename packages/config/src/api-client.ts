@@ -1144,6 +1144,7 @@ export class ApiClient {
       contentType: string;
       fileSize: number;
       type: "contract" | "consent";
+      existingS3Key?: string;
     }
   ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
     return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
@@ -1198,12 +1199,20 @@ export class ApiClient {
       fileName: string;
       contentType: string;
       fileSize: number;
+      existingS3Key?: string;
     }
   ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
     return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
       `/v1/invoices/${id}/upload-url`,
       data
     );
+  }
+
+  async deleteInvoiceDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/invoices/${id}/document?s3Key=${encodeURIComponent(s3Key)}`);
   }
 }
 

@@ -301,7 +301,6 @@ export function getFileExtension(fileName: string): string {
 }
 
 /**
-<<<<<<< HEAD
  * Generate S3 key for product images
  * Format: products/{financing-type-name}/v1-{date}-{cuid}.{ext}
  * Matches the site documents naming convention: v1_date_id.ext
@@ -382,8 +381,6 @@ export function generateProductImageKeyWithVersion(params: {
 }
 
 /**
-=======
->>>>>>> feature/finance-application
  * Validate file type and size for site documents
  */
 export function validateSiteDocument(params: {
@@ -520,6 +517,48 @@ export function generateContractDocumentKey(params: {
 }
 
 /**
+ * Parse contract document S3 key to extract version, date, cuid, extension, and contract ID
+ * Format: contracts/{contractId}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if format doesn't match
+ */
+export function parseContractDocumentKey(s3Key: string): {
+  contractId: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  const match = s3Key.match(/^contracts\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    contractId: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5],
+  };
+}
+
+/**
+ * Generate contract document S3 key with incremented version (for replacements)
+ * Reuses the same cuid and contract ID, increments version, updates date
+ */
+export function generateContractDocumentKeyWithVersion(params: {
+  existingS3Key: string;
+  extension: string;
+}): string | null {
+  const parsed = parseContractDocumentKey(params.existingS3Key);
+  if (!parsed) {
+    return null;
+  }
+  const newVersion = parsed.version + 1;
+  const date = new Date().toISOString().split("T")[0];
+  return `contracts/${parsed.contractId}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
+}
+
+/**
  * Generate S3 key for invoice documents
  * Format: invoices/{invoiceId}/v{version}-{date}-{cuid}.{ext}
  */
@@ -532,6 +571,48 @@ export function generateInvoiceDocumentKey(params: {
   const date = new Date().toISOString().split("T")[0];
   const version = params.version ?? 1;
   return `invoices/${params.invoiceId}/v${version}-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
+ * Parse invoice document S3 key to extract version, date, cuid, extension, and invoice ID
+ * Format: invoices/{invoiceId}/v{version}-{date}-{cuid}.{ext}
+ * Returns null if format doesn't match
+ */
+export function parseInvoiceDocumentKey(s3Key: string): {
+  invoiceId: string;
+  version: number;
+  date: string;
+  cuid: string;
+  extension: string;
+} | null {
+  const match = s3Key.match(/^invoices\/([^/]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([^.]+)\.(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    invoiceId: match[1],
+    version: parseInt(match[2], 10),
+    date: match[3],
+    cuid: match[4],
+    extension: match[5],
+  };
+}
+
+/**
+ * Generate invoice document S3 key with incremented version (for replacements)
+ * Reuses the same cuid and invoice ID, increments version, updates date
+ */
+export function generateInvoiceDocumentKeyWithVersion(params: {
+  existingS3Key: string;
+  extension: string;
+}): string | null {
+  const parsed = parseInvoiceDocumentKey(params.existingS3Key);
+  if (!parsed) {
+    return null;
+  }
+  const newVersion = parsed.version + 1;
+  const date = new Date().toISOString().split("T")[0];
+  return `invoices/${parsed.invoiceId}/v${newVersion}-${date}-${parsed.cuid}.${params.extension}`;
 }
 
 /**

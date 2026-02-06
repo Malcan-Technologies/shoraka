@@ -95,6 +95,12 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     consent?: File;
   }>({});
 
+  // Track existing S3 keys for versioning
+  const [lastS3Keys, setLastS3Keys] = React.useState<{
+    contract?: string;
+    consent?: string;
+  }>({});
+
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -119,6 +125,45 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const contractDetails = (contract.contract_details as any) || {};
     const customerDetails = (contract.customer_details as any) || {};
 
+    // Check if contract has any actual data
+    const hasContractData = contractDetails.title || contractDetails.number ||
+                           contractDetails.value || contractDetails.start_date;
+    const hasCustomerData = customerDetails.name || customerDetails.ssm_number;
+
+    const financingStructure = (application as any)?.financing_structure;
+    const structureType = financingStructure?.structure_type;
+
+    // Only show empty form if structure is "new_contract" AND contract has no data yet
+    // This ensures navigating back doesn't clear a filled form
+    if (structureType === "new_contract" && !hasContractData && !hasCustomerData) {
+      const emptyForm = {
+        contract: {
+          title: "",
+          description: "",
+          number: "",
+          value: 0,
+          start_date: "",
+          end_date: "",
+          approved_facility: 0,
+          utilized_facility: 0,
+          available_facility: 0,
+          document: null,
+        },
+        customer: {
+          name: "",
+          entity_type: "",
+          ssm_number: "",
+          country: "MY",
+          is_related_party: false,
+          document: null,
+        },
+      };
+      setFormData(emptyForm);
+      setInitialData(JSON.parse(JSON.stringify(emptyForm)));
+      setIsInitialized(true);
+      return;
+    }
+
     const initial = {
       contract: {
         title: contractDetails.title || "",
@@ -142,10 +187,20 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       },
     };
 
+    // Track existing S3 keys for versioning
+    const s3Keys: { contract?: string; consent?: string } = {};
+    if (contractDetails.document?.s3_key) {
+      s3Keys.contract = contractDetails.document.s3_key;
+    }
+    if (customerDetails.document?.s3_key) {
+      s3Keys.consent = customerDetails.document.s3_key;
+    }
+    setLastS3Keys(s3Keys);
+
     setFormData(initial);
     setInitialData(JSON.parse(JSON.stringify(initial)));
     setIsInitialized(true);
-  }, [contract, isInitialized]);
+  }, [contract, isInitialized, application]);
 
   /**
    * SAVE FUNCTION
@@ -161,11 +216,14 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
     // Upload contract document if pending
     if (pendingFiles.contract) {
+      const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
+
       const response = await apiClient.requestContractUploadUrl(contractId, {
         fileName: pendingFiles.contract.name,
         contentType: pendingFiles.contract.type,
         fileSize: pendingFiles.contract.size,
         type: "contract",
+        existingS3Key: existingS3Key,
       });
 
       if (!response.success) {
@@ -191,15 +249,20 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         file_name: pendingFiles.contract.name,
         file_size: pendingFiles.contract.size,
       };
+
+      setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
     }
 
     // Upload consent document if pending
     if (pendingFiles.consent) {
+      const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
+
       const response = await apiClient.requestContractUploadUrl(contractId, {
         fileName: pendingFiles.consent.name,
         contentType: pendingFiles.consent.type,
         fileSize: pendingFiles.consent.size,
         type: "consent",
+        existingS3Key: existingS3Key,
       });
 
       if (!response.success) {
@@ -225,6 +288,8 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         file_name: pendingFiles.consent.name,
         file_size: pendingFiles.consent.size,
       };
+
+      setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
     }
 
     // Convert values to numbers
@@ -239,8 +304,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         : (updatedFormData.contract.utilized_facility as number);
 
     // For now, approved_facility is 0 until admin approves
+    // available_facility should be initialized to contract value (this is the single source of truth)
     const approvedFacilityNum = 0;
-    const availableFacilityNum = Math.max(0, approvedFacilityNum - utilizedFacilityNum);
+    const availableFacilityNum = valueNum;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,
