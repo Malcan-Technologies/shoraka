@@ -29,6 +29,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FinancingStructureStep } from "../../steps/financing-structure-step";
+import { ContractDetailsStep } from "../../steps/contract-details-step";
+import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 
 type ApplicationBlockReason =
   | "PRODUCT_DELETED"
@@ -346,11 +349,20 @@ export default function EditApplicationPage() {
       );
     }
 
+    if (currentStepKey === "financing_structure") {
+      return <FinancingStructureStep applicationId={applicationId} onDataChange={handleDataChange} />
+    }
+
+    if (currentStepKey === "contract_details") {
+      return <ContractDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
+    }
+
+    if (currentStepKey === "invoice_details") {
+      return <InvoiceDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />;
+    }
+
     // Placeholder for steps not yet implemented (names match Application columns)
     if (
-      currentStepKey === "financing_structure" ||
-      currentStepKey === "contract_details" ||
-      currentStepKey === "invoice_details" ||
       currentStepKey === "review_and_submit"
     ) {
       return (

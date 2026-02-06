@@ -512,7 +512,7 @@ export function SupportingDocumentsStep({
                   </div>
 
                   {/* Right side: file counter */}
-                  <span className="text-lg text-muted-foreground whitespace-nowrap">
+                  <span className="text-xl text-muted-foreground whitespace-nowrap">
                     {status.uploadedCount}/{status.totalCount} files required
                   </span>
                 </button>
@@ -539,7 +539,7 @@ export function SupportingDocumentsStep({
                     return (
                       <React.Fragment key={documentIndex}>
                         {/* Document title */}
-                        <div className="text-base leading-6 text-muted-foreground">
+                        <div className="text-[16px] leading-[22px] text-muted-foreground">
                           {document.title}
                         </div>
 
@@ -551,7 +551,7 @@ export function SupportingDocumentsStep({
                               {templateS3Key && (
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground whitespace-nowrap h-6"
+                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6"
                                   onClick={async () => {
                                     const token = await getAccessToken();
                                     const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
@@ -579,14 +579,14 @@ export function SupportingDocumentsStep({
                               {/* FIXED upload slot */}
                               <div className="w-[160px]">
                                 {isUploaded && file && !fileIsUploading ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-1 w-full h-6">
+                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
                                     {/* check */}
-                                    <div className="w-4 h-4 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                      <CheckIconSolid className="h-3 w-3 text-background" />
+                                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                                     </div>
 
                                     {/* filename (truncate) */}
-                                    <span className="text-sm font-medium truncate flex-1">
+                                    <span className="text-[14px] font-medium truncate flex-1">
                                       {file.name}
                                     </span>
 
@@ -598,13 +598,13 @@ export function SupportingDocumentsStep({
                                       }
                                       className="text-muted-foreground hover:text-foreground shrink-0"
                                     >
-                                      <XMarkIcon className="h-4 w-4" />
+                                      <XMarkIcon className="h-3.5 w-3.5" />
                                     </button>
                                   </div>
                                 ) : (
                                   <label
                                     htmlFor={`file-${key}`}
-                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 
@@ -674,20 +674,20 @@ function SupportingDocumentsSkeleton() {
             {[1, 2, 3].map((row) => (
               <React.Fragment key={row}>
                 {/* Document title */}
-                <Skeleton className="h-5 w-64" />
+                <Skeleton className="h-[22px] w-[260px]" />
 
                 {/* Action column (exact alignment) */}
                 <div className="flex justify-end">
                   <div className="flex justify-end items-start">
                     <div className="flex items-center gap-3">
                       {/* Download template */}
-                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-[20px] w-[120px]" />
 
                       {/* Separator */}
                       <div className="w-px h-4 bg-border/60" />
 
                       {/* Fixed upload slot */}
-                      <Skeleton className="h-7 w-[160px] rounded-sm" />
+                      <Skeleton className="h-6 w-[160px] rounded-sm" />
                     </div>
                   </div>
                 </div>

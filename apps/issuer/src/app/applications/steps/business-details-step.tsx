@@ -675,21 +675,21 @@ function BusinessDetailsSkeleton() {
       {/* ===================== ABOUT YOUR BUSINESS ===================== */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-6 w-[220px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
 
         <div className={rowGridClassName}>
           {/* What does your company do */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Main customers */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Single customer > 50% */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <div className="flex gap-6 items-center">
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
@@ -706,42 +706,42 @@ function BusinessDetailsSkeleton() {
 
         <div className={rowGridClassName}>
           {/* Financing for */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Funds usage */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Business plan */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[160px] w-full rounded-xl" />
 
           {/* Risks */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Backup plan */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-[120px] w-full rounded-xl" />
 
           {/* Other P2P */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <div className="flex gap-6 items-center">
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
           </div>
 
           {/* Platform name */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
           {/* Amount raised */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <Skeleton className="h-10 w-full rounded-xl" />
 
           {/* Same invoice */}
-          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-[280px]" />
           <div className="flex gap-6 items-center">
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
