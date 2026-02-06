@@ -205,6 +205,9 @@ export default function EditApplicationPage() {
   // Track last step for navigation direction
   const lastStepRef = React.useRef<number>(stepFromUrl);
 
+  // Track if we're currently saving to prevent onDataChange from corrupting state
+  const isSavingRef = React.useRef<boolean>(false);
+
   /**
  * EFFECTIVE PRODUCT ID
  *
@@ -534,12 +537,12 @@ export default function EditApplicationPage() {
   React.useEffect(() => {
     if (!hasUnsavedChanges) return;
 
-    // Push dummy state to catch back button
-    window.history.pushState(null, "", window.location.href);
+    // Use replaceState to avoid adding extra history entries
+    window.history.replaceState({ preventNav: true }, "", window.location.href);
 
     const handlePopState = () => {
       if (hasUnsavedChanges) {
-        window.history.pushState(null, "", window.location.href);
+        window.history.replaceState({ preventNav: true }, "", window.location.href);
         setIsUnsavedChangesModalOpen(true);
       }
     };
@@ -583,8 +586,24 @@ export default function EditApplicationPage() {
         // First step - go to dashboard
         router.push("/");
       } else if (stepFromUrl > 1) {
-        // Any other step - go to previous step
-        router.push(`/applications/edit/${applicationId}?step=${stepFromUrl - 1}`);
+        // Any other step - go to previous step with skip logic
+        let prevStep = stepFromUrl - 1;
+
+        // Handle skip logic for Back button (same as handleBack)
+        if (currentStepKey === "invoice_details") {
+          const savedStructure = application?.financing_structure as any;
+          if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
+            // Find the index of the financing_structure step to go back to it
+            const structureStepIndex = productWorkflow.findIndex(
+              (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
+            );
+            if (structureStepIndex !== -1) {
+              prevStep = structureStepIndex + 1; // 1-based
+            }
+          }
+        }
+
+        router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
       } else {
         // Fallback
         router.push("/");
@@ -651,6 +670,9 @@ export default function EditApplicationPage() {
    */
   const handleSaveAndContinue = async () => {
     try {
+      // Set saving flag to prevent onDataChange from corrupting state
+      isSavingRef.current = true;
+
       /**
  * HARD SAFETY GUARD — VERSION MISMATCH
  *
@@ -838,6 +860,9 @@ export default function EditApplicationPage() {
     } catch (error) {
       // Error already shown by mutation hook
       toast.error("Failed to save. Please try again.");
+    } finally {
+      // Clear saving flag
+      isSavingRef.current = false;
     }
   };
 
@@ -885,13 +910,15 @@ export default function EditApplicationPage() {
       setIsCurrentStepValid(true);
     }
 
-    // Check if step provides pending changes flag
-    if (data?.hasPendingChanges !== undefined) {
-      // Use the component's flag (e.g., supporting documents knows if files are selected)
-      setHasUnsavedChanges(data.hasPendingChanges);
-    } else if (data) {
-      // For other steps, mark as unsaved when data is passed
-      setHasUnsavedChanges(true);
+    // Check if step provides pending changes flag (skip during save to prevent corruption)
+    if (!isSavingRef.current) {
+      if (data?.hasPendingChanges !== undefined) {
+        // Use the component's flag (e.g., supporting documents knows if files are selected)
+        setHasUnsavedChanges(data.hasPendingChanges);
+      } else if (data) {
+        // For other steps, mark as unsaved when data is passed
+        setHasUnsavedChanges(true);
+      }
     }
   };
 

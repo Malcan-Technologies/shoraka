@@ -18,6 +18,7 @@ import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-c
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
+import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -88,6 +89,12 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   const [initialData, setInitialData] = React.useState<any>(null);
   const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
 
+  // Track pending files (not uploaded to S3 yet)
+  const [pendingFiles, setPendingFiles] = React.useState<{
+    contract?: File;
+    consent?: File;
+  }>({});
+
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -146,23 +153,97 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   const handleSave = React.useCallback(async () => {
     if (!contractId) return;
 
+    // Upload pending files first
+    const token = await getAccessToken();
+    const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
+
+    const updatedFormData = { ...formData };
+
+    // Upload contract document if pending
+    if (pendingFiles.contract) {
+      const response = await apiClient.requestContractUploadUrl(contractId, {
+        fileName: pendingFiles.contract.name,
+        contentType: pendingFiles.contract.type,
+        fileSize: pendingFiles.contract.size,
+        type: "contract",
+      });
+
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+
+      const { uploadUrl, s3Key } = response.data;
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: pendingFiles.contract,
+        headers: {
+          "Content-Type": pendingFiles.contract.type,
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Failed to upload contract document to S3");
+      }
+
+      updatedFormData.contract.document = {
+        s3_key: s3Key,
+        file_name: pendingFiles.contract.name,
+        file_size: pendingFiles.contract.size,
+      };
+    }
+
+    // Upload consent document if pending
+    if (pendingFiles.consent) {
+      const response = await apiClient.requestContractUploadUrl(contractId, {
+        fileName: pendingFiles.consent.name,
+        contentType: pendingFiles.consent.type,
+        fileSize: pendingFiles.consent.size,
+        type: "consent",
+      });
+
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+
+      const { uploadUrl, s3Key } = response.data;
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: pendingFiles.consent,
+        headers: {
+          "Content-Type": pendingFiles.consent.type,
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Failed to upload consent document to S3");
+      }
+
+      updatedFormData.customer.document = {
+        s3_key: s3Key,
+        file_name: pendingFiles.consent.name,
+        file_size: pendingFiles.consent.size,
+      };
+    }
+
     // Convert values to numbers
     const valueNum =
-      typeof formData.contract.value === "string"
-        ? parseFloat((formData.contract.value as string).replace(/[^0-9.]/g, "")) || 0
-        : (formData.contract.value as number);
+      typeof updatedFormData.contract.value === "string"
+        ? parseFloat((updatedFormData.contract.value as string).replace(/[^0-9.]/g, "")) || 0
+        : (updatedFormData.contract.value as number);
 
     const utilizedFacilityNum =
-      typeof formData.contract.utilized_facility === "string"
-        ? parseFloat((formData.contract.utilized_facility as string).replace(/[^0-9.]/g, "")) || 0
-        : (formData.contract.utilized_facility as number);
+      typeof updatedFormData.contract.utilized_facility === "string"
+        ? parseFloat((updatedFormData.contract.utilized_facility as string).replace(/[^0-9.]/g, "")) || 0
+        : (updatedFormData.contract.utilized_facility as number);
 
     // For now, approved_facility is 0 until admin approves
     const approvedFacilityNum = 0;
     const availableFacilityNum = Math.max(0, approvedFacilityNum - utilizedFacilityNum);
 
     const updatedContractDetails = {
-      ...formData.contract,
+      ...updatedFormData.contract,
       value: valueNum,
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
@@ -173,45 +254,52 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       id: contractId,
       data: {
         contract_details: updatedContractDetails,
-        customer_details: formData.customer,
+        customer_details: updatedFormData.customer,
       },
     });
 
+    // Clear pending files and update initial data
+    setPendingFiles({});
     setInitialData(
       JSON.parse(
         JSON.stringify({
           contract: updatedContractDetails,
-          customer: formData.customer,
+          customer: updatedFormData.customer,
         })
       )
     );
 
     return {
       contract_details: updatedContractDetails,
-      customer_details: formData.customer,
+      customer_details: updatedFormData.customer,
     };
-  }, [contractId, formData, updateContractMutation]);
+  }, [contractId, formData, pendingFiles, updateContractMutation, getAccessToken]);
 
   // Notify parent on mount/initialization or data change
   React.useEffect(() => {
     if (isInitialized && onDataChangeRef.current) {
-      const hasPendingChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
-      
-      // Check if all fields are filled
-      const isCurrentStepValid = 
-        !!formData.contract.title && 
-        !!formData.contract.description && 
-        !!formData.contract.number && 
-        (formData.contract.value !== "" && formData.contract.value !== 0) && 
-        !!formData.contract.start_date && 
-        !!formData.contract.end_date && 
-        !!formData.contract.document &&
-        !!formData.customer.name && 
-        !!formData.customer.entity_type && 
-        !!formData.customer.ssm_number && 
-        !!formData.customer.country && 
-        !!formData.customer.document;
-      
+      const hasFormChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
+      const hasPendingFileUploads = Object.keys(pendingFiles).length > 0;
+      const hasPendingChanges = hasFormChanges || hasPendingFileUploads;
+
+      // Check if all fields are filled (including pending files)
+      const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
+      const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
+
+      const isCurrentStepValid =
+        !!formData.contract.title &&
+        !!formData.contract.description &&
+        !!formData.contract.number &&
+        (formData.contract.value !== "" && formData.contract.value !== 0) &&
+        !!formData.contract.start_date &&
+        !!formData.contract.end_date &&
+        hasContractDocument &&
+        !!formData.customer.name &&
+        !!formData.customer.entity_type &&
+        !!formData.customer.ssm_number &&
+        !!formData.customer.country &&
+        hasConsentDocument;
+
       onDataChangeRef.current({
         ...formData,
         isValid: isCurrentStepValid,
@@ -220,7 +308,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         hasPendingChanges,
       });
     }
-  }, [formData, isInitialized, initialData, handleSave]);
+  }, [formData, isInitialized, initialData, handleSave, pendingFiles]);
 
   const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
     setFormData((prev) => ({
@@ -235,57 +323,24 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   const handleFileUpload = async (type: "contract" | "consent", file: File) => {
     if (!contractId) return;
 
-    try {
-      setIsUploading((prev) => ({ ...prev, [type]: true }));
-      const token = await getAccessToken();
-      const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
-
-      // Request upload URL
-      const response = await apiClient.requestContractUploadUrl(contractId, {
-        fileName: file.name,
-        contentType: file.type,
-        fileSize: file.size,
-        type: type === "contract" ? "contract" : "consent",
+    // Validate file
+    if (file.type !== "application/pdf") {
+      toast.error("Invalid file type", {
+        description: "Only PDF files are allowed",
       });
-
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-
-      const { uploadUrl, s3Key } = response.data;
-
-      // Upload to S3
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type,
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload file to S3");
-      }
-
-      // Update local state
-      const docInfo = {
-        s3_key: s3Key,
-        file_name: file.name,
-        file_size: file.size,
-      };
-
-      if (type === "contract") {
-        handleInputChange("contract", "document", docInfo);
-      } else {
-        handleInputChange("customer", "document", docInfo);
-      }
-
-      toast.success("File uploaded successfully");
-    } catch (error: any) {
-      toast.error("Upload failed", { description: error.message });
-    } finally {
-      setIsUploading((prev) => ({ ...prev, [type]: false }));
+      return;
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large", {
+        description: "File size must be less than 5MB",
+      });
+      return;
+    }
+
+    // Store file locally (will be uploaded when Save and Continue is clicked)
+    setPendingFiles((prev) => ({ ...prev, [type]: file }));
+    toast.success("File added. Click 'Save and Continue' to upload.");
   };
 
   const inputClassName = "h-11 rounded-xl border border-border bg-background text-foreground";
@@ -376,7 +431,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
             onFileSelect={(file) => handleFileUpload("contract", file)}
             isUploading={isUploading.contract}
             uploadedFile={formData.contract.document}
-            onRemove={() => handleInputChange("contract", "document", null as any)}
+            pendingFile={pendingFiles.contract}
+            onRemove={() => {
+              handleInputChange("contract", "document", null as any);
+              setPendingFiles((prev) => ({ ...prev, contract: undefined }));
+            }}
           />
         </div>
       </section>
@@ -477,7 +536,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
             onFileSelect={(file) => handleFileUpload("consent", file)}
             isUploading={isUploading.consent}
             uploadedFile={formData.customer.document}
-            onRemove={() => handleInputChange("customer", "document", null as any)}
+            pendingFile={pendingFiles.consent}
+            onRemove={() => {
+              handleInputChange("customer", "document", null as any);
+              setPendingFiles((prev) => ({ ...prev, consent: undefined }));
+            }}
           />
         </div>
       </section>
@@ -504,6 +567,7 @@ interface FileUploadAreaProps {
   onFileSelect: (file: File) => void;
   isUploading?: boolean;
   uploadedFile?: { s3_key: string; file_name: string; file_size: number } | null;
+  pendingFile?: File;
   onRemove?: () => void;
 }
 
@@ -511,12 +575,13 @@ function FileUploadArea({
   onFileSelect,
   isUploading,
   uploadedFile,
+  pendingFile,
   onRemove,
 }: FileUploadAreaProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleClick = () => {
-    if (!uploadedFile && !isUploading) {
+    if (!uploadedFile && !pendingFile && !isUploading) {
       fileInputRef.current?.click();
     }
   };
@@ -536,17 +601,29 @@ function FileUploadArea({
     }
   };
 
-  if (uploadedFile) {
+  // Show uploaded or pending file
+  if (uploadedFile || pendingFile) {
+    const fileName = pendingFile?.name || uploadedFile?.file_name || "";
+    const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
+    const isPending = !!pendingFile;
+
     return (
       <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between bg-card/50">
         <div className="flex items-center gap-3">
-          <div className="p-1 rounded-full bg-primary/10">
-            <CheckCircle2 className="h-4 w-4 text-primary" />
+          <div className={cn(
+            "p-1 rounded-full",
+            isPending ? "bg-yellow-500/10" : "bg-primary/10"
+          )}>
+            <CheckCircle2 className={cn(
+              "h-4 w-4",
+              isPending ? "text-yellow-500" : "text-primary"
+            )} />
           </div>
           <div>
-            <div className="text-sm font-medium">{uploadedFile.file_name}</div>
+            <div className="text-sm font-medium">{fileName}</div>
             <div className="text-xs text-muted-foreground">
-              {(uploadedFile.file_size / 1024 / 1024).toFixed(2)} MB
+              {(fileSize / 1024 / 1024).toFixed(2)} MB
+              {isPending}
             </div>
           </div>
         </div>
