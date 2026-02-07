@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ApplicationBlockReason =
   | "PRODUCT_DELETED"
@@ -120,6 +121,7 @@ export default function EditApplicationPage() {
 
   // Hook to update application status
   const updateStatusMutation = useUpdateApplicationStatus();
+  const queryClient = useQueryClient();
 
   // Hooks for contract handling (for skip/autofill logic)
   const updateContractMutation = useUpdateContract();
@@ -683,6 +685,9 @@ export default function EditApplicationPage() {
         return;
       }
 
+      // DEBUG: log step data at click time
+      // eslint-disable-next-line no-console
+      console.log("SAVE CLICK - stepFromUrl:", stepFromUrl, "currentStepKey:", currentStepKey, "stepDataPresent:", !!stepDataRef.current);
       // Get the data from the current step
       const rawData = stepDataRef.current;
       let dataToSave = rawData ? { ...rawData } : null;
@@ -703,7 +708,13 @@ export default function EditApplicationPage() {
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
       if (dataToSave?.saveFunction) {
+        // DEBUG: indicate saveFunction start
+        // eslint-disable-next-line no-console
+        console.log("Calling step saveFunction for", currentStepKey);
         const returnedData = await dataToSave.saveFunction();
+        // DEBUG: log returned data from saveFunction
+        // eslint-disable-next-line no-console
+        console.log("saveFunction returned for", currentStepKey, returnedData);
 
         // Remove saveFunction from the data being sent to API
         delete dataToSave.saveFunction;
@@ -842,6 +853,14 @@ export default function EditApplicationPage() {
       }
 
       // Call API to save step data
+      // DEBUG: log nextStep and payload before API call
+      // eslint-disable-next-line no-console
+      console.log("updateStepMutation payload preparing", {
+        id: applicationId,
+        stepNumber: nextStep - 1,
+        stepId: currentStepId,
+        data: dataToSave,
+      });
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -850,10 +869,31 @@ export default function EditApplicationPage() {
           data: dataToSave,
         },
       });
+      // DEBUG: updateStepMutation completed
+      // eslint-disable-next-line no-console
+      console.log("updateStepMutation completed for step", currentStepId);
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
+
+      // Ensure application query reflects the updated last_completed_step before navigation.
+      // Poll the application query for up to ~5s to see the server-updated last_completed_step.
+      try {
+        await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+        const maxAttempts = 10;
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+          const freshApp: any = queryClient.getQueryData(["application", applicationId]);
+          const lastCompleted = freshApp?.last_completed_step || 1;
+          if (lastCompleted >= nextStep - 1) break;
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((res) => setTimeout(res, 300));
+          attempt++;
+        }
+      } catch (err) {
+        // ignore and proceed to navigate anyway
+      }
 
       // Go to next step
       router.push(`/applications/edit/${applicationId}?step=${nextStep}`);

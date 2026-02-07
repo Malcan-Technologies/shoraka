@@ -307,6 +307,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
     const hasPendingChanges = currentState !== initialInvoicesRef.current || hasPendingFileUploads;
 
     const isValid = !validationError;
+    const isUploadingAny = Object.values(isUploading).some(Boolean) || Object.keys(pendingInvoiceFiles).length > 0;
 
     onDataChangeRef.current?.({
       invoices: localInvoices,
@@ -317,6 +318,7 @@ export function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetai
       utilized_facility: contractDetails.utilized_facility,
       hasPendingChanges,
       saveFunction: uploadPendingInvoiceFiles,
+      isUploading: isUploadingAny,
     });
   }, [localInvoices, contractDetails, isInvoiceOnly, totalFinancingAmount, pendingInvoiceFiles, uploadPendingInvoiceFiles, isExistingContract, appInvoices.length]);
 

@@ -136,7 +136,12 @@ export function ReviewAndSubmitStep({
 
   // Notify parent that this step is valid (it's read-only)
   React.useEffect(() => {
-    onDataChange?.({ isValid: true });
+    onDataChange?.({
+      isValid: true,
+      isCurrentStepValid: true,
+      hasPendingChanges: false,
+      saveFunction: async () => null,
+    });
   }, [onDataChange]);
 
   if (isLoading) {

@@ -87,7 +87,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   // Track if we've initialized the data
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [initialData, setInitialData] = React.useState<any>(null);
-  const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
+  const [isUploading] = React.useState<Record<string, boolean>>({});
 
   // Track pending files (not uploaded to S3 yet)
   const [pendingFiles, setPendingFiles] = React.useState<{
@@ -113,13 +113,8 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * FIX: Use ref guard to prevent duplicate contract creation due to React re-renders
    * before contractId is populated from query invalidation.
    */
-  const hasTriggeredCreateRef = React.useRef(false);
-  React.useEffect(() => {
-    if (application && !contractId && !createContractMutation.isPending && !isInitialized && !hasTriggeredCreateRef.current) {
-      hasTriggeredCreateRef.current = true;
-      createContractMutation.mutate(applicationId);
-    }
-  }, [application, contractId, createContractMutation, applicationId, isInitialized]);
+  // Contract creation will be performed by saveFunction when required.
+  // We avoid auto-creating here to keep control in the step save flow.
 
   /**
    * LOAD SAVED DATA
@@ -211,11 +206,20 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * SAVE FUNCTION
    */
   const handleSave = React.useCallback(async () => {
-    if (!contractId) {
-      toast.error("Contract not ready", {
-        description: "Please wait for the contract to be created before saving.",
-      });
-      throw new Error("Contract ID is missing");
+    // Ensure a contract exists before proceeding. If missing, create it now.
+    let effectiveContractId = contractId;
+    if (!effectiveContractId) {
+      try {
+        const created = await createContractMutation.mutateAsync(applicationId);
+        effectiveContractId = created?.id as string;
+        if (!effectiveContractId) {
+          toast.error("Failed to create contract. Please try again.");
+          throw new Error("Contract creation did not return an id");
+        }
+      } catch (err) {
+        toast.error("Contract creation failed. Please try again.");
+        throw err;
+      }
     }
 
     // Upload pending files first
@@ -228,7 +232,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     if (pendingFiles.contract) {
       const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
 
-      const response = await apiClient.requestContractUploadUrl(contractId, {
+      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
         fileName: pendingFiles.contract.name,
         contentType: pendingFiles.contract.type,
         fileSize: pendingFiles.contract.size,
@@ -257,7 +261,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       // Delete old file if S3 key changed
       if (existingS3Key && existingS3Key !== s3Key) {
         try {
-          await apiClient.deleteContractDocument(contractId, existingS3Key);
+          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
         } catch (error) {
           console.warn("Failed to delete old contract document:", error);
         }
@@ -276,7 +280,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     if (pendingFiles.consent) {
       const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
 
-      const response = await apiClient.requestContractUploadUrl(contractId, {
+      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
         fileName: pendingFiles.consent.name,
         contentType: pendingFiles.consent.type,
         fileSize: pendingFiles.consent.size,
@@ -305,7 +309,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       // Delete old file if S3 key changed
       if (existingS3Key && existingS3Key !== s3Key) {
         try {
-          await apiClient.deleteContractDocument(contractId, existingS3Key);
+          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
         } catch (error) {
           console.warn("Failed to delete old consent document:", error);
         }
@@ -345,7 +349,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     };
 
     await updateContractMutation.mutateAsync({
-      id: contractId,
+      id: effectiveContractId,
       data: {
         contract_details: updatedContractDetails,
         customer_details: updatedFormData.customer,
@@ -403,8 +407,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       isCurrentStepValid,
       saveFunction: handleSave,
       hasPendingChanges,
+      isCreatingContract: createContractMutation.isPending,
     });
-  }, [formData, initialData, handleSave, pendingFiles, contractId]);
+  }, [formData, initialData, handleSave, pendingFiles, contractId, createContractMutation.isPending]);
 
   const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
     setFormData((prev) => ({
@@ -644,17 +649,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   );
 }
 
-/**
- * FORM FIELD HELPER
- */
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-[250px_1fr] gap-2 md:gap-4 items-start md:items-center py-2">
-      <Label className="text-base font-medium text-foreground capitalize">{label}</Label>
-      <div className="w-full max-w-2xl">{children}</div>
-    </div>
-  );
-}
+/* FormField helper removed (unused) */
 
 /**
  * FILE UPLOAD AREA HELPER
