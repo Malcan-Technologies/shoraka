@@ -358,14 +358,13 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
     // Clear pending files and update initial data
     setPendingFiles({});
-    setInitialData(
-      JSON.parse(
-        JSON.stringify({
-          contract: updatedContractDetails,
-          customer: updatedFormData.customer,
-        })
-      )
-    );
+    // Reflect saved values in local form state so hasPendingChanges becomes false immediately
+    const newFormState = {
+      contract: updatedContractDetails,
+      customer: updatedFormData.customer,
+    };
+    setFormData(newFormState);
+    setInitialData(JSON.parse(JSON.stringify(newFormState)));
 
     return {
       contract_details: updatedContractDetails,

@@ -122,6 +122,7 @@ export default function EditApplicationPage() {
   // Hook to update application status
   const updateStatusMutation = useUpdateApplicationStatus();
   const queryClient = useQueryClient();
+  const navigationInProgressRef = React.useRef(false);
 
   // Hooks for contract handling (for skip/autofill logic)
   const updateContractMutation = useUpdateContract();
@@ -462,6 +463,7 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
+    if (navigationInProgressRef.current) return;
 
     // Skip validation if we just saved and are navigating to this step
     if (targetStepRef.current !== null && stepFromUrl === targetStepRef.current) {
@@ -896,6 +898,11 @@ export default function EditApplicationPage() {
       }
 
       // Go to next step
+      navigationInProgressRef.current = true;
+      // Clear flag after a short delay to allow navigation to stabilise
+      setTimeout(() => {
+        navigationInProgressRef.current = false;
+      }, 3000);
       router.push(`/applications/edit/${applicationId}?step=${nextStep}`);
     } catch (error) {
       // Error already shown by mutation hook
