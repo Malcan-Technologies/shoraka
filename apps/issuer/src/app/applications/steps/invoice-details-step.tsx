@@ -115,7 +115,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const addInvoice = () => {
     setInvoices((s) => [
       ...s,
-      { id: generateTempId(), number: "", value: "", maturity_date: "", financing_ratio_percent: 60, document: null },
+      { id: generateTempId(), number: "", value: "", maturity_date: "", financing_ratio_percent: 60, document: null, status: "DRAFT" },
     ]);
   };
 
@@ -752,8 +752,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <TableBody>
                 {invoices.map((inv) => {
                   const isUploading = uploadingKeys.has(inv.id);
-                    const isEditable = inv.status === "DRAFT";
+                    const isDraft = !inv.status || inv.status === "DRAFT";
+  const isTemp = inv.id.startsWith("inv-");
+  const isEditable = isDraft;
+  const canDelete = isDraft || isTemp;
+
   const isDisabled = !isEditable || isUploading;
+
 
                   const ratio = inv.financing_ratio_percent || 60;
                   const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
@@ -1030,7 +1035,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       {/* Action Button */}
                       <TableCell>
                         <div className="flex justify-end">
-                          <Button variant="ghost" onClick={() => deleteInvoice(inv.id)} disabled={isDisabled}>
+                            <Button
+  variant="ghost"
+  onClick={() => deleteInvoice(inv.id)}
+  disabled={!canDelete || isUploading}
+>
+
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
