@@ -82,7 +82,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const addInvoice = () => {
     setInvoices((s) => [
       ...s,
-      { id: generateTempId(), number: "", value: "", maturity_date: "", document: null },
+      { id: generateTempId(), number: "", value: "", maturity_date: "", financing_ratio_percent: 60, document: null },
     ]);
   };
 
@@ -198,11 +198,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * COMPUTE DERIVED STATE
    *
-   * totalFinancingAmount: sum of (value * 0.8) for all rows
+   * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all rows
    * hasPendingFiles: any files selected but not yet uploaded
    * allRowsValid: all rows pass validation (empty OK, partial NOT OK)
    */
-  const totalFinancingAmount = invoices.reduce((acc, inv) => acc + ((typeof inv.value === "number" ? inv.value : 0) * 0.8), 0);
+  const totalFinancingAmount = invoices.reduce((acc, inv) => {
+    const value = typeof inv.value === "number" ? inv.value : 0;
+    const ratio = (inv.financing_ratio_percent || 60) / 100;
+    return acc + (value * ratio);
+  }, 0);
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
@@ -472,6 +476,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         number: inv.number,
         value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
         maturity_date: inv.maturity_date,
+        financing_ratio_percent: inv.financing_ratio_percent || 60,
         document: inv.document
           ? { file_name: inv.document.file_name, file_size: inv.document.file_size, s3_key: inv.document.s3_key }
           : null,
@@ -524,6 +529,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             number: d.number || "",
             value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
             maturity_date: d.maturity_date || "",
+            financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
               ? {
                   file_name: d.document.file_name,
@@ -626,7 +632,21 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                       {/* Financing Ratio */}
                       <TableCell>
-                        <div className="text-sm font-medium">{ratio}%</div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium">{ratio}%</div>
+                          <input
+                            type="range"
+                            min="60"
+                            max="80"
+                            step="1"
+                            value={ratio}
+                            onChange={(e) =>
+                              updateInvoiceField(inv.id, "financing_ratio_percent", Number(e.target.value))
+                            }
+                            disabled={isUploading}
+                            className="w-full"
+                          />
+                        </div>
                       </TableCell>
 
                       {/* Financing Amount */}
