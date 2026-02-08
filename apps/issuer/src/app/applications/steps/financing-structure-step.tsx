@@ -52,13 +52,6 @@ export function FinancingStructureStep({
   // Track if we loaded data from DB yet
   const [isInitialized, setIsInitialized] = React.useState(false);
 
-  // Store initial DB values for dirty-check
-const initialFinancingStructureRef = React.useRef<{
-  structure_type: FinancingStructureType | null;
-  existing_contract_id: string | null;
-} | null>(null);
-
-
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -68,105 +61,84 @@ const initialFinancingStructureRef = React.useRef<{
   /**
    * LOAD SAVED DATA FROM DATABASE
    */
-React.useEffect(() => {
-  if (!application || isInitialized) return;
+  React.useEffect(() => {
+    if (!application || isInitialized) return;
 
-  const saved = application.financing_structure as any;
+    const savedData = application.financing_structure as any;
 
-  const initialData = {
-    structure_type: (saved?.structure_type ?? null) as FinancingStructureType | null,
-    existing_contract_id: (saved?.existing_contract_id ?? null) as string | null,
-  };
-
-  initialFinancingStructureRef.current = initialData;
-
-  if (initialData.structure_type) {
-    setSelectedStructure(initialData.structure_type);
-    if (initialData.existing_contract_id) {
-      setSelectedContractId(initialData.existing_contract_id);
+    if (savedData?.structure_type) {
+      setSelectedStructure(savedData.structure_type);
+      if (savedData.existing_contract_id) {
+        setSelectedContractId(savedData.existing_contract_id);
+      }
     }
-  }
 
-  setIsInitialized(true);
-}, [application, isInitialized]);
+    setIsInitialized(true);
+  }, [application, isInitialized]);
 
   /**
    * NOTIFY PARENT WHEN DATA CHANGES
    */
   const createContractMutation = useCreateContract();
 
-  const saveFunction = React.useCallback(async () => {
-  if (selectedStructure === "new_contract") {
-    const created = await createContractMutation.mutateAsync(applicationId);
-    return created;
-  }
-  return null;
-}, [selectedStructure, applicationId, createContractMutation]);
+  React.useEffect(() => {
 
+    if (!onDataChangeRef.current || !isInitialized) return;
 
-React.useEffect(() => {
-  if (!onDataChangeRef.current || !isInitialized) return;
+    const dataToSave = {
+      structure_type: selectedStructure,
+      existing_contract_id: selectedStructure === "existing_contract" ? selectedContractId : null,
+    };
 
-  const dataToSave = {
-    structure_type: selectedStructure,
-    existing_contract_id:
-      selectedStructure === "existing_contract" ? selectedContractId : null,
-  };
-
-  let additionalData: any = {};
-  if (selectedStructure === "existing_contract" && selectedContractId) {
-    const contract = approvedContracts.find(
-      (c: any) => c.id === selectedContractId
-    );
-    if (contract) {
-      additionalData = {
-        autofillContract: {
-          contract_details: contract.contract_details,
-          customer_details: contract.customer_details,
-        },
-      };
+    // If existing contract is selected, provide the details for autofill
+    let additionalData: any = {};
+    if (selectedStructure === "existing_contract" && selectedContractId) {
+      const contract = approvedContracts.find((c: any) => c.id === selectedContractId);
+      if (contract) {
+        additionalData = {
+          autofillContract: {
+            contract_details: contract.contract_details,
+            customer_details: contract.customer_details,
+          },
+        };
+      }
     }
-  }
 
-  const isValid =
-    selectedStructure !== null &&
-    (selectedStructure !== "existing_contract" || selectedContractId !== "");
+    // Check if selection is valid to proceed
+    const isValid =
+      selectedStructure !== null &&
+      (selectedStructure !== "existing_contract" || selectedContractId !== "");
 
-const initial = initialFinancingStructureRef.current ?? {
-  structure_type: null,
-  existing_contract_id: null,
-};
+    // Save function: create contract when user selected "new_contract"
+    const saveFunction = async () => {
+      if (selectedStructure === "new_contract") {
+        const created = await createContractMutation.mutateAsync(applicationId);
+        return created;
+      }
+      return null;
+    };
 
-// normalize CURRENT to persisted shape
-const currentStructure = selectedStructure ?? null;
-const currentExistingContractId =
-  currentStructure === "existing_contract" ? (selectedContractId || null) : null;
+    const savedStructure = application?.financing_structure as any;
 
-// normalize INITIAL to persisted shape
-const initialStructure = initial.structure_type ?? null;
-const initialExistingContractId =
-  initialStructure === "existing_contract" ? (initial.existing_contract_id || null) : null;
-
-const isDirty =
-  currentStructure !== initialStructure ||
-  currentExistingContractId !== initialExistingContractId;
+const hasPendingChanges =
+  !!savedStructure &&
+  (
+    savedStructure.structure_type !== selectedStructure ||
+    (savedStructure.structure_type === "existing_contract" &&
+      savedStructure.existing_contract_id !== selectedContractId)
+  );
 
 
-
-  onDataChangeRef.current({
-    ...dataToSave,
-    ...additionalData,
-    isValid,
-    hasPendingChanges: isDirty,
-    saveFunction, // ✅ stable reference
-  });
-}, [
-  selectedStructure,
-  selectedContractId,
-  approvedContracts,
-  isInitialized,
+onDataChangeRef.current({
+  ...dataToSave,
+  ...additionalData,
+  isValid,
   saveFunction,
-]);
+  hasPendingChanges, 
+  isCreatingContract: createContractMutation.isPending,
+});
+
+  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, createContractMutation.isPending]);
 
   /**
    * Handle structure type selection
