@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 /**
  * INVOICE DETAILS STEP
@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
+import { cn } from "@cashsouk/ui";
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -43,6 +44,7 @@ type LocalInvoice = {
   value: string;
   maturity_date: string;
   financing_ratio_percent?: number;
+   status?: string;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 };
 
@@ -130,11 +132,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * If invoice has a real ID (not temp), track it for DB deletion.
    */
   const deleteInvoice = (id: string) => {
+      const inv = invoices.find((i) => i.id === id);
+  if (inv?.status !== "DRAFT") return
     // If this is a persisted invoice (not temp), mark it for deletion
     if (!id.startsWith("inv-")) {
       setDeletedInvoiceIds((prev) => new Set([...prev, id]));
     }
-    
+
     // Remove from local state
     setInvoices((s) => s.filter((i) => i.id !== id));
     setSelectedFiles((p) => {
@@ -246,7 +250,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     const hasDate = Boolean(String(inv.maturity_date).trim());
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-    
+
     // Count how many fields are filled (4 required: number, value, date, document)
     const filledCount = [hasNumber, hasValue, hasDate, hasDocument].filter(Boolean).length;
     // If any but not all fields are filled, it's partial
@@ -272,10 +276,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * hasPartialRows: any row is partial (user touched it but didn't complete it)
    */
   const totalFinancingAmount = invoices.reduce((acc, inv) => {
-  const value = inv.value === "" ? 0 : Number(inv.value);
-  const ratio = (inv.financing_ratio_percent || 60) / 100;
-  return acc + value * ratio;
-}, 0);
+    const value = inv.value === "" ? 0 : Number(inv.value);
+    const ratio = (inv.financing_ratio_percent || 60) / 100;
+    return acc + value * ratio;
+  }, 0);
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -508,6 +512,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      * This ensures number, value, maturity_date, financing_ratio_percent, and document are all saved.
      */
     for (const inv of updatedInvoices) {
+        if (inv.status === "APPROVED") continue;
+      
       if (!isRowEmpty(inv)) {
         try {
           const resp: any = await apiClient.updateInvoice(inv.id, {
@@ -613,27 +619,29 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const resp: any = await apiClient.getInvoicesByApplication(applicationId);
         if (!("success" in resp) || !resp.success) return;
         const items: any[] = resp.data || [];
+        console.log(items)
         const mapped: LocalInvoice[] = items.map((it) => {
           const d = it.details || {};
           return {
             id: it.id,
             number: d.number || "",
             // value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
+              status: it.status || "Draft",
             value:
-  typeof d.value === "number"
-    ? d.value.toFixed(2)
-    : d.value
-    ? Number(d.value).toFixed(2)
-    : "",
+              typeof d.value === "number"
+                ? d.value.toFixed(2)
+                : d.value
+                  ? Number(d.value).toFixed(2)
+                  : "",
 
             maturity_date: d.maturity_date || "",
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
               ? {
-                  file_name: d.document.file_name,
-                  file_size: d.document.file_size,
-                  s3_key: d.document.s3_key,
-                }
+                file_name: d.document.file_name,
+                file_size: d.document.file_size,
+                s3_key: d.document.s3_key,
+              }
               : null,
           };
         });
@@ -732,6 +740,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <TableHeader className="bg-muted/30">
                 <TableRow className="border-b">
                   <TableHead>Invoice</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Maturity Date</TableHead>
                   <TableHead>Invoice Value</TableHead>
                   <TableHead>Financing Ratio</TableHead>
@@ -743,17 +752,20 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <TableBody>
                 {invoices.map((inv) => {
                   const isUploading = uploadingKeys.has(inv.id);
+                    const isEditable = inv.status === "DRAFT";
+  const isDisabled = !isEditable || isUploading;
+
                   const ratio = inv.financing_ratio_percent || 60;
                   const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
-const financingAmount = invoiceValue * (ratio / 100);
+                  const financingAmount = invoiceValue * (ratio / 100);
 
 
                   return (
                     // <TableRow key={inv.id} className={invalid ? "bg-destructive/10" : ""}>
-                      <TableRow
-  key={inv.id}
-  className="hover:bg-muted/50"
->
+                    <TableRow
+                      key={inv.id}
+                      className="hover:bg-muted/50"
+                    >
 
                       {/* Invoice */}
                       <TableCell>
@@ -761,9 +773,22 @@ const financingAmount = invoiceValue * (ratio / 100);
                           value={inv.number}
                           onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                           placeholder="#Invoice number"
-                          disabled={isUploading}
+                            disabled={isDisabled}
                         />
+                        
                       </TableCell>
+
+{/* Status */}
+{/* <TableCell>
+  <span className="text-sm font-medium text-muted-foreground">
+    {inv.status || "Draft"}
+  </span>
+</TableCell> */}
+<TableCell>
+  <StatusBadge status={inv.status} />
+</TableCell>
+
+
 
                       {/* Maturity Date */}
                       <TableCell>
@@ -771,77 +796,75 @@ const financingAmount = invoiceValue * (ratio / 100);
                           type="date"
                           value={inv.maturity_date}
                           onChange={(e) => updateInvoiceField(inv.id, "maturity_date", e.target.value)}
-                          disabled={isUploading}
+                            disabled={isDisabled}
                         />
                       </TableCell>
 
                       {/* Invoice Value */}
-    {/* Invoice Value */}
-{/* Invoice Value */}
-<TableCell>
-  <Input
-    type="text"
-    inputMode="decimal"
-    placeholder="0.00"
-    disabled={isUploading}
-    value={inv.value}
-    onFocus={() => {
-      // focus
-    }}
-    onBlur={() => {
-      if (inv.value !== "") {
-        const normalized = Number(inv.value).toFixed(2);
-        updateInvoiceField(inv.id, "value", normalized);
-      }
-    }}
-    onChange={(e) => {
-      const raw = e.target.value;
+                      <TableCell>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                            disabled={isDisabled}
+                          value={inv.value}
+                          onFocus={() => {
+                            // focus
+                          }}
+                          onBlur={() => {
+                            if (inv.value !== "") {
+                              const normalized = Number(inv.value).toFixed(2);
+                              updateInvoiceField(inv.id, "value", normalized);
+                            }
+                          }}
+                          onChange={(e) => {
+                            const raw = e.target.value;
 
-      // allow empty
-      if (raw === "") {
-        updateInvoiceField(inv.id, "value", "");
-        return;
-      }
+                            // allow empty
+                            if (raw === "") {
+                              updateInvoiceField(inv.id, "value", "");
+                              return;
+                            }
 
-      // allow digits + optional dot + max 2 decimals
-      if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+                            // allow digits + optional dot + max 2 decimals
+                            if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
 
-      updateInvoiceField(inv.id, "value", raw);
-    }}
-  />
-</TableCell>
+                            updateInvoiceField(inv.id, "value", raw);
+                          }}
+                        />
+                      </TableCell>
 
 
                       {/* Financing Ratio */}
-  {/* Financing Ratio */}
-<TableCell>
-  <div className="w-[180px] space-y-2">
-    {/* Tooltip */}
-    <div
-      className="relative text-[11px] font-medium text-muted-foreground"
-      style={{
-        left: `${((ratio - 60) / 20) * 100}%`,
-        transform: "translateX(-50%)",
-        width: "fit-content",
-      }}
-    >
-<div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm">
-  {ratio}%
-</div>
+                      {/* Financing Ratio */}
+                      <TableCell>
+                        <div className="w-[180px] space-y-2">
+                          {/* Tooltip */}
+                          <div
+                            className="relative text-[11px] font-medium text-muted-foreground"
+                            style={{
+                              left: `${((ratio - 60) / 20) * 100}%`,
+                              transform: "translateX(-50%)",
+                              width: "fit-content",
+                            }}
+                          >
+                            <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm">
+                              {ratio}%
+                            </div>
 
-    </div>
+                          </div>
 
-    {/* Slider */}
-    <Slider
-      min={60}
-      max={80}
-      step={1}
-      value={[ratio]}
-      disabled={isUploading}
-      onValueChange={(value) =>
-        updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
-      }
-      className="
+                          {/* Slider */}
+                          <Slider
+                            min={60}
+                            max={80}
+                            step={1}
+                            value={[ratio]}
+                              disabled={isDisabled}
+                            onValueChange={(value) =>
+                              updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+                            }
+                            className="
         relative
         [&_[data-orientation=horizontal]]:h-1.5
         [&_[data-orientation=horizontal]]:bg-muted
@@ -853,15 +876,15 @@ const financingAmount = invoiceValue * (ratio / 100);
         [&_[role=slider]]:bg-background
         [&_[role=slider]]:shadow-none
       "
-    />
+                          />
 
-    {/* Min / Max labels */}
-    <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
-      <span>60%</span>
-      <span>80%</span>
-    </div>
-  </div>
-</TableCell>
+                          {/* Min / Max labels */}
+                          <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
+                            <span>60%</span>
+                            <span>80%</span>
+                          </div>
+                        </div>
+                      </TableCell>
 
 
 
@@ -895,62 +918,76 @@ const financingAmount = invoiceValue * (ratio / 100);
 
                       {/* Documents */}
                       {/* Documents */}
-<TableCell>
-  <div className="flex justify-end">
-    <div className="flex items-center gap-3">
-      <div className="w-[160px]">
-        {inv.document && !selectedFiles[inv.id] && !isUploading ? (
-          <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
-            {/* check */}
-            <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-            </div>
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <div className="flex items-center gap-3">
+                            <div className="w-[160px]">
+                              {inv.document && !selectedFiles[inv.id] && !isUploading ? (
+                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
+                                  {/* check */}
+                                  <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                    <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                  </div>
 
-            {/* filename */}
-            <span className="text-[14px] font-medium truncate flex-1">
-              {inv.document.file_name}
-            </span>
+                                  {/* filename */}
+                                  <span className="text-[14px] font-medium truncate flex-1">
+                                    {inv.document.file_name}
+                                  </span>
 
-            {/* remove */}
-            <button
-              type="button"
-              onClick={() => handleRemoveDocument(inv.id)}
-              className="text-muted-foreground hover:text-foreground shrink-0"
-              disabled={isUploading}
-            >
-              <XMarkIcon className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : (
-          <label
-            className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
-          >
-            <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                                  {/* remove */}
+                                  <button
+  type="button"
+  onClick={() => handleRemoveDocument(inv.id)}
+  disabled={!isEditable || isUploading}
+  className={cn(
+    "shrink-0",
+    isEditable
+      ? "text-muted-foreground hover:text-foreground cursor-pointer"
+      : "opacity-40 cursor-not-allowed"
+  )}
+>
+  <XMarkIcon className="h-3.5 w-3.5" />
+</button>
 
-            <span className="truncate">
-              {isUploading
-                ? "Uploading…"
-                : selectedFiles[inv.id]
-                ? selectedFiles[inv.id].name
-                : "Upload file"}
-            </span>
+                                  {/* <button
+                                    type="button"
+                                    onClick={() => handleRemoveDocument(inv.id)}
+                                    className="text-muted-foreground hover:text-foreground shrink-0"
+                                    disabled={isDisabled}
+                                  >
+                                    <XMarkIcon className="h-3.5 w-3.5" />
+                                  </button> */}
+                                </div>
+                              ) : (
+                                <label
+                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                >
+                                  <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 
-            <Input
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              disabled={isUploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleFileChange(inv.id, f);
-              }}
-            />
-          </label>
-        )}
-      </div>
-    </div>
-  </div>
-</TableCell>
+                                  <span className="truncate">
+                                    {isUploading
+                                      ? "Uploading…"
+                                      : selectedFiles[inv.id]
+                                        ? selectedFiles[inv.id].name
+                                        : "Upload file"}
+                                  </span>
+
+                                  <Input
+                                    type="file"
+                                    accept="application/pdf"
+                                    className="hidden"
+                                      disabled={isDisabled}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleFileChange(inv.id, f);
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
 
                       {/* <TableCell>
                         <div className="flex items-center gap-2">
@@ -993,7 +1030,7 @@ const financingAmount = invoiceValue * (ratio / 100);
                       {/* Action Button */}
                       <TableCell>
                         <div className="flex justify-end">
-                          <Button variant="ghost" onClick={() => deleteInvoice(inv.id)} disabled={isUploading}>
+                          <Button variant="ghost" onClick={() => deleteInvoice(inv.id)} disabled={isDisabled}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1027,3 +1064,23 @@ const financingAmount = invoiceValue * (ratio / 100);
 // Named export for compatibility
 export { InvoiceDetailsStep };
 
+
+function StatusBadge({ status = "DRAFT" }: { status?: string }) {
+  const styles: Record<string, string> = {
+    DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
+    SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
+    APPROVED: "bg-green-50 text-green-700 border-green-200",
+    REJECTED: "bg-red-50 text-red-700 border-red-200",
+  };
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border",
+        styles[status] || styles.DRAFT
+      )}
+    >
+      {status}
+    </span>
+  );
+}
