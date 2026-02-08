@@ -100,26 +100,26 @@ export default function EditApplicationPage() {
   }, [appError, router]);
 
   // Read financing structure override from sessionStorage (live)
-React.useEffect(() => {
-  const read = () => {
-    const stored = sessionStorage.getItem(
-      "cashsouk:financing_structure_override"
-    ) as any;
+  React.useEffect(() => {
+    const read = () => {
+      const stored = sessionStorage.getItem(
+        "cashsouk:financing_structure_override"
+      ) as any;
 
-    setSessionStructureType(stored);
-  };
+      setSessionStructureType(stored);
+    };
 
-  read(); // initial read on mount
-  window.addEventListener("storage", read);
+    read(); // initial read on mount
+    window.addEventListener("storage", read);
 
-  return () => {
-    window.removeEventListener("storage", read);
-  };
-}, []);
+    return () => {
+      window.removeEventListener("storage", read);
+    };
+  }, []);
 
 
-// Always refetch products on step navigation
-// to detect product deletion or version changes
+  // Always refetch products on step navigation
+  // to detect product deletion or version changes
 
   React.useEffect(() => {
     if (!applicationId) return;
@@ -147,7 +147,7 @@ React.useEffect(() => {
   const navigationInProgressRef = React.useRef(false);
 
   const [sessionStructureType, setSessionStructureType] =
-  React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
+    React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
 
 
   // Hooks for contract handling (for skip/autofill logic)
@@ -253,11 +253,31 @@ React.useEffect(() => {
     return savedProductId ?? null;
   }, [stepFromUrl, selectedProductId, application]);
 
+  // Has the financing structure source been resolved yet?
+  // - sessionStructureType !== null → user changed it this session
+  // - application.financing_structure !== undefined → DB has loaded
+    const isStructureResolved =
+  sessionStructureType !== null ||
+  application?.financing_structure?.structure_type !== undefined;
+
+
+
   // Decide which financing structure applies (session override > DB)
-const effectiveStructureType =
-  sessionStructureType ??
-  (application?.financing_structure as any)?.structure_type ??
-  null;
+  const effectiveStructureType = React.useMemo(() => {
+    // 1️⃣ If user changed structure in this session → use override
+    if (sessionStructureType !== null) {
+      return sessionStructureType;
+    }
+
+    // 2️⃣ Otherwise, use DB value once application is loaded
+    if (application?.financing_structure?.structure_type) {
+      return application.financing_structure.structure_type;
+    }
+
+    // 3️⃣ Fallback ONLY if DB not loaded yet
+    return null;
+  }, [sessionStructureType, application]);
+
 
 
   /**
@@ -274,22 +294,22 @@ const effectiveStructureType =
   }, [effectiveProductId, productsData]);
 
   // Apply session-based structure override to workflow (UI-only)
-const effectiveWorkflow = React.useMemo(() => {
-  if (!productWorkflow.length) return [];
+  const effectiveWorkflow = React.useMemo(() => {
+    if (!productWorkflow.length) return [];
+    if (!isStructureResolved) return [];
 
-  if (
-    effectiveStructureType === "existing_contract" ||
-    effectiveStructureType === "invoice_only"
-  ) {
-    return productWorkflow.filter(
-      (step: any) =>
-        getStepKeyFromStepId(step.id) !== "contract_details"
-    );
-  }
+    if (
+      effectiveStructureType === "existing_contract" ||
+      effectiveStructureType === "invoice_only"
+    ) {
+      return productWorkflow.filter(
+        (step: any) =>
+          getStepKeyFromStepId(step.id) !== "contract_details"
+      );
+    }
 
-  return productWorkflow;
-}, [productWorkflow, effectiveStructureType]);
-
+    return productWorkflow;
+  }, [productWorkflow, effectiveStructureType, isStructureResolved]);
 
 
   const isLoading = isLoadingApp || isLoadingProducts;
@@ -300,10 +320,10 @@ const effectiveWorkflow = React.useMemo(() => {
 
 
 
-const currentStepConfig = React.useMemo(() => {
-  if (!effectiveWorkflow.length) return null;
-  return effectiveWorkflow[stepFromUrl - 1] ?? null;
-}, [effectiveWorkflow, stepFromUrl]);
+  const currentStepConfig = React.useMemo(() => {
+    if (!effectiveWorkflow.length) return null;
+    return effectiveWorkflow[stepFromUrl - 1] ?? null;
+  }, [effectiveWorkflow, stepFromUrl]);
 
 
 
@@ -327,9 +347,9 @@ const currentStepConfig = React.useMemo(() => {
   // Get custom title/description or fall back to workflow step name
 
   const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
-  title: effectiveWorkflow[stepFromUrl - 1]?.name || "Loading...",
-  description: "Complete this step to continue"
-};
+    title: effectiveWorkflow[stepFromUrl - 1]?.name || "Loading...",
+    description: "Complete this step to continue"
+  };
 
 
   /**
@@ -459,11 +479,11 @@ const currentStepConfig = React.useMemo(() => {
 
     // Check if step exists in workflow (workflow might have changed)
     if (effectiveWorkflow.length > 0 && stepFromUrl > effectiveWorkflow.length) {
-  const redirectStep = Math.min(lastCompleted, effectiveWorkflow.length);
-  toast.error("This step no longer exists in the workflow");
-  router.replace(`/applications/edit/${applicationId}?step=${redirectStep}`);
-  return;
-}
+      const redirectStep = Math.min(lastCompleted, effectiveWorkflow.length);
+      toast.error("This step no longer exists in the workflow");
+      router.replace(`/applications/edit/${applicationId}?step=${redirectStep}`);
+      return;
+    }
 
 
     // User is trying to skip ahead
@@ -623,7 +643,13 @@ const currentStepConfig = React.useMemo(() => {
    * The data is stored in stepDataRef by child step components.
    */
   const handleSaveAndContinue = async () => {
+
     try {
+      const prevStructureType =
+        (application?.financing_structure as any)?.structure_type ?? null;
+
+      const prevHasContract = Boolean((application as any)?.contract_id);
+
       // Set saving flag to prevent onDataChange from corrupting state
       isSavingRef.current = true;
 
@@ -757,12 +783,16 @@ const currentStepConfig = React.useMemo(() => {
         return;
       }
 
-      // Set target step to skip validation during navigation
+      // After computing nextStep
       let nextStep = stepFromUrl + 1;
+
+      // Clear live structure override once user commits
       if (currentStepKey === "financing_structure") {
-  sessionStorage.removeItem("cashsouk:financing_structure_override");
-  setSessionStructureType(null);
-}
+        sessionStorage.removeItem("cashsouk:financing_structure_override");
+        setSessionStructureType(null);
+      }
+
+
 
 
       targetStepRef.current = nextStep;
@@ -783,12 +813,6 @@ const currentStepConfig = React.useMemo(() => {
       // Call API to save step data
       // DEBUG: log nextStep and payload before API call
       // eslint-disable-next-line no-console
-      console.log("updateStepMutation payload preparing", {
-        id: applicationId,
-        stepNumber: nextStep - 1,
-        stepId: currentStepId,
-        data: dataToSave,
-      });
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -797,6 +821,23 @@ const currentStepConfig = React.useMemo(() => {
           data: dataToSave,
         },
       });
+      if (currentStepKey === "financing_structure") {
+        const nextStructureType = dataToSave?.structure_type;
+
+        const shouldUnlink =
+          prevHasContract &&
+          prevStructureType === "new_contract" &&
+          (nextStructureType === "invoice_only" ||
+            nextStructureType === "existing_contract");
+
+        if (shouldUnlink) {
+          await unlinkContractMutation.mutateAsync(applicationId);
+        }
+      }
+
+
+
+
       // DEBUG: updateStepMutation completed
       // eslint-disable-next-line no-console
       console.log("updateStepMutation completed for step", currentStepId);
@@ -913,13 +954,13 @@ const currentStepConfig = React.useMemo(() => {
               <Skeleton className="h-4 sm:h-5 w-64 sm:w-96 mb-6 sm:mb-8" />
 
               {/* Progress indicator skeleton */}
-<ProgressIndicator
-  steps={effectiveWorkflow.length ? effectiveWorkflow.map((s: any) => s.name) : ["", "", "", ""]}
-  currentStep={stepFromUrl}
-  isLoading
-/>
- 
-              
+              <ProgressIndicator
+                steps={effectiveWorkflow.length ? effectiveWorkflow.map((s: any) => s.name) : ["", "", "", ""]}
+                currentStep={stepFromUrl}
+                isLoading
+              />
+
+
             </div>
 
             {/* Divider */}
@@ -1008,10 +1049,10 @@ const currentStepConfig = React.useMemo(() => {
 
           {/* Progress Indicator */}
           <ProgressIndicator
-  steps={effectiveWorkflow.map((s: any) => s.name)}
-  currentStep={stepFromUrl}
-  isLoading={isProgressLoading}
-/>
+            steps={effectiveWorkflow.map((s: any) => s.name)}
+            currentStep={stepFromUrl}
+            isLoading={isProgressLoading}
+          />
 
         </div>
 
@@ -1054,8 +1095,8 @@ const currentStepConfig = React.useMemo(() => {
             {updateStepMutation.isPending || updateStatusMutation.isPending
               ? "Saving..."
               : currentStepKey === "review_and_submit"
-              ? "Submit Application"
-              : "Save and Continue"}
+                ? "Submit Application"
+                : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
