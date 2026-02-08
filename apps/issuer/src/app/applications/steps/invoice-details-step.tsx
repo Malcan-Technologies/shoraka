@@ -18,6 +18,8 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import { Slider } from "@/components/ui/slider";
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -658,7 +660,59 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       </TableCell>
 
                       {/* Financing Ratio */}
-                      <TableCell>
+  {/* Financing Ratio */}
+<TableCell>
+  <div className="w-[180px] space-y-2">
+    {/* Tooltip */}
+    <div
+      className="relative text-[11px] font-medium text-muted-foreground"
+      style={{
+        left: `${((ratio - 60) / 20) * 100}%`,
+        transform: "translateX(-50%)",
+        width: "fit-content",
+      }}
+    >
+<div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm">
+  {ratio}%
+</div>
+
+    </div>
+
+    {/* Slider */}
+    <Slider
+      min={60}
+      max={80}
+      step={1}
+      value={[ratio]}
+      disabled={isUploading}
+      onValueChange={(value) =>
+        updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+      }
+      className="
+        relative
+        [&_[data-orientation=horizontal]]:h-1.5
+        [&_[data-orientation=horizontal]]:bg-muted
+        [&_[data-orientation=horizontal]>span]:bg-destructive
+        [&_[role=slider]]:h-4
+        [&_[role=slider]]:w-4
+        [&_[role=slider]]:border-2
+        [&_[role=slider]]:border-destructive
+        [&_[role=slider]]:bg-background
+        [&_[role=slider]]:shadow-none
+      "
+    />
+
+    {/* Min / Max labels */}
+    <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
+      <span>60%</span>
+      <span>80%</span>
+    </div>
+  </div>
+</TableCell>
+
+
+
+                      {/* <TableCell>
                         <div className="space-y-2">
                           <div className="text-xs font-medium">{ratio}%</div>
                           <input
@@ -674,7 +728,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             className="w-full"
                           />
                         </div>
-                      </TableCell>
+                      </TableCell> */}
 
                       {/* Financing Amount */}
                       <TableCell>
