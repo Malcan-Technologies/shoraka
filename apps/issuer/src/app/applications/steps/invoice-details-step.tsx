@@ -179,11 +179,33 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * VALIDATION HELPERS
    *
-   * isRowEmpty: row has no meaningful data
-   * validateRow: row is either empty OR completely filled
+   * isRowEmpty: row has no meaningful data (all defaults, untouched)
+   * isRowPartial: row has SOME data but not all (user touched it but didn't fill it)
+   * validateRow: row is either completely empty OR completely filled
+   *
+   * Required fields: invoice number, value, maturity date, document
+   * Financing ratio is optional (defaults to 60%)
    */
   const isRowEmpty = (inv: LocalInvoice) => {
-    return !inv.number && (inv.value === "" || inv.value === 0) && !inv.maturity_date && !inv.document;
+    return (
+      !inv.number &&
+      (inv.value === "" || inv.value === 0) &&
+      !inv.maturity_date &&
+      !inv.document
+    );
+  };
+
+  const isRowPartial = (inv: LocalInvoice) => {
+    if (isRowEmpty(inv)) return false; // empty rows are not partial
+    const hasNumber = Boolean(String(inv.number).trim());
+    const hasValue = typeof inv.value === "number" && inv.value > 0;
+    const hasDate = Boolean(String(inv.maturity_date).trim());
+    const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
+    
+    // Count how many fields are filled (4 required: number, value, date, document)
+    const filledCount = [hasNumber, hasValue, hasDate, hasDocument].filter(Boolean).length;
+    // If any but not all fields are filled, it's partial
+    return filledCount > 0 && filledCount < 4;
   };
 
   const validateRow = (inv: LocalInvoice) => {
@@ -200,7 +222,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    *
    * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all rows
    * hasPendingFiles: any files selected but not yet uploaded
-   * allRowsValid: all rows pass validation (empty OK, partial NOT OK)
+   * allRowsValid: all rows are either empty or completely filled (no partial rows)
+   * hasPartialRows: any row is partial (user touched it but didn't complete it)
    */
   const totalFinancingAmount = invoices.reduce((acc, inv) => {
     const value = typeof inv.value === "number" ? inv.value : 0;
@@ -208,6 +231,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return acc + (value * ratio);
   }, 0);
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
+  const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
   /**
@@ -500,18 +524,19 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * EFFECT: NOTIFY PARENT OF DATA CHANGES
    *
    * Send current state to parent page so it can decide when to enable Save button.
+   * isValid is FALSE if there are any partial rows (user touched but didn't complete them).
    */
   React.useEffect(() => {
     onDataChange?.({
       invoices,
       totalFinancingAmount,
-      isValid: allRowsValid,
+      isValid: allRowsValid && !hasPartialRows,
       hasPendingChanges: invoices.length > 0 || hasPendingFiles,
       isUploading: uploadingKeys.size > 0,
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size]);
+  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows]);
 
   // Load persisted invoices for this application on mount
   React.useEffect(() => {
