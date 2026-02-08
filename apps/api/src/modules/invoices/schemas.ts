@@ -5,6 +5,7 @@ export const invoiceDetailsSchema = z.object({
   number: z.string(),
   value: z.number(),
   maturity_date: z.string(),
+  financing_ratio_percent: z.number().min(60).max(80).optional().default(60),
   document: documentSchema.nullable().optional(),
 });
 

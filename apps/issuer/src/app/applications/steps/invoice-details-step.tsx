@@ -73,9 +73,36 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
+  const [deletedInvoiceIds, setDeletedInvoiceIds] = React.useState<Set<string>>(new Set());
+  const [application, setApplication] = React.useState<any>(null);
 
   /** Get access token for API calls */
   const { getAccessToken } = useAuthToken();
+
+  /**
+   * FETCH APPLICATION DATA
+   *
+   * Load application and contract details for Contract Summary display
+   */
+  React.useEffect(() => {
+    let mounted = true;
+    const loadApplication = async () => {
+      try {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        const resp: any = await apiClient.get(`/v1/applications/${applicationId}`);
+        if (resp.success && mounted) {
+          setApplication(resp.data);
+        }
+      } catch (err) {
+        console.error("Failed to load application", err);
+      }
+    };
+
+    loadApplication();
+    return () => {
+      mounted = false;
+    };
+  }, [applicationId, getAccessToken]);
 
   /**
    * ADD INVOICE ROW
@@ -96,7 +123,19 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * - If temp ID (not yet persisted): remove locally
    * - If persisted ID: marked for deletion on Save
    */
+  /**
+   * DELETE INVOICE
+   *
+   * Mark invoice for deletion and remove from local state.
+   * If invoice has a real ID (not temp), track it for DB deletion.
+   */
   const deleteInvoice = (id: string) => {
+    // If this is a persisted invoice (not temp), mark it for deletion
+    if (!id.startsWith("inv-")) {
+      setDeletedInvoiceIds((prev) => new Set([...prev, id]));
+    }
+    
+    // Remove from local state
     setInvoices((s) => s.filter((i) => i.id !== id));
     setSelectedFiles((p) => {
       const copy = { ...p };
@@ -384,8 +423,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * Called by parent page when user clicks "Save and Continue".
    * This function:
    * 1. Creates new invoices for temp IDs
+   * 1.5. Deletes marked invoices
    * 2. Uploads files to S3 (calls uploadFilesToS3)
-   * 3. Updates each invoice with S3 keys
+   * 3. Updates each invoice with S3 keys and financing_ratio_percent
    * 4. Deletes old S3 keys if replaced
    * 5. Returns invoice snapshot for application-level persistence
    */
@@ -410,8 +450,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               number: inv.number || "",
               value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
               maturity_date: inv.maturity_date || "",
+              financing_ratio_percent: inv.financing_ratio_percent || 60,
               document: undefined,
-            },
+            } as any,
           });
           if (!("success" in resp) || !resp.success) {
             throw new Error("Failed to create invoice");
@@ -425,6 +466,22 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         }
       }
     }
+
+    /**
+     * STEP 1.5: DELETE MARKED INVOICES
+     *
+     * Delete any invoices that were marked for deletion.
+     */
+    for (const invoiceId of deletedInvoiceIds) {
+      try {
+        await apiClient.deleteInvoice(invoiceId);
+      } catch (err) {
+        console.error("Failed to delete invoice", invoiceId, err);
+        throw err;
+      }
+    }
+    // Clear deletion tracking after saving
+    setDeletedInvoiceIds(new Set());
 
     /**
      * STEP 2: UPLOAD PENDING FILES
@@ -448,7 +505,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      * STEP 3: PERSIST INVOICE DETAILS
      *
      * For each invoice, update the DB with final details.
-     * This ensures number, value, maturity_date, and document are all saved.
+     * This ensures number, value, maturity_date, financing_ratio_percent, and document are all saved.
      */
     for (const inv of updatedInvoices) {
       if (!isRowEmpty(inv)) {
@@ -457,10 +514,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             number: inv.number || "",
             value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
             maturity_date: inv.maturity_date || "",
+            financing_ratio_percent: inv.financing_ratio_percent || 60,
             document: inv.document && inv.document.s3_key
               ? { file_name: inv.document.file_name, file_size: inv.document.file_size, s3_key: inv.document.s3_key }
               : undefined,
-          });
+          } as any);
           if (!("success" in resp) || !resp.success) {
             throw new Error("Failed to persist invoice");
           }
@@ -539,12 +597,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       invoices,
       totalFinancingAmount,
       isValid: allRowsValid && !hasPartialRows,
-      hasPendingChanges: invoices.length > 0 || hasPendingFiles,
+      hasPendingChanges: invoices.length > 0 || hasPendingFiles || deletedInvoiceIds.size > 0,
       isUploading: uploadingKeys.size > 0,
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows]);
+  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows, deletedInvoiceIds.size]);
 
   // Load persisted invoices for this application on mount
   React.useEffect(() => {
@@ -560,7 +618,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           return {
             id: it.id,
             number: d.number || "",
-            value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
+            // value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
+            value:
+  typeof d.value === "number"
+    ? d.value.toFixed(2)
+    : d.value
+    ? Number(d.value).toFixed(2)
+    : "",
+
             maturity_date: d.maturity_date || "",
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
@@ -595,11 +660,61 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
 
-  const [focusedInvoiceId, setFocusedInvoiceId] = React.useState<string | null>(null);
-
-
   return (
     <div className="space-y-6 pb-8">
+      {/* Contract Summary */}
+      {application?.contract && (
+        <section className="space-y-4">
+          <h2 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h2>
+          <div className="space-y-3">
+            {/* Contract Title */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Contract title</div>
+              <div className="text-sm font-medium">{application.contract.contract_details?.title || "-"}</div>
+            </div>
+
+            {/* Customer */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Customer</div>
+              <div className="text-sm font-medium">{application.contract.customer_details?.name || "-"}</div>
+            </div>
+
+            {/* Contract Value */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Contract value</div>
+              <div className="text-sm font-medium">{application.contract.contract_details?.value || "-"}</div>
+            </div>
+
+            {/* Approved Facility */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Approved facility</div>
+              <div className="text-sm font-medium">{application.contract.contract_details?.approved_facility || "-"}</div>
+            </div>
+
+            {/* Utilised Facility */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Utilised facility</div>
+              <div className="text-sm font-medium">{application.contract.contract_details?.utilised_facility || "-"}</div>
+            </div>
+
+            {/* Available Facility */}
+            <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
+              <div className="text-sm text-muted-foreground">Available facility</div>
+              <div className="text-sm font-medium">
+                {(() => {
+                  const approved = application.contract.contract_details?.approved_facility || 0;
+                  const utilised = application.contract.contract_details?.utilised_facility || 0;
+                  const contractValue = application.contract.contract_details?.value || 0;
+                  const available = approved > 0 ? approved - utilised : contractValue - utilised;
+                  return available || "-";
+                })()}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Invoices Section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -608,6 +723,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           </div>
           <Button onClick={addInvoice} className="bg-primary text-primary-foreground">Add invoice</Button>
         </div>
+
+
 
         <div className="border rounded-xl overflow-hidden bg-card">
           <div className="overflow-x-auto">
@@ -625,7 +742,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               </TableHeader>
               <TableBody>
                 {invoices.map((inv) => {
-                  const invalid = !validateRow(inv);
                   const isUploading = uploadingKeys.has(inv.id);
                   const ratio = inv.financing_ratio_percent || 60;
                   const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
@@ -670,11 +786,9 @@ const financingAmount = invoiceValue * (ratio / 100);
     disabled={isUploading}
     value={inv.value}
     onFocus={() => {
-      setFocusedInvoiceId(inv.id);
+      // focus
     }}
     onBlur={() => {
-      setFocusedInvoiceId(null);
-
       if (inv.value !== "") {
         const normalized = Number(inv.value).toFixed(2);
         updateInvoiceField(inv.id, "value", normalized);

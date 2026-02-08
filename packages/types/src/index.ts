@@ -206,6 +206,7 @@ export interface InvoiceDetails {
   number: string;
   value: number;
   maturity_date: string;
+  financing_ratio_percent?: number;
   document?: {
     s3_key: string;
     file_name: string;
