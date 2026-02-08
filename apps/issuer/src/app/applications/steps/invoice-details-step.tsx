@@ -71,6 +71,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<any>(null);
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
+  const [deletedInvoices, setDeletedInvoices] = React.useState<
+    Record<string, { s3_key?: string }>
+  >({});
+
+
+
 
 
   /** Get access token for API calls */
@@ -125,16 +131,30 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   };
 
 
+  const deleteInvoice = (inv: LocalInvoice) => {
+    if (inv.isPersisted) {
+      setDeletedInvoices((prev) => ({
+        ...prev,
+        [inv.id]: {
+          s3_key: inv.document?.s3_key,
+        },
+      }));
+    }
 
-  const deleteInvoice = (id: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    setInvoices((prev) => prev.filter((row) => row.id !== inv.id));
+
     setSelectedFiles((prev) => {
       const copy = { ...prev };
-      delete copy[id];
+      delete copy[inv.id];
+      return copy;
+    });
+
+    setLastS3Keys((prev) => {
+      const copy = { ...prev };
+      delete copy[inv.id];
       return copy;
     });
   };
-
 
 
   /**
@@ -311,6 +331,26 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const apiClient = createApiClient(API_URL, getAccessToken);
     const token = await getAccessToken();
 
+    // 🧨 Commit deletions on Save & Continue
+    for (const [invoiceId, payload] of Object.entries(deletedInvoices)) {
+      // 1️⃣ delete S3
+      if (payload.s3_key) {
+        await fetch(`${API_URL}/v1/invoices/${invoiceId}/document`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ s3Key: payload.s3_key }),
+        });
+      }
+
+      // 2️⃣ delete invoice from DB
+      await apiClient.deleteInvoice(invoiceId);
+    }
+
+
+
     for (const inv of invoices) {
       if (isRowEmpty(inv)) continue;
 
@@ -427,6 +467,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
     setSelectedFiles({});
+    setDeletedInvoices({});
+
 
     return { success: true };
   };
@@ -856,10 +898,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         <div className="flex justify-end">
                           <Button
                             variant="ghost"
-                            onClick={() => deleteInvoice(inv.id)}
+                            onClick={() => deleteInvoice(inv)}
                             disabled={!canDelete}
                           >
-
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
