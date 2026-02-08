@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
+import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -685,7 +687,65 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       </TableCell>
 
                       {/* Documents */}
-                      <TableCell>
+                      {/* Documents */}
+<TableCell>
+  <div className="flex justify-end">
+    <div className="flex items-center gap-3">
+      <div className="w-[160px]">
+        {inv.document && !selectedFiles[inv.id] && !isUploading ? (
+          <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
+            {/* check */}
+            <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+            </div>
+
+            {/* filename */}
+            <span className="text-[14px] font-medium truncate flex-1">
+              {inv.document.file_name}
+            </span>
+
+            {/* remove */}
+            <button
+              type="button"
+              onClick={() => handleRemoveDocument(inv.id)}
+              className="text-muted-foreground hover:text-foreground shrink-0"
+              disabled={isUploading}
+            >
+              <XMarkIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <label
+            className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+          >
+            <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+
+            <span className="truncate">
+              {isUploading
+                ? "Uploading…"
+                : selectedFiles[inv.id]
+                ? selectedFiles[inv.id].name
+                : "Upload file"}
+            </span>
+
+            <Input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFileChange(inv.id, f);
+              }}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  </div>
+</TableCell>
+
+                      {/* <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-[260px]">
                             {inv.document && !selectedFiles[inv.id] ? (
@@ -721,7 +781,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             )}
                           </div>
                         </div>
-                      </TableCell>
+                      </TableCell> */}
 
                       {/* Action Button */}
                       <TableCell>
