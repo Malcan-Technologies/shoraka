@@ -130,7 +130,7 @@ export class InvoiceService {
   async getInvoice(id: string, userId: string): Promise<Invoice> {
     return this.verifyInvoiceAccess(id, userId);
   }
-  
+
   async updateInvoice(id: string, details: any, userId: string): Promise<Invoice> {
   const invoice = await this.verifyInvoiceAccess(id, userId);
 
@@ -178,15 +178,23 @@ export class InvoiceService {
 
 
 
-  async deleteInvoice(id: string, userId: string): Promise<void> {
-    const invoice = await this.verifyInvoiceAccess(id, userId);
+async deleteInvoice(id: string, userId: string) {
+  const invoice = await this.verifyInvoiceAccess(id, userId);
 
-    if (invoice.status === "APPROVED") {
-      throw new AppError(400, "BAD_REQUEST", "Cannot delete an approved invoice");
+  const s3Key = (invoice.details as any)?.document?.s3_key;
+
+  // delete DB first OR last — your choice
+  await this.repository.delete(id);
+
+  if (s3Key) {
+    try {
+      await deleteS3Object(s3Key);
+    } catch (err) {
+      logger.error({ id, s3Key, err }, "Failed to delete invoice S3 object");
     }
-
-    await this.repository.delete(id);
   }
+}
+
 
   async getInvoicesByApplication(applicationId: string, userId: string): Promise<Invoice[]> {
     await this.verifyApplicationAccess(applicationId, userId);

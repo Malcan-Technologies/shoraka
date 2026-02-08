@@ -332,23 +332,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const token = await getAccessToken();
 
     // 🧨 Commit deletions on Save & Continue
-    for (const [invoiceId, payload] of Object.entries(deletedInvoices)) {
-      // 1️⃣ delete S3
-      if (payload.s3_key) {
-        await fetch(`${API_URL}/v1/invoices/${invoiceId}/document`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ s3Key: payload.s3_key }),
-        });
-      }
-
-      // 2️⃣ delete invoice from DB
-      await apiClient.deleteInvoice(invoiceId);
-    }
-
+// 🧨 Commit deletions on Save & Continue
+for (const invoiceId of Object.keys(deletedInvoices)) {
+  await apiClient.deleteInvoice(invoiceId);
+}
 
 
     for (const inv of invoices) {
