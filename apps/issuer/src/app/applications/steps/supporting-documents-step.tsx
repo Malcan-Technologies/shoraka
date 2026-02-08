@@ -8,7 +8,6 @@ import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
-import { Separator } from "@/components/ui/separator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -183,32 +182,28 @@ export function SupportingDocumentsStep({
     const loadedS3Keys: Record<string, string> = {};
 
     data.categories.forEach((savedCategory: any) => {
-      const categoryIndex = categories.findIndex((cat: any) => cat.name === savedCategory.name);
+      const categoryIndex = categories.findIndex(
+        (cat: any) => cat.name === savedCategory.name
+      );
       if (categoryIndex === -1) return;
 
-      savedCategory.documents.forEach((savedDocument: any) => {
-        const documentIndex = categories[categoryIndex].documents.findIndex(
-          (doc: any) => doc.title === savedDocument.title
-        );
-        if (documentIndex === -1) return;
+      savedCategory.documents.forEach(
+        (savedDocument: any, documentIndex: number) => {
 
-        if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
           const key = `${categoryIndex}-${documentIndex}`;
-          loadedFiles[key] = {
-            name: savedDocument.file.file_name,
-            size: 0,
-            uploadedAt: new Date().toISOString().split("T")[0],
-            s3_key: savedDocument.file.s3_key,
-          };
 
-          const cuidMatch = savedDocument.file.s3_key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
-          if (cuidMatch) {
-            loadedCuids[key] = cuidMatch[2];
-            loadedS3Keys[key] = savedDocument.file.s3_key;
+          if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
+            loadedFiles[key] = {
+              name: savedDocument.file.file_name,
+              size: 0,
+              uploadedAt: new Date().toISOString().split("T")[0],
+              s3_key: savedDocument.file.s3_key,
+            };
           }
         }
-      });
+      );
     });
+
 
     if (Object.keys(loadedFiles).length > 0) {
       setUploadedFiles(loadedFiles);
@@ -471,7 +466,7 @@ export function SupportingDocumentsStep({
   }
 
   return (
-   <div className="space-y-10 px-3">
+    <div className="space-y-10 px-3">
       {isLoadingApp || !stepConfig ? (
         <SupportingDocumentsSkeleton />
       ) : (categories.map((category: any, categoryIndex: number) => {
