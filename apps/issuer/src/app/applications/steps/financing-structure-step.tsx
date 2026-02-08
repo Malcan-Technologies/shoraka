@@ -120,13 +120,21 @@ export function FinancingStructureStep({
 
     const savedStructure = application?.financing_structure as any;
 
-    const hasPendingChanges =
-      !!savedStructure &&
-      (
-        savedStructure.structure_type !== selectedStructure ||
-        (savedStructure.structure_type === "existing_contract" &&
-          savedStructure.existing_contract_id !== selectedContractId)
-      );
+      
+
+  const structureChanged =
+  !!savedStructure &&
+  savedStructure.structure_type !== selectedStructure;
+
+  const hasPendingChanges =
+  structureChanged ||
+  (
+    selectedStructure === "existing_contract" &&
+    savedStructure?.structure_type === "existing_contract" &&
+    savedStructure?.existing_contract_id !== selectedContractId
+  );
+
+
 
 
     onDataChangeRef.current({
@@ -135,6 +143,7 @@ export function FinancingStructureStep({
       isValid,
       saveFunction,
       hasPendingChanges,
+      structureChanged,
       isCreatingContract: createContractMutation.isPending,
     });
 

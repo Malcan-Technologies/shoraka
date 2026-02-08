@@ -145,6 +145,8 @@ export default function EditApplicationPage() {
   const updateStatusMutation = useUpdateApplicationStatus();
   const queryClient = useQueryClient();
   const navigationInProgressRef = React.useRef(false);
+  const didRewindProgressRef = React.useRef(false);
+
 
   const [sessionStructureType, setSessionStructureType] =
     React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
@@ -670,6 +672,11 @@ export default function EditApplicationPage() {
       const rawData = stepDataRef.current;
       let dataToSave = rawData ? { ...rawData } : null;
 
+      const structureChanged =
+  currentStepKey === "financing_structure" &&
+  dataToSave?.structureChanged === true;
+
+
       // Remove isValid from JSON as it's only for frontend communication
       if (dataToSave && "isValid" in dataToSave) {
         delete dataToSave.isValid;
@@ -785,12 +792,19 @@ export default function EditApplicationPage() {
 
       // After computing nextStep
       let nextStep = stepFromUrl + 1;
+      const stepNumberToSave = structureChanged
+  ? stepFromUrl            // rewind progress
+  : nextStep - 1;          // normal behavior
+  didRewindProgressRef.current = structureChanged;
+
+
 
       // Clear live structure override once user commits
-      if (currentStepKey === "financing_structure") {
-        sessionStorage.removeItem("cashsouk:financing_structure_override");
-        setSessionStructureType(null);
-      }
+      // if (currentStepKey === "financing_structure") {
+        // sessionStorage.removeItem("cashsouk:financing_structure_override");
+        // setSessionStructureType(null);
+
+      // }
 
 
 
@@ -810,17 +824,34 @@ export default function EditApplicationPage() {
         return;
       }
 
+      if (
+  currentStepKey === "financing_structure" &&
+  structureChanged === false
+) {
+  // Just move forward, no DB write
+  setHasUnsavedChanges(false);
+  router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+  return;
+}
+
       // Call API to save step data
       // DEBUG: log nextStep and payload before API call
       // eslint-disable-next-line no-console
-      await updateStepMutation.mutateAsync({
-        id: applicationId,
-        stepData: {
-          stepNumber: nextStep - 1, // Ensure last_completed_step covers the skipped step
-          stepId: currentStepId,
-          data: dataToSave,
-        },
-      });
+      const stepPayload: any = {
+  stepId: currentStepId,
+  stepNumber: nextStep - 1,
+  data: dataToSave,
+};
+
+if (structureChanged) {
+  stepPayload.forceRewindToStep = stepFromUrl;
+}
+
+await updateStepMutation.mutateAsync({
+  id: applicationId,
+  stepData: stepPayload,
+});
+
       if (currentStepKey === "financing_structure") {
         const nextStructureType = dataToSave?.structure_type;
 
@@ -855,7 +886,7 @@ export default function EditApplicationPage() {
         while (attempt < maxAttempts) {
           const freshApp: any = queryClient.getQueryData(["application", applicationId]);
           const lastCompleted = freshApp?.last_completed_step || 1;
-          if (lastCompleted >= nextStep - 1) break;
+          if (lastCompleted >= stepNumberToSave) break;
           // eslint-disable-next-line no-await-in-loop
           await new Promise((res) => setTimeout(res, 300));
           attempt++;
@@ -870,7 +901,20 @@ export default function EditApplicationPage() {
       setTimeout(() => {
         navigationInProgressRef.current = false;
       }, 3000);
-      router.push(`/applications/edit/${applicationId}?step=${nextStep}`);
+      const navigationStep = didRewindProgressRef.current
+  ? stepFromUrl + 1
+  : nextStep;
+
+didRewindProgressRef.current = false;
+
+router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
+// ✅ Clear override AFTER navigation completes
+setTimeout(() => {
+  sessionStorage.removeItem("cashsouk:financing_structure_override");
+  setSessionStructureType(null);
+}, 0);
+
+
     } catch (error) {
       // Error already shown by mutation hook
       toast.error("Failed to save. Please try again.");

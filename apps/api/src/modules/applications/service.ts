@@ -194,9 +194,15 @@ export class ApplicationService {
         updated_at: new Date(),
       };
 
-      if (input.stepNumber >= application.last_completed_step) {
-        updateData.last_completed_step = input.stepNumber;
-      }
+      if (input.forceRewindToStep !== undefined) {
+  updateData.last_completed_step = input.forceRewindToStep;
+} else {
+  updateData.last_completed_step = Math.max(
+    application.last_completed_step,
+    input.stepNumber
+  );
+}
+
 
       return this.repository.update(id, updateData);
     }
@@ -250,9 +256,14 @@ export class ApplicationService {
     }
 
     // Update last_completed_step if this is a new step
-    if (input.stepNumber >= application.last_completed_step) {
-      updateData.last_completed_step = input.stepNumber;
-    }
+    if (input.forceRewindToStep !== undefined) {
+  updateData.last_completed_step = input.forceRewindToStep;
+} else {
+  updateData.last_completed_step = Math.max(
+    application.last_completed_step,
+    input.stepNumber
+  );
+}
 
     return this.repository.update(id, updateData);
   }

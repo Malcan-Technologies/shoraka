@@ -138,6 +138,7 @@ export interface UpdateApplicationStepInput {
   stepNumber: number;
   stepId: string;
   data: Record<string, any>;
+  forceRewindToStep?: number;
 }
 
 export interface Product {
