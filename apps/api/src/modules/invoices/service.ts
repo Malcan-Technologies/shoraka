@@ -6,12 +6,13 @@ import { AppError } from "../../lib/http/error-handler";
 import { Invoice } from "@prisma/client";
 import {
   generateApplicationDocumentKey,
-  generateApplicationDocumentKeyWithVersion,
+  parseApplicationDocumentKey,
   generatePresignedUploadUrl,
   getFileExtension,
   validateDocument,
   deleteS3Object,
 } from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -194,16 +195,18 @@ export class InvoiceService {
     const applicationId = (invoice as any).application_id;
 
     if (params.existingS3Key) {
-      const versionedKey = generateApplicationDocumentKeyWithVersion({
-        existingS3Key: params.existingS3Key,
-        extension,
-      });
-
-      if (!versionedKey) {
+      logger.debug({ existingS3Key: params.existingS3Key, invoiceId: params.invoiceId }, "invoice.requestUploadUrl received existingS3Key");
+      // Prefer parsing the existing key to extract cuid and version, then bump version while keeping cuid
+      const parsed = parseApplicationDocumentKey(params.existingS3Key);
+      if (!parsed) {
+        logger.warn({ key: params.existingS3Key }, "Failed to parse existingS3Key with parseApplicationDocumentKey");
         throw new AppError(400, "INVALID_S3_KEY", "Failed to parse existing S3 key for versioning");
       }
 
-      s3Key = versionedKey;
+      const newVersion = parsed.version + 1;
+      logger.debug({ parsed, newVersion }, "invoice.requestUploadUrl parsed existing key");
+      const date = new Date().toISOString().split("T")[0];
+      s3Key = `applications/${parsed.applicationId}/v${newVersion}-${date}-${parsed.cuid}.${extension}`;
     } else {
       const cuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       s3Key = generateApplicationDocumentKey({

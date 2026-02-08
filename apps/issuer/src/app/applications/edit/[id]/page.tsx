@@ -739,6 +739,11 @@ export default function EditApplicationPage() {
             dataToSave = {
               supporting_documents: returnedData,
             };
+          } else if (currentStepKey === "invoice_details" && returnedData?.supporting_documents) {
+            // Persist invoice documents snapshot into application supporting_documents
+            dataToSave = {
+              supporting_documents: returnedData.supporting_documents,
+            };
           } else {
             // For other steps, merge normally
             dataToSave = { ...dataToSave, ...returnedData };

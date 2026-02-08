@@ -120,9 +120,17 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
     const { id } = invoiceIdParamSchema.parse(req.params);
     const input = z.object({ s3Key: z.string() }).parse(req.body);
     const userId = getUserId(req);
-    await invoiceService.deleteDocument(id, input.s3Key, userId);
+  await invoiceService.deleteDocument(id, input.s3Key, userId);
+  // clear document reference from invoice details
+  try {
+    await invoiceService.updateInvoice(id, { document: null }, userId);
+  } catch (err) {
+    // non-fatal
+    // eslint-disable-next-line no-console
+    console.error("Failed to clear invoice details after document deletion", err);
+  }
 
-    res.json({ success: true, data: { message: "Document deleted successfully" }, correlationId: res.locals.correlationId || "unknown" });
+  res.json({ success: true, data: { message: "Document deleted successfully" }, correlationId: res.locals.correlationId || "unknown" });
   } catch (error) {
     next(error);
   }
