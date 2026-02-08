@@ -99,6 +99,28 @@ export default function EditApplicationPage() {
     }
   }, [appError, router]);
 
+  // Read financing structure override from sessionStorage (live)
+React.useEffect(() => {
+  const read = () => {
+    const stored = sessionStorage.getItem(
+      "cashsouk:financing_structure_override"
+    ) as any;
+
+    setSessionStructureType(stored);
+  };
+
+  read(); // initial read on mount
+  window.addEventListener("storage", read);
+
+  return () => {
+    window.removeEventListener("storage", read);
+  };
+}, []);
+
+
+// Always refetch products on step navigation
+// to detect product deletion or version changes
+
   React.useEffect(() => {
     if (!applicationId) return;
     refetchProducts();
@@ -123,6 +145,10 @@ export default function EditApplicationPage() {
   const updateStatusMutation = useUpdateApplicationStatus();
   const queryClient = useQueryClient();
   const navigationInProgressRef = React.useRef(false);
+
+  const [sessionStructureType, setSessionStructureType] =
+  React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
+
 
   // Hooks for contract handling (for skip/autofill logic)
   // Note: updateContractMutation is intentionally not used while invoice logic is being reworked
@@ -206,8 +232,6 @@ export default function EditApplicationPage() {
   // Store step data from child components
   const stepDataRef = React.useRef<any>(null);
 
-  // Track last step for navigation direction
-  const lastStepRef = React.useRef<number>(stepFromUrl);
 
   // Track if we're currently saving to prevent onDataChange from corrupting state
   const isSavingRef = React.useRef<boolean>(false);
@@ -229,24 +253,12 @@ export default function EditApplicationPage() {
     return savedProductId ?? null;
   }, [stepFromUrl, selectedProductId, application]);
 
-  /**
-  * GET WORKFLOW STEPS
-  *
-  * Workflow must reflect the EFFECTIVE product:
-  * - selected product on step 1
-  * - saved product on later steps
-  */
-  const workflowSteps = React.useMemo(() => {
-    if (!effectiveProductId || !productsData) return [];
+  // Decide which financing structure applies (session override > DB)
+const effectiveStructureType =
+  sessionStructureType ??
+  (application?.financing_structure as any)?.structure_type ??
+  null;
 
-    const product = productsData.products?.find(
-      (p: any) => p.id === effectiveProductId
-    );
-
-    if (!product?.workflow) return [];
-
-    return product.workflow.map((step: any) => step.name);
-  }, [effectiveProductId, productsData]);
 
   /**
    * GET FULL WORKFLOW
@@ -261,37 +273,37 @@ export default function EditApplicationPage() {
     return product?.workflow || [];
   }, [effectiveProductId, productsData]);
 
+  // Apply session-based structure override to workflow (UI-only)
+const effectiveWorkflow = React.useMemo(() => {
+  if (!productWorkflow.length) return [];
 
-  const displayStepNames = React.useMemo(
-    () =>
-      workflowSteps.map((name: string) =>
-        name === "Verify Company Info" ? "Company details" : name
-      ),
-    [workflowSteps]
-  );
+  if (
+    effectiveStructureType === "existing_contract" ||
+    effectiveStructureType === "invoice_only"
+  ) {
+    return productWorkflow.filter(
+      (step: any) =>
+        getStepKeyFromStepId(step.id) !== "contract_details"
+    );
+  }
+
+  return productWorkflow;
+}, [productWorkflow, effectiveStructureType]);
+
+
 
   const isLoading = isLoadingApp || isLoadingProducts;
   const showBlockingSkeleton =
     isLoading || !application || applicationBlockReason !== null;
 
-  const isProgressLoading = isLoadingProducts || !workflowSteps.length;
+  const isProgressLoading = isLoadingProducts || !effectiveWorkflow.length;
 
 
-  const currentStepConfig = React.useMemo(() => {
-    if (!application || !productsData) return null;
 
-    const productId = (application.financing_type as any)?.product_id;
-    if (!productId) return null;
-
-    const product = productsData.products?.find(
-      (p: any) => p.id === productId
-    );
-
-    if (!product?.workflow) return null;
-
-    return product.workflow[stepFromUrl - 1] ?? null;
-  }, [application, productsData, stepFromUrl]);
-
+const currentStepConfig = React.useMemo(() => {
+  if (!effectiveWorkflow.length) return null;
+  return effectiveWorkflow[stepFromUrl - 1] ?? null;
+}, [effectiveWorkflow, stepFromUrl]);
 
 
 
@@ -311,47 +323,14 @@ export default function EditApplicationPage() {
     currentStepKey !== null &&
     APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any);
 
-  /**
-   * AUTOMATIC STEP SKIPPING
-   *
-   * Protect against landing on skipped steps (e.g., via browser back button or direct URL).
-   * Ensures the user skips forward to Invoice Details if moving forward,
-   * or skips backward to Financing Structure if moving backward.
-   */
-  React.useEffect(() => {
-    if (!application || !productWorkflow.length) return;
-
-    if (currentStepKey === "contract_details") {
-      const savedStructure = application.financing_structure as any;
-      if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-        if (lastStepRef.current <= stepFromUrl) {
-          // Moving forward (or direct entry) -> skip to invoice details
-          const invoiceStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
-          );
-          if (invoiceStepIndex !== -1) {
-            router.replace(`/applications/edit/${applicationId}?step=${invoiceStepIndex + 1}`);
-          }
-        } else {
-          // Moving backward -> skip back to financing structure
-          const structureStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
-          );
-          if (structureStepIndex !== -1) {
-            router.replace(`/applications/edit/${applicationId}?step=${structureStepIndex + 1}`);
-          }
-        }
-      }
-    }
-    lastStepRef.current = stepFromUrl;
-  }, [application, currentStepKey, productWorkflow, applicationId, router, stepFromUrl]);
-
 
   // Get custom title/description or fall back to workflow step name
+
   const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
-    title: workflowSteps[stepFromUrl - 1] || "Loading...",
-    description: "Complete this step to continue"
-  };
+  title: effectiveWorkflow[stepFromUrl - 1]?.name || "Loading...",
+  description: "Complete this step to continue"
+};
+
 
   /**
    * RENDER STEP COMPONENT
@@ -479,12 +458,13 @@ export default function EditApplicationPage() {
     const maxAllowedStep = lastCompleted + 1;
 
     // Check if step exists in workflow (workflow might have changed)
-    if (workflowSteps.length > 0 && stepFromUrl > workflowSteps.length) {
-      const redirectStep = Math.min(lastCompleted, workflowSteps.length);
-      toast.error("This step no longer exists in the workflow");
-      router.replace(`/applications/edit/${applicationId}?step=${redirectStep}`);
-      return;
-    }
+    if (effectiveWorkflow.length > 0 && stepFromUrl > effectiveWorkflow.length) {
+  const redirectStep = Math.min(lastCompleted, effectiveWorkflow.length);
+  toast.error("This step no longer exists in the workflow");
+  router.replace(`/applications/edit/${applicationId}?step=${redirectStep}`);
+  return;
+}
+
 
     // User is trying to skip ahead
     if (stepFromUrl > maxAllowedStep) {
@@ -506,7 +486,7 @@ export default function EditApplicationPage() {
     router,
     isLoadingApp,
     isLoadingProducts,
-    workflowSteps,
+    effectiveWorkflow,
     applicationBlockReason,
   ]);
 
@@ -593,21 +573,6 @@ export default function EditApplicationPage() {
       } else if (stepFromUrl > 1) {
         // Any other step - go to previous step with skip logic
         let prevStep = stepFromUrl - 1;
-
-        // Handle skip logic for Back button (same as handleBack)
-        if (currentStepKey === "invoice_details") {
-          const savedStructure = application?.financing_structure as any;
-          if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-            // Find the index of the financing_structure step to go back to it
-            const structureStepIndex = productWorkflow.findIndex(
-              (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
-            );
-            if (structureStepIndex !== -1) {
-              prevStep = structureStepIndex + 1; // 1-based
-            }
-          }
-        }
-
         router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
       } else {
         // Fallback
@@ -636,22 +601,6 @@ export default function EditApplicationPage() {
     } else if (stepFromUrl > 1) {
       // Any other step - go to previous step
       let prevStep = stepFromUrl - 1;
-
-      // Handle skip logic for Back button
-      // If we are on Invoice Details and the financing type is NOT 'new_contract',
-      // we need to skip the Contract Details step.
-      if (currentStepKey === "invoice_details") {
-        const savedStructure = application?.financing_structure as any;
-        if (savedStructure?.structure_type && savedStructure.structure_type !== "new_contract") {
-          // Find the index of the financing_structure step to go back to it
-          const structureStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "financing_structure"
-          );
-          if (structureStepIndex !== -1) {
-            prevStep = structureStepIndex + 1; // 1-based
-          }
-        }
-      }
 
       router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
     } else {
@@ -810,27 +759,11 @@ export default function EditApplicationPage() {
 
       // Set target step to skip validation during navigation
       let nextStep = stepFromUrl + 1;
-
-      // Handle skip logic for Financing Structure
       if (currentStepKey === "financing_structure") {
-        const structureType = dataToSave?.structure_type;
+  sessionStorage.removeItem("cashsouk:financing_structure_override");
+  setSessionStructureType(null);
+}
 
-        if (structureType === "existing_contract" || structureType === "invoice_only") {
-          // Skip Step 3 (Contract Details) and go to Step 4 (Invoice Details)
-          // Find the index of the invoice_details step
-          const invoiceStepIndex = productWorkflow.findIndex(
-            (step: any) => getStepKeyFromStepId(step.id) === "invoice_details"
-          );
-          if (invoiceStepIndex !== -1) {
-            nextStep = invoiceStepIndex + 1; // 1-based
-          }
-
-          // If invoice-only, ensure contract is unlinked
-          if (structureType === "invoice_only" && (application as any)?.contract?.id) {
-            await unlinkContractMutation.mutateAsync(applicationId);
-          }
-        }
-      }
 
       targetStepRef.current = nextStep;
 
@@ -980,11 +913,13 @@ export default function EditApplicationPage() {
               <Skeleton className="h-4 sm:h-5 w-64 sm:w-96 mb-6 sm:mb-8" />
 
               {/* Progress indicator skeleton */}
-              <ProgressIndicator
-                steps={displayStepNames.length ? displayStepNames : ["", "", "", ""]}
-                currentStep={stepFromUrl}
-                isLoading
-              />
+<ProgressIndicator
+  steps={effectiveWorkflow.length ? effectiveWorkflow.map((s: any) => s.name) : ["", "", "", ""]}
+  currentStep={stepFromUrl}
+  isLoading
+/>
+ 
+              
             </div>
 
             {/* Divider */}
@@ -1073,10 +1008,11 @@ export default function EditApplicationPage() {
 
           {/* Progress Indicator */}
           <ProgressIndicator
-            steps={displayStepNames}
-            currentStep={stepFromUrl}
-            isLoading={isProgressLoading}
-          />
+  steps={effectiveWorkflow.map((s: any) => s.name)}
+  currentStep={stepFromUrl}
+  isLoading={isProgressLoading}
+/>
+
         </div>
 
         {/* Divider */}

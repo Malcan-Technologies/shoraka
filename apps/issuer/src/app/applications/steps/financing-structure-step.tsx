@@ -120,23 +120,23 @@ export function FinancingStructureStep({
 
     const savedStructure = application?.financing_structure as any;
 
-const hasPendingChanges =
-  !!savedStructure &&
-  (
-    savedStructure.structure_type !== selectedStructure ||
-    (savedStructure.structure_type === "existing_contract" &&
-      savedStructure.existing_contract_id !== selectedContractId)
-  );
+    const hasPendingChanges =
+      !!savedStructure &&
+      (
+        savedStructure.structure_type !== selectedStructure ||
+        (savedStructure.structure_type === "existing_contract" &&
+          savedStructure.existing_contract_id !== selectedContractId)
+      );
 
 
-onDataChangeRef.current({
-  ...dataToSave,
-  ...additionalData,
-  isValid,
-  saveFunction,
-  hasPendingChanges, 
-  isCreatingContract: createContractMutation.isPending,
-});
+    onDataChangeRef.current({
+      ...dataToSave,
+      ...additionalData,
+      isValid,
+      saveFunction,
+      hasPendingChanges,
+      isCreatingContract: createContractMutation.isPending,
+    });
 
   }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, createContractMutation.isPending]);
 
@@ -145,22 +145,36 @@ onDataChangeRef.current({
    */
   const handleStructureSelect = (type: FinancingStructureType) => {
     setSelectedStructure(type);
-    // Clear contract selection if switching away from existing_contract
+
+    sessionStorage.setItem(
+      "cashsouk:financing_structure_override",
+      type
+    );
+    window.dispatchEvent(new Event("storage"));
+
     if (type !== "existing_contract") {
       setSelectedContractId("");
     }
   };
 
+
   /**
    * Handle existing contract selection
    */
-  const handleContractSelect = (contractId: string) => {
-    setSelectedContractId(contractId);
-    // Also select this option when choosing a contract
-    if (selectedStructure !== "existing_contract") {
-      setSelectedStructure("existing_contract");
-    }
-  };
+const handleContractSelect = (contractId: string) => {
+  setSelectedContractId(contractId);
+
+  if (selectedStructure !== "existing_contract") {
+    setSelectedStructure("existing_contract");
+  }
+
+  sessionStorage.setItem(
+    "cashsouk:financing_structure_override",
+    "existing_contract"
+  );
+  window.dispatchEvent(new Event("storage"));
+};
+
 
   // Loading state
   if (isLoadingApp) {
