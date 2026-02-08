@@ -44,7 +44,7 @@ type LocalInvoice = {
   value: string;
   maturity_date: string;
   financing_ratio_percent?: number;
-   status?: string;
+  status?: string;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 };
 
@@ -93,6 +93,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const apiClient = createApiClient(API_URL, getAccessToken);
         const resp: any = await apiClient.get(`/v1/applications/${applicationId}`);
         if (resp.success && mounted) {
+          console.log('hi', resp.data)
           setApplication(resp.data);
         }
       } catch (err) {
@@ -132,8 +133,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * If invoice has a real ID (not temp), track it for DB deletion.
    */
   const deleteInvoice = (id: string) => {
-      const inv = invoices.find((i) => i.id === id);
-  if (inv?.status !== "DRAFT") return
+    const inv = invoices.find((i) => i.id === id);
+    if (inv?.status !== "DRAFT") return
     // If this is a persisted invoice (not temp), mark it for deletion
     if (!id.startsWith("inv-")) {
       setDeletedInvoiceIds((prev) => new Set([...prev, id]));
@@ -286,6 +287,33 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return acc + value * ratio;
   }, 0);
 
+  const approvedFacility =
+    application?.contract?.contract_details?.approved_facility || 0;
+
+  const contractValue =
+    application?.contract?.contract_details?.value || 0;
+
+  // =======================
+  // Formatting helpers
+  // =======================
+  const formatRM = (n: number) =>
+    `RM ${n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+
+  // Effective ceiling
+  const effectiveFacilityLimit =
+    approvedFacility > 0 ? approvedFacility : contractValue;
+
+  // LIVE available facility (this changes as user types)
+  const liveAvailableFacility =
+    effectiveFacilityLimit > 0
+      ? effectiveFacilityLimit - totalFinancingAmount
+      : null;
+
+
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
   const allRowsValid = invoices.every((inv) => validateRow(inv));
@@ -313,7 +341,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const facilityLimit = approvedFacility > 0 ? approvedFacility : contractValue;
 
     if (facilityLimit > 0 && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (RM ${totalFinancingAmount.toFixed(2)}) exceeds facility limit (RM ${facilityLimit.toFixed(2)}).`;
+      validationError = `Total financing amount (${formatRM(
+        totalFinancingAmount
+      )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+
     }
   }
 
@@ -544,8 +575,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      * This ensures number, value, maturity_date, financing_ratio_percent, and document are all saved.
      */
     for (const inv of updatedInvoices) {
-        if (inv.status === "APPROVED") continue;
-      
+      if (inv.status === "APPROVED") continue;
+
       if (!isRowEmpty(inv)) {
         try {
           const resp: any = await apiClient.updateInvoice(inv.id, {
@@ -576,7 +607,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     for (const [invoiceId, oldS3Key] of Object.entries(lastS3Keys)) {
       const inv = updatedInvoices.find((i) => i.id === invoiceId);
       const isDeleted = deletedInvoiceIds.has(invoiceId);
-      
+
       // Delete S3 key if invoice was deleted OR if document S3 key changed
       if ((isDeleted || !inv) || (inv && inv.document?.s3_key !== oldS3Key)) {
         try {
@@ -662,7 +693,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             id: it.id,
             number: d.number || "",
             // value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
-              status: it.status || "Draft",
+            status: it.status || "Draft",
             value:
               typeof d.value === "number"
                 ? d.value.toFixed(2)
@@ -724,9 +755,16 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             </div>
 
             {/* Contract Value */}
+
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Contract value</div>
-              <div className="text-sm font-medium">{application.contract.contract_details?.value || "-"}</div>
+              <div className="text-sm font-medium">
+                {application.contract.contract_details?.value
+                  ? formatRM(Number(application.contract.contract_details.value))
+                  : "-"}
+
+              </div>
+
             </div>
 
             {/* Approved Facility */}
@@ -742,18 +780,32 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             </div>
 
             {/* Available Facility */}
+            {/* Available Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Available facility</div>
-              <div className="text-sm font-medium">
-                {(() => {
-                  const approved = application.contract.contract_details?.approved_facility || 0;
-                  const utilised = application.contract.contract_details?.utilised_facility || 0;
-                  const contractValue = application.contract.contract_details?.value || 0;
-                  const available = approved > 0 ? approved - utilised : contractValue - utilised;
-                  return available || "-";
-                })()}
+
+
+              <div
+                className={cn(
+                  "text-sm font-medium",
+                  liveAvailableFacility !== null && liveAvailableFacility < 0
+                    ? "text-destructive"
+                    : ""
+                )}
+              >
+                RM{" "}
+                {formatRM(Math.max(liveAvailableFacility ?? 0, 0))}
+
+
+                {!approvedFacility && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    * Subject to credit approval
+                  </div>
+                )}
               </div>
             </div>
+
+
           </div>
         </section>
       )}
@@ -772,28 +824,30 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         <div className="border rounded-xl overflow-hidden bg-card">
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed w-full">
+
               <TableHeader className="bg-muted/30">
                 <TableRow className="border-b">
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Maturity Date</TableHead>
-                  <TableHead>Invoice Value</TableHead>
-                  <TableHead>Financing Ratio</TableHead>
-                  <TableHead>Financing Amount</TableHead>
-                  <TableHead>Documents</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="w-[160px]">Invoice</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  <TableHead className="w-[160px]">Maturity Date</TableHead>
+                  <TableHead className="w-[160px]">Invoice Value</TableHead>
+                  <TableHead className="w-[220px]">Financing Ratio</TableHead>
+                  <TableHead className="w-[160px]">Financing Amount</TableHead>
+                  <TableHead className="w-[180px]">Documents</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.map((inv) => {
                   const isUploading = uploadingKeys.has(inv.id);
-                    const isDraft = !inv.status || inv.status === "DRAFT";
-  const isTemp = inv.id.startsWith("inv-");
-  const isEditable = isDraft;
-  const canDelete = isDraft || isTemp;
+                  const isDraft = !inv.status || inv.status === "DRAFT";
+                  const isTemp = inv.id.startsWith("inv-");
+                  const isEditable = isDraft;
+                  const canDelete = isDraft || isTemp;
 
-  const isDisabled = !isEditable || isUploading;
+                  const isDisabled = !isEditable || isUploading;
 
 
                   const ratio = inv.financing_ratio_percent || 60;
@@ -814,30 +868,31 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           value={inv.number}
                           onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                           placeholder="#Invoice number"
-                            disabled={isDisabled}
+                          disabled={isDisabled}
                         />
-                        
+
                       </TableCell>
 
-{/* Status */}
-{/* <TableCell>
+                      {/* Status */}
+                      {/* <TableCell>
   <span className="text-sm font-medium text-muted-foreground">
     {inv.status || "Draft"}
   </span>
 </TableCell> */}
-<TableCell>
-  <StatusBadge status={inv.status} />
-</TableCell>
+                      <TableCell>
+                        <StatusBadge status={inv.status} />
+                      </TableCell>
 
 
 
                       {/* Maturity Date */}
                       <TableCell>
+                        
                         <Input
                           type="date"
                           value={inv.maturity_date}
                           onChange={(e) => updateInvoiceField(inv.id, "maturity_date", e.target.value)}
-                            disabled={isDisabled}
+                          disabled={isDisabled}
                         />
                       </TableCell>
 
@@ -847,7 +902,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           type="text"
                           inputMode="decimal"
                           placeholder="0.00"
-                            disabled={isDisabled}
+                          disabled={isDisabled}
                           value={inv.value}
                           onFocus={() => {
                             // focus
@@ -867,8 +922,21 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                               return;
                             }
 
-                            // allow digits + optional dot + max 2 decimals
+                            // allow empty
+                            if (raw === "") {
+                              updateInvoiceField(inv.id, "value", "");
+                              return;
+                            }
+
+                            // allow digits + optional decimals
                             if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+
+                            // HARD LIMIT: max 12 digits before decimal
+                            const [intPart] = raw.split(".");
+                            if (intPart.length > 12) return;
+
+                            updateInvoiceField(inv.id, "value", raw);
+
 
                             updateInvoiceField(inv.id, "value", raw);
                           }}
@@ -901,7 +969,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             max={80}
                             step={1}
                             value={[ratio]}
-                              disabled={isDisabled}
+                            disabled={isDisabled}
                             onValueChange={(value) =>
                               updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
                             }
@@ -949,12 +1017,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                       {/* Financing Amount */}
                       <TableCell>
-                        <div className="text-sm font-medium">
-                          RM {financingAmount.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                        <div className="text-sm font-medium whitespace-nowrap tabular-nums">
+                          {formatRM(financingAmount)}
                         </div>
+
                       </TableCell>
 
                       {/* Documents */}
@@ -977,18 +1043,18 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                                   {/* remove */}
                                   <button
-  type="button"
-  onClick={() => handleRemoveDocument(inv.id)}
-  disabled={!isEditable || isUploading}
-  className={cn(
-    "shrink-0",
-    isEditable
-      ? "text-muted-foreground hover:text-foreground cursor-pointer"
-      : "opacity-40 cursor-not-allowed"
-  )}
->
-  <XMarkIcon className="h-3.5 w-3.5" />
-</button>
+                                    type="button"
+                                    onClick={() => handleRemoveDocument(inv.id)}
+                                    disabled={!isEditable || isUploading}
+                                    className={cn(
+                                      "shrink-0",
+                                      isEditable
+                                        ? "text-muted-foreground hover:text-foreground cursor-pointer"
+                                        : "opacity-40 cursor-not-allowed"
+                                    )}
+                                  >
+                                    <XMarkIcon className="h-3.5 w-3.5" />
+                                  </button>
 
                                   {/* <button
                                     type="button"
@@ -1017,7 +1083,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                     type="file"
                                     accept="application/pdf"
                                     className="hidden"
-                                      disabled={isDisabled}
+                                    disabled={isDisabled}
                                     onChange={(e) => {
                                       const f = e.target.files?.[0];
                                       if (f) handleFileChange(inv.id, f);
@@ -1071,11 +1137,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       {/* Action Button */}
                       <TableCell>
                         <div className="flex justify-end">
-                            <Button
-  variant="ghost"
-  onClick={() => deleteInvoice(inv.id)}
-  disabled={!canDelete || isUploading}
->
+                          <Button
+                            variant="ghost"
+                            onClick={() => deleteInvoice(inv.id)}
+                            disabled={!canDelete || isUploading}
+                          >
 
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1084,20 +1150,23 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                     </TableRow>
                   );
                 })}
-                <TableRow className="bg-muted/10 font-bold">
-                  <TableCell colSpan={4}></TableCell>
-                  <TableCell>
-                    <div className="text-foreground">
-                      RM{" "}
-                      {totalFinancingAmount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </div>
-                    <div className="text-xs text-muted-foreground font-normal">Total</div>
-                  </TableCell>
-                  <TableCell colSpan={2}></TableCell>
-                </TableRow>
+<TableRow className="bg-muted/10 font-bold">
+  {/* Skip columns 1–5 */}
+  <TableCell colSpan={5}></TableCell>
+
+  {/* Financing Amount column */}
+  <TableCell>
+    <div className="text-foreground whitespace-nowrap tabular-nums">
+      {formatRM(totalFinancingAmount)}
+    </div>
+    <div className="text-xs text-muted-foreground font-normal">Total</div>
+  </TableCell>
+
+  {/* Documents + Actions */}
+  <TableCell colSpan={2}></TableCell>
+</TableRow>
+
+
               </TableBody>
             </Table>
           </div>
