@@ -74,6 +74,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [deletedInvoices, setDeletedInvoices] = React.useState<
     Record<string, { s3_key?: string }>
   >({});
+  const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
+
 
 
 
@@ -251,6 +253,22 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return hasNumber && hasValue && hasDate && hasDocument;
   };
 
+  const hasRowChanged = (inv: LocalInvoice) => {
+    if (!inv.isPersisted) return !isRowEmpty(inv);
+
+    const base = initialInvoices[inv.id];
+    if (!base) return false;
+
+    return (
+      inv.number !== base.number ||
+      inv.value !== base.value ||
+      inv.maturity_date !== base.maturity_date ||
+      inv.financing_ratio_percent !== base.financing_ratio_percent ||
+      inv.document?.s3_key !== base.document?.s3_key
+    );
+  };
+
+
   /**
    * COMPUTE DERIVED STATE
    *
@@ -332,10 +350,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const token = await getAccessToken();
 
     // 🧨 Commit deletions on Save & Continue
-// 🧨 Commit deletions on Save & Continue
-for (const invoiceId of Object.keys(deletedInvoices)) {
-  await apiClient.deleteInvoice(invoiceId);
-}
+    // 🧨 Commit deletions on Save & Continue
+    for (const invoiceId of Object.keys(deletedInvoices)) {
+      await apiClient.deleteInvoice(invoiceId);
+    }
 
 
     for (const inv of invoices) {
@@ -460,6 +478,19 @@ for (const invoiceId of Object.keys(deletedInvoices)) {
     return { success: true };
   };
 
+  const hasUnsavedChanges =
+    // any new non-empty rows
+    invoices.some((inv) => !inv.isPersisted && !isRowEmpty(inv)) ||
+
+    // any persisted row modified
+    invoices.some((inv) => hasRowChanged(inv)) ||
+
+    // any file selected
+    Object.keys(selectedFiles).length > 0 ||
+
+    // any persisted invoice marked for deletion
+    Object.keys(deletedInvoices).length > 0;
+
 
   /**
    * EFFECT: NOTIFY PARENT OF DATA CHANGES
@@ -473,7 +504,7 @@ for (const invoiceId of Object.keys(deletedInvoices)) {
       totalFinancingAmount,
       isValid: allRowsValid && !hasPartialRows && !validationError,
       validationError,
-      hasPendingChanges: invoices.length > 0 || hasPendingFiles,
+      hasPendingChanges: hasUnsavedChanges,
       isUploading: false,
       saveFunction,
     });
@@ -521,6 +552,13 @@ for (const invoiceId of Object.keys(deletedInvoices)) {
               : null,
           };
         });
+        const baseline: Record<string, LocalInvoice> = {};
+        mapped.forEach((inv) => {
+          baseline[inv.id] = inv;
+        });
+
+        setInitialInvoices(baseline);
+
 
         if (mounted) {
           setInvoices(mapped);
