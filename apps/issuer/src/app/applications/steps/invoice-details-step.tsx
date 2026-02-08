@@ -4,7 +4,8 @@
  * INVOICE DETAILS STEP
  *
  * - Manages invoice rows (local state until Save and Continue)
- * - File uploads to S3 with versioning (like supporting-documents-step)
+ * * - File uploads happen on Save and Continue
+* - One document per invoice (no versioning)
  * - Each invoice is persisted individually to DB
  * - Documents are uploaded with version tracking
  * - Returns invoice snapshot for application-level persistence
@@ -39,7 +40,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  * - document: null until uploaded or loaded
  */
 type LocalInvoice = {
-  id: string;
+  id: string; // UI id OR backend id
+  isPersisted: boolean; // ⭐ NEW
   number: string;
   value: string;
   maturity_date: string;
@@ -48,18 +50,12 @@ type LocalInvoice = {
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 };
 
+
 interface InvoiceDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
 }
 
-/**
- * HELPER: Generate temporary invoice ID
- * Format: inv-{timestamp}-{random}
- */
-function generateTempId() {
-  return `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 export default function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
   /**
@@ -73,9 +69,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    */
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
-  const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
-  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
-  const [deletedInvoiceIds, setDeletedInvoiceIds] = React.useState<Set<string>>(new Set());
   const [application, setApplication] = React.useState<any>(null);
 
   /** Get access token for API calls */
@@ -116,43 +109,31 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const addInvoice = () => {
     setInvoices((s) => [
       ...s,
-      { id: generateTempId(), number: "", value: "", maturity_date: "", financing_ratio_percent: 60, document: null, status: "DRAFT" },
+      {
+        id: crypto.randomUUID(), // UI-only
+        isPersisted: false,       // ⭐
+        number: "",
+        value: "",
+        maturity_date: "",
+        financing_ratio_percent: 60,
+        document: null,
+        status: "DRAFT",
+      },
     ]);
   };
 
-  /**
-   * DELETE INVOICE ROW
-   *
-   * - If temp ID (not yet persisted): remove locally
-   * - If persisted ID: marked for deletion on Save
-   */
-  /**
-   * DELETE INVOICE
-   *
-   * Mark invoice for deletion and remove from local state.
-   * If invoice has a real ID (not temp), track it for DB deletion.
-   */
+
+
   const deleteInvoice = (id: string) => {
-    const inv = invoices.find((i) => i.id === id);
-    if (inv?.status !== "DRAFT") return
-    // If this is a persisted invoice (not temp), mark it for deletion
-    if (!id.startsWith("inv-")) {
-      setDeletedInvoiceIds((prev) => new Set([...prev, id]));
-    }
-
-    // If invoice has S3 document, track it for deletion
-    if (inv?.document?.s3_key) {
-      setLastS3Keys((prev) => ({ ...prev, [id]: inv.document!.s3_key! }));
-    }
-
-    // Remove from local state
-    setInvoices((s) => s.filter((i) => i.id !== id));
-    setSelectedFiles((p) => {
-      const copy = { ...p };
+    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    setSelectedFiles((prev) => {
+      const copy = { ...prev };
       delete copy[id];
       return copy;
     });
   };
+
+
 
   /**
    * UPDATE INVOICE FIELD
@@ -186,47 +167,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     setSelectedFiles((p) => ({ ...p, [id]: file }));
 
     // Update preview with file name
-    const inv = invoices.find((i) => i.id === id);
-    const existingS3Key = inv?.document?.s3_key;
-    updateInvoiceField(
-      id,
-      "document",
-      existingS3Key
-        ? { file_name: file.name, file_size: file.size, s3_key: existingS3Key }
-        : { file_name: file.name, file_size: file.size }
-    );
+    updateInvoiceField(id, "document", {
+      file_name: file.name,
+      file_size: file.size,
+    });
+
 
     toast.success("File selected");
-  };
-
-  /**
-   * REMOVE DOCUMENT
-   *
-   * - If pending upload: remove from selectedFiles
-   * - If persisted: save the s3_key for deletion on next Save
-   * - Clear document from row
-   */
-  const handleRemoveDocument = (id: string) => {
-    const inv = invoices.find((i) => i.id === id);
-    if (!inv) return;
-
-    // If file is still pending (not uploaded yet), just remove it
-    if (selectedFiles[id]) {
-      setSelectedFiles((p) => {
-        const c = { ...p };
-        delete c[id];
-        return c;
-      });
-      updateInvoiceField(id, "document", null);
-      return;
-    }
-
-    // If persisted invoice with document, save s3_key for deletion on Save
-    if (inv.document?.s3_key) {
-      setLastS3Keys((d) => ({ ...d, [id]: inv.document!.s3_key! }));
-    }
-    updateInvoiceField(id, "document", null);
-    toast.success("File removed");
   };
 
   /**
@@ -348,315 +295,92 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
   }
 
-  /**
-   * UPLOAD FILES TO S3
-   *
-   * Called by handleSaveAndContinue via saveFunction.
-   * Follows the same pattern as supporting-documents-step:
-   * 1. For each selected file, request upload URL with existingS3Key (for versioning)
-   * 2. Upload file to S3 via presigned URL
-   * 3. Update invoice with new S3 key
-   * 4. Delete old S3 key if replaced
-   * 5. Return updated invoice data
-   */
-  const uploadFilesToS3 = React.useCallback(async () => {
-    if (!applicationId || Object.keys(selectedFiles).length === 0) {
-      return null;
-    }
 
-    const uploadResults = new Map<string, { s3_key: string; file_name: string }>();
+  const saveFunction = async () => {
+    const apiClient = createApiClient(API_URL, getAccessToken);
+    const token = await getAccessToken();
 
-    for (const [invoiceId, typedFile] of Object.entries(selectedFiles) as [string, File][]) {
-      try {
-        setUploadingKeys((prev) => new Set(prev).add(invoiceId));
+    for (const inv of invoices) {
+      if (isRowEmpty(inv)) continue;
 
-        // Get existing S3 key for versioning (from lastS3Keys if we're replacing)
-        const existingS3Key = lastS3Keys[invoiceId];
+      let invoiceId = inv.id;
 
-        const token = await getAccessToken();
+      // 1️⃣ CREATE only if not persisted
+      if (!inv.isPersisted) {
+        const createResp: any = await apiClient.createInvoice({
+          applicationId,
+          details: {
+            number: inv.number,
+            value: Number(inv.value),
+            maturity_date: inv.maturity_date,
+            financing_ratio_percent: inv.financing_ratio_percent || 60,
+          },
+        });
 
-        /**
-         * REQUEST UPLOAD URL
-         *
-         * Pass existingS3Key so backend can increment version while keeping CUID.
-         * This is how versioning is tracked.
-         */
-        const urlResponse = await fetch(`${API_URL}/v1/invoices/${invoiceId}/upload-url`, {
+        if (!createResp?.success) {
+          throw new Error("Failed to create invoice");
+        }
+
+        invoiceId = createResp.data.id;
+      } else {
+        // 2️⃣ UPDATE existing invoice
+        await apiClient.updateInvoice(invoiceId, {
+          number: inv.number,
+          value: Number(inv.value),
+          maturity_date: inv.maturity_date,
+          financing_ratio_percent: inv.financing_ratio_percent || 60,
+        });
+      }
+
+      // 3️⃣ Upload document if user selected one
+      const file = selectedFiles[inv.id];
+      if (!file) continue;
+
+      const urlResp = await fetch(
+        `${API_URL}/v1/invoices/${invoiceId}/upload-url`,
+        {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            fileName: typedFile.name,
-            contentType: typedFile.type,
-            fileSize: typedFile.size,
-            existingS3Key: existingS3Key || undefined,
+            fileName: file.name,
+            contentType: file.type,
+            fileSize: file.size,
           }),
-        });
-
-        const urlResult = await urlResponse.json();
-        if (!urlResult.success) {
-          throw new Error("Failed to get upload URL");
         }
+      );
 
-        const { uploadUrl, s3Key } = urlResult.data;
-
-        /**
-         * UPLOAD TO S3
-         *
-         * Use presigned URL provided by backend.
-         */
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "PUT",
-          body: typedFile,
-          headers: {
-            "Content-Type": typedFile.type,
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file");
-        }
-
-        /**
-         * DELETE OLD S3 KEY IF REPLACED
-         *
-         * If we're uploading a new version, delete the old one.
-         */
-        if (existingS3Key && existingS3Key !== s3Key) {
-          try {
-            await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ s3Key: existingS3Key }),
-            });
-          } catch (deleteError) {
-            console.warn("Error deleting old file:", deleteError);
-          }
-        }
-
-        uploadResults.set(invoiceId, {
-          s3_key: s3Key,
-          file_name: typedFile.name,
-        });
-
-        // Save new S3 key for next versioning
-        setLastS3Keys((prev: any) => ({ ...prev, [invoiceId]: s3Key }));
-      } catch (error) {
-        toast.error(`Failed to upload ${typedFile.name}`);
-        throw error;
-      } finally {
-        setUploadingKeys((prev) => {
-          const next = new Set(prev);
-          next.delete(invoiceId);
-          return next;
-        });
+      const urlJson = await urlResp.json();
+      if (!urlJson.success) {
+        throw new Error("Failed to get upload URL");
       }
+
+      const { uploadUrl, s3Key } = urlJson.data;
+
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      // 4️⃣ Attach document
+      await apiClient.updateInvoice(invoiceId, {
+        document: {
+          file_name: file.name,
+          file_size: file.size,
+          s3_key: s3Key,
+        },
+      });
     }
 
-    /**
-     * MERGE UPLOAD RESULTS INTO LOCAL STATE
-     *
-     * Update each invoice with uploaded S3 key.
-     */
-    const updatedInvoices = invoices.map((inv) => {
-      const result = uploadResults.get(inv.id);
-      if (result) {
-        return {
-          ...inv,
-          document: {
-            file_name: result.file_name,
-            file_size: selectedFiles[inv.id]?.size || inv.document?.file_size || 0,
-            s3_key: result.s3_key,
-          },
-        };
-      }
-      return inv;
-    });
 
-    setInvoices(updatedInvoices);
     setSelectedFiles({});
 
-    return updatedInvoices;
-  }, [applicationId, selectedFiles, invoices, lastS3Keys, getAccessToken]);
-
-  /**
-   * SAVE FUNCTION
-   *
-   * Called by parent page when user clicks "Save and Continue".
-   * This function:
-   * 1. Creates new invoices for temp IDs
-   * 1.5. Deletes marked invoices
-   * 2. Uploads files to S3 (calls uploadFilesToS3)
-   * 3. Updates each invoice with S3 keys and financing_ratio_percent
-   * 4. Deletes old S3 keys if replaced
-   * 5. Returns invoice snapshot for application-level persistence
-   */
-  const saveFunction = async () => {
-    const apiClient = createApiClient(API_URL, getAccessToken);
-    const updatedInvoices = invoices.map((inv) => ({ ...inv }));
-
-    /**
-     * STEP 1: CREATE INVOICES WITH TEMP IDS
-     *
-     * For any row with temp ID (inv-*), create the invoice in DB first.
-     * Map temp IDs to real IDs so we can update them.
-     */
-    const idMap: Record<string, string> = {};
-    for (const inv of updatedInvoices) {
-      if (inv.id.startsWith("inv-")) {
-        try {
-          const resp: any = await apiClient.createInvoice({
-            applicationId,
-            contractId: undefined,
-            details: {
-              number: inv.number || "",
-              value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
-              maturity_date: inv.maturity_date || "",
-              financing_ratio_percent: inv.financing_ratio_percent || 60,
-              document: undefined,
-            } as any,
-          });
-          if (!("success" in resp) || !resp.success) {
-            throw new Error("Failed to create invoice");
-          }
-          const created = resp.data;
-          idMap[inv.id] = created.id;
-          inv.id = created.id;
-        } catch (err) {
-          console.error("Failed to create invoice", err);
-          throw err;
-        }
-      }
-    }
-
-    /**
-     * STEP 1.5: DELETE MARKED INVOICES
-     *
-     * Delete any invoices that were marked for deletion.
-     */
-    for (const invoiceId of deletedInvoiceIds) {
-      try {
-        await apiClient.deleteInvoice(invoiceId);
-      } catch (err) {
-        console.error("Failed to delete invoice", invoiceId, err);
-        throw err;
-      }
-    }
-    // Clear deletion tracking after saving
-    setDeletedInvoiceIds(new Set());
-
-    /**
-     * STEP 2: UPLOAD PENDING FILES
-     *
-     * Upload any files that were selected.
-     * This will also update S3 keys on the invoices.
-     */
-    if (Object.keys(selectedFiles).length > 0) {
-      const updatedAfterUpload = await uploadFilesToS3();
-      if (updatedAfterUpload) {
-        for (let i = 0; i < updatedInvoices.length; i++) {
-          const uploaded = updatedAfterUpload.find((inv) => inv.id === updatedInvoices[i].id);
-          if (uploaded) {
-            updatedInvoices[i] = uploaded;
-          }
-        }
-      }
-    }
-
-    /**
-     * STEP 3: PERSIST INVOICE DETAILS
-     *
-     * For each invoice, update the DB with final details.
-     * This ensures number, value, maturity_date, financing_ratio_percent, and document are all saved.
-     */
-    for (const inv of updatedInvoices) {
-      if (inv.status === "APPROVED") continue;
-
-      if (!isRowEmpty(inv)) {
-        try {
-          const resp: any = await apiClient.updateInvoice(inv.id, {
-            number: inv.number || "",
-            value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
-            maturity_date: inv.maturity_date || "",
-            financing_ratio_percent: inv.financing_ratio_percent || 60,
-            document: inv.document && inv.document.s3_key
-              ? { file_name: inv.document.file_name, file_size: inv.document.file_size, s3_key: inv.document.s3_key }
-              : undefined,
-          } as any);
-          if (!("success" in resp) || !resp.success) {
-            throw new Error("Failed to persist invoice");
-          }
-        } catch (err) {
-          console.error("Failed to update invoice", err);
-          throw err;
-        }
-      }
-    }
-
-    /**
-     * STEP 4: DELETE OLD S3 KEYS
-     *
-     * If any files were replaced or invoices deleted, delete the old S3 keys.
-     */
-    const token = await getAccessToken();
-    for (const [invoiceId, oldS3Key] of Object.entries(lastS3Keys)) {
-      const inv = updatedInvoices.find((i) => i.id === invoiceId);
-      const isDeleted = deletedInvoiceIds.has(invoiceId);
-
-      // Delete S3 key if invoice was deleted OR if document S3 key changed
-      if ((isDeleted || !inv) || (inv && inv.document?.s3_key !== oldS3Key)) {
-        try {
-          await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ s3Key: oldS3Key }),
-          });
-        } catch {
-          // non-fatal
-        }
-      }
-    }
-
-    /**
-     * STEP 5: RETURN INVOICE SNAPSHOT
-     *
-     * Build array of invoices (excluding empty rows) for application-level persistence.
-     * This snapshot is used to update application.supporting_documents so that
-     * the application row reflects changes to invoices (for versioning purposes).
-     */
-    const payload = updatedInvoices
-      .filter((inv) => !isRowEmpty(inv))
-      .map((inv) => ({
-        number: inv.number,
-        value: typeof inv.value === "number" ? inv.value : Number(inv.value) || 0,
-        maturity_date: inv.maturity_date,
-        financing_ratio_percent: inv.financing_ratio_percent || 60,
-        document: inv.document
-          ? { file_name: inv.document.file_name, file_size: inv.document.file_size, s3_key: inv.document.s3_key }
-          : null,
-      }));
-
-    const invoiceSnapshot = updatedInvoices.map((inv) => ({
-      id: inv.id,
-      number: inv.number,
-      s3_key: inv.document?.s3_key ?? null,
-    }));
-
-    return {
-      invoices: payload,
-      supporting_documents: {
-        invoice_documents: invoiceSnapshot,
-      },
-    };
+    return { success: true };
   };
+
 
   /**
    * EFFECT: NOTIFY PARENT OF DATA CHANGES
@@ -670,12 +394,20 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       totalFinancingAmount,
       isValid: allRowsValid && !hasPartialRows && !validationError,
       validationError,
-      hasPendingChanges: invoices.length > 0 || hasPendingFiles || deletedInvoiceIds.size > 0,
-      isUploading: uploadingKeys.size > 0,
+      hasPendingChanges: invoices.length > 0 || hasPendingFiles,
+      isUploading: false,
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows, deletedInvoiceIds.size, validationError]);
+  }, [
+    invoices,
+    totalFinancingAmount,
+    hasPendingFiles,
+    allRowsValid,
+    hasPartialRows,
+    validationError
+  ]);
+
 
   // Load persisted invoices for this application on mount
   React.useEffect(() => {
@@ -686,21 +418,19 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const resp: any = await apiClient.getInvoicesByApplication(applicationId);
         if (!("success" in resp) || !resp.success) return;
         const items: any[] = resp.data || [];
-        console.log(items)
         const mapped: LocalInvoice[] = items.map((it) => {
           const d = it.details || {};
           return {
-            id: it.id,
+            id: it.id,                // backend id
+            isPersisted: true,        // ⭐
             number: d.number || "",
-            // value: typeof d.value === "number" ? d.value : (d.value ? Number(d.value) : ""),
-            status: it.status || "Draft",
+            status: it.status || "DRAFT",
             value:
               typeof d.value === "number"
                 ? d.value.toFixed(2)
                 : d.value
                   ? Number(d.value).toFixed(2)
                   : "",
-
             maturity_date: d.maturity_date || "",
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
@@ -712,16 +442,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               : null,
           };
         });
+
         if (mounted) {
           setInvoices(mapped);
-          // Pre-populate lastS3Keys so we can track versions on updates
-          const keys: Record<string, string> = {};
-          mapped.forEach((inv) => {
-            if (inv.document?.s3_key) {
-              keys[inv.id] = inv.document.s3_key;
-            }
-          });
-          setLastS3Keys(keys);
         }
       } catch (err) {
         console.error("Failed to load invoices", err);
@@ -841,13 +564,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               </TableHeader>
               <TableBody>
                 {invoices.map((inv) => {
-                  const isUploading = uploadingKeys.has(inv.id);
                   const isDraft = !inv.status || inv.status === "DRAFT";
-                  const isTemp = inv.id.startsWith("inv-");
-                  const isEditable = isDraft;
+                  const isTemp = !inv.isPersisted;
                   const canDelete = isDraft || isTemp;
 
-                  const isDisabled = !isEditable || isUploading;
+                  const isEditable = isDraft;
+
+                  const isDisabled = !isEditable;
 
 
                   const ratio = inv.financing_ratio_percent || 60;
@@ -887,7 +610,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                       {/* Maturity Date */}
                       <TableCell>
-                        
+
                         <Input
                           type="date"
                           value={inv.maturity_date}
@@ -1029,7 +752,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         <div className="flex justify-end">
                           <div className="flex items-center gap-3">
                             <div className="w-[160px]">
-                              {inv.document && !selectedFiles[inv.id] && !isUploading ? (
+                              {inv.document && !selectedFiles[inv.id] ? (
                                 <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
                                   {/* check */}
                                   <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
@@ -1044,8 +767,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                   {/* remove */}
                                   <button
                                     type="button"
-                                    onClick={() => handleRemoveDocument(inv.id)}
-                                    disabled={!isEditable || isUploading}
+                                    onClick={() => {
+                                      updateInvoiceField(inv.id, "document", null);
+                                      setSelectedFiles((prev) => {
+                                        const copy = { ...prev };
+                                        delete copy[inv.id];
+                                        return copy;
+                                      });
+                                    }}
                                     className={cn(
                                       "shrink-0",
                                       isEditable
@@ -1053,17 +782,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                         : "opacity-40 cursor-not-allowed"
                                     )}
                                   >
+
                                     <XMarkIcon className="h-3.5 w-3.5" />
                                   </button>
 
-                                  {/* <button
-                                    type="button"
-                                    onClick={() => handleRemoveDocument(inv.id)}
-                                    className="text-muted-foreground hover:text-foreground shrink-0"
-                                    disabled={isDisabled}
-                                  >
-                                    <XMarkIcon className="h-3.5 w-3.5" />
-                                  </button> */}
                                 </div>
                               ) : (
                                 <label
@@ -1072,11 +794,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                   <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 
                                   <span className="truncate">
-                                    {isUploading
-                                      ? "Uploading…"
-                                      : selectedFiles[inv.id]
-                                        ? selectedFiles[inv.id].name
-                                        : "Upload file"}
+                                    {selectedFiles[inv.id]
+                                      ? selectedFiles[inv.id].name
+                                      : "Upload file"}
+
                                   </span>
 
                                   <Input
@@ -1096,51 +817,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </div>
                       </TableCell>
 
-                      {/* <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-[260px]">
-                            {inv.document && !selectedFiles[inv.id] ? (
-                              <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
-                                <span className="text-[14px] font-medium truncate flex-1">{inv.document.file_name}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveDocument(inv.id)}
-                                  className="text-muted-foreground hover:text-foreground shrink-0"
-                                  disabled={isUploading}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ) : (
-                              <label className="cursor-pointer text-sm text-destructive inline-flex items-center gap-2">
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept="application/pdf"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) {
-                                      handleFileChange(inv.id, f);
-                                    }
-                                  }}
-                                  disabled={isUploading}
-                                />
-                                <span>
-                                  {isUploading ? "Uploading…" : selectedFiles[inv.id] ? selectedFiles[inv.id].name : "Upload PDF"}
-                                </span>
-                              </label>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell> */}
-
                       {/* Action Button */}
                       <TableCell>
                         <div className="flex justify-end">
                           <Button
                             variant="ghost"
                             onClick={() => deleteInvoice(inv.id)}
-                            disabled={!canDelete || isUploading}
+                            disabled={!canDelete}
                           >
 
                             <Trash2 className="h-4 w-4" />
@@ -1150,21 +833,21 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                     </TableRow>
                   );
                 })}
-<TableRow className="bg-muted/10 font-bold">
-  {/* Skip columns 1–5 */}
-  <TableCell colSpan={5}></TableCell>
+                <TableRow className="bg-muted/10 font-bold">
+                  {/* Skip columns 1–5 */}
+                  <TableCell colSpan={5}></TableCell>
 
-  {/* Financing Amount column */}
-  <TableCell>
-    <div className="text-foreground whitespace-nowrap tabular-nums">
-      {formatRM(totalFinancingAmount)}
-    </div>
-    <div className="text-xs text-muted-foreground font-normal">Total</div>
-  </TableCell>
+                  {/* Financing Amount column */}
+                  <TableCell>
+                    <div className="text-foreground whitespace-nowrap tabular-nums">
+                      {formatRM(totalFinancingAmount)}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-normal">Total</div>
+                  </TableCell>
 
-  {/* Documents + Actions */}
-  <TableCell colSpan={2}></TableCell>
-</TableRow>
+                  {/* Documents + Actions */}
+                  <TableCell colSpan={2}></TableCell>
+                </TableRow>
 
 
               </TableBody>
