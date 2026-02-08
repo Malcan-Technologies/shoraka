@@ -5,8 +5,8 @@ import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { Invoice } from "@prisma/client";
 import {
-  generateInvoiceDocumentKey,
-  generateInvoiceDocumentKeyWithVersion,
+  generateApplicationDocumentKey,
+  generateApplicationDocumentKeyWithVersion,
   generatePresignedUploadUrl,
   getFileExtension,
   validateDocument,
@@ -353,23 +353,28 @@ export class InvoiceService {
     const extension = getFileExtension(params.fileName) || "pdf";
     let s3Key: string;
 
-    // If existingS3Key is provided, increment version and reuse the same cuid
+    // If existingS3Key is provided, increment version and reuse the same cuid.
+    // Use application-scoped keys: applications/{applicationId}/v{version}-{date}-{cuid}.{ext}
+    // Fetch invoice to obtain applicationId (verifyInvoiceAccess ensures access).
+    const invoice = await this.verifyInvoiceAccess(params.invoiceId, params.userId);
+    const applicationId = (invoice as any).application_id;
+
     if (params.existingS3Key) {
-      const versionedKey = generateInvoiceDocumentKeyWithVersion({
+      const versionedKey = generateApplicationDocumentKeyWithVersion({
         existingS3Key: params.existingS3Key,
         extension,
       });
-      
+
       if (!versionedKey) {
         throw new AppError(400, "INVALID_S3_KEY", "Failed to parse existing S3 key for versioning");
       }
-      
+
       s3Key = versionedKey;
     } else {
-      // Generate new key with version 1
+      // Generate new key scoped to the application (version 1)
       const cuid = this.generateCuid();
-      s3Key = generateInvoiceDocumentKey({
-        invoiceId: params.invoiceId,
+      s3Key = generateApplicationDocumentKey({
+        applicationId: String(applicationId),
         cuid,
         extension,
       });

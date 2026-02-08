@@ -1,7 +1,14 @@
  "use client";
 
- import * as React from "react";
- import {
+/**
+ * Imports
+ *
+ * - React: UI primitives and hooks
+ * - UI components: table, inputs, buttons, icons
+ * - Api client & auth: used to request presigned upload URL from backend
+ */
+import * as React from "react";
+import {
    Table,
    TableBody,
    TableCell,
@@ -15,17 +22,18 @@
  import { XMarkIcon } from "@heroicons/react/24/outline";
  import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
  import { cn } from "@/lib/utils";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 
- /**
-  * MOCK-FIRST INVOICE DETAILS STEP
-  *
-  * This mock implementation preserves the component API used by the parent page:
-  *  - props: { applicationId, onDataChange }
-  *  - onDataChange receives the same shaped payload as the real step.
-  *
-  * It uses in-file mock data and local state only. Replace with real hooks and
-  * API calls when backend is ready.
-  */
+/**
+ * MOCK-FIRST INVOICE DETAILS STEP
+ *
+ * This mock implementation preserves the component API used by the parent page:
+ *  - props: { applicationId, onDataChange }
+ *  - onDataChange receives the same shaped payload as the real step.
+ *
+ * It uses in-file mock data and local state only. Replace with real hooks and
+ * API calls when backend is ready.
+ */
 
  interface InvoiceDetailsStepProps {
    applicationId: string;
@@ -79,6 +87,16 @@ export function InvoiceDetailsStep({ applicationId: _applicationId, onDataChange
   // Use the mock application data in place of real hook
   const application = MOCK_APPLICATION;
   const contractDetails = (application as any).contract.contract_details || {};
+
+  /**
+   * Auth & API client
+   *
+   * - getAccessToken: used by API client to authenticate requests
+   * - apiClient: typed client for requesting invoice upload URLs
+   */
+  const { getAccessToken } = useAuthToken();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const apiClient = createApiClient(API_URL, getAccessToken);
 
   /**
    * Local state
@@ -183,25 +201,35 @@ export function InvoiceDetailsStep({ applicationId: _applicationId, onDataChange
      setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
    };
 
+  /**
+   * Mutations / API calls - handleFileUpload
+   *
+   * - Validates file type/size.
+   * - Requests a presigned upload URL from the backend for the invoice.
+   * - PUTs the file directly to S3 using the presigned URL.
+   * - On success sets invoice.document to { file_name, file_size, s3_key }.
+   *
+   * Data shapes:
+   * - requestInvoiceUploadUrl response: { uploadUrl: string; s3Key: string; expiresIn: number }
+   */
   const handleFileUpload = (invoiceId: string, file: File) => {
     /**
-     * handleFileUpload
+     * File selection handler
      *
-     * - Validates file type/size in the mock.
-     * - Stores the File in pendingInvoiceFiles and sets a local document marker:
-     *   { file_name, file_size, s3_key: "pending" }
+     * - Validate file locally (type + size).
+     * - Store the File in `pendingInvoiceFiles`.
+     * - Optimistically set invoice.document to indicate a pending upload.
      *
-     * Real implementation will request an upload URL and PUT the file to S3.
+     * Actual upload is performed when parent calls `saveFunction`.
      */
-    // Basic validation (mock)
     if (file.type !== "application/pdf") {
       // eslint-disable-next-line no-console
-      console.warn("Only PDF allowed in mock");
+      console.warn("Only PDF allowed");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       // eslint-disable-next-line no-console
-      console.warn("File too large in mock");
+      console.warn("File too large");
       return;
     }
 
@@ -221,10 +249,127 @@ export function InvoiceDetailsStep({ applicationId: _applicationId, onDataChange
    * - In real implementation: should upload files, update invoices, and return the updated data.
    */
   const saveFunction = async () => {
-    // In a real implementation this would upload pendingInvoiceFiles and update server
-    initialInvoicesRef.current = JSON.stringify(localInvoices);
+    /**
+     * saveFunction
+     *
+     * - Triggered by parent when user saves/continues.
+     * - Uploads all files in `pendingInvoiceFiles` to S3 via presigned URLs.
+     * - Updates invoices' document.s3_key with final keys returned by backend.
+     * - Deletes replaced objects if backend returns a new key different from existing one.
+     *
+     * Returns: true on success. Throws on failure.
+     */
+    const pendingEntries = Object.entries(pendingInvoiceFiles);
+    if (pendingEntries.length === 0) {
+      initialInvoicesRef.current = JSON.stringify(localInvoices);
+      return true;
+    }
+
+    // Work on a shallow copy to produce final snapshot deterministically
+    const updatedInvoices = localInvoices.map((inv) => ({ ...inv }));
+
+    // Map for translating temporary invoice ids (e.g., inv-123) to real cuid ids returned by API
+    const idMap: Record<string, string> = {};
+
+    for (const [invoiceId, file] of pendingEntries as [string, File][]) {
+      try {
+        let currentInvoiceId = invoiceId;
+
+        // If this looks like a temporary client id (starts with "inv-"), create the invoice first
+        if (currentInvoiceId.startsWith("inv-")) {
+          const invoicePayload = updatedInvoices.find((i) => i.id === invoiceId);
+          const createResp = await apiClient.createInvoice({
+            applicationId: _applicationId,
+            contractId: (invoicePayload as any)?.contract_id,
+            details: (invoicePayload as any)?.details || {
+              number: (invoicePayload as any)?.number || "",
+              value: (invoicePayload as any)?.value || 0,
+              maturity_date: (invoicePayload as any)?.maturity_date || "",
+            },
+          });
+          if (!createResp.success) {
+            throw new Error("Failed to create invoice before upload");
+          }
+          const created = createResp.data;
+          idMap[invoiceId] = created.id;
+          currentInvoiceId = created.id;
+          // Update our in-memory invoices list to use the real id
+          for (let i = 0; i < updatedInvoices.length; i++) {
+            if (updatedInvoices[i].id === invoiceId) {
+              updatedInvoices[i] = { ...updatedInvoices[i], id: currentInvoiceId };
+              break;
+            }
+          }
+        }
+
+        const existingKey = updatedInvoices.find((i) => i.id === currentInvoiceId)?.document?.s3_key;
+
+        // Only pass existingS3Key when it matches the application-scoped versioned pattern
+        const appKeyRegex = /^applications\/[^/]+\/v\d+-\d{4}-\d{2}-\d{2}-[^.]+\.[a-z0-9]+$/i;
+        const existingKeyForVersion = existingKey && appKeyRegex.test(existingKey) ? existingKey : undefined;
+
+        const resp = await apiClient.requestInvoiceUploadUrl(currentInvoiceId, {
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+          existingS3Key: existingKeyForVersion,
+        });
+
+        if (!resp.success) {
+          throw new Error("Failed to get upload URL");
+        }
+
+        const { uploadUrl, s3Key } = resp.data;
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type,
+          },
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file to S3");
+        }
+
+        // Update our in-memory copy
+        for (let i = 0; i < updatedInvoices.length; i++) {
+          if (updatedInvoices[i].id === currentInvoiceId) {
+            updatedInvoices[i] = {
+              ...updatedInvoices[i],
+              document: {
+                file_name: file.name,
+                file_size: file.size,
+                s3_key: s3Key,
+              },
+            };
+            break;
+          }
+        }
+
+        // If backend provided a new key and there was an existing key, delete the old object
+        if (existingKey && existingKey !== s3Key) {
+          try {
+            await apiClient.deleteInvoiceDocument(currentInvoiceId, existingKey);
+          } catch (deleteErr) {
+            // Non-fatal: log and continue
+            // eslint-disable-next-line no-console
+            console.warn("Failed to delete old invoice document", deleteErr);
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("Error uploading invoice document", err);
+        throw err;
+      }
+    }
+
+    // Persist updated invoices and clear pending files
+    setInvoices(updatedInvoices);
     setPendingInvoiceFiles({});
-    return Promise.resolve(true);
+    initialInvoicesRef.current = JSON.stringify(updatedInvoices);
+    return true;
   };
 
   /**
