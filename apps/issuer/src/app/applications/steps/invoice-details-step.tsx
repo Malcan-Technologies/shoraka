@@ -139,6 +139,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       setDeletedInvoiceIds((prev) => new Set([...prev, id]));
     }
 
+    // If invoice has S3 document, track it for deletion
+    if (inv?.document?.s3_key) {
+      setLastS3Keys((prev) => ({ ...prev, [id]: inv.document!.s3_key! }));
+    }
+
     // Remove from local state
     setInvoices((s) => s.filter((i) => i.id !== id));
     setSelectedFiles((p) => {
@@ -284,6 +289,33 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
   const allRowsValid = invoices.every((inv) => validateRow(inv));
+
+  /**
+   * FINANCIAL VALIDATION
+   *
+   * Validate financing ratios are within 60-80% range and total financing
+   * does not exceed approved facility or contract value.
+   */
+  let validationError = "";
+
+  // Check financing ratios are within valid range
+  const invalidRatioInvoice = invoices.find(
+    (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
+  );
+  if (invalidRatioInvoice) {
+    validationError = "Financing ratio must be between 60% and 80%.";
+  }
+
+  // Check if total financing exceeds facility limits
+  if (!validationError && application?.contract?.contract_details) {
+    const approvedFacility = application.contract.contract_details.approved_facility || 0;
+    const contractValue = application.contract.contract_details.value || 0;
+    const facilityLimit = approvedFacility > 0 ? approvedFacility : contractValue;
+
+    if (facilityLimit > 0 && totalFinancingAmount > facilityLimit) {
+      validationError = `Total financing amount (RM ${totalFinancingAmount.toFixed(2)}) exceeds facility limit (RM ${facilityLimit.toFixed(2)}).`;
+    }
+  }
 
   /**
    * UPLOAD FILES TO S3
@@ -538,12 +570,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     /**
      * STEP 4: DELETE OLD S3 KEYS
      *
-     * If any files were replaced, delete the old S3 keys.
+     * If any files were replaced or invoices deleted, delete the old S3 keys.
      */
     const token = await getAccessToken();
     for (const [invoiceId, oldS3Key] of Object.entries(lastS3Keys)) {
       const inv = updatedInvoices.find((i) => i.id === invoiceId);
-      if (inv && inv.document?.s3_key !== oldS3Key) {
+      const isDeleted = deletedInvoiceIds.has(invoiceId);
+      
+      // Delete S3 key if invoice was deleted OR if document S3 key changed
+      if ((isDeleted || !inv) || (inv && inv.document?.s3_key !== oldS3Key)) {
         try {
           await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
             method: "DELETE",
@@ -602,13 +637,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     onDataChange?.({
       invoices,
       totalFinancingAmount,
-      isValid: allRowsValid && !hasPartialRows,
+      isValid: allRowsValid && !hasPartialRows && !validationError,
+      validationError,
       hasPendingChanges: invoices.length > 0 || hasPendingFiles || deletedInvoiceIds.size > 0,
       isUploading: uploadingKeys.size > 0,
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows, deletedInvoiceIds.size]);
+  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, uploadingKeys.size, hasPartialRows, deletedInvoiceIds.size, validationError]);
 
   // Load persisted invoices for this application on mount
   React.useEffect(() => {
@@ -1066,6 +1102,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             </Table>
           </div>
         </div>
+
+        {/* Validation Error Display */}
+        {validationError && (
+          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+            <XMarkIcon className="h-5 w-5 shrink-0" />
+            {validationError}
+          </div>
+        )}
       </section>
     </div>
   );
