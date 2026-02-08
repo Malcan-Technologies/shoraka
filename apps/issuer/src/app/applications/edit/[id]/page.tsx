@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useApplication, useUpdateApplicationStep, useArchiveApplication, useUpdateApplicationStatus } from "@/hooks/use-applications";
-import { useUpdateContract, useUnlinkContract } from "@/hooks/use-contracts";
+import { useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -125,7 +125,8 @@ export default function EditApplicationPage() {
   const navigationInProgressRef = React.useRef(false);
 
   // Hooks for contract handling (for skip/autofill logic)
-  const updateContractMutation = useUpdateContract();
+  // Note: updateContractMutation is intentionally not used while invoice logic is being reworked
+  // const updateContractMutation = useUpdateContract();
   const unlinkContractMutation = useUnlinkContract();
 
   /**
@@ -748,8 +749,7 @@ export default function EditApplicationPage() {
       // Final cleanup of frontend-only properties before saving to DB
       if (dataToSave) {
         // Capture specific fields for invoice_details step before clearing dataToSave
-        const invoices = dataToSave.invoices;
-        const availableFacility = dataToSave.available_facility;
+        // (left intentionally unused while invoice changes are in progress)
 
         delete (dataToSave as any).hasPendingChanges;
         delete (dataToSave as any).saveFunction;
@@ -757,35 +757,23 @@ export default function EditApplicationPage() {
         delete (dataToSave as any).validationError;
 
         // If this is a special step that saves to its own table (Contract/Invoice),
-        // we don't want to send the details back to the Application table
+        // we previously avoided sending those details back to the Application table.
+        // That invoice-specific persistence (contract capacity adjustments) is intentionally
+        // disabled while the invoice details UI is being reworked. Keep the payload so
+        // it can be persisted via updateStepMutation instead.
         if (currentStepKey === "contract_details" || currentStepKey === "invoice_details") {
-          // Special handling for invoice_details to update contract available_facility
-          // Only update if there's a contract linked AND it's not invoice_only structure
-          const financingStructure = (application as any)?.financing_structure as any;
-          const isInvoiceOnly = financingStructure?.structure_type === "invoice_only";
-
-          if (currentStepKey === "invoice_details" && (application as any)?.contract?.id && !isInvoiceOnly) {
-             const approvedFacility = ((application as any).contract.contract_details as any)?.approved_facility || 0;
-             if (approvedFacility > 0) {
-                // Net financing from CURRENT (DRAFT) invoices in this application
-                const currentAppDraftFinancing = (invoices || [])
-                  .filter((inv: any) => !inv.isReadOnly && inv.status === "DRAFT")
-                  .reduce((acc: number, inv: any) => acc + (inv.value || 0) * 0.8, 0);
-
-                const newAvailableFacility = Math.max(0, (availableFacility || 0) - currentAppDraftFinancing);
-
-                await updateContractMutation.mutateAsync({
-                  id: (application as any).contract.id,
-                  data: {
-                    contract_details: {
-                      ...((application as any).contract.contract_details as any),
-                      available_facility: newAvailableFacility,
-                    }
-                  }
-                });
-             }
-          }
-          dataToSave = {};
+          // TODO: Previously this block updated contract.available_facility based on
+          // invoice draft totals and cleared application-level invoice data (dataToSave = {}).
+          // That behavior is commented out while invoices are rebuilt to avoid unintended DB changes.
+          //
+          // Kept for reference:
+          // const financingStructure = (application as any)?.financing_structure as any;
+          // const isInvoiceOnly = financingStructure?.structure_type === "invoice_only";
+          // if (currentStepKey === "invoice_details" && (application as any)?.contract?.id && !isInvoiceOnly) {
+          //   // ... compute newAvailableFacility and call updateContractMutation ...
+          // }
+          //
+          // Currently we DO NOT call updateContractMutation here and we DO NOT clear dataToSave.
         }
       }
 
