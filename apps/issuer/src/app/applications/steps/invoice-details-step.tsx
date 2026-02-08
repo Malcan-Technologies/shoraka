@@ -13,6 +13,7 @@ import * as React from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 
@@ -37,6 +38,7 @@ type LocalInvoice = {
   number: string;
   value: number | "";
   maturity_date: string;
+  financing_ratio_percent?: number;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 };
 
@@ -571,9 +573,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <TableHeader className="bg-muted/30">
                 <TableRow className="border-b">
                   <TableHead>Invoice</TableHead>
-                  <TableHead>Value (RM)</TableHead>
-                  <TableHead>Maturity date</TableHead>
-                  <TableHead>Document</TableHead>
+                  <TableHead>Maturity Date</TableHead>
+                  <TableHead>Invoice Value</TableHead>
+                  <TableHead>Financing Ratio</TableHead>
+                  <TableHead>Financing Amount</TableHead>
+                  <TableHead>Documents</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -581,8 +585,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                 {invoices.map((inv) => {
                   const invalid = !validateRow(inv);
                   const isUploading = uploadingKeys.has(inv.id);
+                  const ratio = inv.financing_ratio_percent || 60;
+                  const invoiceValue = typeof inv.value === "number" ? inv.value : 0;
+                  const financingAmount = invoiceValue * (ratio / 100);
+
                   return (
                     <TableRow key={inv.id} className={invalid ? "bg-destructive/10" : ""}>
+                      {/* Invoice */}
                       <TableCell>
                         <Input
                           value={inv.number}
@@ -591,6 +600,18 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           disabled={isUploading}
                         />
                       </TableCell>
+
+                      {/* Maturity Date */}
+                      <TableCell>
+                        <Input
+                          type="date"
+                          value={inv.maturity_date}
+                          onChange={(e) => updateInvoiceField(inv.id, "maturity_date", e.target.value)}
+                          disabled={isUploading}
+                        />
+                      </TableCell>
+
+                      {/* Invoice Value */}
                       <TableCell>
                         <Input
                           type="number"
@@ -602,14 +623,23 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           disabled={isUploading}
                         />
                       </TableCell>
+
+                      {/* Financing Ratio */}
                       <TableCell>
-                        <Input
-                          type="date"
-                          value={inv.maturity_date}
-                          onChange={(e) => updateInvoiceField(inv.id, "maturity_date", e.target.value)}
-                          disabled={isUploading}
-                        />
+                        <div className="text-sm font-medium">{ratio}%</div>
                       </TableCell>
+
+                      {/* Financing Amount */}
+                      <TableCell>
+                        <div className="text-sm font-medium">
+                          RM {financingAmount.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </div>
+                      </TableCell>
+
+                      {/* Documents */}
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-[260px]">
@@ -647,10 +677,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           </div>
                         </div>
                       </TableCell>
+
+                      {/* Action Button */}
                       <TableCell>
                         <div className="flex justify-end">
                           <Button variant="ghost" onClick={() => deleteInvoice(inv.id)} disabled={isUploading}>
-                            Remove
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -658,7 +690,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   );
                 })}
                 <TableRow className="bg-muted/10 font-bold">
-                  <TableCell colSpan={3}></TableCell>
+                  <TableCell colSpan={4}></TableCell>
                   <TableCell>
                     <div className="text-foreground">
                       RM{" "}
@@ -667,9 +699,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         maximumFractionDigits: 2,
                       })}
                     </div>
-                    <div className="text-xs text-muted-foreground">Total financing amount</div>
+                    <div className="text-xs text-muted-foreground font-normal">Total</div>
                   </TableCell>
-                  <TableCell></TableCell>
+                  <TableCell colSpan={2}></TableCell>
                 </TableRow>
               </TableBody>
             </Table>
