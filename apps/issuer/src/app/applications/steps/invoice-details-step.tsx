@@ -40,7 +40,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 type LocalInvoice = {
   id: string;
   number: string;
-  value: number | "";
+  value: string;
   maturity_date: string;
   financing_ratio_percent?: number;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
@@ -193,7 +193,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isRowEmpty = (inv: LocalInvoice) => {
     return (
       !inv.number &&
-      (inv.value === "" || inv.value === 0) &&
+      inv.value === "" &&
+
       !inv.maturity_date &&
       !inv.document
     );
@@ -202,7 +203,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isRowPartial = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return false; // empty rows are not partial
     const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = typeof inv.value === "number" && inv.value > 0;
+    const hasValue = inv.value !== "" && Number(inv.value) > 0;
+
     const hasDate = Boolean(String(inv.maturity_date).trim());
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
     
@@ -215,7 +217,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const validateRow = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return true;
     const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = typeof inv.value === "number" && inv.value > 0;
+    const hasValue = inv.value !== "" && Number(inv.value) > 0;
+
     const hasDate = Boolean(String(inv.maturity_date).trim());
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
     return hasNumber && hasValue && hasDate && hasDocument;
@@ -230,10 +233,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * hasPartialRows: any row is partial (user touched it but didn't complete it)
    */
   const totalFinancingAmount = invoices.reduce((acc, inv) => {
-    const value = typeof inv.value === "number" ? inv.value : 0;
-    const ratio = (inv.financing_ratio_percent || 60) / 100;
-    return acc + (value * ratio);
-  }, 0);
+  const value = inv.value === "" ? 0 : Number(inv.value);
+  const ratio = (inv.financing_ratio_percent || 60) / 100;
+  return acc + value * ratio;
+}, 0);
+
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
   const allRowsValid = invoices.every((inv) => validateRow(inv));
@@ -591,6 +595,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
 
+  const [focusedInvoiceId, setFocusedInvoiceId] = React.useState<string | null>(null);
+
+
   return (
     <div className="space-y-6 pb-8">
       <section className="space-y-4">
@@ -621,11 +628,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   const invalid = !validateRow(inv);
                   const isUploading = uploadingKeys.has(inv.id);
                   const ratio = inv.financing_ratio_percent || 60;
-                  const invoiceValue = typeof inv.value === "number" ? inv.value : 0;
-                  const financingAmount = invoiceValue * (ratio / 100);
+                  const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
+const financingAmount = invoiceValue * (ratio / 100);
+
 
                   return (
-                    <TableRow key={inv.id} className={invalid ? "bg-destructive/10" : ""}>
+                    // <TableRow key={inv.id} className={invalid ? "bg-destructive/10" : ""}>
+                      <TableRow
+  key={inv.id}
+  className="hover:bg-muted/50"
+>
+
                       {/* Invoice */}
                       <TableCell>
                         <Input
@@ -647,17 +660,43 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       </TableCell>
 
                       {/* Invoice Value */}
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={inv.value as any}
-                          onChange={(e) =>
-                            updateInvoiceField(inv.id, "value", e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))
-                          }
-                          placeholder="0"
-                          disabled={isUploading}
-                        />
-                      </TableCell>
+    {/* Invoice Value */}
+{/* Invoice Value */}
+<TableCell>
+  <Input
+    type="text"
+    inputMode="decimal"
+    placeholder="0.00"
+    disabled={isUploading}
+    value={inv.value}
+    onFocus={() => {
+      setFocusedInvoiceId(inv.id);
+    }}
+    onBlur={() => {
+      setFocusedInvoiceId(null);
+
+      if (inv.value !== "") {
+        const normalized = Number(inv.value).toFixed(2);
+        updateInvoiceField(inv.id, "value", normalized);
+      }
+    }}
+    onChange={(e) => {
+      const raw = e.target.value;
+
+      // allow empty
+      if (raw === "") {
+        updateInvoiceField(inv.id, "value", "");
+        return;
+      }
+
+      // allow digits + optional dot + max 2 decimals
+      if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+
+      updateInvoiceField(inv.id, "value", raw);
+    }}
+  />
+</TableCell>
+
 
                       {/* Financing Ratio */}
   {/* Financing Ratio */}
