@@ -30,7 +30,7 @@ export class ApplicationRepository {
       include: {
         issuer_organization: true,
         contract: true,
-        invoices: true,
+        // invoices relation removed to decouple applications from invoice model
       },
     });
   }

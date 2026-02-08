@@ -4,7 +4,6 @@ import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
-import { useInvoices, useInvoicesByContract } from "@/hooks/use-invoices";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -129,10 +128,7 @@ export function ReviewAndSubmitStep({
   const isExistingContract = financingStructure?.structure_type === "existing_contract";
   const existingContractId = financingStructure?.existing_contract_id;
 
-  const { data: appInvoices = [], isLoading: isLoadingAppInvoices } = useInvoices(applicationId);
-  const { data: contractInvoices = [], isLoading: isLoadingContractInvoices } = useInvoicesByContract(existingContractId);
-
-  const isLoading = isLoadingApp || isLoadingInfo || isLoadingEntities || isLoadingAppInvoices || (isExistingContract && isLoadingContractInvoices) || (!!contractId && isLoadingContract) || isLoadingProducts;
+  const isLoading = isLoadingApp || isLoadingInfo || isLoadingEntities || (!!contractId && isLoadingContract) || isLoadingProducts;
 
   // Notify parent that this step is valid (it's read-only)
   React.useEffect(() => {
@@ -185,12 +181,9 @@ export function ReviewAndSubmitStep({
   const registeredAddress = corporateInfo?.addresses?.registered;
   const contactPerson = (application?.company_details as any)?.contact_person || {};
   
-  // Invoices deduplication (same as invoice-details-step)
-  const mappedAppInvoices = appInvoices.map((inv: any) => ({ ...inv.details, id: inv.id }));
-  const mappedContractInvoices = isExistingContract ? contractInvoices.map((inv: any) => ({ ...inv.details, id: inv.id })) : [];
-  const appInvoiceIds = new Set(mappedAppInvoices.map((inv: any) => inv.id));
-  const uniqueInvoices = [...mappedContractInvoices.filter((inv: any) => !appInvoiceIds.has(inv.id)), ...mappedAppInvoices];
-  const totalFinancingAmount = uniqueInvoices.reduce((acc, inv) => acc + (inv.value || 0) * 0.8, 0);
+  // Invoices removed
+  // No remote invoice data. Keep totalFinancingAmount as 0.
+  const totalFinancingAmount = 0;
 
   // Supporting Documents
   let supportingDocs = (application as any)?.supporting_documents;
@@ -232,51 +225,9 @@ export function ReviewAndSubmitStep({
       {/* Invoices */}
       {activeStepKeys.has("invoice_details") && (
         <section className="space-y-6">
-          <div>
-            <h3 className={sectionHeaderClassName}>Invoices</h3>
-            <p className="text-sm text-muted-foreground mt-2">You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer</p>
-          </div>
-          
-          <div className="border rounded-xl overflow-hidden bg-card">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/30 border-b">
-                <tr>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Invoice</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Invoice value (RM)</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Maturity date</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Maximum financing amount (RM)</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Documents</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {uniqueInvoices.map((inv, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-4 font-bold">#{inv.number}</td>
-                    <td className="px-4 py-4">{inv.value?.toLocaleString()}</td>
-                    <td className="px-4 py-4">{inv.maturity_date ? new Date(inv.maturity_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "—"}</td>
-                    <td className="px-4 py-4">{(inv.value * 0.8).toLocaleString()}</td>
-                    <td className="px-4 py-4">
-                      {inv.document && (
-                        <div className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-0.5 text-xs">
-                          <div className="w-3.5 h-3.5 rounded-full bg-foreground flex items-center justify-center">
-                            <CheckIconSolid className="h-2 w-2 text-background" />
-                          </div>
-                          {inv.document.file_name}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="bg-muted/10 font-bold">
-                  <td colSpan={3}></td>
-                  <td className="px-4 py-4">
-                    <div>{totalFinancingAmount.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground font-normal">Total financing amount</div>
-                  </td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
+          <h3 className={sectionHeaderClassName}>Invoices</h3>
+          <div className="border rounded-xl p-4 bg-card">
+            <p className="text-sm text-muted-foreground">Invoice feature removed. Details are not available.</p>
           </div>
         </section>
       )}

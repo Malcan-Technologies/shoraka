@@ -239,15 +239,13 @@ export class ApplicationService {
 
         // Link the existing contract to this application
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
-      }  else if (structureData?.structure_type === "invoice_only") {
+      } else if (structureData?.structure_type === "invoice_only") {
         // Unlink any contract if invoice-only is selected
         updateData.contract = { disconnect: true };
 
-        // Also clear contract_id from all invoices for this application
-        await prisma.invoice.updateMany({
-          where: { application_id: id },
-          data: { contract_id: null },
-        });
+        // Invoice-related persistence removed.
+        // Previously: clear contract_id from invoices via prisma.invoice.updateMany(...)
+        // That behavior has been removed as invoice APIs were deleted.
       }
     }
 

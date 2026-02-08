@@ -18,7 +18,6 @@ import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createApplicationRouter } from "./modules/applications/controller";
 import { createContractRouter } from "./modules/contracts/controller";
-import { createInvoiceRouter } from "./modules/invoices/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
@@ -81,7 +80,6 @@ export function registerRoutes(app: Application): void {
 
   v1Router.use("/applications", createApplicationRouter());
   v1Router.use("/contracts", createContractRouter());
-  v1Router.use("/invoices", createInvoiceRouter());
 
   // Products list (admin only) – GET /v1/products, GET /v1/products/:id
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
