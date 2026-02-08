@@ -130,24 +130,53 @@ export class InvoiceService {
   async getInvoice(id: string, userId: string): Promise<Invoice> {
     return this.verifyInvoiceAccess(id, userId);
   }
-
+  
   async updateInvoice(id: string, details: any, userId: string): Promise<Invoice> {
-    const invoice = await this.verifyInvoiceAccess(id, userId);
+  const invoice = await this.verifyInvoiceAccess(id, userId);
 
-    if (invoice.status === "APPROVED") {
-      throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
-    }
-
-    const updatedDetails = {
-      ...(invoice.details as object),
-      ...details,
-    };
-
-    return this.repository.update(id, {
-      details: updatedDetails,
-      updated_at: new Date(),
-    });
+  if (invoice.status === "APPROVED") {
+    throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
   }
+
+  const prevS3Key = (invoice.details as any)?.document?.s3_key;
+  const nextS3Key = details?.document?.s3_key;
+
+  const updatedDetails = {
+    ...(invoice.details as object),
+    ...details,
+  };
+
+  const updatedInvoice = await this.repository.update(id, {
+    details: updatedDetails,
+    updated_at: new Date(),
+  });
+
+  // 🔥 delete previous version AFTER successful update
+  if (
+    prevS3Key &&
+    nextS3Key &&
+    prevS3Key !== nextS3Key
+  ) {
+    try {
+      await deleteS3Object(prevS3Key);
+      logger.info(
+        { invoiceId: id, prevS3Key, nextS3Key },
+        "Old invoice document deleted after version replacement"
+      );
+    } catch (err) {
+      logger.error(
+        { invoiceId: id, prevS3Key, err },
+        "Failed to delete old invoice document from S3"
+      );
+    }
+  }
+
+  return updatedInvoice;
+}
+
+
+
+
 
   async deleteInvoice(id: string, userId: string): Promise<void> {
     const invoice = await this.verifyInvoiceAccess(id, userId);

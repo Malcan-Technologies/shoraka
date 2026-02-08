@@ -70,6 +70,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<any>(null);
+  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
+
 
   /** Get access token for API calls */
   const { getAccessToken } = useAuthToken();
@@ -152,7 +154,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * - Update preview with file name/size
    * - Keep existing s3_key if present (for versioning later)
    */
-  const handleFileChange = (id: string, file?: File) => {
+  const handleFileChange = (
+    id: string,
+    file: File,
+    existingS3Key?: string
+  ) => {
+
     if (!file) return;
     if (file.type !== "application/pdf") {
       toast.error("Invalid file type", { description: "Only PDF files are allowed" });
@@ -167,10 +174,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     setSelectedFiles((p) => ({ ...p, [id]: file }));
 
     // Update preview with file name
+
     updateInvoiceField(id, "document", {
       file_name: file.name,
       file_size: file.size,
+      s3_key: existingS3Key, // ⭐ PRESERVE THIS
     });
+
+
 
 
     toast.success("File selected");
@@ -304,6 +315,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       if (isRowEmpty(inv)) continue;
 
       let invoiceId = inv.id;
+      let currentS3Key =
+        lastS3Keys[inv.id] ||
+        lastS3Keys[invoiceId];
+
+
 
       // 1️⃣ CREATE only if not persisted
       if (!inv.isPersisted) {
@@ -333,8 +349,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       }
 
       // 3️⃣ Upload document if user selected one
-      const file = selectedFiles[inv.id];
+      const file = selectedFiles[inv.id] || selectedFiles[invoiceId];
+
       if (!file) continue;
+
+
+      const existingS3Key = currentS3Key;
 
       const urlResp = await fetch(
         `${API_URL}/v1/invoices/${invoiceId}/upload-url`,
@@ -348,9 +368,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             fileName: file.name,
             contentType: file.type,
             fileSize: file.size,
+            existingS3Key
           }),
         }
       );
+
 
       const urlJson = await urlResp.json();
       if (!urlJson.success) {
@@ -358,6 +380,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       }
 
       const { uploadUrl, s3Key } = urlJson.data;
+      currentS3Key = s3Key;
+
+      console.log("VERSION DEBUG", {
+        invoiceId: inv.id,
+        existingS3Key: inv.document?.s3_key,
+      });
 
       await fetch(uploadUrl, {
         method: "PUT",
@@ -373,6 +401,28 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           s3_key: s3Key,
         },
       });
+      setLastS3Keys((prev) => ({
+        ...prev,
+        [invoiceId]: s3Key,
+      }));
+
+      setInvoices((prev) =>
+        prev.map((row) =>
+          row.id === inv.id
+            ? {
+              ...row,
+              id: invoiceId,          // in case it was newly created
+              isPersisted: true,
+              document: {
+                file_name: file.name,
+                file_size: file.size,
+                s3_key: s3Key,         // ⭐ THIS IS THE KEY FIX
+              },
+            }
+            : row
+        )
+      );
+
     }
 
 
@@ -445,7 +495,16 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         if (mounted) {
           setInvoices(mapped);
+
+          const keys: Record<string, string> = {};
+          mapped.forEach((inv) => {
+            if (inv.document?.s3_key) {
+              keys[inv.id] = inv.document.s3_key;
+            }
+          });
+          setLastS3Keys(keys);
         }
+
       } catch (err) {
         console.error("Failed to load invoices", err);
       }
@@ -503,7 +562,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             </div>
 
             {/* Available Facility */}
-            {/* Available Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Available facility</div>
 
@@ -527,8 +585,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                 )}
               </div>
             </div>
-
-
           </div>
         </section>
       )}
@@ -579,7 +635,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
                   return (
-                    // <TableRow key={inv.id} className={invalid ? "bg-destructive/10" : ""}>
                     <TableRow
                       key={inv.id}
                       className="hover:bg-muted/50"
@@ -593,24 +648,16 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           placeholder="#Invoice number"
                           disabled={isDisabled}
                         />
-
                       </TableCell>
 
                       {/* Status */}
-                      {/* <TableCell>
-  <span className="text-sm font-medium text-muted-foreground">
-    {inv.status || "Draft"}
-  </span>
-</TableCell> */}
                       <TableCell>
                         <StatusBadge status={inv.status} />
                       </TableCell>
 
 
-
                       {/* Maturity Date */}
                       <TableCell>
-
                         <Input
                           type="date"
                           value={inv.maturity_date}
@@ -666,8 +713,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         />
                       </TableCell>
 
-
-                      {/* Financing Ratio */}
                       {/* Financing Ratio */}
                       <TableCell>
                         <div className="w-[180px] space-y-2">
@@ -697,17 +742,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                               updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
                             }
                             className="
-        relative
-        [&_[data-orientation=horizontal]]:h-1.5
-        [&_[data-orientation=horizontal]]:bg-muted
-        [&_[data-orientation=horizontal]>span]:bg-destructive
-        [&_[role=slider]]:h-4
-        [&_[role=slider]]:w-4
-        [&_[role=slider]]:border-2
-        [&_[role=slider]]:border-destructive
-        [&_[role=slider]]:bg-background
-        [&_[role=slider]]:shadow-none
-      "
+                              relative
+                              [&_[data-orientation=horizontal]]:h-1.5
+                              [&_[data-orientation=horizontal]]:bg-muted
+                              [&_[data-orientation=horizontal]>span]:bg-destructive
+                              [&_[role=slider]]:h-4
+                              [&_[role=slider]]:w-4
+                              [&_[role=slider]]:border-2
+                              [&_[role=slider]]:border-destructive
+                              [&_[role=slider]]:bg-background
+                              [&_[role=slider]]:shadow-none
+                            "
                           />
 
                           {/* Min / Max labels */}
@@ -717,26 +762,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           </div>
                         </div>
                       </TableCell>
-
-
-
-                      {/* <TableCell>
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium">{ratio}%</div>
-                          <input
-                            type="range"
-                            min="60"
-                            max="80"
-                            step="1"
-                            value={ratio}
-                            onChange={(e) =>
-                              updateInvoiceField(inv.id, "financing_ratio_percent", Number(e.target.value))
-                            }
-                            disabled={isUploading}
-                            className="w-full"
-                          />
-                        </div>
-                      </TableCell> */}
 
                       {/* Financing Amount */}
                       <TableCell>
@@ -768,12 +793,20 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      if (inv.document?.s3_key) {
+                                        setLastS3Keys((prev) => ({
+                                          ...prev,
+                                          [inv.id]: inv.document!.s3_key!,
+                                        }));
+                                      }
+
                                       updateInvoiceField(inv.id, "document", null);
                                       setSelectedFiles((prev) => {
                                         const copy = { ...prev };
                                         delete copy[inv.id];
                                         return copy;
                                       });
+
                                     }}
                                     className={cn(
                                       "shrink-0",
@@ -807,7 +840,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                     disabled={isDisabled}
                                     onChange={(e) => {
                                       const f = e.target.files?.[0];
-                                      if (f) handleFileChange(inv.id, f);
+                                      if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
+
                                     }}
                                   />
                                 </label>
