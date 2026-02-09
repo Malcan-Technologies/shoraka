@@ -428,38 +428,48 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * FINANCIAL VALIDATION
    *
    * For invoice_only structure:
-   * - NO validation required
-   * - Users can save with empty or partial invoices
+   * - MUST have at least one valid invoice (ALL columns filled: number, value, date, document)
+   * - Validate partial rows (if user touches a field, they must complete it)
+   * - NO financing ratio validation (60-80%)
+   * - NO facility limit validation
    * 
    * For existing contracts: 
    * - MUST have at least one valid invoice (ALL columns filled: number, value, date, document)
    * - Cannot save without at least one complete invoice
    * - Validate financing ratios 60-80% and facility limits
+   * - Validate partial rows
    * 
    * For new_contract:
    * - Validate financing ratios 60-80% and facility limits
    * - Allow empty rows
+   * - Validate partial rows
    */
   let validationError = "";
 
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
-  // For invoice_only: NO validation - skip all checks
-  if (!isInvoiceOnly) {
-    // For existing contracts ONLY: require at least one FULLY valid invoice
-    if (isExistingContract) {
-      const hasAtLeastOneValidInvoice =
-        invoices.some(
-          (inv) => !isRowEmpty(inv) && validateRow(inv)
-        ) || contractInvoices.length > 0;
+  // PARTIAL ROWS CHECK - applies to ALL structures (including invoice_only)
+  // If user starts filling a row, they must complete all required fields
+  if (hasPartialRows) {
+    validationError = "Please complete all invoice details. Rows cannot have partial data.";
+  }
 
-      if (!hasAtLeastOneValidInvoice) {
-        validationError =
-          "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
-      }
+  // For invoice_only and existing_contract: require at least one valid invoice
+  if (!validationError && (isInvoiceOnly || isExistingContract)) {
+    const hasAtLeastOneValidInvoice =
+      invoices.some(
+        (inv) => !isRowEmpty(inv) && validateRow(inv)
+      ) || (isExistingContract && contractInvoices.length > 0);
+
+    if (!hasAtLeastOneValidInvoice) {
+      validationError =
+        "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
     }
+  }
 
+  // For invoice_only: stop here - no other validation
+  if (!isInvoiceOnly && !validationError) {
     // Check financing ratios are within valid range (only for non-empty rows)
     const invalidRatioInvoice = invoices.find(
       (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
@@ -643,14 +653,25 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * EFFECT: NOTIFY PARENT OF DATA CHANGES
    *
    * Send current state to parent page so it can decide when to enable Save button.
-   * isValid is FALSE if there are any partial rows (user touched but didn't complete them)
-   * or if existing contract has no valid invoices.
+   * 
+   * For invoice_only: 
+   *   - isValid = no partial rows and no validation error (but no minimum invoice requirement)
+   * For existing_contract: 
+   *   - isValid requires all rows valid, no partial rows, and no errors
+   * For new_contract: 
+   *   - isValid checks for no partial rows and no errors
    */
   React.useEffect(() => {
+    let isValid = true;
+    
+    // All structures must have no partial rows
+    // invoice_only also needs no validation errors (but those are only partial rows)
+    isValid = !hasPartialRows && !validationError;
+
     onDataChange?.({
       invoices,
       totalFinancingAmount,
-      isValid: allRowsValid && !hasPartialRows && !validationError,
+      isValid,
       validationError,
       hasPendingChanges: hasUnsavedChanges,
       isUploading: false,
@@ -664,7 +685,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     hasPendingFiles,
     allRowsValid,
     hasPartialRows,
-    validationError
+    validationError,
+    isInvoiceOnly,
+    isExistingContract
   ]);
 
 
