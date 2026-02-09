@@ -421,7 +421,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   };
 
   const handleFileUpload = async (type: "contract" | "consent", file: File) => {
-    if (!contractId) return;
+    // if (!contractId) return;
 
     // Validate file
     if (file.type !== "application/pdf") {
