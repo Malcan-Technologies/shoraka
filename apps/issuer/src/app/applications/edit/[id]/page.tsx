@@ -298,7 +298,10 @@ export default function EditApplicationPage() {
   // Apply session-based structure override to workflow (UI-only)
   const effectiveWorkflow = React.useMemo(() => {
     if (!productWorkflow.length) return [];
-    if (!isStructureResolved) return [];
+
+    // If structure not resolved yet, show full workflow
+    // Only filter after user has made structure choice
+    if (!isStructureResolved) return productWorkflow;
 
     if (
       effectiveStructureType === "existing_contract" ||
