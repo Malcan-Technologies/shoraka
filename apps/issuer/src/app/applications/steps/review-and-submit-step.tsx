@@ -6,16 +6,18 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
+import { useS3ViewUrl } from "@/hooks/use-s3";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
+import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 
 
 /**
  * REVIEW AND SUBMIT STEP
- * 
+ *
  * Final step where user reviews all information provided in previous steps.
  * This is a read-only summary of:
  * 1. Financing Details
@@ -38,7 +40,6 @@ const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-6 gap-y-4 mt-4 px-3";
-const inputClassName = "flex items-center text-foreground min-h-[28px]";
 
 export function ReviewAndSubmitStep({
   applicationId,
@@ -47,43 +48,74 @@ export function ReviewAndSubmitStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
   const contractId = (application as any)?.contract?.id || (application as any)?.contract_id;
-  const productId = (application as any)?.financing_type?.product_id;
 
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
 
-  const { corporateInfo, bankAccountDetails, isLoading: isLoadingInfo } = useCorporateInfo(organizationId);
-  const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
-  const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
+  // Selected product and workflow
+  const selectedProduct = React.useMemo(() => {
+    if (!productsData?.products || !application?.financing_type?.product_id) {
+      return null;
+    }
 
-  const { data: invoices = [], isLoading: isLoadingInvoices } =
-    useInvoicesByApplication(applicationId);
+    return productsData.products.find(
+      (p: any) => p.id === application.financing_type.product_id
+    );
+  }, [productsData, application]);
 
-    const selectedProduct = React.useMemo(() => {
-  if (!productsData?.products || !application?.financing_type?.product_id) {
-    return null;
-  }
+  // Extract workflow step keys to determine which sections to show
+  const workflowStepKeys = React.useMemo(() => {
+    if (!selectedProduct?.workflow) return new Set<ApplicationStepKey>();
 
-  return productsData.products.find(
-    (p: any) => p.id === application.financing_type.product_id
+    const keys = new Set<ApplicationStepKey>();
+    selectedProduct.workflow.forEach((step: any) => {
+      const key = getStepKeyFromStepId(step.id);
+      if (key) keys.add(key);
+    });
+    return keys;
+  }, [selectedProduct]);
+
+  // Determine which sections to show based on workflow
+  const showFinancingDetails = workflowStepKeys.has("financing_type");
+  const showContractSection = workflowStepKeys.has("contract_details");
+  const showInvoiceSection = workflowStepKeys.has("invoice_details");
+  const showCompanySection = workflowStepKeys.has("company_details");
+  const showSupportingDocsSection = workflowStepKeys.has("supporting_documents");
+
+  // Conditionally fetch data only if sections are needed
+  const { corporateInfo, bankAccountDetails, isLoading: isLoadingInfo } = useCorporateInfo(
+    showCompanySection ? organizationId : undefined
   );
-}, [productsData, application]);
-
-
-const financingTypeConfig = React.useMemo(() => {
-  if (!selectedProduct?.workflow) return null;
-
-  const step = selectedProduct.workflow.find(
-    (s: any) => s.name?.toLowerCase() === "financing type"
+  const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(
+    showCompanySection ? organizationId : undefined
+  );
+  const { data: contract, isLoading: isLoadingContract } = useContract(
+    showContractSection && contractId ? contractId : ""
+  );
+  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoicesByApplication(
+    showInvoiceSection ? applicationId : ""
   );
 
-  return step?.config || null;
-}, [selectedProduct]);
+  const financingTypeConfig = React.useMemo(() => {
+    if (!selectedProduct?.workflow) return null;
+
+    const step = selectedProduct.workflow.find(
+      (s: any) => getStepKeyFromStepId(s.id) === "financing_type"
+    );
+
+    return step?.config || null;
+  }, [selectedProduct]);
+
+  // Get the product image S3 key from config
+  const productImageS3Key = financingTypeConfig?.image?.s3_key || "";
+  const { data: productImageUrl, isLoading: isLoadingProductImage } = useS3ViewUrl(productImageS3Key || null);
 
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
    */
   const combinedList = React.useMemo(() => {
+    if (!showCompanySection) return [];
+
     const directorsDisplay = entitiesData?.directorsDisplay ?? [];
     const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
     const corporateShareholders = entitiesData?.corporateShareholders ?? [];
@@ -149,48 +181,44 @@ const financingTypeConfig = React.useMemo(() => {
     });
 
     return result;
-  }, [entitiesData]);
+  }, [entitiesData, showCompanySection]);
 
-  // Invoices
+  // Invoices and facility calculation
   // =========================
-// Facility calculation (single source of truth)
-// =========================
+  const financingStructure = application?.financing_structure as any;
+  const structureType = financingStructure?.structure_type;
 
-const financingStructure = application?.financing_structure as any;
-const structureType = financingStructure?.structure_type;
+  const contractDetails = (contract?.contract_details as any) || {};
 
-const contractDetails = (contract?.contract_details as any) || {};
+  const approvedFacility = Number(contractDetails.approved_facility || 0);
+  const contractValue = Number(contractDetails.value || 0);
 
-const approvedFacility = Number(contractDetails.approved_facility || 0);
-const contractValue = Number(contractDetails.value || 0);
+  // Base facility depends on structure
+  const baseFacility =
+    structureType === "new_contract"
+      ? contractValue
+      : approvedFacility;
 
-// Base facility depends on structure
-const baseFacility =
-  structureType === "new_contract"
-    ? contractValue
-    : approvedFacility;
+  // Sum financing from invoices
+  const totalFinancingAmount = invoices.reduce((sum: number, invoice: any) => {
+    const d = invoice.details || {};
+    const value = Number(d.value || 0);
+    const ratio = (d.financing_ratio_percent ?? 60) / 100;
+    return sum + value * ratio;
+  }, 0);
 
-// Sum financing from invoices
-const totalFinancingAmount = invoices.reduce((sum: number, invoice: any) => {
-  const d = invoice.details || {};
-  const value = Number(d.value || 0);
-  const ratio = (d.financing_ratio_percent ?? 60) / 100;
-  return sum + value * ratio;
-}, 0);
+  // Always calculated, never stored
+  const calculatedAvailableFacility =
+    baseFacility - totalFinancingAmount;
 
-// Always calculated, never stored
-const calculatedAvailableFacility =
-  baseFacility - totalFinancingAmount;
+  // Determine which data is actually loading based on what sections are shown
+  const isLoading =
+    isLoadingApp ||
+    isLoadingProducts ||
+    (showCompanySection && (isLoadingInfo || isLoadingEntities)) ||
+    (showContractSection && contractId && isLoadingContract) ||
+    (showInvoiceSection && isLoadingInvoices);
 
-
- const isLoading =
-  isLoadingApp ||
-  isLoadingInfo ||
-  isLoadingEntities ||
-  isLoadingInvoices ||
-  isLoadingProducts ||
-  (!!contractId && isLoadingContract);
- 
 
 
 
@@ -220,159 +248,183 @@ const calculatedAvailableFacility =
     return `RM ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatAddress = (addr: any) => {
-    if (!addr) return "—";
-    const parts = [addr.line1, addr.line2, addr.city, addr.postalCode, addr.state, addr.country].filter(Boolean);
-    return parts.length ? parts.join(", ") : "—";
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "—";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
-  // Data extraction
+  const formatAddress = (addr: any) => {
+    if (!addr) return "--------";
+    const parts = [addr.line1, addr.line2, addr.city, addr.postalCode, addr.state, addr.country].filter(Boolean);
+    return parts.length ? parts.join(", ") : "--------";
+  };
 
-
-
-
-  const showContractSection =
-    structureType === "new_contract" || structureType === "existing_contract";
-
-  const showInvoiceSection = true; // invoices always applicable
-
-  const showCompanySection = true;
-  const showSupportingDocsSection = true;
-
-
-  const financingType = (application?.financing_type as any) || {};
+  // Extract data for sections (only if sections are shown)
   const customerDetails = (contract?.customer_details as any) || {};
-  const basicInfo = corporateInfo?.basicInfo;
-  const businessAddress = corporateInfo?.addresses?.business;
-  const registeredAddress = corporateInfo?.addresses?.registered;
-  const contactPerson = (application?.company_details as any)?.contact_person || {};
-
+  const basicInfo = showCompanySection ? corporateInfo?.basicInfo : null;
+  const businessAddress = showCompanySection ? corporateInfo?.addresses?.business : null;
+  const registeredAddress = showCompanySection ? corporateInfo?.addresses?.registered : null;
+  const contactPerson = showCompanySection ? ((application?.company_details as any)?.contact_person || {}) : {};
 
   // Supporting Documents
-  let supportingDocs = (application as any)?.supporting_documents;
+  let supportingDocs = showSupportingDocsSection ? ((application as any)?.supporting_documents) : null;
   if (typeof supportingDocs === "string") supportingDocs = JSON.parse(supportingDocs);
   if (supportingDocs?.supporting_documents) supportingDocs = supportingDocs.supporting_documents;
   const categories = supportingDocs?.categories || [];
 
   return (
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
-      <section className="space-y-6">
-  <h3 className={sectionHeaderClassName}>Financing details</h3>
+      {/* Financing details */}
+      {showFinancingDetails && (
+        <section className="space-y-6">
+          <h3 className={sectionHeaderClassName}>Financing details</h3>
 
-  {financingTypeConfig ? (
-    <div className="border rounded-xl px-4 py-3 flex items-start gap-4">
-      <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-        {/* optional icon */}
-      </div>
+          {financingTypeConfig ? (
+            <div className="border rounded-xl px-4 py-4 flex items-start gap-4 bg-primary/5">
+              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {isLoadingProductImage ? (
+                  <Skeleton className="w-full h-full" />
+                ) : productImageUrl ? (
+                  <img
+                    src={productImageUrl}
+                    alt={financingTypeConfig.name || "Product"}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-primary text-xl font-serif">&ldquo;</span>
+                )}
+              </div>
 
-      <div>
-        <div className="text-base font-medium">
-          {financingTypeConfig.name}
-        </div>
-        <div className="text-sm text-muted-foreground">
-          {financingTypeConfig.description}
-        </div>
-      </div>
-    </div>
-  ) : (
-    <div className="text-sm text-muted-foreground italic">
-      Financing type not selected
-    </div>
-  )}
-</section>
+              <div>
+                <div className="text-base font-semibold">
+                  {financingTypeConfig.name}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {financingTypeConfig.description}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground italic">
+              Financing type not selected
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Contract */}
       {showContractSection && contractId && (
-
         <section className="space-y-6">
           <h3 className={sectionHeaderClassName}>Contract</h3>
           <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
-            <div className={valueClassName}>{contractDetails.title || "—"}</div>
+            <div className={valueClassName}>{contractDetails.title || "--------"}</div>
 
             <div className={labelClassName}>Contract status</div>
             <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
 
             <div className={labelClassName}>Customer</div>
-            <div className={valueClassName}>{customerDetails.name || "—"}</div>
+            <div className={valueClassName}>{customerDetails.name || "--------"}</div>
 
             <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>{formatCurrency(contractDetails.value)}</div>
+            <div className={valueClassName}>{contractDetails.value ? formatCurrency(contractDetails.value) : "--------"}</div>
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "—"}
+              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "--------"}
             </div>
 
-<div className={labelClassName}>Utilised facility</div>
-<div className={valueClassName}>
-  {structureType === "existing_contract"
-    ? formatCurrency(totalFinancingAmount)
-    : "—"}
-</div>
+            <div className={labelClassName}>Utilised facility</div>
+            <div className={valueClassName}>
+              {structureType === "existing_contract"
+                ? formatCurrency(totalFinancingAmount)
+                : "--------"}
+            </div>
 
-
-
-<div className={labelClassName}>Available facility</div>
-<div
-  className={cn(
-    valueClassName,
-    calculatedAvailableFacility < 0 && "text-destructive"
-  )}
->
-  {formatCurrency(Math.max(calculatedAvailableFacility, 0))}
-
-  {structureType === "new_contract" && (
-    <div className="text-xs text-muted-foreground mt-1">
-      * Subject to credit approval
-    </div>
-  )}
-</div>
-
-
+            <div className={labelClassName}>Available facility</div>
+            <div className={valueClassName}>
+              {structureType === "existing_contract" && calculatedAvailableFacility > 0
+                ? formatCurrency(calculatedAvailableFacility)
+                : "--------"}
+            </div>
           </div>
         </section>
       )}
 
       {/* Invoices */}
       {showInvoiceSection && (
-
         <section className="space-y-6">
           <h3 className={sectionHeaderClassName}>Invoices</h3>
+          <p className="text-sm text-muted-foreground">
+            You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+          </p>
 
-          <div className="border rounded-xl divide-y bg-card">
+          <div className="border rounded-xl bg-card overflow-hidden">
             {invoices.length === 0 ? (
               <div className="p-4 text-sm text-muted-foreground italic">
                 No invoices added
               </div>
             ) : (
-              invoices.map((invoice: any) => {
-                const details = invoice.details || {};
+              <>
+                {/* Table Header */}
+                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b bg-muted/30">
+                  <div className="text-sm font-medium text-muted-foreground">Invoice</div>
+                  <div className="text-sm font-medium text-muted-foreground">Invoice value (RM)</div>
+                  <div className="text-sm font-medium text-muted-foreground">Maturity date</div>
+                  <div className="text-sm font-medium text-muted-foreground">Maximum financing amount(RM)</div>
+                  <div className="text-sm font-medium text-muted-foreground w-[140px]">Documents</div>
+                </div>
+                {/* Table Rows */}
+                {invoices.map((invoice: any) => {
+                  const details = invoice.details || {};
+                  const invoiceValue = Number(details.value || 0);
+                  const ratio = (details.financing_ratio_percent ?? 60) / 100;
+                  const maxFinancing = invoiceValue * ratio;
 
-                return (
-                  <div key={invoice.id} className="p-4 grid grid-cols-2 gap-y-2">
-                    <div className={labelClassName}>Invoice number</div>
-                    <div className={valueClassName}>{details.number || "—"}</div>
-
-                    <div className={labelClassName}>Invoice value</div>
-                    <div className={valueClassName}>
-                      {details.value ? formatCurrency(details.value) : "—"}
+                  return (
+                    <div key={invoice.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b last:border-b-0">
+                      <div className={valueClassName}>#{details.number || "—"}</div>
+                      <div className={valueClassName}>
+                        {invoiceValue > 0 ? invoiceValue.toLocaleString() : "—"}
+                      </div>
+                      <div className={valueClassName}>{formatDate(details.maturity_date)}</div>
+                      <div className={valueClassName}>
+                        {maxFinancing > 0 ? maxFinancing.toLocaleString() : "—"}
+                      </div>
+                      <div className="w-[140px]">
+                        {details.document?.file_name ? (
+                          <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                            <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                            </div>
+                            <span className="text-[14px] font-medium truncate">{details.document.file_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </div>
                     </div>
-
-                    <div className={labelClassName}>Maturity date</div>
-                    <div className={valueClassName}>{details.maturity_date || "—"}</div>
-
-                    <div className={labelClassName}>Document</div>
+                  );
+                })}
+                {/* Total Row */}
+                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-muted/20">
+                  <div></div>
+                  <div></div>
+                  <div></div>
+                  <div className="text-left">
                     <div className={valueClassName}>
-                      {details.document?.file_name || "—"}
+                      {totalFinancingAmount.toLocaleString()}
                     </div>
+                    <div className="text-xs text-muted-foreground">Total financing amount</div>
                   </div>
-                );
-              })
+                  <div className="w-[140px]"></div>
+                </div>
+              </>
             )}
           </div>
         </section>
-
       )}
 
       {/* Company Info */}
@@ -382,55 +434,61 @@ const calculatedAvailableFacility =
             <h3 className={sectionHeaderClassName}>Company info</h3>
             <div className={gridClassName}>
               <div className={labelClassName}>Company name</div>
-              <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
+              <div className={valueClassName}>{basicInfo?.businessName || "--------"}</div>
 
               <div className={labelClassName}>Type of entity</div>
-              <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
+              <div className={valueClassName}>{basicInfo?.entityType || "--------"}</div>
 
               <div className={labelClassName}>SSM no</div>
-              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
+              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "--------"}</div>
 
               <div className={labelClassName}>Industry</div>
-              <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
+              <div className={valueClassName}>{basicInfo?.industry || "--------"}</div>
 
               <div className={labelClassName}>Nature of business</div>
               <div className={valueClassName}>Private</div>
 
               <div className={labelClassName}>Number of employees</div>
-              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
+              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "--------"}</div>
             </div>
           </section>
 
           {/* Director & Shareholders */}
           <section className="space-y-6">
             <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-            <div className={gridClassName}>
-              {(combinedList || []).map((item: any) => (
-                <React.Fragment key={item.key}>
-                  <div className={labelClassName}>{item.roleLabel}</div>
-                  <div className="flex items-center gap-3 h-11">
-                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap truncate">
-                      {item.name}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                      {item.ownership}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    {item.statusVerified ? (
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-[17px] leading-7 text-green-600">
-                          {item.statusType === "kyb" ? "KYB" : "KYC"}
-                        </span>
+            {combinedList.length === 0 ? (
+              <div className="text-sm text-muted-foreground px-3">
+                No directors or shareholders found
+              </div>
+            ) : (
+              <div className={gridClassName}>
+                {combinedList.map((item: any) => (
+                  <React.Fragment key={item.key}>
+                    <div className={labelClassName}>{item.roleLabel}</div>
+                    <div className="flex items-center gap-3 h-11">
+                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap truncate">
+                        {item.name}
                       </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
+                      <div className="h-4 w-px bg-border" />
+                      <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                        {item.ownership}
+                      </div>
+                      <div className="h-4 w-px bg-border" />
+                      {item.statusVerified ? (
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                          <span className="text-[17px] leading-7 text-green-600">
+                            {item.statusType === "kyb" ? "KYB" : "KYC"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Banking details */}
@@ -438,10 +496,10 @@ const calculatedAvailableFacility =
             <h3 className={sectionHeaderClassName}>Banking details</h3>
             <div className={gridClassName}>
               <div className={labelClassName}>Bank name</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "--------"}</div>
 
               <div className={labelClassName}>Bank account number</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "--------"}</div>
             </div>
           </section>
 
@@ -462,16 +520,16 @@ const calculatedAvailableFacility =
             <h3 className={sectionHeaderClassName}>Contact Person</h3>
             <div className={gridClassName}>
               <div className={labelClassName}>Applicant name</div>
-              <div className={valueClassName}>{contactPerson.name || "—"}</div>
+              <div className={valueClassName}>{contactPerson.name || "--------"}</div>
 
               <div className={labelClassName}>Applicant position</div>
-              <div className={valueClassName}>{contactPerson.position || "—"}</div>
+              <div className={valueClassName}>{contactPerson.position || "--------"}</div>
 
               <div className={labelClassName}>Applicant IC no</div>
-              <div className={valueClassName}>{contactPerson.ic || "—"}</div>
+              <div className={valueClassName}>{contactPerson.ic || "--------"}</div>
 
               <div className={labelClassName}>Applicant contact</div>
-              <div className={valueClassName}>{contactPerson.contact || "—"}</div>
+              <div className={valueClassName}>{contactPerson.contact || "--------"}</div>
             </div>
           </section>
         </>
@@ -486,11 +544,11 @@ const calculatedAvailableFacility =
               <div key={i} className="flex justify-between items-center py-2">
                 <span className={labelClassName}>{doc.title}</span>
                 {doc.file ? (
-                  <div className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-xs">
-                    <div className="w-3.5 h-3.5 rounded-full bg-foreground flex items-center justify-center">
-                      <CheckIconSolid className="h-2 w-2 text-background" />
+                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                     </div>
-                    <span className="font-medium">{doc.file.file_name}</span>
+                    <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
                   </div>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">Not provided</span>
