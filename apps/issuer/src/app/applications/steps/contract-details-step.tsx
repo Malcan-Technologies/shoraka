@@ -109,7 +109,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
   /**
    * CREATE CONTRACT IF IT DOESN'T EXIST
-   * 
+   *
    * FIX: Use ref guard to prevent duplicate contract creation due to React re-renders
    * before contractId is populated from query invalidation.
    */
@@ -542,8 +542,8 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           <Label className={labelClassName}>Contract end date</Label>
 <Input
   type="date"
-  value={formData.contract.start_date?.slice(0, 10) || ""}
-  onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
+  value={formData.contract.end_date?.slice(0, 10) || ""}
+  onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
   className={inputClassName}
 />
 
