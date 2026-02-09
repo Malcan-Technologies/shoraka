@@ -427,50 +427,53 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * FINANCIAL VALIDATION
    *
-   * Validate financing ratios are within 60-80% range and total financing
-   * does not exceed approved facility or contract value.
+   * For invoice_only structure:
+   * - NO validation required
+   * - Users can save with empty or partial invoices
    * 
    * For existing contracts: 
    * - MUST have at least one valid invoice (ALL columns filled: number, value, date, document)
    * - Cannot save without at least one complete invoice
+   * - Validate financing ratios 60-80% and facility limits
    * 
-   * For other structures (new_contract, invoice_only):
-   * - Allow empty rows (user can add and leave blank)
-   * - Only validate partial rows (if user starts filling, they must complete)
+   * For new_contract:
+   * - Validate financing ratios 60-80% and facility limits
+   * - Allow empty rows
    */
   let validationError = "";
 
-  // For existing contracts ONLY: require at least one FULLY valid invoice
+  const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
+  // For invoice_only: NO validation - skip all checks
+  if (!isInvoiceOnly) {
+    // For existing contracts ONLY: require at least one FULLY valid invoice
+    if (isExistingContract) {
+      const hasAtLeastOneValidInvoice =
+        invoices.some(
+          (inv) => !isRowEmpty(inv) && validateRow(inv)
+        ) || contractInvoices.length > 0;
 
-
-  if (isExistingContract) {
-    const hasAtLeastOneValidInvoice =
-      invoices.some(
-        (inv) => !isRowEmpty(inv) && validateRow(inv)
-      ) || contractInvoices.length > 0;
-
-    if (!hasAtLeastOneValidInvoice) {
-      validationError =
-        "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+      if (!hasAtLeastOneValidInvoice) {
+        validationError =
+          "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+      }
     }
-  }
 
+    // Check financing ratios are within valid range (only for non-empty rows)
+    const invalidRatioInvoice = invoices.find(
+      (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
+    );
+    if (invalidRatioInvoice) {
+      validationError = "Financing ratio must be between 60% and 80%.";
+    }
 
-  // Check financing ratios are within valid range (only for non-empty rows)
-  const invalidRatioInvoice = invoices.find(
-    (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
-  );
-  if (invalidRatioInvoice) {
-    validationError = "Financing ratio must be between 60% and 80%.";
-  }
-
-  // Check if total financing exceeds facility limits
-  if (!validationError && totalFinancingAmount > facilityLimit) {
-    validationError = `Total financing amount (${formatRM(
-      totalFinancingAmount
-    )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+    // Check if total financing exceeds facility limits
+    if (!validationError && totalFinancingAmount > facilityLimit) {
+      validationError = `Total financing amount (${formatRM(
+        totalFinancingAmount
+      )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+    }
   }
 
 
