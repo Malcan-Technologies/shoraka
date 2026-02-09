@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
+import { useInvoicesByApplication } from "@/hooks/use-invoices";
+
 
 /**
  * REVIEW AND SUBMIT STEP
@@ -50,7 +52,11 @@ export function ReviewAndSubmitStep({
   const { corporateInfo, bankAccountDetails, isLoading: isLoadingInfo } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
+
+const { data: invoices = [], isLoading: isLoadingInvoices } =
+  useInvoicesByApplication(applicationId);
+
+
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
@@ -128,7 +134,14 @@ export function ReviewAndSubmitStep({
   const isExistingContract = financingStructure?.structure_type === "existing_contract";
   const existingContractId = financingStructure?.existing_contract_id;
 
-  const isLoading = isLoadingApp || isLoadingInfo || isLoadingEntities || (!!contractId && isLoadingContract) || isLoadingProducts;
+  const isLoading =
+  isLoadingApp ||
+  isLoadingInfo ||
+  isLoadingEntities ||
+  isLoadingInvoices ||
+  (!!contractId && isLoadingContract);
+
+
 
   // Notify parent that this step is valid (it's read-only)
   React.useEffect(() => {
@@ -163,15 +176,19 @@ export function ReviewAndSubmitStep({
   };
 
   // Data extraction
-  const selectedProduct = productsData?.products?.find((p: any) => p.id === productId);
-  const workflow = selectedProduct?.workflow || [];
-  
-  // Map workflow steps to visible sections
-  const activeStepKeys = new Set(workflow.map((step: any) => {
-    const rawKey = step.id.replace(/_\d+$/, "");
-    if (rawKey === "verify_company_info") return "company_details";
-    return rawKey;
-  }));
+
+
+
+const structureType = financingStructure?.structure_type;
+
+const showContractSection =
+  structureType === "new_contract" || structureType === "existing_contract";
+
+const showInvoiceSection = true; // invoices always applicable
+
+const showCompanySection = true;
+const showSupportingDocsSection = true;
+
 
   const financingType = (application?.financing_type as any) || {};
   const contractDetails = (contract?.contract_details as any) || {};
@@ -194,7 +211,8 @@ export function ReviewAndSubmitStep({
   return (
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Contract */}
-      {activeStepKeys.has("contract_details") && (
+        {showContractSection && contractId && (
+
         <section className="space-y-6">
           <h3 className={sectionHeaderClassName}>Contract</h3>
           <div className={gridClassName}>
@@ -223,17 +241,48 @@ export function ReviewAndSubmitStep({
       )}
 
       {/* Invoices */}
-      {activeStepKeys.has("invoice_details") && (
+        {showInvoiceSection && (
+
         <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Invoices</h3>
-          <div className="border rounded-xl p-4 bg-card">
-            <p className="text-sm text-muted-foreground">Invoice feature removed. Details are not available.</p>
+  <h3 className={sectionHeaderClassName}>Invoices</h3>
+
+  <div className="border rounded-xl divide-y bg-card">
+    {invoices.length === 0 ? (
+      <div className="p-4 text-sm text-muted-foreground italic">
+        No invoices added
+      </div>
+    ) : (
+      invoices.map((invoice: any) => {
+        const details = invoice.details || {};
+
+        return (
+          <div key={invoice.id} className="p-4 grid grid-cols-2 gap-y-2">
+            <div className={labelClassName}>Invoice number</div>
+            <div className={valueClassName}>{details.number || "—"}</div>
+
+            <div className={labelClassName}>Invoice value</div>
+            <div className={valueClassName}>
+              {details.value ? formatCurrency(details.value) : "—"}
+            </div>
+
+            <div className={labelClassName}>Maturity date</div>
+            <div className={valueClassName}>{details.maturity_date || "—"}</div>
+
+            <div className={labelClassName}>Document</div>
+            <div className={valueClassName}>
+              {details.document?.file_name || "—"}
+            </div>
           </div>
-        </section>
+        );
+      })
+    )}
+  </div>
+</section>
+
       )}
 
       {/* Company Info */}
-      {activeStepKeys.has("company_details") && (
+      {showCompanySection && (
         <>
           <section className="space-y-6">
             <h3 className={sectionHeaderClassName}>Company info</h3>
@@ -335,7 +384,7 @@ export function ReviewAndSubmitStep({
       )}
 
       {/* Legal docs */}
-      {activeStepKeys.has("supporting_documents") && (
+      {showSupportingDocsSection && (
         <section className="space-y-6">
           <h3 className={sectionHeaderClassName}>Legal docs</h3>
           <div className="space-y-3 px-3">
