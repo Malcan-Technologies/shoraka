@@ -49,13 +49,35 @@ export function ReviewAndSubmitStep({
   const contractId = (application as any)?.contract?.id || (application as any)?.contract_id;
   const productId = (application as any)?.financing_type?.product_id;
 
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
+
   const { corporateInfo, bankAccountDetails, isLoading: isLoadingInfo } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
 
-const { data: invoices = [], isLoading: isLoadingInvoices } =
-  useInvoicesByApplication(applicationId);
+  const { data: invoices = [], isLoading: isLoadingInvoices } =
+    useInvoicesByApplication(applicationId);
 
+    const selectedProduct = React.useMemo(() => {
+  if (!productsData?.products || !application?.financing_type?.product_id) {
+    return null;
+  }
+
+  return productsData.products.find(
+    (p: any) => p.id === application.financing_type.product_id
+  );
+}, [productsData, application]);
+
+
+const financingTypeConfig = React.useMemo(() => {
+  if (!selectedProduct?.workflow) return null;
+
+  const step = selectedProduct.workflow.find(
+    (s: any) => s.name?.toLowerCase() === "financing type"
+  );
+
+  return step?.config || null;
+}, [selectedProduct]);
 
 
   /**
@@ -65,7 +87,7 @@ const { data: invoices = [], isLoading: isLoadingInvoices } =
     const directorsDisplay = entitiesData?.directorsDisplay ?? [];
     const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
     const corporateShareholders = entitiesData?.corporateShareholders ?? [];
-    
+
     const seen = new Set<string>();
     const result: any[] = [];
 
@@ -114,7 +136,7 @@ const { data: invoices = [], isLoading: isLoadingInvoices } =
       const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
       const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
       const kybApproved = corp.approveStatus === "APPROVED";
-      
+
       result.push({
         type: "corporate_shareholder",
         name: corp.businessName || corp.companyName || "—",
@@ -130,16 +152,45 @@ const { data: invoices = [], isLoading: isLoadingInvoices } =
   }, [entitiesData]);
 
   // Invoices
-  const financingStructure = application?.financing_structure as any;
-  const isExistingContract = financingStructure?.structure_type === "existing_contract";
-  const existingContractId = financingStructure?.existing_contract_id;
+  // =========================
+// Facility calculation (single source of truth)
+// =========================
 
-  const isLoading =
+const financingStructure = application?.financing_structure as any;
+const structureType = financingStructure?.structure_type;
+
+const contractDetails = (contract?.contract_details as any) || {};
+
+const approvedFacility = Number(contractDetails.approved_facility || 0);
+const contractValue = Number(contractDetails.value || 0);
+
+// Base facility depends on structure
+const baseFacility =
+  structureType === "new_contract"
+    ? contractValue
+    : approvedFacility;
+
+// Sum financing from invoices
+const totalFinancingAmount = invoices.reduce((sum: number, invoice: any) => {
+  const d = invoice.details || {};
+  const value = Number(d.value || 0);
+  const ratio = (d.financing_ratio_percent ?? 60) / 100;
+  return sum + value * ratio;
+}, 0);
+
+// Always calculated, never stored
+const calculatedAvailableFacility =
+  baseFacility - totalFinancingAmount;
+
+
+ const isLoading =
   isLoadingApp ||
   isLoadingInfo ||
   isLoadingEntities ||
   isLoadingInvoices ||
+  isLoadingProducts ||
   (!!contractId && isLoadingContract);
+ 
 
 
 
@@ -179,28 +230,23 @@ const { data: invoices = [], isLoading: isLoadingInvoices } =
 
 
 
-const structureType = financingStructure?.structure_type;
 
-const showContractSection =
-  structureType === "new_contract" || structureType === "existing_contract";
+  const showContractSection =
+    structureType === "new_contract" || structureType === "existing_contract";
 
-const showInvoiceSection = true; // invoices always applicable
+  const showInvoiceSection = true; // invoices always applicable
 
-const showCompanySection = true;
-const showSupportingDocsSection = true;
+  const showCompanySection = true;
+  const showSupportingDocsSection = true;
 
 
   const financingType = (application?.financing_type as any) || {};
-  const contractDetails = (contract?.contract_details as any) || {};
   const customerDetails = (contract?.customer_details as any) || {};
   const basicInfo = corporateInfo?.basicInfo;
   const businessAddress = corporateInfo?.addresses?.business;
   const registeredAddress = corporateInfo?.addresses?.registered;
   const contactPerson = (application?.company_details as any)?.contact_person || {};
-  
-  // Invoices removed
-  // No remote invoice data. Keep totalFinancingAmount as 0.
-  const totalFinancingAmount = 0;
+
 
   // Supporting Documents
   let supportingDocs = (application as any)?.supporting_documents;
@@ -210,74 +256,122 @@ const showSupportingDocsSection = true;
 
   return (
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
+      <section className="space-y-6">
+  <h3 className={sectionHeaderClassName}>Financing details</h3>
+
+  {financingTypeConfig ? (
+    <div className="border rounded-xl px-4 py-3 flex items-start gap-4">
+      <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+        {/* optional icon */}
+      </div>
+
+      <div>
+        <div className="text-base font-medium">
+          {financingTypeConfig.name}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {financingTypeConfig.description}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div className="text-sm text-muted-foreground italic">
+      Financing type not selected
+    </div>
+  )}
+</section>
+
       {/* Contract */}
-        {showContractSection && contractId && (
+      {showContractSection && contractId && (
 
         <section className="space-y-6">
           <h3 className={sectionHeaderClassName}>Contract</h3>
           <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
             <div className={valueClassName}>{contractDetails.title || "—"}</div>
-            
+
             <div className={labelClassName}>Contract status</div>
             <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
-            
+
             <div className={labelClassName}>Customer</div>
             <div className={valueClassName}>{customerDetails.name || "—"}</div>
-            
+
             <div className={labelClassName}>Contract value</div>
             <div className={valueClassName}>{formatCurrency(contractDetails.value)}</div>
-            
+
             <div className={labelClassName}>Approved facility</div>
-            <div className={valueClassName}>{"-------"}</div>
-            
-            <div className={labelClassName}>Utilised facility</div>
-            <div className={valueClassName}>{"-------"}</div>
-            
-            <div className={labelClassName}>Available facility</div>
-            <div className={valueClassName}>{"-------"}</div>
+            <div className={valueClassName}>
+              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "—"}
+            </div>
+
+<div className={labelClassName}>Utilised facility</div>
+<div className={valueClassName}>
+  {structureType === "existing_contract"
+    ? formatCurrency(totalFinancingAmount)
+    : "—"}
+</div>
+
+
+
+<div className={labelClassName}>Available facility</div>
+<div
+  className={cn(
+    valueClassName,
+    calculatedAvailableFacility < 0 && "text-destructive"
+  )}
+>
+  {formatCurrency(Math.max(calculatedAvailableFacility, 0))}
+
+  {structureType === "new_contract" && (
+    <div className="text-xs text-muted-foreground mt-1">
+      * Subject to credit approval
+    </div>
+  )}
+</div>
+
+
           </div>
         </section>
       )}
 
       {/* Invoices */}
-        {showInvoiceSection && (
+      {showInvoiceSection && (
 
         <section className="space-y-6">
-  <h3 className={sectionHeaderClassName}>Invoices</h3>
+          <h3 className={sectionHeaderClassName}>Invoices</h3>
 
-  <div className="border rounded-xl divide-y bg-card">
-    {invoices.length === 0 ? (
-      <div className="p-4 text-sm text-muted-foreground italic">
-        No invoices added
-      </div>
-    ) : (
-      invoices.map((invoice: any) => {
-        const details = invoice.details || {};
+          <div className="border rounded-xl divide-y bg-card">
+            {invoices.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground italic">
+                No invoices added
+              </div>
+            ) : (
+              invoices.map((invoice: any) => {
+                const details = invoice.details || {};
 
-        return (
-          <div key={invoice.id} className="p-4 grid grid-cols-2 gap-y-2">
-            <div className={labelClassName}>Invoice number</div>
-            <div className={valueClassName}>{details.number || "—"}</div>
+                return (
+                  <div key={invoice.id} className="p-4 grid grid-cols-2 gap-y-2">
+                    <div className={labelClassName}>Invoice number</div>
+                    <div className={valueClassName}>{details.number || "—"}</div>
 
-            <div className={labelClassName}>Invoice value</div>
-            <div className={valueClassName}>
-              {details.value ? formatCurrency(details.value) : "—"}
-            </div>
+                    <div className={labelClassName}>Invoice value</div>
+                    <div className={valueClassName}>
+                      {details.value ? formatCurrency(details.value) : "—"}
+                    </div>
 
-            <div className={labelClassName}>Maturity date</div>
-            <div className={valueClassName}>{details.maturity_date || "—"}</div>
+                    <div className={labelClassName}>Maturity date</div>
+                    <div className={valueClassName}>{details.maturity_date || "—"}</div>
 
-            <div className={labelClassName}>Document</div>
-            <div className={valueClassName}>
-              {details.document?.file_name || "—"}
-            </div>
+                    <div className={labelClassName}>Document</div>
+                    <div className={valueClassName}>
+                      {details.document?.file_name || "—"}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-        );
-      })
-    )}
-  </div>
-</section>
+        </section>
 
       )}
 
@@ -289,19 +383,19 @@ const showSupportingDocsSection = true;
             <div className={gridClassName}>
               <div className={labelClassName}>Company name</div>
               <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
-              
+
               <div className={labelClassName}>Type of entity</div>
               <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
-              
+
               <div className={labelClassName}>SSM no</div>
               <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
-              
+
               <div className={labelClassName}>Industry</div>
               <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
-              
+
               <div className={labelClassName}>Nature of business</div>
               <div className={valueClassName}>Private</div>
-              
+
               <div className={labelClassName}>Number of employees</div>
               <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
             </div>
@@ -345,7 +439,7 @@ const showSupportingDocsSection = true;
             <div className={gridClassName}>
               <div className={labelClassName}>Bank name</div>
               <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
-              
+
               <div className={labelClassName}>Bank account number</div>
               <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
             </div>
@@ -357,7 +451,7 @@ const showSupportingDocsSection = true;
             <div className={gridClassName}>
               <div className={labelClassName}>Business address</div>
               <div className={valueClassName}>{formatAddress(businessAddress)}</div>
-              
+
               <div className={labelClassName}>Registered address</div>
               <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
             </div>
@@ -369,13 +463,13 @@ const showSupportingDocsSection = true;
             <div className={gridClassName}>
               <div className={labelClassName}>Applicant name</div>
               <div className={valueClassName}>{contactPerson.name || "—"}</div>
-              
+
               <div className={labelClassName}>Applicant position</div>
               <div className={valueClassName}>{contactPerson.position || "—"}</div>
-              
+
               <div className={labelClassName}>Applicant IC no</div>
               <div className={valueClassName}>{contactPerson.ic || "—"}</div>
-              
+
               <div className={labelClassName}>Applicant contact</div>
               <div className={valueClassName}>{contactPerson.contact || "—"}</div>
             </div>

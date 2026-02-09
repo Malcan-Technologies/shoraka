@@ -344,18 +344,12 @@ const liveAvailableFacility =
   }
 
   // Check if total financing exceeds facility limits
-  if (!validationError && application?.contract?.contract_details) {
-    const approvedFacility = application.contract.contract_details.approved_facility || 0;
-    const contractValue = application.contract.contract_details.value || 0;
-    const facilityLimit = approvedFacility > 0 ? approvedFacility : contractValue;
-
-if (totalFinancingAmount > facilityLimit) {
+if (!validationError && totalFinancingAmount > facilityLimit) {
   validationError = `Total financing amount (${formatRM(
     totalFinancingAmount
   )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
 }
 
-  }
 
 
   const saveFunction = async () => {
