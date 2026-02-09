@@ -29,6 +29,8 @@ export class ApplicationRepository {
       where: { id },
       include: {
         issuer_organization: true,
+        contract: true,
+        // invoices relation removed to decouple applications from invoice model
       },
     });
   }

@@ -55,8 +55,14 @@ import type {
   Product,
   GetProductsResponse,
   Application,
+  ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationStepInput,
+  Contract,
+  ContractDetails,
+  CustomerDetails,
+  Invoice,
+  InvoiceDetails,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -315,11 +321,11 @@ export class ApiClient {
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        verifyLink?: string;
-        newRequestId?: string;
-      }>
+      success: boolean;
+      message: string;
+      verifyLink?: string;
+      newRequestId?: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -333,9 +339,9 @@ export class ApiClient {
   // Complete final approval for an onboarding application
   async completeFinalApproval(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -347,9 +353,9 @@ export class ApiClient {
   // Approve AML screening for an onboarding application
   async approveAmlScreening(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -361,9 +367,9 @@ export class ApiClient {
   // Approve SSM verification for a company organization
   async approveSsmVerification(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -375,10 +381,10 @@ export class ApiClient {
   // Refresh corporate onboarding status by fetching latest director KYC statuses
   async refreshCorporateStatus(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        directorsUpdated: number;
-      }>
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -391,10 +397,10 @@ export class ApiClient {
   // Refresh corporate AML status by fetching latest director AML statuses
   async refreshCorporateAmlStatus(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        directorsUpdated: number;
-      }>
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -981,6 +987,10 @@ export class ApiClient {
     return this.patch<Application>(`/v1/applications/${id}/step`, data);
   }
 
+  async updateApplicationStatus(id: string, status: ApplicationStatus): Promise<ApiResponse<Application> | ApiError> {
+    return this.patch<Application>(`/v1/applications/${id}/status`, { status });
+  }
+
   async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
@@ -994,15 +1004,15 @@ export class ApiClient {
     offset?: number;
   }): Promise<
     | ApiResponse<{
-        items: any[];
-        pagination: {
-          total: number;
-          unreadCount: number;
-          limit: number;
-          offset: number;
-          pages: number;
-        };
-      }>
+      items: any[];
+      pagination: {
+        total: number;
+        unreadCount: number;
+        limit: number;
+        offset: number;
+        pages: number;
+      };
+    }>
     | ApiError
   > {
     const queryParams = new URLSearchParams();
@@ -1097,6 +1107,118 @@ export class ApiClient {
 
   async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
     return this.post<{ count: number }>("/v1/notifications/admin/seed-types");
+  }
+
+  // Contracts
+  async createContract(applicationId: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.post<Contract>("/v1/contracts", { applicationId });
+  }
+
+  async getContract(id: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.get<Contract>(`/v1/contracts/${id}`);
+  }
+
+  async updateContract(
+    id: string,
+    data: {
+      contract_details?: ContractDetails;
+      customer_details?: CustomerDetails;
+      status?: string;
+    }
+  ): Promise<ApiResponse<Contract> | ApiError> {
+    return this.patch<Contract>(`/v1/contracts/${id}`, data);
+  }
+
+  async unlinkContract(id: string): Promise<ApiResponse<void> | ApiError> {
+    return this.post<void>(`/v1/contracts/${id}/unlink`, {});
+  }
+
+  async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
+    return this.get<Contract[]>(`/v1/contracts/approved?organizationId=${organizationId}`);
+  }
+
+  async requestContractUploadUrl(
+    id: string,
+    data: {
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      type: "contract" | "consent";
+      existingS3Key?: string;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/contracts/${id}/upload-url`,
+      data
+    );
+  }
+
+  // Invoices
+  async createInvoice(data: {
+    applicationId: string;
+    contractId?: string;
+    details: InvoiceDetails;
+  }): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.post<Invoice>("/v1/invoices", data);
+  }
+
+  async getInvoice(id: string): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.get<Invoice>(`/v1/invoices/${id}`);
+  }
+
+  async updateInvoice(
+    id: string,
+    details: Partial<InvoiceDetails>
+  ): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.patch<Invoice>(`/v1/invoices/${id}`, { details });
+  }
+
+  async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/invoices/${id}`);
+  }
+
+  async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+    return this.get<Invoice[]>(`/v1/invoices/by-application/${applicationId}`);
+  }
+
+  async getInvoicesByContract(contractId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+    return this.get<Invoice[]>(`/v1/invoices/by-contract/${contractId}`);
+  }
+
+  async requestInvoiceUploadUrl(
+    id: string,
+    data: {
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      existingS3Key?: string;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/invoices/${id}/upload-url`,
+      data
+    );
+  }
+
+  async deleteInvoiceDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/invoices/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
+  }
+
+  // Invoice APIs removed.
+  // Methods related to invoices were deleted because invoice backend was removed.
+
+  async deleteContractDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/contracts/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
   }
 }
 

@@ -138,6 +138,7 @@ export interface UpdateApplicationStepInput {
   stepNumber: number;
   stepId: string;
   data: Record<string, any>;
+  forceRewindToStep?: number;
 }
 
 export interface Product {
@@ -156,6 +157,72 @@ export interface GetProductsResponse {
     totalCount: number;
     totalPages: number;
   };
+}
+
+export type ContractStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+export type InvoiceStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+
+export interface ContractDetails {
+  title: string;
+  description?: string;
+  number: string;
+  value: number;
+  start_date: string;
+  end_date: string;
+  approved_facility: number;
+  utilized_facility: number;
+  available_facility: number;
+  document?: {
+    s3_key: string;
+    file_name: string;
+    file_size: number;
+  };
+}
+
+export interface CustomerDetails {
+  name: string;
+  entity_type: string;
+  ssm_number: string;
+  country: string;
+  is_related_party: boolean;
+  document?: {
+    s3_key: string;
+    file_name: string;
+    file_size: number;
+  };
+}
+
+export interface Contract {
+  id: string;
+  application_id: string;
+  issuer_organization_id: string;
+  status: ContractStatus;
+  contract_details?: ContractDetails | null;
+  customer_details?: CustomerDetails | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceDetails {
+  number: string;
+  value: number;
+  maturity_date: string;
+  financing_ratio_percent?: number;
+  document?: {
+    s3_key: string;
+    file_name: string;
+    file_size: number;
+  };
+}
+
+export interface Invoice {
+  id: string;
+  contract_id?: string | null;
+  application_id: string;
+  status: InvoiceStatus;
+  details: InvoiceDetails;
+  created_at: string;
+  updated_at: string;
 }
 
 export * from "./activity-config";

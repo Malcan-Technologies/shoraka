@@ -17,6 +17,8 @@ import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
 import { logger } from "./lib/logger";
 import { createApplicationRouter } from "./modules/applications/controller";
+import { createContractRouter } from "./modules/contracts/controller";
+import { createInvoiceRouter } from "./modules/invoices/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
@@ -78,6 +80,8 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/organizations", createOrganizationRouter());
 
   v1Router.use("/applications", createApplicationRouter());
+  v1Router.use("/contracts", createContractRouter());
+  v1Router.use("/invoices", createInvoiceRouter());
 
   // Products list (admin only) – GET /v1/products, GET /v1/products/:id
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
@@ -114,15 +118,6 @@ export function registerRoutes(app: Application): void {
 
   // S3 routes
   v1Router.use("/s3", createS3Router());
-
-  // Internal load-test endpoint: returns given status for ECS crash debugging
-  // GET /v1/internal/load-test?code=200|404|500 (no auth)
-  v1Router.get("/internal/load-test", (req, res) => {
-    const code = Number(req.query.code) || 200;
-    const allowed = [200, 404, 500];
-    const status = allowed.includes(code) ? code : 200;
-    res.status(status).json({ ok: status === 200, status });
-  });
 
   // Notification routes
   v1Router.use("/notifications", requireAuth, notificationRouter);

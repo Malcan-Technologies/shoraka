@@ -1,6 +1,7 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { ContractRepository } from "../contracts/repository";
 import {
   CreateApplicationInput,
   UpdateApplicationStepInput,
@@ -22,11 +23,13 @@ export class ApplicationService {
   private repository: ApplicationRepository;
   private productRepository: ProductRepository;
   private organizationRepository: OrganizationRepository;
+  private contractRepository: ContractRepository;
 
   constructor() {
     this.repository = new ApplicationRepository();
     this.productRepository = new ProductRepository();
     this.organizationRepository = new OrganizationRepository();
+    this.contractRepository = new ContractRepository();
   }
 
   /**
@@ -37,8 +40,6 @@ export class ApplicationService {
     const stepIdToColumn: Record<string, keyof Application> = {
       "financing_type_1": "financing_type",
       "financing_structure_1": "financing_structure",
-      "contract_details_1": "contract_details",
-      "invoice_details_1": "invoice_details",
       "company_details_1": "company_details",
       "verify_company_info_1": "company_details",
       "business_details_1": "business_details",
@@ -54,8 +55,6 @@ export class ApplicationService {
     const baseToColumn: Record<string, keyof Application> = {
       financing_type: "financing_type",
       financing_structure: "financing_structure",
-      contract_details: "contract_details",
-      invoice_details: "invoice_details",
       company_details: "company_details",
       verify_company_info: "company_details",
       business_details: "business_details",
@@ -166,9 +165,6 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    // Extract product_id from financing_type
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
     return application;
 
 
@@ -188,7 +184,23 @@ export class ApplicationService {
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
     if (!fieldName) {
-      throw new AppError(400, "INVALID_STEP_ID", `Invalid step ID: ${input.stepId}`);
+      // For steps like contract_details and invoice_details that manage their own saves,
+      // just update the last_completed_step without saving data to Application
+      const updateData: Prisma.ApplicationUpdateInput = {
+        updated_at: new Date(),
+      };
+
+      if (input.forceRewindToStep !== undefined) {
+  updateData.last_completed_step = input.forceRewindToStep;
+} else {
+  updateData.last_completed_step = Math.max(
+    application.last_completed_step,
+    input.stepNumber
+  );
+}
+
+
+      return this.repository.update(id, updateData);
     }
 
     if (fieldName === "company_details") {
@@ -208,10 +220,46 @@ export class ApplicationService {
       updated_at: new Date(),
     };
 
-    // Update last_completed_step if this is a new step
-    if (input.stepNumber >= application.last_completed_step) {
-      updateData.last_completed_step = input.stepNumber;
+    // Special handling for financing_structure: link existing contract if selected
+    if (fieldName === "financing_structure") {
+      const structureData = input.data as any;
+      if (structureData?.structure_type === "existing_contract" && structureData?.existing_contract_id) {
+        // Validate the contract before linking
+        const contract = await this.contractRepository.findById(structureData.existing_contract_id);
+
+        if (!contract) {
+          throw new AppError(404, "CONTRACT_NOT_FOUND", "The selected contract does not exist.");
+        }
+
+        if (contract.issuer_organization_id !== application.issuer_organization_id) {
+          throw new AppError(403, "FORBIDDEN", "Cannot link contract from a different organization.");
+        }
+
+        if (contract.status !== "APPROVED") {
+          throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved contracts can be linked to applications.");
+        }
+
+        // Link the existing contract to this application
+        updateData.contract = { connect: { id: structureData.existing_contract_id } };
+      } else if (structureData?.structure_type === "invoice_only") {
+        // Unlink any contract if invoice-only is selected
+        updateData.contract = { disconnect: true };
+
+        // Invoice-related persistence removed.
+        // Previously: clear contract_id from invoices via prisma.invoice.updateMany(...)
+        // That behavior has been removed as invoice APIs were deleted.
+      }
     }
+
+    // Update last_completed_step if this is a new step
+    if (input.forceRewindToStep !== undefined) {
+  updateData.last_completed_step = input.forceRewindToStep;
+} else {
+  updateData.last_completed_step = Math.max(
+    application.last_completed_step,
+    input.stepNumber
+  );
+}
 
     return this.repository.update(id, updateData);
   }
@@ -328,6 +376,62 @@ export class ApplicationService {
       logger.warn({ s3Key, error }, "Failed to delete application document from S3");
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
+  }
+
+  /**
+   * Update application status and perform cleanup
+   */
+  async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
+    // Verify user has access to this application
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const updateData: Prisma.ApplicationUpdateInput = {
+      status: status as any,
+      updated_at: new Date(),
+    };
+
+    // If submitting, perform cleanup of unused steps
+    if (status === "SUBMITTED") {
+      // Get product to find active steps
+      const financingType = application.financing_type as any;
+      const productId = financingType?.product_id;
+
+      if (productId) {
+        const product = await this.productRepository.findById(productId);
+        if (product) {
+          const workflow = (product.workflow as any[]) || [];
+          const activeStepKeys = new Set(workflow.map((step: any) => {
+            const rawKey = step.id.replace(/_\d+$/, "");
+            if (rawKey === "verify_company_info") return "company_details";
+            return rawKey;
+          }));
+
+          const allStepColumns = [
+            "financing_type",
+            "financing_structure",
+            "company_details",
+            "business_details",
+            "supporting_documents",
+            "declarations",
+          ];
+
+          allStepColumns.forEach(col => {
+            if (!activeStepKeys.has(col)) {
+              (updateData as any)[col] = Prisma.JsonNull;
+            }
+          });
+        }
+      }
+
+      (updateData as any).submitted_at = new Date();
+    }
+
+    return this.repository.update(id, updateData);
   }
 }
 

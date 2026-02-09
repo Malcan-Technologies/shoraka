@@ -15,7 +15,9 @@ export const updateApplicationStepSchema = z.object({
   stepNumber: z.number().int().min(1),
   stepId: z.string(),
   data: z.record(z.unknown()),
+  forceRewindToStep: z.number().int().min(1).optional(),
 });
+
 
 /**
  * Schema for application ID parameter

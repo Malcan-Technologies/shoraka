@@ -20,10 +20,14 @@ export type ApplicationStepKey = (typeof APPLICATION_STEP_KEYS)[number];
 /** Step keys that have a dedicated step UI component in the issuer app */
 export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "financing_type",
+  "financing_structure",
+  "contract_details",
+  "invoice_details",
   "company_details",
   "business_details",
   "supporting_documents",
   "declarations",
+  "review_and_submit",
 ];
 
 export interface StepKeyDisplay {
