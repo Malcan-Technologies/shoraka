@@ -127,7 +127,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
     // Check if contract has any actual data
     const hasContractData = contractDetails.title || contractDetails.number ||
-                           contractDetails.value || contractDetails.start_date;
+      contractDetails.value || contractDetails.start_date;
     const hasCustomerData = customerDetails.name || customerDetails.ssm_number;
 
     const financingStructure = (application as any)?.financing_structure;
@@ -494,37 +494,59 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               RM
             </div>
             <Input
+              type="text"
+              inputMode="decimal"
               value={formData.contract.value === 0 ? "" : formData.contract.value}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^0-9.]/g, "");
-                handleInputChange("contract", "value", val);
-              }}
-              placeholder="5,000,000"
+              placeholder="5,000,000.00"
               className={inputClassName + " pl-12"}
+              onChange={(e) => {
+                const raw = e.target.value;
+
+                // allow empty
+                if (raw === "") {
+                  handleInputChange("contract", "value", "");
+                  return;
+                }
+
+                // digits + optional decimal (max 2 dp)
+                if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+
+                // HARD LIMIT: max 12 digits before decimal
+                const [intPart] = raw.split(".");
+                if (intPart.length > 12) return;
+
+                handleInputChange("contract", "value", raw);
+              }}
+              onBlur={() => {
+                if (formData.contract.value !== "") {
+                  handleInputChange(
+                    "contract",
+                    "value",
+                    Number(formData.contract.value).toFixed(2)
+                  );
+                }
+              }}
             />
+
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>
-          <div className="relative">
-            <Input
-              type="date"
-              value={formData.contract.start_date?.slice(0, 10) || ""}
-              onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
-              className={inputClassName + " pr-10"}
-            />
-            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-          </div>
+          <Input
+            type="date"
+            value={formData.contract.start_date?.slice(0, 10) || ""}
+            onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
+            className={inputClassName}
+          />
+
 
           <Label className={labelClassName}>Contract end date</Label>
-          <div className="relative">
-            <Input
-              type="date"
-              value={formData.contract.end_date?.slice(0, 10) || ""}
-              onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
-              className={inputClassName + " pr-10"}
-            />
-            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-          </div>
+<Input
+  type="date"
+  value={formData.contract.start_date?.slice(0, 10) || ""}
+  onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
+  className={inputClassName}
+/>
+
 
           <Label className={labelClassName}>Upload contract</Label>
           <FileUploadArea
