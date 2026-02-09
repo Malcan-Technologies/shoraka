@@ -21,6 +21,7 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
+import { useUpdateContract } from "@/hooks/use-contracts";
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -75,6 +76,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     Record<string, { s3_key?: string }>
   >({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
+  const updateContractMutation = useUpdateContract();
+
 
 
 
@@ -300,14 +303,24 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
   // Effective ceiling
-  const effectiveFacilityLimit =
-    approvedFacility > 0 ? approvedFacility : contractValue;
+    
+    const structureType = application?.financing_structure?.structure_type;
+
+let facilityLimit = 0;
+
+if (structureType === "new_contract") {
+  facilityLimit = Number(contractValue || 0);
+}
+
+if (structureType === "existing_contract") {
+  facilityLimit = Number(approvedFacility || 0);
+}
+
 
   // LIVE available facility (this changes as user types)
-  const liveAvailableFacility =
-    effectiveFacilityLimit > 0
-      ? effectiveFacilityLimit - totalFinancingAmount
-      : null;
+const liveAvailableFacility =
+  facilityLimit - totalFinancingAmount;
+
 
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
@@ -336,12 +349,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const contractValue = application.contract.contract_details.value || 0;
     const facilityLimit = approvedFacility > 0 ? approvedFacility : contractValue;
 
-    if (facilityLimit > 0 && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (${formatRM(
-        totalFinancingAmount
-      )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+if (totalFinancingAmount > facilityLimit) {
+  validationError = `Total financing amount (${formatRM(
+    totalFinancingAmount
+  )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+}
 
-    }
   }
 
 
@@ -473,6 +486,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     setSelectedFiles({});
     setDeletedInvoices({});
+
 
 
     return { success: true };
@@ -641,7 +655,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                     : ""
                 )}
               >
-                RM{" "}
                 {formatRM(Math.max(liveAvailableFacility ?? 0, 0))}
 
 
