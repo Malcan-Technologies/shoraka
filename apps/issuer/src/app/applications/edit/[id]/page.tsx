@@ -745,6 +745,9 @@ export default function EditApplicationPage() {
         delete (dataToSave as any).saveFunction;
         delete (dataToSave as any).isValid;
         delete (dataToSave as any).validationError;
+        delete (dataToSave as any).autofillContract;
+        delete (dataToSave as any).structureChanged;
+        delete (dataToSave as any).isCreatingContract;
 
         // If this is a special step that saves to its own table (Contract/Invoice),
         // we previously avoided sending those details back to the Application table.
