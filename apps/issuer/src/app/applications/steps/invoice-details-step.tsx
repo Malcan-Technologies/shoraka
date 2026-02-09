@@ -112,9 +112,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           const contractId = resp.data?.contract_id;
           const isExistingContract = financingStructure?.structure_type === "existing_contract";
 
+          console.log('isit', isExistingContract, contractId)
           if (isExistingContract && contractId) {
             try {
-              const contractResp: any = await apiClient.get(`/v1/contracts/${contractId}/invoices`);
+              console.log('hihihi', contractId)
+              /**
+               * FETCH CONTRACT INVOICES
+               *
+               * Get all invoices linked to this contract.
+               * API endpoint: GET /v1/invoices/by-contract/:contractId
+               */
+              const contractResp: any = await apiClient.get(`/v1/invoices/by-contract/${contractId}`);
               if (contractResp.success) {
                 const contractInvoicesList = (contractResp.data || [])
                   .filter((inv: any) => inv.status === "APPROVED" || inv.status === "SUBMITTED")
@@ -138,6 +146,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                     };
                   });
                 if (mounted) {
+                  console.log('hihihi', contractInvoicesList)
                   setContractInvoices(contractInvoicesList);
                 }
               }
@@ -451,9 +460,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
 
-      // 1️⃣ CREATE only if not persisted
+      /**
+       * CREATE INVOICE
+       *
+       * If not persisted, create new invoice.
+       * For existing contracts, pass contractId to link invoice to contract.
+       */
       if (!inv.isPersisted) {
-        const createResp: any = await apiClient.createInvoice({
+        const createPayload: any = {
           applicationId,
           details: {
             number: inv.number,
@@ -461,7 +475,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             maturity_date: inv.maturity_date,
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
-        });
+        };
+
+        // Add contractId if this is an existing contract
+        console.log('hiss', isExistingContract, application?.contract_id)
+        if (isExistingContract && application?.contract_id) {
+          createPayload.contractId = application.contract_id;
+        }
+
+        const createResp: any = await apiClient.createInvoice(createPayload);
 
         if (!createResp?.success) {
           throw new Error("Failed to create invoice");
@@ -787,6 +809,106 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                 </TableRow>
               </TableHeader>
               <TableBody>
+             {/* CONTRACT INVOICES (READ-ONLY, GRAYED OUT) */}
+                {contractInvoices.map((inv) => {
+                  const ratio = inv.financing_ratio_percent || 60;
+                  const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
+                  const financingAmount = invoiceValue * (ratio / 100);
+
+                  return (
+                    <TableRow
+                      key={`contract-${inv.id}`}
+                      className="bg-muted/30 opacity-60 hover:bg-muted/30"
+                    >
+
+                      {/* Invoice */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.number}
+                        </div>
+                      </TableCell>
+
+                      {/* Status */}
+                      <TableCell>
+                        <StatusBadge status={inv.status} />
+                      </TableCell>
+
+                      {/* Maturity Date */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.maturity_date}
+                        </div>
+                      </TableCell>
+
+                      {/* Invoice Value */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.value}
+                        </div>
+                      </TableCell>
+
+                      {/* Financing Ratio */}
+                      <TableCell>
+                        <div className="w-[180px] space-y-2">
+                          <div
+                            className="relative text-[11px] font-medium text-muted-foreground"
+                            style={{
+                              left: `${((ratio - 60) / 20) * 100}%`,
+                              transform: "translateX(-50%)",
+                              width: "fit-content",
+                            }}
+                          >
+                            <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm opacity-60">
+                              {ratio}%
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
+                            <span>60%</span>
+                            <span>80%</span>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Financing Amount */}
+                      <TableCell>
+                        <div className="text-sm font-medium whitespace-nowrap tabular-nums text-muted-foreground">
+                          {formatRM(financingAmount)}
+                        </div>
+                      </TableCell>
+
+                      {/* Documents */}
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <div className="flex items-center gap-3">
+                            <div className="w-[160px]">
+                              {inv.document ? (
+                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6 opacity-60">
+                                  <div className="w-3.5 h-3.5 rounded-sm bg-muted flex items-center justify-center shrink-0">
+                                    <CheckIconSolid className="h-2.5 w-2.5 text-muted-foreground" />
+                                  </div>
+                                  <span className="text-[14px] font-medium truncate flex-1 text-muted-foreground">
+                                    {inv.document.file_name}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[12px] text-muted-foreground">No document</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Action Button (disabled) */}
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <span className="text-[12px] text-muted-foreground font-medium"></span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+
                 {/* APPLICATION/DRAFT INVOICES */}
                 {invoices.map((inv) => {
                   const isDraft = !inv.status || inv.status === "DRAFT";
@@ -1036,106 +1158,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   );
                 })}
 
-                {/* CONTRACT INVOICES (READ-ONLY, GRAYED OUT) */}
-                {contractInvoices.map((inv) => {
-                  const ratio = inv.financing_ratio_percent || 60;
-                  const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
-                  const financingAmount = invoiceValue * (ratio / 100);
-
-                  return (
-                    <TableRow
-                      key={`contract-${inv.id}`}
-                      className="bg-muted/30 opacity-60 hover:bg-muted/30"
-                    >
-
-                      {/* Invoice */}
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {inv.number}
-                        </div>
-                      </TableCell>
-
-                      {/* Status */}
-                      <TableCell>
-                        <StatusBadge status={inv.status} />
-                      </TableCell>
-
-                      {/* Maturity Date */}
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {inv.maturity_date}
-                        </div>
-                      </TableCell>
-
-                      {/* Invoice Value */}
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {inv.value}
-                        </div>
-                      </TableCell>
-
-                      {/* Financing Ratio */}
-                      <TableCell>
-                        <div className="w-[180px] space-y-2">
-                          <div
-                            className="relative text-[11px] font-medium text-muted-foreground"
-                            style={{
-                              left: `${((ratio - 60) / 20) * 100}%`,
-                              transform: "translateX(-50%)",
-                              width: "fit-content",
-                            }}
-                          >
-                            <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm opacity-60">
-                              {ratio}%
-                            </div>
-                          </div>
-                          <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
-                            <span>60%</span>
-                            <span>80%</span>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      {/* Financing Amount */}
-                      <TableCell>
-                        <div className="text-sm font-medium whitespace-nowrap tabular-nums text-muted-foreground">
-                          {formatRM(financingAmount)}
-                        </div>
-                      </TableCell>
-
-                      {/* Documents */}
-                      <TableCell>
-                        <div className="flex justify-end">
-                          <div className="flex items-center gap-3">
-                            <div className="w-[160px]">
-                              {inv.document ? (
-                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6 opacity-60">
-                                  <div className="w-3.5 h-3.5 rounded-sm bg-muted flex items-center justify-center shrink-0">
-                                    <CheckIconSolid className="h-2.5 w-2.5 text-muted-foreground" />
-                                  </div>
-                                  <span className="text-[14px] font-medium truncate flex-1 text-muted-foreground">
-                                    {inv.document.file_name}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-[12px] text-muted-foreground">No document</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      {/* Action Button (disabled) */}
-                      <TableCell>
-                        <div className="flex justify-end">
-                          <span className="text-[12px] text-muted-foreground font-medium">From contract</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-
-                <TableRow className="bg-muted/10 font-bold">
+                   <TableRow className="bg-muted/10 font-bold">
                   {/* Skip columns 1–5 */}
                   <TableCell colSpan={5}></TableCell>
 
