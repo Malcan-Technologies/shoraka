@@ -99,7 +99,7 @@ export class ContractService {
 
     // Link it to the application
     await this.applicationRepository.update(applicationId, {
-      contract_id: contract.id,
+      contract: { connect: { id: contract.id } },
     });
 
     return contract;
@@ -138,7 +138,7 @@ export class ContractService {
     const application = await this.verifyApplicationAccess(applicationId, userId);
     if (!application.contract_id) return;
 
-    return this.repository.unlinkFromApplication(application.contract_id, applicationId);
+    return this.repository.unlinkFromApplication(applicationId);
   }
 
   async getApprovedContracts(userId: string, organizationId: string): Promise<Contract[]> {

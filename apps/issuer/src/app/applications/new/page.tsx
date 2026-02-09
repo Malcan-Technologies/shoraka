@@ -274,6 +274,7 @@ export default function NewApplicationPage() {
               products={products}
               selectedProductId={selectedProductId}
               onProductSelect={handleProductSelect}
+              isLoading={isLoadingProducts}
             />
           )}
         </div>

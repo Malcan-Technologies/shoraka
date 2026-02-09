@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, CheckIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
@@ -471,8 +471,6 @@ export function SupportingDocumentsStep({
         <SupportingDocumentsSkeleton />
       ) : (categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
-        const isComplete =
-          status.uploadedCount === status.totalCount && status.totalCount > 0;
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
         return (

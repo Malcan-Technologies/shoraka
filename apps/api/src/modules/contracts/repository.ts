@@ -40,7 +40,7 @@ export class ContractRepository {
     });
   }
 
-  async unlinkFromApplication(contractId: string, applicationId: string): Promise<void> {
+  async unlinkFromApplication(applicationId: string): Promise<void> {
     // Also clear contract_id from all invoices associated with this application
     await prisma.invoice.updateMany({
       where: { application_id: applicationId },

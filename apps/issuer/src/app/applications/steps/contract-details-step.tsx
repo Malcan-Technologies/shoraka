@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { CloudUpload, Calendar as CalendarIcon, X, CheckCircle2 } from "lucide-react";
+import { CloudUpload, X, CheckCircle2 } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { Skeleton } from "@/components/ui/skeleton";

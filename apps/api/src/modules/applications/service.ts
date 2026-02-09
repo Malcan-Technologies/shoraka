@@ -9,7 +9,6 @@ import {
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
-import { prisma } from "../../lib/prisma";
 import {
   generateApplicationDocumentKey,
   generateApplicationDocumentKeyWithVersion,
@@ -166,9 +165,6 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    // Extract product_id from financing_type
-    const financingType = application.financing_type as any;
-    const productId = financingType?.product_id;
     return application;
 
 

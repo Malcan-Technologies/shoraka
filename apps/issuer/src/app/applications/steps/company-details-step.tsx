@@ -139,8 +139,6 @@ const inputClassNameEditable = "rounded-xl border border-border bg-background te
 const labelClassName = "text-sm md:text-base leading-6 text-foreground";
 const labelClassNameEditable = "text-sm md:text-base leading-6 text-foreground";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 px-3";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4 sm:mt-6 px-3";
 
 export function CompanyDetailsStep({
   applicationId,
