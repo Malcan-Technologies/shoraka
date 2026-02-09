@@ -304,6 +304,7 @@ model IssuerOrganization {
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
   onboarding_logs              OnboardingLog[]
   applications                 Application[]
+  contracts                    Contract[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -318,15 +319,52 @@ model Application {
   status                 ApplicationStatus  @default(DRAFT)
   last_completed_step    Int                @default(0)
   financing_type         Json?
-  verify_company_info    Json?
+  financing_structure    Json?
+  company_details        Json?
+  business_details       Json?
   supporting_documents   Json?
   declarations           Json?
   review_and_submit      Json?
+  contract_id            String?
+  submitted_at           DateTime?
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  contract               Contract?          @relation(fields: [contract_id], references: [id])
+  invoices               Invoice[]
 
   @@map("applications")
+}
+
+model Contract {
+  id                     String             @id @default(cuid())
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  contract_details       Json?
+  customer_details       Json?
+  issuer_organization_id String
+  status                 ContractStatus     @default(DRAFT)
+  applications           Application[]
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  invoices               Invoice[]
+
+  @@map("contracts")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  contract_id    String?
+  application_id String
+  status         InvoiceStatus @default(DRAFT)
+  details        Json
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  application    Application   @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract       Contract?     @relation(fields: [contract_id], references: [id])
+
+  @@index([contract_id])
+  @@index([application_id])
+  @@map("invoices")
 }
 
 model OrganizationMember {
@@ -425,21 +463,21 @@ model RegTankOnboarding {
 }
 
 model AmlIdentityMapping {
-  id                String   @id @default(cuid())
-  organization_id   String   @db.VarChar(255)
-  organization_type String   // 'investor' | 'issuer'
-  entity_type       String   // 'director' | 'individual_shareholder' | 'business_shareholder'
+  id                String @id @default(cuid())
+  organization_id   String @db.VarChar(255)
+  organization_type String // 'investor' | 'issuer'
+  entity_type       String // 'director' | 'individual_shareholder' | 'business_shareholder'
 
   // Identity fields for matching
-  name              String?
-  email             String?
-  business_name     String? // For business shareholders
+  name          String?
+  email         String?
+  business_name String? // For business shareholders
 
   // RegTank IDs
-  cod_request_id    String? // Parent COD for individuals, own COD for businesses
-  eod_request_id    String? // Only for directors/individual shareholders
-  kyc_id            String? // For individuals
-  kyb_id            String? // For businesses
+  cod_request_id String? // Parent COD for individuals, own COD for businesses
+  eod_request_id String? // Only for directors/individual shareholders
+  kyc_id         String? // For individuals
+  kyb_id         String? // For businesses
 
   // Metadata
   created_at     DateTime  @default(now())
@@ -518,11 +556,11 @@ model ProductLog {
 }
 
 model Product {
-  id           String        @id @default(cuid())
-  version      Int           @default(1)
-  created_at   DateTime      @default(now())
-  updated_at   DateTime      @updatedAt
-  workflow     Json
+  id         String   @id @default(cuid())
+  version    Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  workflow   Json
 
   @@map("products")
 }
@@ -593,6 +631,20 @@ enum ApplicationStatus {
   ARCHIVED
 }
 
+enum ContractStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 enum NotificationCategory {
   AUTHENTICATION
   SYSTEM
@@ -607,17 +659,17 @@ enum NotificationPriority {
 }
 
 model NotificationType {
-  id                String                     @id
+  id                String                       @id
   name              String
   description       String?
   category          NotificationCategory
-  default_priority  NotificationPriority       @default(INFO)
-  enabled_platform  Boolean                    @default(true)
-  enabled_email     Boolean                    @default(true)
-  user_configurable Boolean                    @default(true)
+  default_priority  NotificationPriority         @default(INFO)
+  enabled_platform  Boolean                      @default(true)
+  enabled_email     Boolean                      @default(true)
+  user_configurable Boolean                      @default(true)
   retention_days    Int?
-  created_at        DateTime                   @default(now())
-  updated_at        DateTime                   @updatedAt
+  created_at        DateTime                     @default(now())
+  updated_at        DateTime                     @updatedAt
   notifications     Notification[]
   user_preferences  UserNotificationPreference[]
   notification_logs NotificationLog[]
@@ -682,7 +734,7 @@ model NotificationGroup {
 model NotificationLog {
   id                   String   @id @default(cuid())
   admin_user_id        String
-  target_type          String   // 'ALL_USERS', 'INVESTORS', 'ISSUERS', 'SPECIFIC_USERS', 'GROUP'
+  target_type          String // 'ALL_USERS', 'INVESTORS', 'ISSUERS', 'SPECIFIC_USERS', 'GROUP'
   target_group_id      String?
   notification_type_id String
   title                String

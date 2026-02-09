@@ -7,38 +7,51 @@ interface ProgressIndicatorProps {
   steps: string[];
   currentStep: number;
   isLoading?: boolean;
+  disabledSteps?: number[]; // Steps that are visible but locked (non-clickable)
+  onStepClick?: (step: number) => void; // Optional click handler
 }
 
 export function ProgressIndicator({
   steps,
   currentStep,
   isLoading = false,
+  disabledSteps = [],
+  onStepClick,
 }: ProgressIndicatorProps) {
   if (isLoading) {
     return (
-      <div className="relative flex items-start justify-between w-full overflow-x-auto min-h-[60px] md:min-h-[72px]">
-        <div className="flex items-start justify-between w-full min-w-max md:min-w-0">
+      <div className="mt-3">
+        <div className="relative flex items-start justify-between">
           {steps.map((_, index) => (
-            <React.Fragment key={index}>
-              <div className="flex flex-col items-center z-10 flex-1 min-w-[60px] md:min-w-0">
-                <div className="relative size-6 md:size-8 flex items-center justify-center">
-                  <div className="size-5 md:size-6 rounded-full bg-muted animate-pulse" />
-                </div>
-                <div className="text-xs md:text-sm mt-1.5 md:mt-2 text-center px-1">
-                  <div className="h-3 w-16 bg-muted animate-pulse rounded mx-auto" />
-                </div>
-              </div>
-              {index < steps.length - 1 && (
+            <div
+              key={index}
+              className="relative flex flex-1 flex-col items-center min-w-0"
+            >
+              {/* Connector skeleton */}
+              {index !== 0 && (
                 <div
-                  className="hidden md:block absolute top-3 md:top-4 z-0 bg-border"
+                  className="absolute left-[-50%] w-full z-0 rounded-full bg-muted"
                   style={{
-                    left: `calc(${(index + 0.5) * (100 / steps.length)}% + 12px)`,
-                    width: `calc(${100 / steps.length}% - 24px)`,
-                    height: '1.5px',
+                    top: "16.5px",
+                    height: "3px",
                   }}
                 />
               )}
-            </React.Fragment>
+
+              {/* Circle anchor */}
+              <div className="relative flex items-center justify-center h-[36px] w-[36px]">
+                <div className="absolute inset-0 rounded-full bg-background opacity-0 z-10" />
+                <div className="absolute inset-0 rounded-full border-2 border-transparent z-20" />
+
+                <div className="relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] bg-muted animate-pulse">
+                  <div className="h-[8px] w-[8px] rounded-full opacity-0" />
+                </div>
+              </div>
+
+              {/* Label skeleton — nudged down */}
+              <div className="mt-[13px] h-[12px] w-[72px] rounded bg-muted animate-pulse" />
+              {/* <div className="mt-[11px] h-[12px] w-[72px] rounded bg-muted animate-pulse" /> */}
+            </div>
           ))}
         </div>
       </div>
@@ -46,58 +59,77 @@ export function ProgressIndicator({
   }
 
   return (
-    <div className="relative flex items-start justify-between w-full overflow-x-auto min-h-[60px] md:min-h-[72px]">
-      <div className="flex items-start justify-between w-full min-w-max md:min-w-0">
-        {steps.map((step, index) => {
+    <div className="mt-3">
+      <div className="relative flex items-start justify-between">
+        {steps.map((label, index) => {
           const stepNumber = index + 1;
           const isCompleted = stepNumber < currentStep;
-          const isCurrent = stepNumber === currentStep;
+          const isActive = stepNumber === currentStep;
+          const isFilled = isCompleted || isActive;
+          const isDisabled = disabledSteps.includes(stepNumber);
+
+          // For disabled steps, always show as completed (locked)
+          const displayCompleted = isCompleted || isDisabled;
+          const displayFilled = isFilled || isDisabled;
+
+          const handleClick = () => {
+            if (!isDisabled && onStepClick) {
+              onStepClick(stepNumber);
+            }
+          };
 
           return (
-            <React.Fragment key={index}>
-              <div className="flex flex-col items-center z-10 flex-1 min-w-[60px] md:min-w-0">
-                <div className="relative size-6 md:size-8 flex items-center justify-center">
-                  {isCompleted ? (
-                    <div className="size-5 md:size-6 flex items-center justify-center rounded-full bg-foreground text-background">
-                      <CheckIcon className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                    </div>
-                  ) : isCurrent ? (
-                    <div className="size-6 md:size-8 rounded-full border-2 border-foreground flex items-center justify-center bg-background">
-                      <div className="size-5 md:size-6 flex items-center justify-center rounded-full bg-foreground">
-                        <div className="size-1 md:size-1.5 rounded-full bg-background" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="size-5 md:size-6 flex items-center justify-center rounded-full bg-background border-2 border-muted-foreground/30">
-                      <div className="size-1 md:size-1.5 rounded-full bg-muted-foreground/30" />
-                    </div>
-                  )}
-                </div>
+            <div
+              key={label}
+              className={`relative flex flex-1 flex-col items-center min-w-0 ${isDisabled ? "cursor-not-allowed opacity-50" : onStepClick ? "cursor-pointer" : ""}`}
+              onClick={handleClick}
+            >
+              {/* Connector — slightly thinner */}
+              {index !== 0 && (
                 <div
-                  className={`text-xs md:text-sm mt-1.5 md:mt-2 text-center px-1 ${
-                    isCurrent
-                      ? "text-foreground font-semibold"
-                      : isCompleted
-                      ? "text-foreground"
-                      : "text-muted-foreground/70"
-                  }`}
-                >
-                  {step}
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`hidden md:block absolute top-3 md:top-4 z-0 ${
-                    stepNumber < currentStep ? "bg-foreground" : "bg-muted-foreground/30"
-                  }`}
+                  className={`absolute left-[-50%] w-full z-0 rounded-full ${displayFilled ? "bg-foreground" : "bg-border"}`}
                   style={{
-                    left: `calc(${(index + 0.5) * (100 / steps.length)}% + 12px)`,
-                    width: `calc(${100 / steps.length}% - 24px)`,
-                    height: '1.5px',
+                    top: "16.5px",
+                    height: "3px",
                   }}
                 />
               )}
-            </React.Fragment>
+
+              {/* Circle anchor */}
+              <div className="relative flex items-center justify-center h-[36px] w-[36px]">
+                {isActive && !isDisabled && (
+                  <>
+                    <div className="absolute inset-0 rounded-full bg-background z-10" />
+                    <div className="absolute inset-0 rounded-full border-2 border-foreground z-20" />
+                  </>
+                )}
+
+                {/* Step circle */}
+                <div
+                  className={`relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]
+                     ${displayFilled ? "border-2 border-foreground bg-foreground" : "border-2 border-border bg-background"} `}
+                >
+                  {displayCompleted ? (
+                    <CheckIcon
+                      className="h-[20px] w-[20px] text-background translate-y-[0.5px]"
+                    />
+
+                  ) : (
+                    <div className={`h-[8px] w-[8px] rounded-full ${displayFilled ? "bg-background" : "bg-border"}`} />
+                  )}
+                </div>
+              </div>
+
+              {/* Label */}
+              <span
+                className={`mt-2.5 text-center text-[12px] leading-snug max-w-[90px] ${isActive && !isDisabled
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground"
+                  }`}
+              >
+                {label}
+              </span>
+            </div>
           );
         })}
       </div>

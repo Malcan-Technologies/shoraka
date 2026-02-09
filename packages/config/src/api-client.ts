@@ -50,19 +50,19 @@ import type {
   GetProductLogsParams,
   ProductLogsResponse,
   ExportProductLogsParams,
-  RequestProductImageUploadUrlInput,
-  RequestProductImageUploadUrlResponse,
-  RequestProductImageDownloadUrlInput,
-  ProductImageDownloadUrlResponse,
-  RequestProductImageReplaceUrlInput,
-  RequestProductImageReplaceUrlResponse,
   GetActivitiesParams,
   ActivitiesResponse,
   Product,
   GetProductsResponse,
   Application,
+  ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationStepInput,
+  Contract,
+  ContractDetails,
+  CustomerDetails,
+  Invoice,
+  InvoiceDetails,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -321,11 +321,11 @@ export class ApiClient {
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        verifyLink?: string;
-        newRequestId?: string;
-      }>
+      success: boolean;
+      message: string;
+      verifyLink?: string;
+      newRequestId?: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -339,9 +339,9 @@ export class ApiClient {
   // Complete final approval for an onboarding application
   async completeFinalApproval(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -353,9 +353,9 @@ export class ApiClient {
   // Approve AML screening for an onboarding application
   async approveAmlScreening(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -367,9 +367,9 @@ export class ApiClient {
   // Approve SSM verification for a company organization
   async approveSsmVerification(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-      }>
+      success: boolean;
+      message: string;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -381,10 +381,10 @@ export class ApiClient {
   // Refresh corporate onboarding status by fetching latest director KYC statuses
   async refreshCorporateStatus(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        directorsUpdated: number;
-      }>
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -397,10 +397,10 @@ export class ApiClient {
   // Refresh corporate AML status by fetching latest director AML statuses
   async refreshCorporateAmlStatus(onboardingId: string): Promise<
     | ApiResponse<{
-        success: boolean;
-        message: string;
-        directorsUpdated: number;
-      }>
+      success: boolean;
+      message: string;
+      directorsUpdated: number;
+    }>
     | ApiError
   > {
     return this.post<{
@@ -896,34 +896,6 @@ export class ApiClient {
     return response.blob();
   }
 
-  // Product Images
-  async requestProductImageUploadUrl(
-    data: RequestProductImageUploadUrlInput
-  ): Promise<ApiResponse<RequestProductImageUploadUrlResponse> | ApiError> {
-    return this.post<RequestProductImageUploadUrlResponse>(
-      `/v1/products/images/upload-url`,
-      data
-    );
-  }
-
-  async requestProductImageDownloadUrl(
-    data: RequestProductImageDownloadUrlInput
-  ): Promise<ApiResponse<ProductImageDownloadUrlResponse> | ApiError> {
-    return this.post<ProductImageDownloadUrlResponse>(
-      `/v1/products/images/download-url`,
-      data
-    );
-  }
-
-  async requestProductImageReplaceUrl(
-    data: RequestProductImageReplaceUrlInput
-  ): Promise<ApiResponse<RequestProductImageReplaceUrlResponse> | ApiError> {
-    return this.post<RequestProductImageReplaceUrlResponse>(
-      `/v1/products/images/replace-url`,
-      data
-    );
-  }
-
   // Activities
   async getActivities(params: GetActivitiesParams): Promise<ApiResponse<ActivitiesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
@@ -958,6 +930,50 @@ export class ApiClient {
     return this.get<Product>(`/v1/products/${id}`);
   }
 
+  async createProduct(data: { workflow: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+    return this.post<Product>("/v1/products", data);
+  }
+
+  async updateProduct(
+    id: string,
+    data: { workflow?: unknown[]; completeCreate?: boolean }
+  ): Promise<ApiResponse<Product> | ApiError> {
+    return this.patch<Product>(`/v1/products/${id}`, data);
+  }
+
+  async deleteProduct(id: string): Promise<ApiResponse<unknown> | ApiError> {
+    return this.delete<unknown>(`/v1/products/${id}`);
+  }
+
+  /** Request presigned URL for product image (admin). PNG only, 5MB max. */
+  async requestProductImageUploadUrl(
+    productId: string,
+    body: { fileName: string; contentType: string; fileSize?: number }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/products/${productId}/upload-image-url`,
+      body
+    );
+  }
+
+  /** Request presigned URL for product document template (admin). Backend loads product and returns uploadUrl + s3Key for slot. */
+  async requestProductTemplateUploadUrl(
+    productId: string,
+    body: {
+      categoryKey: string;
+      templateIndex: number;
+      fileName: string;
+      contentType: string;
+      fileSize?: number;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/products/${productId}/upload-template-url`,
+      body
+    );
+  }
+
+
   // Applications
   async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications`, data);
@@ -969,6 +985,10 @@ export class ApiClient {
 
   async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {
     return this.patch<Application>(`/v1/applications/${id}/step`, data);
+  }
+
+  async updateApplicationStatus(id: string, status: ApplicationStatus): Promise<ApiResponse<Application> | ApiError> {
+    return this.patch<Application>(`/v1/applications/${id}/status`, { status });
   }
 
   async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
@@ -984,15 +1004,15 @@ export class ApiClient {
     offset?: number;
   }): Promise<
     | ApiResponse<{
-        items: any[];
-        pagination: {
-          total: number;
-          unreadCount: number;
-          limit: number;
-          offset: number;
-          pages: number;
-        };
-      }>
+      items: any[];
+      pagination: {
+        total: number;
+        unreadCount: number;
+        limit: number;
+        offset: number;
+        pages: number;
+      };
+    }>
     | ApiError
   > {
     const queryParams = new URLSearchParams();
@@ -1087,6 +1107,118 @@ export class ApiClient {
 
   async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
     return this.post<{ count: number }>("/v1/notifications/admin/seed-types");
+  }
+
+  // Contracts
+  async createContract(applicationId: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.post<Contract>("/v1/contracts", { applicationId });
+  }
+
+  async getContract(id: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.get<Contract>(`/v1/contracts/${id}`);
+  }
+
+  async updateContract(
+    id: string,
+    data: {
+      contract_details?: ContractDetails;
+      customer_details?: CustomerDetails;
+      status?: string;
+    }
+  ): Promise<ApiResponse<Contract> | ApiError> {
+    return this.patch<Contract>(`/v1/contracts/${id}`, data);
+  }
+
+  async unlinkContract(id: string): Promise<ApiResponse<void> | ApiError> {
+    return this.post<void>(`/v1/contracts/${id}/unlink`, {});
+  }
+
+  async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
+    return this.get<Contract[]>(`/v1/contracts/approved?organizationId=${organizationId}`);
+  }
+
+  async requestContractUploadUrl(
+    id: string,
+    data: {
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      type: "contract" | "consent";
+      existingS3Key?: string;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/contracts/${id}/upload-url`,
+      data
+    );
+  }
+
+  // Invoices
+  async createInvoice(data: {
+    applicationId: string;
+    contractId?: string;
+    details: InvoiceDetails;
+  }): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.post<Invoice>("/v1/invoices", data);
+  }
+
+  async getInvoice(id: string): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.get<Invoice>(`/v1/invoices/${id}`);
+  }
+
+  async updateInvoice(
+    id: string,
+    details: Partial<InvoiceDetails>
+  ): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.patch<Invoice>(`/v1/invoices/${id}`, { details });
+  }
+
+  async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/invoices/${id}`);
+  }
+
+  async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+    return this.get<Invoice[]>(`/v1/invoices/by-application/${applicationId}`);
+  }
+
+  async getInvoicesByContract(contractId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+    return this.get<Invoice[]>(`/v1/invoices/by-contract/${contractId}`);
+  }
+
+  async requestInvoiceUploadUrl(
+    id: string,
+    data: {
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      existingS3Key?: string;
+    }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post<{ uploadUrl: string; s3Key: string; expiresIn: number }>(
+      `/v1/invoices/${id}/upload-url`,
+      data
+    );
+  }
+
+  async deleteInvoiceDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/invoices/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
+  }
+
+  // Invoice APIs removed.
+  // Methods related to invoices were deleted because invoice backend was removed.
+
+  async deleteContractDocument(
+    id: string,
+    s3Key: string
+  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/contracts/${id}/document`, {
+      body: JSON.stringify({ s3Key }),
+    });
   }
 }
 

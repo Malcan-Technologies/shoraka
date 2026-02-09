@@ -2,110 +2,129 @@ import { prisma } from "../../lib/prisma";
 import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
 
-export class ProductRepository {
-  /**
-   * Create a new product
-   */
-  async create(data: { workflow: Prisma.InputJsonValue }): Promise<Product> {
-    return prisma.product.create({
-      data: {
-        workflow: data.workflow,
-      },
-    });
-  }
+export interface ListProductsParams {
+  page: number;
+  pageSize: number;
+  search?: string;
+}
 
-  /**
-   * Find product by ID
-   */
+export interface UpdateProductData {
+  workflow?: unknown[];
+  /** When true, replace workflow without incrementing version (used only for the first update right after create). */
+  completeCreate?: boolean;
+}
+
+export interface CreateProductData {
+  workflow: unknown[];
+}
+
+/** Deep equality for JSON-like workflow (arrays and plain objects). Used to avoid version bump when nothing changed. */
+function workflowDeepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, i) => workflowDeepEqual(item, b[i]));
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keysA = Object.keys(a as Record<string, unknown>).sort();
+  const keysB = Object.keys(b as Record<string, unknown>).sort();
+  if (keysA.length !== keysB.length || keysA.some((k, i) => k !== keysB[i])) return false;
+  return keysA.every((k) =>
+    workflowDeepEqual(
+      (a as Record<string, unknown>)[k],
+      (b as Record<string, unknown>)[k]
+    )
+  );
+}
+
+/**
+ * Product read/write: findById, list, create, update, delete. Used by applications module and admin products list.
+ */
+export class ProductRepository {
   async findById(id: string): Promise<Product | null> {
     return prisma.product.findUnique({
       where: { id },
     });
   }
 
-  /**
-   * List products with pagination and search
-   */
-  async list(params: {
-    page: number;
-    pageSize: number;
-    search?: string;
-  }): Promise<{
-    products: Product[];
-    totalCount: number;
-  }> {
-    const skip = (params.page - 1) * params.pageSize;
-
-    if (params.search && params.search.trim()) {
-      const searchTerm = `%${params.search.trim()}%`;
-      
-      const searchQuery = Prisma.sql`
-        SELECT DISTINCT p.*
-        FROM products p
-        WHERE 
-          LOWER((p.workflow::jsonb->0->'config'->'type'->>'name')::text) LIKE LOWER(${searchTerm})
-          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'category')::text) LIKE LOWER(${searchTerm})
-        ORDER BY p.created_at DESC
-        LIMIT ${params.pageSize} OFFSET ${skip}
-      `;
-
-      const countQuery = Prisma.sql`
-        SELECT COUNT(DISTINCT p.id) as count
-        FROM products p
-        WHERE 
-          LOWER((p.workflow::jsonb->0->'config'->'type'->>'name')::text) LIKE LOWER(${searchTerm})
-          OR LOWER((p.workflow::jsonb->0->'config'->'type'->>'description')::text) LIKE LOWER(${searchTerm})
-      `;
-
-      const [productsResult, countResult] = await Promise.all([
-        prisma.$queryRaw<Product[]>(searchQuery),
-        prisma.$queryRaw<[{ count: bigint }]>(countQuery),
-      ]);
-
-      const totalCount = Number(countResult[0]?.count || 0);
-
-      return {
-        products: productsResult,
-        totalCount,
-      };
-    }
-
-    const [products, totalCount] = await Promise.all([
-      prisma.product.findMany({
-        skip,
-        take: params.pageSize,
-        orderBy: { created_at: "desc" },
-      }),
-      prisma.product.count(),
-    ]);
-
-    return { products, totalCount };
-  }
-
-  /**
-   * Update product
-   */
-  async update(
-    id: string,
-    data: { workflow?: Prisma.InputJsonValue }
-  ): Promise<Product> {
-    return prisma.product.update({
-      where: { id },
+  async create(data: CreateProductData): Promise<Product> {
+    return prisma.product.create({
       data: {
-        ...(data.workflow && { workflow: data.workflow }),
-        ...(data.workflow && { version: { increment: 1 } }),
-        updated_at: new Date(),
+        version: 1,
+        workflow: data.workflow as Prisma.InputJsonValue,
       },
     });
   }
 
-  /**
-   * Delete product
-   */
-  async delete(id: string): Promise<void> {
-    await prisma.product.delete({
+  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
+  async update(id: string, data: UpdateProductData): Promise<Product> {
+    if (data.workflow === undefined) {
+      return prisma.product.findUniqueOrThrow({ where: { id } });
+    }
+    const current = await prisma.product.findUnique({ where: { id } });
+    if (!current) {
+      throw new Error("Product not found");
+    }
+    const currentWorkflow = current.workflow as unknown;
+    if (workflowDeepEqual(data.workflow, currentWorkflow)) {
+      return current;
+    }
+    const skipIncrement = data.completeCreate === true;
+    return prisma.product.update({
+      where: { id },
+      data: {
+        workflow: data.workflow as Prisma.InputJsonValue,
+        ...(skipIncrement ? {} : { version: { increment: 1 } }),
+      },
+    });
+  }
+
+  async delete(id: string): Promise<Product> {
+    return prisma.product.delete({
       where: { id },
     });
+  }
+
+  async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
+    const { page, pageSize, search } = params;
+    const skip = (page - 1) * pageSize;
+    const searchTrim = search?.trim();
+
+    if (!searchTrim) {
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          skip,
+          take: pageSize,
+          orderBy: { updated_at: "desc" },
+        }),
+        prisma.product.count(),
+      ]);
+      return { products, total };
+    }
+
+    const pattern = `%${searchTrim}%`;
+    const [products, countResult] = await Promise.all([
+      prisma.$queryRaw<Product[]>`
+        SELECT * FROM products
+        WHERE (
+          (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+          OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+        )
+        ORDER BY updated_at DESC
+        LIMIT ${pageSize} OFFSET ${skip}
+      `,
+      prisma.$queryRaw<[{ count: number }]>`
+        SELECT COUNT(*)::int as count FROM products
+        WHERE (
+          (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+          OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+        )
+      `,
+    ]);
+    const total = countResult[0]?.count ?? 0;
+    return { products, total };
   }
 }
 
@@ -119,6 +138,10 @@ export interface CreateProductLogData {
   metadata?: Record<string, unknown> | null;
 }
 
+/**
+ * Product log repository: read/write product audit logs only.
+ * Product CRUD and image logic have been removed.
+ */
 export class ProductLogRepository {
   async create(data: CreateProductLogData) {
     return prisma.productLog.create({

@@ -60,12 +60,12 @@ router.get(
       });
 
       if (format === "csv") {
-        // Generate CSV
         const headers = [
           "Timestamp",
           "Admin",
           "Email",
           "Event Type",
+          "Product Name",
           "Product ID",
           "IP Address",
           "Device",
@@ -79,13 +79,19 @@ router.get(
             product_id: string | null;
             ip_address: string | null;
             device_info: string | null;
-            metadata: unknown;
+            metadata: Record<string, unknown> | null;
           };
+          const meta = logItem.metadata ?? {};
+          const productName =
+            (typeof meta.product_name === "string" ? meta.product_name : null) ??
+            (typeof meta.name === "string" ? meta.name : null) ??
+            "";
           return [
             logItem.created_at.toISOString(),
             `${logItem.user.first_name} ${logItem.user.last_name}`,
             logItem.user.email,
             logItem.event_type,
+            productName,
             logItem.product_id || "",
             logItem.ip_address || "",
             logItem.device_info || "",
@@ -124,9 +130,16 @@ router.get(
             ip_address: string | null;
             user_agent: string | null;
             device_info: string | null;
-            metadata: unknown;
+            metadata: Record<string, unknown> | null;
             created_at: Date;
           };
+          const meta = logItem.metadata ?? {};
+          const workflow = (meta.workflow as unknown[]) ?? [];
+          const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
+          const productName =
+            (typeof first?.config?.name === "string" ? first.config.name : null) ??
+            (typeof first?.config?.type?.name === "string" ? first?.config?.type?.name : null) ??
+            null;
           return {
             id: logItem.id,
             user_id: logItem.user_id,
@@ -137,6 +150,7 @@ router.get(
               roles: logItem.user.roles,
             },
             product_id: logItem.product_id,
+            product_name: productName,
             event_type: logItem.event_type,
             ip_address: logItem.ip_address,
             user_agent: logItem.user_agent,

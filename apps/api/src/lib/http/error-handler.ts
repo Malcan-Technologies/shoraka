@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { ZodError } from "zod";
 import { logger } from "../logger";
 
 export class AppError extends Error {
@@ -13,6 +14,13 @@ export class AppError extends Error {
   }
 }
 
+function formatZodMessage(zodError: ZodError): string {
+  const first = zodError.issues[0];
+  if (!first) return "Validation failed";
+  const path = first.path.length ? `${first.path.join(".")}: ` : "";
+  return path + (first.message || "Invalid value");
+}
+
 export function errorHandler(
   err: Error | AppError,
   req: Request,
@@ -20,6 +28,24 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   const correlationId = res.locals.correlationId || req.headers["x-correlation-id"] || "unknown";
+
+  if (err instanceof ZodError) {
+    const message = formatZodMessage(err);
+    logger.warn(
+      { correlationId, path: req.path, method: req.method, issues: err.issues },
+      message
+    );
+    res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message,
+        details: err.issues,
+      },
+      correlationId,
+    });
+    return;
+  }
 
   if (err instanceof AppError) {
     logger.error(
