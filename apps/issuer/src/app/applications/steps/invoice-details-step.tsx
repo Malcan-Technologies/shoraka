@@ -20,7 +20,10 @@ import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@cashsouk/ui";
+import { cn } from "@/lib/utils";
+import {
+  formInputClassName,
+} from "@/app/applications/components/form-control";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -757,7 +760,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }, [applicationId]);
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-8 px-3">
       {/* Contract Summary */}
       {application?.contract && (
         <section className="space-y-4">
@@ -998,8 +1001,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         <Input
                           value={inv.number}
                           onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                          placeholder="#Invoice number"
+                          placeholder="eg. 3066"
                           disabled={isDisabled}
+                          className={formInputClassName}
                         />
                       </TableCell>
 
@@ -1016,6 +1020,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           value={inv.maturity_date}
                           onChange={(e) => updateInvoiceField(inv.id, "maturity_date", e.target.value)}
                           disabled={isDisabled}
+                          className={formInputClassName}
                         />
                       </TableCell>
 
@@ -1024,9 +1029,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         <Input
                           type="text"
                           inputMode="decimal"
-                          placeholder="0.00"
+                          placeholder="eg. 10000.00"
                           disabled={isDisabled}
                           value={inv.value}
+                          className={formInputClassName}
                           onFocus={() => {
                             // focus
                           }}
@@ -1098,11 +1104,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                               relative
                               [&_[data-orientation=horizontal]]:h-1.5
                               [&_[data-orientation=horizontal]]:bg-muted
-                              [&_[data-orientation=horizontal]>span]:bg-destructive
+                              [&_[data-orientation=horizontal]>span]:bg-primary
                               [&_[role=slider]]:h-4
                               [&_[role=slider]]:w-4
                               [&_[role=slider]]:border-2
-                              [&_[role=slider]]:border-destructive
+                              [&_[role=slider]]:border-primary
                               [&_[role=slider]]:bg-background
                               [&_[role=slider]]:shadow-none
                             "
@@ -1175,7 +1181,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 </div>
                               ) : (
                                 <label
-                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
                                 >
                                   <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 
@@ -1244,7 +1250,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         {/* Validation Error Display */}
         {validationError && (
-          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+          <div className="bg-primary/10 border border-primary text-primary px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
             <XMarkIcon className="h-5 w-5 shrink-0" />
             {validationError}
           </div>

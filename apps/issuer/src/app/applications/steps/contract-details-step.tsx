@@ -19,6 +19,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
+import {
+  formInputClassName,
+  formLabelClassName,
+  formSelectTriggerClassName,
+  formTextareaClassName,
+} from "@/app/applications/components/form-control";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -39,6 +45,8 @@ interface ContractDetailsStepProps {
   onDataChange?: (data: any) => void;
 }
 
+type YesNo = "yes" | "no";
+
 const ENTITY_TYPES = [
   "Sole Proprietor",
   "Partnership",
@@ -50,6 +58,49 @@ const COUNTRIES = [
   { code: "MY", name: "Malaysia", flag: "🇲🇾" },
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
+
+/** Render blocks
+ *
+ * What: Canonical yes/no radio group for boolean fields.
+ * Why: Match the same yes/no UI used in `business-details-step.tsx`.
+ * Data: `value` is `"yes" | "no" | ""` so we can avoid pre-selecting.
+ */
+function YesNoRadioGroup({
+  value,
+  onValueChange,
+  name,
+}: {
+  value: YesNo | "";
+  onValueChange: (v: YesNo) => void;
+  name: string;
+}) {
+  return (
+    <RadioGroup
+      value={value}
+      onValueChange={(v) => onValueChange(v as YesNo)}
+      className="flex items-center gap-6 h-11"
+    >
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="yes" id={`${name}-yes`} />
+        <Label
+          htmlFor={`${name}-yes`}
+          className={cn(formLabelClassName, "cursor-pointer")}
+        >
+          Yes
+        </Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="no" id={`${name}-no`} />
+        <Label
+          htmlFor={`${name}-no`}
+          className={cn(formLabelClassName, "cursor-pointer")}
+        >
+          No
+        </Label>
+      </div>
+    </RadioGroup>
+  );
+}
 
 export function ContractDetailsStep({ applicationId, onDataChange }: ContractDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
@@ -79,7 +130,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       entity_type: "",
       ssm_number: "",
       country: "MY",
-      is_related_party: false,
+      is_related_party: "" as YesNo | "",
       document: null as any,
     },
   });
@@ -154,7 +205,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           entity_type: "",
           ssm_number: "",
           country: "MY",
-          is_related_party: false,
+          is_related_party: "" as YesNo | "",
           document: null,
         },
       };
@@ -182,7 +233,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         entity_type: customerDetails.entity_type || "",
         ssm_number: customerDetails.ssm_number || "",
         country: customerDetails.country || "MY",
-        is_related_party: !!customerDetails.is_related_party,
+        is_related_party: (customerDetails.is_related_party === undefined || customerDetails.is_related_party === null
+          ? ""
+          : customerDetails.is_related_party
+            ? "yes"
+            : "no") as YesNo | "",
         document: customerDetails.document || null,
       },
     };
@@ -348,11 +403,16 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       available_facility: availableFacilityNum,
     };
 
+    const updatedCustomerDetails = {
+      ...updatedFormData.customer,
+      is_related_party: updatedFormData.customer.is_related_party === "yes",
+    };
+
     await updateContractMutation.mutateAsync({
       id: effectiveContractId,
       data: {
         contract_details: updatedContractDetails,
-        customer_details: updatedFormData.customer,
+        customer_details: updatedCustomerDetails,
       },
     });
 
@@ -368,7 +428,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
     return {
       contract_details: updatedContractDetails,
-      customer_details: updatedFormData.customer,
+      customer_details: updatedCustomerDetails,
     };
   }, [contractId, formData, pendingFiles, updateContractMutation, getAccessToken]);
 
@@ -443,8 +503,14 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     toast.success("File added. Click 'Save and Continue' to upload.");
   };
 
-  const inputClassName = "h-11 rounded-xl border border-border bg-background text-foreground";
-  const labelClassName = "text-sm md:text-base leading-6 text-foreground";
+  /** Helpers
+   *
+   * What: Canonical form control styles shared across steps.
+   * Why: Ensure inputs/textareas/selects match the same border, radius, and focus behavior everywhere.
+   * Data: Imported from local shared module under `apps/issuer`.
+   */
+  const inputClassName = formInputClassName;
+  const labelClassName = formLabelClassName;
   const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
@@ -468,7 +534,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           <Input
             value={formData.contract.title}
             onChange={(e) => handleInputChange("contract", "title", e.target.value)}
-            placeholder="Mining Rig Repair 12654"
+            placeholder="eg. Mining Rig Repair 12654"
             className={inputClassName}
           />
 
@@ -476,15 +542,15 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           <Textarea
             value={formData.contract.description}
             onChange={(e) => handleInputChange("contract", "description", e.target.value)}
-            placeholder="Add contract description"
-            className={inputClassName + " min-h-[100px]"}
+            placeholder="eg. Repair and maintenance for 12 mining rigs"
+            className={cn(formTextareaClassName, "min-h-[100px]")}
           />
 
           <Label className={labelClassName}>Contract number</Label>
           <Input
             value={formData.contract.number}
             onChange={(e) => handleInputChange("contract", "number", e.target.value)}
-            placeholder="20212345678"
+            placeholder="eg. 20212345678"
             className={inputClassName}
           />
 
@@ -497,7 +563,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               type="text"
               inputMode="decimal"
               value={formData.contract.value === 0 ? "" : formData.contract.value}
-              placeholder="5,000,000.00"
+              placeholder="eg. 5000000.00"
               className={inputClassName + " pl-12"}
               onChange={(e) => {
                 const raw = e.target.value;
@@ -574,7 +640,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           <Input
             value={formData.customer.name}
             onChange={(e) => handleInputChange("customer", "name", e.target.value)}
-            placeholder="Petronas Chemical Bhd"
+            placeholder="eg. Petronas Chemical Bhd"
             className={inputClassName}
           />
 
@@ -583,7 +649,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
             value={formData.customer.entity_type}
             onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
           >
-            <SelectTrigger className={inputClassName}>
+            <SelectTrigger className={formSelectTriggerClassName}>
               <SelectValue placeholder="Select entity type" />
             </SelectTrigger>
             <SelectContent>
@@ -599,7 +665,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           <Input
             value={formData.customer.ssm_number}
             onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
-            placeholder="20212345678"
+            placeholder="eg. 20212345678"
             className={inputClassName}
           />
 
@@ -608,7 +674,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
             value={formData.customer.country}
             onValueChange={(value) => handleInputChange("customer", "country", value)}
           >
-            <SelectTrigger className={inputClassName}>
+            <SelectTrigger className={formSelectTriggerClassName}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -624,34 +690,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           </Select>
 
           <Label className={labelClassName}>is customer related to issuer?</Label>
-          <RadioGroup
-            value={formData.customer.is_related_party ? "yes" : "no"}
-            onValueChange={(value) =>
-              handleInputChange("customer", "is_related_party", value === "yes")
-            }
-            className="flex items-center gap-6 h-11"
-          >
-            <div className="flex items-center gap-2">
-              <RadioGroupItem
-                value="yes"
-                id="related-yes"
-                className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
-              />
-              <Label htmlFor="related-yes" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
-                Yes
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem
-                value="no"
-                id="related-no"
-                className="rounded-full border border-input text-primary data-[state=checked]:border-primary data-[state=checked]:text-primary"
-              />
-              <Label htmlFor="related-no" className="text-sm md:text-base leading-6 text-foreground cursor-pointer">
-                NO
-              </Label>
-            </div>
-          </RadioGroup>
+          <YesNoRadioGroup
+            name="related"
+            value={formData.customer.is_related_party}
+            onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
+          />
 
           <Label className={labelClassName}>Upload customer consent</Label>
           <FileUploadArea

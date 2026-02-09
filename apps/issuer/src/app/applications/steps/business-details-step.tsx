@@ -1,5 +1,11 @@
 "use client";
 
+/** Imports
+ *
+ * What: Business details step UI and shared form controls.
+ * Why: Keep form control styling consistent across steps (inputs, textareas, radios, checkboxes).
+ * Data: Emits a snake_case payload to the parent save flow.
+ */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
@@ -7,6 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
+import {
+  formInputClassName,
+  formTextareaClassName,
+  formLabelClassName,
+} from "@/app/applications/components/form-control";
 
 /**
  * BUSINESS DETAILS STEP
@@ -155,17 +168,20 @@ interface BusinessDetailsStepProps {
 const sectionHeaderClassName =
   "text-base sm:text-lg md:text-xl font-semibold";
 
-const labelClassName =
-  "text-sm md:text-base leading-6 text-foreground min-h-10 flex items-start";
+/** Helpers
+ *
+ * What: Canonical label + layout behavior.
+ * Why: Keep typography consistent while maintaining the left-column alignment used in screenshots.
+ * Data: Shared label typography + step-specific alignment utilities.
+ */
+const labelClassName = cn(formLabelClassName, "min-h-10 flex items-start");
 
 /**
  * Inputs
  */
-const inputClassName =
-  "rounded-xl border border-border bg-background text-foreground w-full h-11";
+const inputClassName = formInputClassName;
 
-const textareaClassName =
-  "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
 
 /**
  * Core form grid
@@ -173,7 +189,7 @@ const textareaClassName =
  * ✅ alignment now matches Financing Type + other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 mt-4 w-full max-w-[1200px] items-start";
 
 /**
  * Section wrapper
@@ -186,68 +202,51 @@ const sectionWrapperClassName =
  * gap-8 = consistent section separation
  */
 const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-10";
+  "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
 /**
  * Radio labels
  */
-const radioSelectedLabel =
-  "text-sm md:text-base text-foreground";
-
-const radioUnselectedLabel =
-  "text-sm md:text-base text-muted-foreground";
-
-
-function CustomRadio({
-  name,
+/** Render blocks
+ *
+ * What: Canonical yes/no radio group.
+ * Why: Replace custom radios so all steps match the same radio behavior and visuals.
+ * Data: `value` is `"yes" | "no" | ""`; `onValueChange` emits `"yes" | "no"`.
+ */
+function YesNoRadioGroup({
   value,
-  checked,
-  onChange,
-  label,
-  selectedLabelClass,
-  unselectedLabelClass,
+  onValueChange,
+  name,
 }: {
+  value: YesNo | "";
+  onValueChange: (v: YesNo) => void;
   name: string;
-  value: string;
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-  selectedLabelClass: string;
-  unselectedLabelClass: string;
 }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
-      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-        <input
-          type="radio"
-          name={name}
-          value={value}
-          checked={checked}
-          onChange={onChange}
-          className="sr-only"
-          aria-hidden
-        />
-        <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
-            checked
-              ? "bg-primary"
-              : "border-2 border-muted-foreground/50 bg-muted/30"
-          }`}
-          aria-hidden
+    <RadioGroup
+      value={value}
+      onValueChange={(v) => onValueChange(v as YesNo)}
+      className="flex items-center gap-6 h-11"
+    >
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="yes" id={`${name}-yes`} />
+        <Label
+          htmlFor={`${name}-yes`}
+          className={cn(formLabelClassName, "cursor-pointer")}
         >
-          {checked && (
-            <span className="absolute inset-1 rounded-full bg-white" aria-hidden />
-          )}
-          {!checked && (
-            <span
-              className="absolute inset-1.5 rounded-full bg-muted-foreground/40"
-              aria-hidden
-            />
-          )}
-        </span>
-      </span>
-      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
-    </label>
+          Yes
+        </Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="no" id={`${name}-no`} />
+        <Label
+          htmlFor={`${name}-no`}
+          className={cn(formLabelClassName, "cursor-pointer")}
+        >
+          No
+        </Label>
+      </div>
+    </RadioGroup>
   );
 }
 
@@ -448,36 +447,13 @@ return (
         <Label className={labelClassName}>
           Does any single customer make up more than 50% of your revenue?
         </Label>
-        <div className="flex gap-6 items-center">
-          <CustomRadio
-            name="singleCustomerOver50Revenue"
-            value="yes"
-            checked={aboutYourBusiness.singleCustomerOver50Revenue === "yes"}
-            onChange={() =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                singleCustomerOver50Revenue: "yes",
-              }))
-            }
-            label="Yes"
-            selectedLabelClass={radioSelectedLabel}
-            unselectedLabelClass={radioUnselectedLabel}
-          />
-          <CustomRadio
-            name="singleCustomerOver50Revenue"
-            value="no"
-            checked={aboutYourBusiness.singleCustomerOver50Revenue === "no"}
-            onChange={() =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                singleCustomerOver50Revenue: "no",
-              }))
-            }
-            label="No"
-            selectedLabelClass={radioSelectedLabel}
-            unselectedLabelClass={radioUnselectedLabel}
-          />
-        </div>
+        <YesNoRadioGroup
+          name="singleCustomerOver50Revenue"
+          value={aboutYourBusiness.singleCustomerOver50Revenue}
+          onValueChange={(v) =>
+            setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
+          }
+        />
       </div>
     </section>
 
@@ -582,36 +558,13 @@ return (
         <Label className={labelClassName}>
           Are you currently raising/applying funds on any other P2P platforms?
         </Label>
-        <div className="flex gap-6 items-center">
-                   <CustomRadio
-              name="raisingOnOtherP2P"
-              value="yes"
-              checked={whyRaisingFunds.raisingOnOtherP2P === "yes"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  raisingOnOtherP2P: "yes",
-                }))
-              }
-              label="Yes"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-            <CustomRadio
-              name="raisingOnOtherP2P"
-              value="no"
-              checked={whyRaisingFunds.raisingOnOtherP2P === "no"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  raisingOnOtherP2P: "no",
-                }))
-              }
-              label="NO"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-        </div>
+        <YesNoRadioGroup
+          name="raisingOnOtherP2P"
+          value={whyRaisingFunds.raisingOnOtherP2P}
+          onValueChange={(v) =>
+            setWhyRaisingFunds((prev) => ({ ...prev, raisingOnOtherP2P: v }))
+          }
+        />
 
         <Label htmlFor="platform-name" className={labelClassName}>
           Name of platform
@@ -653,36 +606,13 @@ return (
         <Label className={labelClassName}>
           Is the same invoice being used?
         </Label>
-        <div className="flex gap-6 items-center">
-           <CustomRadio
-              name="sameInvoiceUsed"
-              value="yes"
-              checked={whyRaisingFunds.sameInvoiceUsed === "yes"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  sameInvoiceUsed: "yes",
-                }))
-              }
-              label="Yes"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-            <CustomRadio
-              name="sameInvoiceUsed"
-              value="no"
-              checked={whyRaisingFunds.sameInvoiceUsed === "no"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  sameInvoiceUsed: "no",
-                }))
-              }
-              label="NO"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-        </div>
+        <YesNoRadioGroup
+          name="sameInvoiceUsed"
+          value={whyRaisingFunds.sameInvoiceUsed}
+          onValueChange={(v) =>
+            setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+          }
+        />
       </div>
     </section>
 

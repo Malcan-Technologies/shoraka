@@ -30,6 +30,13 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import { cn } from "@/lib/utils";
+import {
+  formInputClassName,
+  formLabelClassName,
+  formSelectTriggerClassName,
+  withFieldError,
+} from "@/app/applications/components/form-control";
 
 /**
  * COMPANY DETAILS STEP
@@ -134,10 +141,16 @@ function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-const inputClassName = "bg-muted rounded-xl border border-border h-11";
-const inputClassNameEditable = "rounded-xl border border-border bg-background text-foreground h-11";
-const labelClassName = "text-sm md:text-base leading-6 text-foreground";
-const labelClassNameEditable = "text-sm md:text-base leading-6 text-foreground";
+/** Helpers
+ *
+ * What: Canonical form control styles shared across steps.
+ * Why: Keep input/label styling identical across Business/Contract/Invoice/Review.
+ * Data: Uses shared strings and an error helper that applies a thin red border.
+ */
+const inputClassName = cn(formInputClassName, "bg-muted");
+const inputClassNameEditable = formInputClassName;
+const labelClassName = formLabelClassName;
+const labelClassNameEditable = formLabelClassName;
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 
 export function CompanyDetailsStep({
@@ -674,7 +687,7 @@ return (
               setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
             }
             placeholder="eg. Technology"
-            className={inputClassNameEditable}
+            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
           />
           {fieldErrors.industry && (
             <p className="text-destructive text-sm mt-1">
@@ -692,7 +705,10 @@ return (
               setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
             }}
             placeholder="eg. 10"
-            className={inputClassNameEditable}
+            className={withFieldError(
+              inputClassNameEditable,
+              Boolean(fieldErrors.numberOfEmployees)
+            )}
           />
           {fieldErrors.numberOfEmployees && (
             <p className="text-destructive text-sm mt-1">
@@ -794,7 +810,12 @@ return (
               setPendingBanking((prev) => ({ ...prev, bankName: value }))
             }
           >
-            <SelectTrigger className={inputClassNameEditable}>
+            <SelectTrigger
+              className={withFieldError(
+                formSelectTriggerClassName,
+                Boolean(fieldErrors.bankName)
+              )}
+            >
               <SelectValue placeholder="Select bank" />
             </SelectTrigger>
             <SelectContent>
@@ -823,8 +844,11 @@ return (
                 bankAccountNumber: restrictDigitsOnly(e.target.value),
               }))
             }
-            placeholder="Enter account number"
-            className={inputClassNameEditable}
+            placeholder="eg. 1234123412341234"
+            className={withFieldError(
+              inputClassNameEditable,
+              Boolean(fieldErrors.bankAccountNumber)
+            )}
           />
 
           {fieldErrors.bankAccountNumber ? (
@@ -856,7 +880,7 @@ return (
               setContactPerson((prev) => ({ ...prev, name: e.target.value }))
             }
             placeholder="eg. John Doe"
-            className={inputClassNameEditable}
+            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.name))}
           />
           {fieldErrors.name && (
             <p className="text-destructive text-sm mt-1">
@@ -873,7 +897,10 @@ return (
               setContactPerson((prev) => ({ ...prev, position: e.target.value }))
             }
             placeholder="eg. CEO"
-            className={inputClassNameEditable}
+            className={withFieldError(
+              inputClassNameEditable,
+              Boolean(fieldErrors.position)
+            )}
           />
           {fieldErrors.position && (
             <p className="text-destructive text-sm mt-1">
@@ -893,7 +920,7 @@ return (
               }))
             }
             placeholder="eg. 1234567890"
-            className={inputClassNameEditable}
+            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.ic))}
           />
           {fieldErrors.ic && (
             <p className="text-destructive text-sm mt-1">
@@ -911,7 +938,10 @@ return (
             onChange={(v) =>
               setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
             }
-            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-[17px]"
+            className={cn(
+              withFieldError(formInputClassName, Boolean(fieldErrors.contact)),
+              "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+            )}
           />
           {fieldErrors.contact && (
             <p className="text-destructive text-sm mt-1">
@@ -1009,7 +1039,7 @@ function EditAddressDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto px-3">
+      <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle>Edit Address</DialogTitle>
           <DialogDescription className="text-[15px]">

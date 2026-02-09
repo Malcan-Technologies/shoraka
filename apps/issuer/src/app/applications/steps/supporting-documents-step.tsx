@@ -597,7 +597,7 @@ export function SupportingDocumentsStep({
                                 ) : (
                                   <label
                                     htmlFor={`file-${key}`}
-                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-destructive whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
 

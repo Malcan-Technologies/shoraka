@@ -13,6 +13,7 @@ import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
+import { SelectionCard } from "@/app/applications/components/selection-card";
 
 
 /**
@@ -282,30 +283,32 @@ export function ReviewAndSubmitStep({
           <h3 className={sectionHeaderClassName}>Financing details</h3>
 
           {financingTypeConfig ? (
-            <div className="border rounded-xl px-4 py-4 flex items-start gap-4 bg-primary/5">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {isLoadingProductImage ? (
-                  <Skeleton className="w-full h-full" />
-                ) : productImageUrl ? (
-                  <img
-                    src={productImageUrl}
-                    alt={financingTypeConfig.name || "Product"}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <span className="text-primary text-xl font-serif">&ldquo;</span>
-                )}
-              </div>
-
-              <div>
-                <div className="text-base font-semibold">
-                  {financingTypeConfig.name}
+            <SelectionCard
+              title={financingTypeConfig.name}
+              description={financingTypeConfig.description}
+              isSelected
+              onClick={() => {}}
+              className="cursor-default"
+              leading={
+                <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                  {isLoadingProductImage ? (
+                    <Skeleton className="h-full w-full rounded-md" />
+                  ) : productImageUrl ? (
+                    <img
+                      src={productImageUrl}
+                      alt={financingTypeConfig.name || "Product"}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+                      Image
+                      <br />
+                      512x512
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {financingTypeConfig.description}
-                </div>
-              </div>
-            </div>
+              }
+            />
           ) : (
             <div className="text-sm text-muted-foreground italic">
               Financing type not selected
@@ -387,11 +390,11 @@ export function ReviewAndSubmitStep({
                     <div key={invoice.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b last:border-b-0">
                       <div className={valueClassName}>#{details.number || "—"}</div>
                       <div className={valueClassName}>
-                        {invoiceValue > 0 ? invoiceValue.toLocaleString() : "—"}
+                        {invoiceValue > 0 ? formatCurrency(invoiceValue) : "—"}
                       </div>
                       <div className={valueClassName}>{formatDate(details.maturity_date)}</div>
                       <div className={valueClassName}>
-                        {maxFinancing > 0 ? maxFinancing.toLocaleString() : "—"}
+                        {maxFinancing > 0 ? formatCurrency(maxFinancing) : "—"}
                       </div>
                       <div className="w-[140px]">
                         {details.document?.file_name ? (
@@ -415,7 +418,7 @@ export function ReviewAndSubmitStep({
                   <div></div>
                   <div className="text-left">
                     <div className={valueClassName}>
-                      {totalFinancingAmount.toLocaleString()}
+                      {formatCurrency(totalFinancingAmount)}
                     </div>
                     <div className="text-xs text-muted-foreground">Total financing amount</div>
                   </div>

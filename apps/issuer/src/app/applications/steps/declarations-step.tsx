@@ -267,9 +267,10 @@ return (
                 }
                 className="
                   rounded-sm
-                  border-destructive
-                  data-[state=checked]:bg-destructive
-                  data-[state=checked]:border-destructive
+                  border border-input
+                  data-[state=checked]:bg-primary
+                  data-[state=checked]:border-primary
+                  data-[state=checked]:text-primary
                 "
               />
             </div>
