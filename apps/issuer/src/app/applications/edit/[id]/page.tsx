@@ -1074,13 +1074,6 @@ setTimeout(() => {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top navigation bar */}
-      <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-base sm:text-lg font-semibold">Edit Application</h1>
-      </header>
-
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
