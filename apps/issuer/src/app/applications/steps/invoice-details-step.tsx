@@ -303,10 +303,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
   // Effective ceiling
-    
-    const structureType = application?.financing_structure?.structure_type;
 
-let facilityLimit = 0;
+  const structureType = application?.financing_structure?.structure_type;
+const isInvoiceOnly = structureType === "invoice_only";
+
+
+let facilityLimit: number | null = null;
 
 if (structureType === "new_contract") {
   facilityLimit = Number(contractValue || 0);
@@ -317,9 +319,12 @@ if (structureType === "existing_contract") {
 }
 
 
+
+
   // LIVE available facility (this changes as user types)
-const liveAvailableFacility =
-  facilityLimit - totalFinancingAmount;
+    const liveAvailableFacility =
+  facilityLimit === null ? null : facilityLimit - totalFinancingAmount;
+
 
 
 
@@ -344,11 +349,18 @@ const liveAvailableFacility =
   }
 
   // Check if total financing exceeds facility limits
-if (!validationError && totalFinancingAmount > facilityLimit) {
+  if (
+  !validationError &&
+  facilityLimit !== null &&
+  totalFinancingAmount > facilityLimit
+) {
   validationError = `Total financing amount (${formatRM(
     totalFinancingAmount
   )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
 }
+
+
+
 
 
 
@@ -624,6 +636,7 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
 
             </div>
 
+
             {/* Approved Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Approved facility</div>
@@ -649,7 +662,8 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
                     : ""
                 )}
               >
-                {formatRM(Math.max(liveAvailableFacility ?? 0, 0))}
+                {liveAvailableFacility !== null && formatRM(Math.max(liveAvailableFacility, 0))}
+
 
 
                 {!approvedFacility && (
