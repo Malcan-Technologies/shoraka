@@ -21,8 +21,6 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
-import { useUpdateContract } from "@/hooks/use-contracts";
-
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -76,8 +74,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     Record<string, { s3_key?: string }>
   >({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
-  const updateContractMutation = useUpdateContract();
-
 
 
 
@@ -292,6 +288,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const contractValue =
     application?.contract?.contract_details?.value || 0;
 
+  console.log(contractValue);
+
   // =======================
   // Formatting helpers
   // =======================
@@ -303,7 +301,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
   // Effective ceiling
-    
+
     const structureType = application?.financing_structure?.structure_type;
 
 let facilityLimit = 0;

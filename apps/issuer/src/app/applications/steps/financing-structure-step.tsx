@@ -112,27 +112,24 @@ export function FinancingStructureStep({
     // Save function: create contract when user selected "new_contract"
     const saveFunction = async () => {
       if (selectedStructure === "new_contract") {
-        const created = await createContractMutation.mutateAsync(applicationId);
-        return created;
+        await createContractMutation.mutateAsync(applicationId);
+        return null;
       }
       return null;
     };
 
     const savedStructure = application?.financing_structure as any;
 
-      
-
+  // Check if user made changes from what's in DB
   const structureChanged =
-  !!savedStructure &&
-  savedStructure.structure_type !== selectedStructure;
+    !savedStructure ||  // No saved data yet (first time) → need to save
+    savedStructure.structure_type !== selectedStructure ||  // Structure type changed
+    (
+      selectedStructure === "existing_contract" &&
+      savedStructure.existing_contract_id !== selectedContractId  // Contract ID changed
+    );
 
-  const hasPendingChanges =
-  structureChanged ||
-  (
-    selectedStructure === "existing_contract" &&
-    savedStructure?.structure_type === "existing_contract" &&
-    savedStructure?.existing_contract_id !== selectedContractId
-  );
+  const hasPendingChanges = structureChanged;
 
 
 
@@ -147,7 +144,7 @@ export function FinancingStructureStep({
       isCreatingContract: createContractMutation.isPending,
     });
 
-  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, createContractMutation.isPending]);
+  }, [selectedStructure, selectedContractId, approvedContracts, approvedContracts, isInitialized, createContractMutation.isPending, applicationId, createContractMutation, application]);
 
   /**
    * Handle structure type selection
