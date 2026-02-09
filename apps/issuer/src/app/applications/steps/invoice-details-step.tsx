@@ -328,16 +328,41 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * COMPUTE DERIVED STATE
    *
-   * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all rows
+   * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all invoices
+   *   - For existing contracts: includes both application invoices + contract invoices
+   *   - For other structures: only application invoices
    * hasPendingFiles: any files selected but not yet uploaded
    * allRowsValid: all rows are either empty or completely filled (no partial rows)
    * hasPartialRows: any row is partial (user touched it but didn't complete it)
    */
-  const totalFinancingAmount = invoices.reduce((acc, inv) => {
+  const applicationFinancingAmount = invoices.reduce((acc, inv) => {
     const value = inv.value === "" ? 0 : Number(inv.value);
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
+
+  /**
+   * CONTRACT INVOICES FINANCING
+   *
+   * For existing contracts, calculate financing amount from fetched contract invoices.
+   * These are already approved/submitted, so they represent already-used facility.
+   */
+  const contractInvoicesFinancingAmount = contractInvoices.reduce((acc, inv) => {
+    const value = inv.value === "" ? 0 : Number(inv.value);
+    const ratio = (inv.financing_ratio_percent || 60) / 100;
+    return acc + value * ratio;
+  }, 0);
+
+  /**
+   * TOTAL FINANCING AMOUNT
+   *
+   * For existing contracts: application invoices + contract invoices
+   * For other structures: only application invoices
+   */
+  const isExistingContractStructure = application?.financing_structure?.structure_type === "existing_contract";
+  const totalFinancingAmount = isExistingContractStructure
+    ? applicationFinancingAmount + contractInvoicesFinancingAmount
+    : applicationFinancingAmount;
 
   const approvedFacility =
     application?.contract?.contract_details?.approved_facility || 0;
@@ -372,9 +397,20 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }
 
 
-  // LIVE available facility (this changes as user types)
-  const liveAvailableFacility =
-    facilityLimit - totalFinancingAmount;
+  /**
+   * LIVE AVAILABLE FACILITY
+   *
+   * For existing contracts:
+   *   - Start with approved facility
+   *   - Subtract already-used facility (from contract invoices)
+   *   - Subtract new financing being added (from application invoices)
+   * 
+   * For other structures:
+   *   - Use facility limit minus new financing being added
+   */
+  const liveAvailableFacility = isExistingContractStructure
+    ? approvedFacility - contractInvoicesFinancingAmount - applicationFinancingAmount
+    : facilityLimit - totalFinancingAmount;
 
 
 
@@ -779,12 +815,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           <div>
             <h2 className="text-base sm:text-lg md:text-xl font-semibold">Invoice details</h2>
             <p className="text-sm text-muted-foreground mt-1">Add invoices below. Rows are local until you Save and Continue.</p>
-            {isExistingContract && contractInvoices.length > 0 && (
+            {/* {isExistingContract && contractInvoices.length > 0 && (
               <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded bg-muted/50"></span>
                 Grayed rows are from your existing contract (read-only)
               </p>
-            )}
+            )} */}
           </div>
           <Button onClick={addInvoice} className="bg-primary text-primary-foreground">Add invoice</Button>
         </div>
