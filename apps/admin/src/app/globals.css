@@ -117,6 +117,13 @@
   }
 }
 
+/* Override base p/li size inside onboarding/AML instruction blocks so steps render smaller */
+.instruction-steps ol li,
+.instruction-steps p.instruction-conclusion {
+  font-size: 15px;
+  line-height: 15px;
+}
+
 /* CashSouk Admin Portal Theme */
 .theme-admin {
   --primary: 359.6 95.7% 27.6%;
