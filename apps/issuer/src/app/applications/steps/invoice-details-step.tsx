@@ -60,11 +60,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * LOCAL STATE
    *
-   * Manages invoice rows and pending operations.
-   * - invoices: array of LocalInvoice (shown in table)
+   * - invoices: array of LocalInvoice (application/draft invoices shown in table)
    * - selectedFiles: Map of invoice ID → File (selected but not yet uploaded)
-   * - uploadingKeys: Set of invoice IDs currently uploading
+   * - application: loaded application data
    * - lastS3Keys: Map of invoice ID → last S3 key (for versioning on replace)
+   * - deletedInvoices: invoices marked for deletion (only draft/application ones)
+   * - initialInvoices: baseline for change detection
+   * - contractInvoices: approved/submitted invoices from linked contract (read-only)
    */
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -74,6 +76,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     Record<string, { s3_key?: string }>
   >({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
+  const [contractInvoices, setContractInvoices] = React.useState<LocalInvoice[]>([]);
 
 
 
@@ -86,7 +89,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * FETCH APPLICATION DATA
    *
-   * Load application and contract details for Contract Summary display
+   * Load application and contract details, including approved/submitted invoices
+   * from the linked contract (if existing_contract financing structure).
    */
   React.useEffect(() => {
     let mounted = true;
@@ -97,6 +101,59 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         if (resp.success && mounted) {
           console.log('hi', resp.data)
           setApplication(resp.data);
+
+          /**
+           * LOAD CONTRACT INVOICES
+           *
+           * If financing structure is existing_contract and contract exists,
+           * fetch approved/submitted invoices belonging to that contract.
+           */
+          const financingStructure = resp.data?.financing_structure;
+          const contractId = resp.data?.contract_id;
+          const isExistingContract = financingStructure?.structure_type === "existing_contract";
+
+          console.log('isit', isExistingContract, contractId)
+          if (isExistingContract && contractId) {
+            try {
+              console.log('hihihi', contractId)
+              /**
+               * FETCH CONTRACT INVOICES
+               *
+               * Get all invoices linked to this contract.
+               * API endpoint: GET /v1/invoices/by-contract/:contractId
+               */
+              const contractResp: any = await apiClient.get(`/v1/invoices/by-contract/${contractId}`);
+              if (contractResp.success) {
+                const contractInvoicesList = (contractResp.data || [])
+                  .filter((inv: any) => inv.status === "APPROVED" || inv.status === "SUBMITTED")
+                  .map((it: any) => {
+                    const d = it.details || {};
+                    return {
+                      id: it.id,
+                      isPersisted: true,
+                      number: d.number || "",
+                      status: it.status || "DRAFT",
+                      value: typeof d.value === "number" ? d.value.toFixed(2) : d.value ? Number(d.value).toFixed(2) : "",
+                      maturity_date: d.maturity_date || "",
+                      financing_ratio_percent: d.financing_ratio_percent || 60,
+                      document: d.document
+                        ? {
+                          file_name: d.document.file_name,
+                          file_size: d.document.file_size,
+                          s3_key: d.document.s3_key,
+                        }
+                        : null,
+                    };
+                  });
+                if (mounted) {
+                  console.log('hihihi', contractInvoicesList)
+                  setContractInvoices(contractInvoicesList);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to load contract invoices", err);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to load application", err);
@@ -271,16 +328,41 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   /**
    * COMPUTE DERIVED STATE
    *
-   * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all rows
+   * totalFinancingAmount: sum of (value * financing_ratio_percent / 100) for all invoices
+   *   - For existing contracts: includes both application invoices + contract invoices
+   *   - For other structures: only application invoices
    * hasPendingFiles: any files selected but not yet uploaded
    * allRowsValid: all rows are either empty or completely filled (no partial rows)
    * hasPartialRows: any row is partial (user touched it but didn't complete it)
    */
-  const totalFinancingAmount = invoices.reduce((acc, inv) => {
+  const applicationFinancingAmount = invoices.reduce((acc, inv) => {
     const value = inv.value === "" ? 0 : Number(inv.value);
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
+
+  /**
+   * CONTRACT INVOICES FINANCING
+   *
+   * For existing contracts, calculate financing amount from fetched contract invoices.
+   * These are already approved/submitted, so they represent already-used facility.
+   */
+  const contractInvoicesFinancingAmount = contractInvoices.reduce((acc, inv) => {
+    const value = inv.value === "" ? 0 : Number(inv.value);
+    const ratio = (inv.financing_ratio_percent || 60) / 100;
+    return acc + value * ratio;
+  }, 0);
+
+  /**
+   * TOTAL FINANCING AMOUNT
+   *
+   * For existing contracts: application invoices + contract invoices
+   * For other structures: only application invoices
+   */
+  const isExistingContractStructure = application?.financing_structure?.structure_type === "existing_contract";
+  const totalFinancingAmount = isExistingContractStructure
+    ? applicationFinancingAmount + contractInvoicesFinancingAmount
+    : applicationFinancingAmount;
 
   const approvedFacility =
     application?.contract?.contract_details?.approved_facility || 0;
@@ -302,26 +384,43 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
   // Effective ceiling
 
-    const structureType = application?.financing_structure?.structure_type;
+  const structureType = application?.financing_structure?.structure_type;
 
-let facilityLimit = 0;
+  let facilityLimit = 0;
 
-if (structureType === "new_contract") {
-  facilityLimit = Number(contractValue || 0);
-}
+  if (structureType === "new_contract") {
+    facilityLimit = Number(contractValue || 0);
+  }
 
-if (structureType === "existing_contract") {
-  facilityLimit = Number(approvedFacility || 0);
-}
+  if (structureType === "existing_contract") {
+    facilityLimit = Number(approvedFacility || 0);
+  }
 
 
-  // LIVE available facility (this changes as user types)
-const liveAvailableFacility =
-  facilityLimit - totalFinancingAmount;
+  /**
+   * LIVE AVAILABLE FACILITY
+   *
+   * For existing contracts:
+   *   - Start with approved facility
+   *   - Subtract already-used facility (from contract invoices)
+   *   - Subtract new financing being added (from application invoices)
+   * 
+   * For other structures:
+   *   - Use facility limit minus new financing being added
+   */
+  const liveAvailableFacility = isExistingContractStructure
+    ? approvedFacility - contractInvoicesFinancingAmount - applicationFinancingAmount
+    : facilityLimit - totalFinancingAmount;
 
 
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
+  /**
+   * PARTIAL ROWS CHECK
+   *
+   * For existing contracts: check both application AND contract invoices for partial data.
+   * If ANY row has partial data (user touched but didn't complete), block save.
+   */
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
@@ -330,10 +429,36 @@ const liveAvailableFacility =
    *
    * Validate financing ratios are within 60-80% range and total financing
    * does not exceed approved facility or contract value.
+   * 
+   * For existing contracts: 
+   * - MUST have at least one valid invoice (ALL columns filled: number, value, date, document)
+   * - Cannot save without at least one complete invoice
+   * 
+   * For other structures (new_contract, invoice_only):
+   * - Allow empty rows (user can add and leave blank)
+   * - Only validate partial rows (if user starts filling, they must complete)
    */
   let validationError = "";
 
-  // Check financing ratios are within valid range
+  // For existing contracts ONLY: require at least one FULLY valid invoice
+  const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
+
+
+
+  if (isExistingContract) {
+    const hasAtLeastOneValidInvoice =
+      invoices.some(
+        (inv) => !isRowEmpty(inv) && validateRow(inv)
+      ) || contractInvoices.length > 0;
+
+    if (!hasAtLeastOneValidInvoice) {
+      validationError =
+        "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+    }
+  }
+
+
+  // Check financing ratios are within valid range (only for non-empty rows)
   const invalidRatioInvoice = invoices.find(
     (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
   );
@@ -342,11 +467,11 @@ const liveAvailableFacility =
   }
 
   // Check if total financing exceeds facility limits
-if (!validationError && totalFinancingAmount > facilityLimit) {
-  validationError = `Total financing amount (${formatRM(
-    totalFinancingAmount
-  )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
-}
+  if (!validationError && totalFinancingAmount > facilityLimit) {
+    validationError = `Total financing amount (${formatRM(
+      totalFinancingAmount
+    )}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+  }
 
 
 
@@ -371,9 +496,14 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
 
 
 
-      // 1️⃣ CREATE only if not persisted
+      /**
+       * CREATE INVOICE
+       *
+       * If not persisted, create new invoice.
+       * For existing contracts, pass contractId to link invoice to contract.
+       */
       if (!inv.isPersisted) {
-        const createResp: any = await apiClient.createInvoice({
+        const createPayload: any = {
           applicationId,
           details: {
             number: inv.number,
@@ -381,7 +511,15 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
             maturity_date: inv.maturity_date,
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
-        });
+        };
+
+        // Add contractId if this is an existing contract
+        console.log('hiss', isExistingContract, application?.contract_id)
+        if (isExistingContract && application?.contract_id) {
+          createPayload.contractId = application.contract_id;
+        }
+
+        const createResp: any = await apiClient.createInvoice(createPayload);
 
         if (!createResp?.success) {
           throw new Error("Failed to create invoice");
@@ -502,7 +640,8 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
    * EFFECT: NOTIFY PARENT OF DATA CHANGES
    *
    * Send current state to parent page so it can decide when to enable Save button.
-   * isValid is FALSE if there are any partial rows (user touched but didn't complete them).
+   * isValid is FALSE if there are any partial rows (user touched but didn't complete them)
+   * or if existing contract has no valid invoices.
    */
   React.useEffect(() => {
     onDataChange?.({
@@ -517,6 +656,7 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     invoices,
+    contractInvoices,
     totalFinancingAmount,
     hasPendingFiles,
     allRowsValid,
@@ -619,20 +759,28 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
                   : "-"}
 
               </div>
-
             </div>
 
             {/* Approved Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Approved facility</div>
-              <div className="text-sm font-medium">{application.contract.contract_details?.approved_facility || "-"}</div>
+              <div className="text-sm font-medium">
+                {application.contract.contract_details?.approved_facility != null
+                  ? formatRM(Number(application.contract.contract_details.approved_facility))
+                  : "-"}
+              </div>
             </div>
 
             {/* Utilised Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
               <div className="text-sm text-muted-foreground">Utilised facility</div>
-              <div className="text-sm font-medium">{application.contract.contract_details?.utilised_facility || "-"}</div>
+              <div className="text-sm font-medium">
+                {application.contract.contract_details?.utilised_facility != null
+                  ? formatRM(Number(application.contract.contract_details.utilised_facility))
+                  : "-"}
+              </div>
             </div>
+
 
             {/* Available Facility */}
             <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] gap-2 md:gap-4">
@@ -667,6 +815,12 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
           <div>
             <h2 className="text-base sm:text-lg md:text-xl font-semibold">Invoice details</h2>
             <p className="text-sm text-muted-foreground mt-1">Add invoices below. Rows are local until you Save and Continue.</p>
+            {/* {isExistingContract && contractInvoices.length > 0 && (
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded bg-muted/50"></span>
+                Grayed rows are from your existing contract (read-only)
+              </p>
+            )} */}
           </div>
           <Button onClick={addInvoice} className="bg-primary text-primary-foreground">Add invoice</Button>
         </div>
@@ -691,6 +845,107 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
                 </TableRow>
               </TableHeader>
               <TableBody>
+             {/* CONTRACT INVOICES (READ-ONLY, GRAYED OUT) */}
+                {contractInvoices.map((inv) => {
+                  const ratio = inv.financing_ratio_percent || 60;
+                  const invoiceValue = inv.value === "" ? 0 : Number(inv.value);
+                  const financingAmount = invoiceValue * (ratio / 100);
+
+                  return (
+                    <TableRow
+                      key={`contract-${inv.id}`}
+                      className="bg-muted/30 opacity-60 hover:bg-muted/30"
+                    >
+
+                      {/* Invoice */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.number}
+                        </div>
+                      </TableCell>
+
+                      {/* Status */}
+                      <TableCell>
+                        <StatusBadge status={inv.status} />
+                      </TableCell>
+
+                      {/* Maturity Date */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.maturity_date}
+                        </div>
+                      </TableCell>
+
+                      {/* Invoice Value */}
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {inv.value}
+                        </div>
+                      </TableCell>
+
+                      {/* Financing Ratio */}
+                      <TableCell>
+                        <div className="w-[180px] space-y-2">
+                          <div
+                            className="relative text-[11px] font-medium text-muted-foreground"
+                            style={{
+                              left: `${((ratio - 60) / 20) * 100}%`,
+                              transform: "translateX(-50%)",
+                              width: "fit-content",
+                            }}
+                          >
+                            <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[11px] font-medium text-black shadow-sm opacity-60">
+                              {ratio}%
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[12px] font-medium text-muted-foreground">
+                            <span>60%</span>
+                            <span>80%</span>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Financing Amount */}
+                      <TableCell>
+                        <div className="text-sm font-medium whitespace-nowrap tabular-nums text-muted-foreground">
+                          {formatRM(financingAmount)}
+                        </div>
+                      </TableCell>
+
+                      {/* Documents */}
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <div className="flex items-center gap-3">
+                            <div className="w-[160px]">
+                              {inv.document ? (
+                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6 opacity-60">
+                                  <div className="w-3.5 h-3.5 rounded-sm bg-muted flex items-center justify-center shrink-0">
+                                    <CheckIconSolid className="h-2.5 w-2.5 text-muted-foreground" />
+                                  </div>
+                                  <span className="text-[14px] font-medium truncate flex-1 text-muted-foreground">
+                                    {inv.document.file_name}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[12px] text-muted-foreground">No document</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Action Button (disabled) */}
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <span className="text-[12px] text-muted-foreground font-medium"></span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+
+                {/* APPLICATION/DRAFT INVOICES */}
                 {invoices.map((inv) => {
                   const isDraft = !inv.status || inv.status === "DRAFT";
                   const isTemp = !inv.isPersisted;
@@ -938,7 +1193,8 @@ if (!validationError && totalFinancingAmount > facilityLimit) {
                     </TableRow>
                   );
                 })}
-                <TableRow className="bg-muted/10 font-bold">
+
+                   <TableRow className="bg-muted/10 font-bold">
                   {/* Skip columns 1–5 */}
                   <TableCell colSpan={5}></TableCell>
 
