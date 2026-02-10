@@ -355,7 +355,7 @@ export default function EditApplicationPage() {
     const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
     return {
       title: stepDisplay.pageTitle || stepDisplay.title,
-      description: stepDisplay.description || "Complete this step to continue",
+      description: stepDisplay.description || "",
     };
   }, [currentStepKey, effectiveWorkflow, stepFromUrl]);
 
