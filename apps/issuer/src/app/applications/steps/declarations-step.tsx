@@ -249,26 +249,24 @@ return (
   <div className="px-3">
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
-      <div className="rounded-xl border border-border bg-background p-6">
-        <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-background p-4 sm:p-5 h-fit">
+        <div className="space-y-4">
           {declarations.map((declaration: string, index: number) => {
             const isChecked = checkedDeclarations[index] || false;
 
             return (
               <label
                 key={index}
-                className="flex items-start gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                className="flex items-start gap-3 cursor-pointer"
               >
                 {/* Checkbox */}
-                <div className="shrink-0 mt-1">
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={(checked) =>
-                      handleToggle(index, checked === true)
-                    }
-                    className="rounded-sm border border-input data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                </div>
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={(checked) =>
+                    handleToggle(index, checked === true)
+                  }
+                  className="mt-0.5 rounded-[4px]"
+                />
 
                 {/* Declaration Text */}
                 <span className="text-sm md:text-base leading-6 text-foreground">
