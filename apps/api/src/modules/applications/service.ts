@@ -421,6 +421,7 @@ export class ApplicationService {
             "business_details",
             "supporting_documents",
             "declarations",
+            "review_and_submit",
           ];
 
           allStepColumns.forEach(col => {
@@ -428,6 +429,14 @@ export class ApplicationService {
               (updateData as any)[col] = Prisma.JsonNull;
             }
           });
+
+          if (!activeStepKeys.has("contract_details") && application.contract_id) {
+            (updateData as any).contract = { disconnect: true };
+          }
+
+          // if (!activeStepKeys.has("invoice_details")) {
+          //   await prisma.invoice.deleteMany({ where: { application_id: id } });
+          // }
         }
       }
 
