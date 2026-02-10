@@ -698,9 +698,6 @@ export default function EditApplicationPage() {
         return;
       }
 
-      // DEBUG: log step data at click time
-      // eslint-disable-next-line no-console
-      console.log("SAVE CLICK - stepFromUrl:", stepFromUrl, "currentStepKey:", currentStepKey, "stepDataPresent:", !!stepDataRef.current);
       // Get the data from the current step
       const rawData = stepDataRef.current;
       let dataToSave = rawData ? { ...rawData } : null;
@@ -715,8 +712,6 @@ export default function EditApplicationPage() {
         delete dataToSave.isValid;
       }
 
-      console.log(dataToSave);
-
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
        *
@@ -726,13 +721,7 @@ export default function EditApplicationPage() {
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
       if (dataToSave?.saveFunction) {
-        // DEBUG: indicate saveFunction start
-        // eslint-disable-next-line no-console
-        console.log("Calling step saveFunction for", currentStepKey);
         const returnedData = await dataToSave.saveFunction();
-        // DEBUG: log returned data from saveFunction
-        // eslint-disable-next-line no-console
-        console.log("saveFunction returned for", currentStepKey, returnedData);
 
         // Remove saveFunction from the data being sent to API
         delete dataToSave.saveFunction;
@@ -890,10 +879,6 @@ await updateStepMutation.mutateAsync({
 
 
 
-
-      // DEBUG: updateStepMutation completed
-      // eslint-disable-next-line no-console
-      console.log("updateStepMutation completed for step", currentStepId);
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);

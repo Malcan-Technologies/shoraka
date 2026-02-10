@@ -238,7 +238,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * LOAD SAVED DATA
    */
   React.useEffect(() => {
-    if (!contract) return;
+    if (!contract || isInitialized) return;
 
     const contractDetails = (contract.contract_details as any) || {};
     const customerDetails = (contract.customer_details as any) || {};
@@ -251,28 +251,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const financingStructure = (application as any)?.financing_structure;
     const structureType = financingStructure?.structure_type;
 
-    // SAFETY: If structure is "new_contract" but we have a contract linked,
-    // check if this is a stale link from a previous structure choice.
-    // Backend should handle unlinking, but during the query refetch window,
-    // we might temporarily see old contract. Only load data if it's genuinely new_contract with data,
-    // or if structure was set to existing_contract (autofill scenario).
-    const isStaleLink = structureType === "new_contract" && 
-                       contract.id !== contractId &&
-                       !hasContractData && 
-                       !hasCustomerData;
-
-    // Reset if we switched from existing_contract to new_contract and contract is empty
-    // This ensures stale data from previously selected existing contract doesn't persist
-    const shouldResetForm = (structureType === "new_contract" && !hasContractData && !hasCustomerData) || isStaleLink;
-    
-    if (shouldResetForm) {
-      // Allow re-initialization when structure changes to new_contract with no data
-      setIsInitialized(false);
-    }
-
     // Only show empty form if structure is "new_contract" AND contract has no data yet
     // This ensures navigating back doesn't clear a filled form
-    if (shouldResetForm && !isInitialized) {
+    if (structureType === "new_contract" && !hasContractData && !hasCustomerData) {
       const emptyForm = {
         contract: {
           title: "",
@@ -341,7 +322,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     setFormData(initial);
     setInitialData(JSON.parse(JSON.stringify(initial)));
     setIsInitialized(true);
-  }, [contract, application, isInitialized]);
+  }, [contract, isInitialized, application]);
 
   /**
    * SAVE FUNCTION

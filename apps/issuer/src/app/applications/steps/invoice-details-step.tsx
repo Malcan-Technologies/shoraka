@@ -67,7 +67,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           setApplication(resp.data);
         }
       } catch (err) {
-        console.error("Failed to load application", err);
+        
       }
     };
     loadApplication();
@@ -253,12 +253,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const structureType = application?.financing_structure?.structure_type;
     const isInvoiceOnly = structureType === "invoice_only";
 
-    console.log("🚀 saveFunction started", {
-      structureType,
-      isInvoiceOnly,
-      totalInvoices: invoices.length,
-    });
-
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);
     }
@@ -274,7 +268,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
        */
       const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
       if (isLocked) {
-        console.log("⏭️ Skipping locked invoice (SUBMITTED/APPROVED):", inv.id);
         continue;
       }
 
@@ -298,21 +291,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
          * - invoice_only: DO NOT pass contractId (will be null in DB)
          * - existing_contract or new_contract: pass contract_id if it exists
          */
-        if (!isInvoiceOnly && application?.contract_id) {
+        if (!isInvoiceOnly && application?.contract_id)
           createPayload.contractId = application.contract_id;
-          console.log("✏️ Creating invoice with contractId:", application.contract_id, "Payload:", createPayload);
-        } else if (isInvoiceOnly) {
-          console.log("✏️ Creating invoice_only invoice (no contractId). Payload:", createPayload);
-        } else {
-          console.log("✏️ No contract_id on application. Payload:", createPayload);
-        }
+
 
         const createResp: any = await apiClient.createInvoice(createPayload);
         if (!createResp?.success) {
           throw new Error("Failed to create invoice");
         }
         invoiceId = createResp.data.id;
-        console.log("✅ Invoice created with ID:", invoiceId);
       } else {
         /**
          * UPDATE EXISTING INVOICES
@@ -329,16 +316,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         if (isInvoiceOnly) {
           updatePayload.contractId = null;
-          console.log("🔄 Updating invoice to invoice_only (contractId → null). Payload:", updatePayload);
         } else if (application?.contract_id) {
           updatePayload.contractId = application.contract_id;
-          console.log("🔄 Updating invoice with contractId:", application.contract_id, "Payload:", updatePayload);
-        } else {
-          console.log("🔄 No contract_id on application. Payload:", updatePayload);
         }
-
         await apiClient.updateInvoice(invoiceId, updatePayload);
-        console.log("✅ Invoice updated with ID:", invoiceId);
       }
 
       const file = selectedFiles[inv.id] || selectedFiles[invoiceId];
@@ -388,16 +369,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
       if (isInvoiceOnly) {
         finalUpdatePayload.contractId = null;
-        console.log("📄 Updating invoice document + contractId (null). Final payload:", finalUpdatePayload);
       } else if (application?.contract_id) {
         finalUpdatePayload.contractId = application.contract_id;
-        console.log("📄 Updating invoice document + contractId:", application.contract_id, "Final payload:", finalUpdatePayload);
-      } else {
-        console.log("📄 Updating invoice document only (no contract_id). Final payload:", finalUpdatePayload);
       }
-
       await apiClient.updateInvoice(invoiceId, finalUpdatePayload);
-      console.log("✅ Invoice document updated for ID:", invoiceId);
       setLastS3Keys((prev) => ({
         ...prev,
         [invoiceId]: s3Key,
