@@ -22,7 +22,6 @@ import {
   GlobeAltIcon,
   ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
-import type { OnboardingEventType } from "@cashsouk/types";
 
 interface OrganizationActivityTimelineProps {
   organizationId: string | null;
@@ -316,7 +315,7 @@ export function OrganizationActivityTimeline({
                   {logs.map((log, index) => {
                     const eventType = log.event_type;
                     const isFirst = index === 0;
-                    const actorName = log.organization_name || "System";
+                    const actorName = log.organizationName || "System";
                     const metadata = log.metadata as Record<string, unknown> | null;
                     const description = buildEventDescription(eventType, metadata);
                     const details = extractMetadataDetails(eventType, metadata);
