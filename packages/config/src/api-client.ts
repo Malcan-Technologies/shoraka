@@ -1168,27 +1168,18 @@ export class ApiClient {
 
   async updateInvoice(
     id: string,
-    payload: Partial<InvoiceDetails> & { contractId?: string | null }
+    details: Partial<InvoiceDetails> & { contractId?: string | null }
   ): Promise<ApiResponse<Invoice> | ApiError> {
     /**
      * UPDATE INVOICE
      *
      * Payload can include:
-     * - details: partial invoice details (number, value, maturity_date, financing_ratio_percent, document)
-     * - contractId: optional, can be undefined (skip), null (clear), or cuid string (set)
+     * - details: partial invoice details
+     * - contractId: optional, can be null or cuid string
      */
-    const body: any = {};
+    const { contractId, ...detailsRest } = details;
+    const body: any = { details: detailsRest };
     
-    // Extract contractId if present
-    const { contractId, ...details } = payload;
-    
-    // Only add details if there are actual detail fields
-    const detailsKeys = Object.keys(details);
-    if (detailsKeys.length > 0) {
-      body.details = details;
-    }
-    
-    // Only add contractId if explicitly provided (undefined is skipped)
     if (contractId !== undefined) {
       body.contractId = contractId;
     }

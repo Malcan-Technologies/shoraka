@@ -16,7 +16,7 @@ export const createInvoiceSchema = z.object({
 });
 
 export const updateInvoiceSchema = z.object({
-  details: invoiceDetailsSchema.partial().optional(),
+  details: invoiceDetailsSchema.partial(),
   contractId: z.string().cuid().nullable().optional(),
 });
 
@@ -30,4 +30,3 @@ export const requestInvoiceUploadUrlSchema = z.object({
   fileSize: z.number(),
   existingS3Key: z.string().optional(),
 });
-
