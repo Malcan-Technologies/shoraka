@@ -316,6 +316,7 @@ export interface GetOnboardingLogsParams extends PaginationParams {
   role?: UserRole;
   dateRange?: "24h" | "7d" | "30d" | "all";
   userId?: string;
+  organizationId?: string;
 }
 
 export interface OnboardingLogsResponse {
@@ -546,6 +547,18 @@ export interface OrganizationDetailResponse {
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
+
+  // Applications (issuer only)
+  applications?: {
+    id: string;
+    status: string;
+    productVersion: number;
+    lastCompletedStep: number;
+    submittedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    contractId: string | null;
+  }[];
 
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {

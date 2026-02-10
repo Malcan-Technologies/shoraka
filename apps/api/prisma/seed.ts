@@ -600,6 +600,519 @@ async function main() {
 
   logger.info("✅ Onboarding approval queue seeded with 12 records across all statuses");
 
+  // ---------------------------------------------------------------------------
+  // Seed a fully-populated issuer company (Ray Ban Sdn Bhd) with JSON fields
+  // ---------------------------------------------------------------------------
+  logger.info("🌱 Seeding fully-populated company organization (Ray Ban Sdn Bhd)...");
+
+  const rayBanEmail = "yang_lim@hotmail.com";
+  let rayBanUser = await prisma.user.findUnique({ where: { email: rayBanEmail } });
+
+  if (!rayBanUser) {
+    const rayBanUserId = await generateUniqueUserId();
+    rayBanUser = await prisma.user.create({
+      data: {
+        user_id: rayBanUserId,
+        first_name: "Yang",
+        last_name: "Lim",
+        email: rayBanEmail,
+        cognito_sub: `seed_rayban_${Date.now()}`,
+        cognito_username: rayBanEmail,
+        roles: [UserRole.ISSUER],
+        investor_account: [],
+        issuer_account: [],
+      },
+    });
+  }
+
+  const existingRayBanOrg = await prisma.issuerOrganization.findFirst({
+    where: { name: "Ray Ban Sdn Bhd" },
+  });
+
+  if (!existingRayBanOrg) {
+    const rayBanOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: rayBanUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Ray Ban Sdn Bhd",
+        registration_number: "555555555555",
+        onboarding_status: "COMPLETED",
+        onboarded_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        first_name: "Yang",
+        last_name: "Lim",
+        nationality: "MY",
+        country: "MY",
+        phone_number: "+60123456789",
+        onboarding_approved: true,
+        aml_approved: true,
+        tnc_accepted: true,
+        ssm_checked: true,
+        corporate_onboarding_data: {
+          basicInfo: {
+            ssmRegisterNumber: "555555555555",
+            tinNumber: "555",
+            industry: "Agriculture, Forestry, Fishing",
+            entityType: "Private Limited Company (Sdn Bhd)",
+            businessName: "Ray Ban Sdn Bhd",
+            numberOfEmployees: 5,
+          },
+          addresses: {
+            business: {
+              line1: "rthrthr",
+              line2: "rthrth",
+              city: null,
+              postalCode: "12345",
+              state: "Kedah",
+              country: "MY",
+            },
+            registered: {
+              line1: "rthrthr",
+              line2: "rthrth",
+              city: null,
+              postalCode: "12345",
+              state: "Kedah",
+              country: "MY",
+            },
+          },
+        },
+        bank_account_details: {
+          content: [
+            { fieldName: "Bank", fieldType: "picklist", fieldValue: "Affin Bank Berhad", alias: "Bank" },
+            { fieldName: "bankAccountNumber", fieldType: "text", fieldValue: "46565", alias: "Bank account number" },
+            { fieldName: "accountType", fieldType: "picklist", fieldValue: "Savings", alias: "Account type" },
+          ],
+          displayArea: "bank_account_details",
+        },
+        wealth_declaration: {
+          content: [
+            { fieldName: "NetAssetValue", fieldType: "text", fieldValue: "5645", alias: "Net Asset Value" },
+            { fieldName: "SourceOfFunds", fieldType: "multi-checkbox", fieldValue: ["Deposits from members"], alias: "Source of Funds" },
+            { fieldName: "SourceOfFundsOther", fieldType: "text", fieldValue: "-", alias: "Source of Funds (Other)" },
+          ],
+          displayArea: "wealth_declaration",
+        },
+        compliance_declaration: {
+          content: [
+            { fieldName: "PepStatus", fieldType: "multi-checkbox", fieldValue: ["- Not a PEP"], alias: "PEP Status" },
+            { fieldName: "BelongsToGroups", fieldType: "multi-checkbox", fieldValue: ["- Not a PEP"], alias: "Belongs to Groups" },
+          ],
+          displayArea: "compliance_declaration",
+        },
+        kyc_response: {
+          status: "Approved",
+          riskLevel: "Low Risk",
+          riskScore: "1.0",
+          systemId: "KYC00127",
+          requestId: "KYC00127",
+          onboardingId: "EOD04938",
+          messageStatus: "DONE",
+          timestamp: new Date(2026, 1, 3, 16, 20, 4).toISOString(),
+          possibleMatchCount: 0,
+          blacklistedMatchCount: 0,
+          tags: [],
+        },
+      },
+    });
+
+    // Create onboarding logs for Ray Ban org
+    await prisma.onboardingLog.createMany({
+      data: [
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "ONBOARDING_STARTED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { portalType: "issuer", organizationType: "COMPANY" },
+          created_at: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "FORM_FILLED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { section: "Basic Information" },
+          created_at: new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "FORM_FILLED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { section: "Bank Account Details" },
+          created_at: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "FORM_FILLED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Mobile",
+          metadata: { section: "Wealth Declaration" },
+          created_at: new Date(now.getTime() - 11 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "FORM_FILLED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { section: "Compliance Declaration" },
+          created_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "TNC_ACCEPTED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { version: "2.0" },
+          created_at: new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "ONBOARDING_STATUS_UPDATED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { previousStatus: "IN_PROGRESS", newStatus: "PENDING_APPROVAL", trigger: "USER_COMPLETED" },
+          created_at: new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000 + 3600000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "KYC_APPROVED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { isCorporateOnboarding: true, riskLevel: "Low Risk", riskScore: "1.0" },
+          created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "AML_APPROVED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          ip_address: "103.56.78.12",
+          device_type: "Desktop",
+          metadata: { isCorporateOnboarding: true, riskLevel: "Low Risk" },
+          created_at: new Date(now.getTime() - 7.5 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "SSM_APPROVED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          metadata: { registration_verified: true, approvedBy: adminUser.user_id },
+          created_at: new Date(now.getTime() - 7.2 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "ONBOARDING_APPROVED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          metadata: { approvedBy: adminUser.user_id },
+          created_at: new Date(now.getTime() - 7.1 * 24 * 60 * 60 * 1000),
+        },
+        {
+          user_id: rayBanUser.user_id,
+          issuer_organization_id: rayBanOrg.id,
+          organization_name: "Ray Ban Sdn Bhd",
+          event_type: "FINAL_APPROVAL_COMPLETED",
+          role: UserRole.ISSUER,
+          portal: "issuer",
+          metadata: { final_status: "COMPLETED", approvedBy: adminUser.user_id },
+          created_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        },
+      ],
+    });
+
+    logger.info("✅ Ray Ban Sdn Bhd organization seeded with full JSON data and onboarding logs");
+  } else {
+    logger.info("⏭️  Skipping Ray Ban Sdn Bhd (already exists)");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Seed a fully-populated personal investor (Yuen Zheng Chng)
+  // ---------------------------------------------------------------------------
+  logger.info("🌱 Seeding fully-populated personal investor (Yuen Zheng Chng)...");
+
+  const yzEmail = "yuenzheng.chng@example.com";
+  let yzUser = await prisma.user.findUnique({ where: { email: yzEmail } });
+
+  if (!yzUser) {
+    const yzUserId = await generateUniqueUserId();
+    yzUser = await prisma.user.create({
+      data: {
+        user_id: yzUserId,
+        first_name: "Yuen Zheng",
+        last_name: "Chng",
+        email: yzEmail,
+        cognito_sub: `seed_yz_${Date.now()}`,
+        cognito_username: yzEmail,
+        roles: [UserRole.INVESTOR],
+        investor_account: [],
+        issuer_account: [],
+      },
+    });
+  }
+
+  const existingYzOrg = await prisma.investorOrganization.findFirst({
+    where: { owner_user_id: yzUser.user_id, type: OrganizationType.PERSONAL, name: "Yuen Zheng Chng" },
+  });
+
+  if (!existingYzOrg) {
+    const yzOrg = await prisma.investorOrganization.create({
+      data: {
+        owner_user_id: yzUser.user_id,
+        type: OrganizationType.PERSONAL,
+        name: "Yuen Zheng Chng",
+        onboarding_status: "COMPLETED",
+        onboarded_at: new Date(2026, 0, 12, 9, 2, 50, 950),
+        first_name: "Yuen Zheng",
+        last_name: "Chng",
+        nationality: "MY",
+        country: "MY",
+        id_issuing_country: "MY",
+        gender: "UNSPECIFIED",
+        address: "BU 4/5, Bandar Utama, 47800 Petaling Jaya, Selangor",
+        document_type: "IDENTITY",
+        document_number: "021116101341",
+        phone_number: "+60123456789",
+        kyc_id: "KYC00086",
+        onboarding_approved: true,
+        aml_approved: true,
+        tnc_accepted: true,
+        ssm_approved: false,
+        deposit_received: false,
+        is_sophisticated_investor: false,
+        admin_approved_at: new Date(2026, 0, 12, 9, 2, 50, 950),
+        bank_account_details: {
+          content: [
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: "Maybank / Malayan Banking Berhad" },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: "123456789" },
+            { cn: false, fieldName: "Account type", fieldType: "picklist", fieldValue: "Savings" },
+          ],
+          displayArea: "Bank Account Details",
+        },
+        wealth_declaration: {
+          content: [
+            { cn: false, fieldName: "Employment status", fieldType: "picklist", fieldValue: "Employed" },
+            { cn: false, fieldName: "Employer", fieldType: "text", fieldValue: "Ivan" },
+            { cn: false, fieldName: "Industry", fieldType: "picklist", fieldValue: "Information & Communication Technology (ICT)" },
+            { cn: false, fieldName: "If others", fieldType: "text", fieldValue: "" },
+            { cn: false, fieldName: "Job title", fieldType: "text", fieldValue: "Full Stack Developer" },
+            { cn: false, fieldName: "Annual income range", fieldType: "picklist", fieldValue: "Above RM500,001" },
+            { cn: false, fieldName: "Source of funds", fieldType: "multi-checkbox", fieldValue: ["Employment Income"] },
+          ],
+          displayArea: "Wealth Declaration",
+        },
+        compliance_declaration: {
+          content: [
+            { cn: false, fieldName: "Asset and Income", fieldType: "header", fieldValue: "" },
+            { cn: false, alias: "Do you meet either of the following criteria:", fieldName: "Do you meet either of the following criteria: (Net Assets)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, alias: "In the preceding twelve months, have you:", fieldName: "In the preceding twelve months, have you: (Annual Income)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, fieldName: "Do you have a total net personal investment portfolio,or a total net joint investment portfolio held with your spouse or child in capital market products, with an aggregate value exceeding RM1,000,000 (or its equivalent in foreign currencies)?", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, fieldName: " ", fieldType: "header", fieldValue: "" },
+            { cn: false, fieldName: "Professional Qualification / Experience Categories", fieldType: "header", fieldValue: "" },
+            { cn: false, alias: "Do any of the descriptions below apply to you?", fieldName: "Do any of the descriptions below apply to you? (Experience Categories)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, alias: "Do any of the descriptions below apply to you?", fieldName: "Do any of the descriptions below apply to you? (Professional Qualification)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, fieldName: "Are you a tax resident of Malaysia?", fieldType: "picklist", fieldValue: "Yes" },
+            { cn: false, fieldName: "  ", fieldType: "header", fieldValue: "" },
+            { cn: false, fieldName: "Poltically Exposed Person (PEP) Status", fieldType: "header", fieldValue: "" },
+            { cn: false, fieldName: "Do you belong to any of these groups of PEP (Politically Exposed Person)", fieldType: "multi-checkbox", fieldValue: ["Not a PEP"] },
+            { cn: false, fieldName: "   ", fieldType: "header", fieldValue: "" },
+            { cn: false, alias: "Do you belong to any of these groups of people?", fieldName: "Do you belong to any of these groups of people? (Relative Close Associate (RCA) Declaration)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, fieldName: "    ", fieldType: "header", fieldValue: "" },
+            { cn: false, fieldName: "I certify that the information I have provided is accurate and complete, and I acknowledge that providing false or misleading information may result in legal consequences.", fieldType: "checkbox", fieldValue: true },
+          ],
+          displayArea: "Compliance Declarations",
+        },
+        document_info: {
+          countryCode: "SG",
+          documentType: "Identity",
+          backDocumentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/back/e69e0210-2d14-48f2-84c4-ad5ead3a11fb.png",
+          frontDocumentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/front/2c083615-6483-449a-8cb7-61cb042c48c6.jpeg",
+        },
+        liveness_check_info: {
+          selfieUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/live-face/99e37a95-e3bc-4211-bd73-dcfa8de9a515.jpeg",
+          confidence: 85.3,
+          documentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/front/2c083615-6483-449a-8cb7-61cb042c48c6.jpeg",
+          verifyStatus: "LIVENESS_PASSED",
+          selfieVideoUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/live-face/c1a63023-cd7f-452f-8296-4a46563b53d7.mp4",
+        },
+        kyc_response: {
+          tags: [],
+          status: "Approved",
+          assignee: "",
+          systemId: "KYC00086",
+          requestId: "KYC00086",
+          riskLevel: "Low Risk",
+          riskScore: "1.0",
+          timestamp: "2026-01-12T08:59:34.958+00:00",
+          referenceId: "",
+          onboardingId: "LD72411-R02",
+          messageStatus: "DONE",
+          possibleMatchCount: 0,
+          blacklistedMatchCount: 0,
+        },
+        created_at: new Date(2026, 0, 12, 8, 54, 20, 205),
+      },
+    });
+
+    await prisma.onboardingLog.createMany({
+      data: [
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "ONBOARDING_STARTED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { portalType: "investor", organizationType: "PERSONAL" },
+          created_at: new Date(2026, 0, 12, 8, 54, 20),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "FORM_FILLED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { section: "Bank Account Details" },
+          created_at: new Date(2026, 0, 12, 8, 55, 10),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "FORM_FILLED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { section: "Wealth Declaration" },
+          created_at: new Date(2026, 0, 12, 8, 56, 30),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "FORM_FILLED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { section: "Compliance Declarations" },
+          created_at: new Date(2026, 0, 12, 8, 57, 45),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "TNC_ACCEPTED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { version: "2.0" },
+          created_at: new Date(2026, 0, 12, 8, 58, 0),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "ONBOARDING_STATUS_UPDATED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { previousStatus: "IN_PROGRESS", newStatus: "PENDING_APPROVAL", trigger: "USER_COMPLETED" },
+          created_at: new Date(2026, 0, 12, 8, 58, 30),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "KYC_APPROVED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { riskLevel: "Low Risk", riskScore: "1.0" },
+          created_at: new Date(2026, 0, 12, 8, 59, 35),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "AML_APPROVED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { riskLevel: "Low Risk" },
+          created_at: new Date(2026, 0, 12, 9, 0, 10),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "ONBOARDING_APPROVED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { approvedBy: adminUser.user_id },
+          created_at: new Date(2026, 0, 12, 9, 1, 30),
+        },
+        {
+          user_id: yzUser.user_id,
+          investor_organization_id: yzOrg.id,
+          organization_name: "Yuen Zheng Chng",
+          event_type: "FINAL_APPROVAL_COMPLETED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { final_status: "COMPLETED", approvedBy: adminUser.user_id },
+          created_at: new Date(2026, 0, 12, 9, 2, 50),
+        },
+      ],
+    });
+
+    logger.info("✅ Yuen Zheng Chng personal investor seeded with full JSON data and onboarding logs");
+  } else {
+    logger.info("⏭️  Skipping Yuen Zheng Chng (already exists)");
+  }
+
   logger.info("🎉 Database seed completed successfully!");
 }
 

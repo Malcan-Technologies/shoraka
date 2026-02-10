@@ -1040,13 +1040,21 @@ export class AdminRepository {
     })[];
     total: number;
   }> {
-    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId } = params;
+    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId, organizationId } = params;
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.OnboardingLogWhereInput = {};
 
     if (userId) {
       where.user_id = userId;
+    }
+
+    if (organizationId) {
+      where.OR = [
+        ...(where.OR || []),
+        { investor_organization_id: organizationId },
+        { issuer_organization_id: organizationId },
+      ];
     }
 
     if (role) {
@@ -1117,11 +1125,48 @@ export class AdminRepository {
       prisma.onboardingLog.count({ where }),
     ]);
 
-    // Map logs with organization info from the OnboardingLog record itself
+    // Collect unique admin user IDs from metadata fields (approvedBy, updatedBy, cancelledBy, resetBy)
+    const adminUserIds = new Set<string>();
+    const actorFields = ["approvedBy", "updatedBy", "cancelledBy", "resetBy"] as const;
+    for (const log of logs) {
+      const meta = log.metadata as Record<string, unknown> | null;
+      if (!meta) continue;
+      for (const field of actorFields) {
+        const val = meta[field];
+        if (typeof val === "string" && val.length > 0 && val !== "admin" && val !== "system") {
+          adminUserIds.add(val);
+        }
+      }
+    }
+
+    // Batch-resolve admin user names
+    let adminNameMap = new Map<string, string>();
+    if (adminUserIds.size > 0) {
+      const adminUsers = await prisma.user.findMany({
+        where: { user_id: { in: [...adminUserIds] } },
+        select: { user_id: true, first_name: true, last_name: true },
+      });
+      adminNameMap = new Map(
+        adminUsers.map((u) => [u.user_id, `${u.first_name} ${u.last_name}`])
+      );
+    }
+
+    // Map logs with organization info and resolved admin names
     const logsWithOrgInfo = logs.map((log) => {
       const organizationName = log.organization_name;
       const organizationType =
         log.investor_organization?.type || log.issuer_organization?.type || null;
+
+      // Enrich metadata with resolved admin names
+      const meta = log.metadata as Record<string, unknown> | null;
+      if (meta) {
+        for (const field of actorFields) {
+          const val = meta[field];
+          if (typeof val === "string" && adminNameMap.has(val)) {
+            meta[`${field}Name`] = adminNameMap.get(val);
+          }
+        }
+      }
 
       return {
         ...log,
@@ -1642,6 +1687,17 @@ export class AdminRepository {
       request_id: string;
       status: string;
     }[];
+    // Applications (issuer only)
+    applications?: {
+      id: string;
+      status: string;
+      product_version: number;
+      last_completed_step: number;
+      submitted_at: Date | null;
+      created_at: Date;
+      updated_at: Date;
+      contract_id: string | null;
+    }[];
   } | null> {
     const include = {
       owner: {
@@ -1681,7 +1737,22 @@ export class AdminRepository {
     } else {
       return prisma.issuerOrganization.findUnique({
         where: { id },
-        include,
+        include: {
+          ...include,
+          applications: {
+            select: {
+              id: true,
+              status: true,
+              product_version: true,
+              last_completed_step: true,
+              submitted_at: true,
+              created_at: true,
+              updated_at: true,
+              contract_id: true,
+            },
+            orderBy: { created_at: "desc" as const },
+          },
+        },
       });
     }
   }

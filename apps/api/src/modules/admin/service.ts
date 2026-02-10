@@ -1480,6 +1480,16 @@ export class AdminService {
     sophisticatedInvestorReason: string | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
+    applications?: {
+      id: string;
+      status: string;
+      productVersion: number;
+      lastCompletedStep: number;
+      submittedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+      contractId: string | null;
+    }[];
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -1629,6 +1639,19 @@ export class AdminService {
       regtankPortalUrl: org.regtank_onboarding?.[0]?.request_id
         ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboarding[0].request_id}?archived=false`
         : null,
+      // Applications (issuer only)
+      applications: (portal === "issuer" && org.applications)
+        ? org.applications.map((app: { id: string; status: string; product_version: number; last_completed_step: number; submitted_at: Date | null; created_at: Date; updated_at: Date; contract_id: string | null }) => ({
+            id: app.id,
+            status: app.status,
+            productVersion: app.product_version,
+            lastCompletedStep: app.last_completed_step,
+            submittedAt: app.submitted_at?.toISOString() ?? null,
+            createdAt: app.created_at.toISOString(),
+            updatedAt: app.updated_at.toISOString(),
+            contractId: app.contract_id,
+          }))
+        : undefined,
     };
   }
 
@@ -3270,7 +3293,7 @@ export class AdminService {
 
       // Refresh corporate shareholders status from COD details
       let corporateEntitiesUpdated = false;
-      let updatedCorporateEntities: any = null;
+      let updatedCorporateEntities: Record<string, unknown> | null = null;
       const existingOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
           where: { id: org.id },
@@ -3282,7 +3305,7 @@ export class AdminService {
         });
 
       if (existingOrg && codDetails.corpBizShareholders) {
-        const corporateEntities = (existingOrg.corporate_entities as any) || {
+        const corporateEntities = (existingOrg.corporate_entities as Record<string, unknown>) || {
           directors: [],
           shareholders: [],
           corporateShareholders: [],
@@ -3291,10 +3314,10 @@ export class AdminService {
 
         // Update corporate shareholders with latest status from COD details
         if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
-          const codCorpShareholders = codDetails.corpBizShareholders as any[];
+          const codCorpShareholders = codDetails.corpBizShareholders as Record<string, unknown>[];
 
           // Create a map of existing corporate shareholders by COD requestId or company name
-          const existingMap = new Map<string, any>();
+          const existingMap = new Map<string, Record<string, unknown>>();
           for (const existing of corporateEntities.corporateShareholders) {
             const key =
               existing.corporateOnboardingRequest?.requestId ||
@@ -3308,11 +3331,12 @@ export class AdminService {
 
           // Update existing corporate shareholders with latest status from COD details
           for (const codShareholder of codCorpShareholders) {
+            const codCorpReq = codShareholder.corporateOnboardingRequest as Record<string, unknown> | undefined;
             const codRequestId =
-              codShareholder.corporateOnboardingRequest?.requestId ||
-              codShareholder.requestId ||
+              (codCorpReq?.requestId as string) ||
+              (codShareholder.requestId as string) ||
               "";
-            const codName = codShareholder.name || codShareholder.businessName || "";
+            const codName = (codShareholder.name as string) || (codShareholder.businessName as string) || "";
             const key = codRequestId || codName;
 
             if (key) {
@@ -3322,32 +3346,32 @@ export class AdminService {
                 const updatedShareholder = {
                   ...existing,
                   ...codShareholder,
-                  // Preserve any fields we want to keep from existing
+                  // Preserve fields we want to keep from existing
                   lastUpdated: new Date().toISOString(),
                 };
 
                 // Replace in array
-                const index = corporateEntities.corporateShareholders.findIndex(
-                  (s: any) =>
-                    (s.corporateOnboardingRequest?.requestId || s.requestId || s.name || "") === key
+                const index = (corporateEntities.corporateShareholders as Record<string, unknown>[]).findIndex(
+                  (s: Record<string, unknown>) =>
+                    (((s.corporateOnboardingRequest as Record<string, unknown>)?.requestId as string) || (s.requestId as string) || (s.name as string) || "") === key
                 );
                 if (index !== -1) {
-                  corporateEntities.corporateShareholders[index] = updatedShareholder;
+                  (corporateEntities.corporateShareholders as Record<string, unknown>[])[index] = updatedShareholder;
                   updated = true;
                   logger.debug(
                     {
                       codRequestId,
                       name: codName,
                       status:
-                        codShareholder.status ||
-                        codShareholder.corporateOnboardingRequest?.status,
+                        (codShareholder.status as string) ||
+                        (codCorpReq?.status as string),
                     },
                     "[Admin Refresh] Updated corporate shareholder status from COD details"
                   );
                 }
               } else {
                 // New corporate shareholder - add it
-                corporateEntities.corporateShareholders.push({
+                (corporateEntities.corporateShareholders as Record<string, unknown>[]).push({
                   ...codShareholder,
                   lastUpdated: new Date().toISOString(),
                 });
@@ -3368,8 +3392,8 @@ export class AdminService {
           codDetails.corpBizShareholders.length > 0
         ) {
           // No existing corporate shareholders, but COD has them - initialize the array
-          corporateEntities.corporateShareholders = (codDetails.corpBizShareholders as any[]).map(
-            (corpShareholder: any) => ({
+          corporateEntities.corporateShareholders = (codDetails.corpBizShareholders as Record<string, unknown>[]).map(
+            (corpShareholder: Record<string, unknown>) => ({
               ...corpShareholder,
               lastUpdated: new Date().toISOString(),
             })
@@ -3546,7 +3570,7 @@ export class AdminService {
           select: { director_aml_status: true },
         });
 
-      const directorAmlStatus = (updatedOrg?.director_aml_status as any) || { directors: [] };
+      const directorAmlStatus = (updatedOrg?.director_aml_status as Record<string, unknown>) || { directors: [] };
       const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
 
       logger.info(

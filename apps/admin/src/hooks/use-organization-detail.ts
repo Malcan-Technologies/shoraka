@@ -54,9 +54,9 @@ export function useUpdateSophisticatedStatus() {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate organization queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "organization-logs"] });
     },
   });
 }

@@ -14,7 +14,6 @@ import {
   Cog6ToothIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
-  UserCircleIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
   FolderOpenIcon,
@@ -102,7 +101,6 @@ const navPlatform = [
 const navAudit = [
   { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
   { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
-  { title: "Organization Logs", url: "/audit/organization-logs", icon: UserCircleIcon },
   { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
   { title: "Product Logs", url: "/audit/product-logs", icon: CubeIcon },
 ];
@@ -225,7 +223,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname === item.url}
+                      isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
                       tooltip={item.title}
                     >
                       <Link href={item.url}>

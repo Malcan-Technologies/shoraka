@@ -9,9 +9,9 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
 import { OrganizationsTableRow } from "./organizations-table-row";
-import { OrganizationDetailDialog } from "./organization-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
 import type { OrganizationResponse, PortalType } from "@cashsouk/types";
 
 interface OrganizationsTableProps {
@@ -82,17 +82,13 @@ export function OrganizationsTable({
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalOrganizations);
 
+  const router = useRouter();
+
   // Investor: 10 columns (includes risk + sophisticated + deposit), Issuer: 8 columns
   const columnCount = portal === "investor" ? 10 : 8;
 
-  // State for detail dialog
-  const [selectedOrg, setSelectedOrg] = React.useState<{
-    portal: PortalType;
-    id: string;
-  } | null>(null);
-
   const handleViewDetails = (org: OrganizationResponse) => {
-    setSelectedOrg({ portal: org.portal, id: org.id });
+    router.push(`/organizations/${org.portal}/${org.id}`);
   };
 
   return (
@@ -171,15 +167,6 @@ export function OrganizationsTable({
         )}
       </div>
 
-      {/* Organization Detail Dialog */}
-      <OrganizationDetailDialog
-        portal={selectedOrg?.portal ?? null}
-        organizationId={selectedOrg?.id ?? null}
-        open={selectedOrg !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedOrg(null);
-        }}
-      />
     </>
   );
 }

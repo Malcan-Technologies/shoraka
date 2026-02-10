@@ -171,6 +171,7 @@ export const getOnboardingLogsQuerySchema = z.object({
   role: z.nativeEnum(UserRole).optional(),
   dateRange: z.enum(["24h", "7d", "30d", "all"]).default("all"),
   userId: z.string().optional(),
+  organizationId: z.string().optional(),
 });
 
 export type GetOnboardingLogsQuery = z.infer<typeof getOnboardingLogsQuerySchema>;

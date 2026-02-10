@@ -649,6 +649,7 @@ export class ApiClient {
     if (params.role) queryParams.append("role", params.role);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
+    if (params.organizationId) queryParams.append("organizationId", params.organizationId);
 
     return this.get<OnboardingLogsResponse>(`/v1/admin/onboarding-logs?${queryParams.toString()}`);
   }
@@ -1004,7 +1005,7 @@ export class ApiClient {
     offset?: number;
   }): Promise<
     | ApiResponse<{
-      items: any[];
+      items: Record<string, unknown>[];
       pagination: {
         total: number;
         unreadCount: number;
@@ -1023,7 +1024,7 @@ export class ApiClient {
     if (params.offset) queryParams.append("offset", String(params.offset));
 
     return this.get<{
-      items: any[];
+      items: Record<string, unknown>[];
       pagination: {
         total: number;
         unreadCount: number;
@@ -1038,40 +1039,40 @@ export class ApiClient {
     return this.get<{ count: number }>("/v1/notifications/unread-count");
   }
 
-  async markNotificationAsRead(id: string): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(`/v1/notifications/${id}/read`);
+  async markNotificationAsRead(id: string): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.patch<Record<string, unknown>>(`/v1/notifications/${id}/read`);
   }
 
   async markAllNotificationsAsRead(): Promise<ApiResponse<{ count: number }> | ApiError> {
     return this.patch<{ count: number }>("/v1/notifications/read-all");
   }
 
-  async getNotificationPreferences(): Promise<ApiResponse<any[]> | ApiError> {
-    return this.get<any[]>("/v1/notifications/preferences");
+  async getNotificationPreferences(): Promise<ApiResponse<Record<string, unknown>[]> | ApiError> {
+    return this.get<Record<string, unknown>[]>("/v1/notifications/preferences");
   }
 
   async updateNotificationPreference(
     typeId: string,
     data: { enabled_platform: boolean; enabled_email: boolean }
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.put<any>(`/v1/notifications/preferences/${typeId}`, data);
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.put<Record<string, unknown>>(`/v1/notifications/preferences/${typeId}`, data);
   }
 
   // Admin Notifications
-  async getAdminNotificationTypes(): Promise<ApiResponse<any[]> | ApiError> {
-    return this.get<any[]>("/v1/notifications/admin/types");
+  async getAdminNotificationTypes(): Promise<ApiResponse<Record<string, unknown>[]> | ApiError> {
+    return this.get<Record<string, unknown>[]>("/v1/notifications/admin/types");
   }
 
-  async updateAdminNotificationType(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(`/v1/notifications/admin/types/${id}`, data);
+  async updateAdminNotificationType(id: string, data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.patch<Record<string, unknown>>(`/v1/notifications/admin/types/${id}`, data);
   }
 
-  async sendAdminNotification(data: any): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>("/v1/notifications/admin/send", data);
+  async sendAdminNotification(data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.post<Record<string, unknown>>("/v1/notifications/admin/send", data);
   }
 
-  async getAdminNotificationGroups(): Promise<ApiResponse<any[]> | ApiError> {
-    return this.get<any[]>("/v1/notifications/admin/groups");
+  async getAdminNotificationGroups(): Promise<ApiResponse<Record<string, unknown>[]> | ApiError> {
+    return this.get<Record<string, unknown>[]>("/v1/notifications/admin/groups");
   }
 
   async getAdminNotificationLogs(params: {
@@ -1080,7 +1081,7 @@ export class ApiClient {
     search?: string;
     type?: string;
     target?: string;
-  }): Promise<ApiResponse<{ items: any[]; pagination: any }> | ApiError> {
+  }): Promise<ApiResponse<{ items: Record<string, unknown>[]; pagination: Record<string, unknown> }> | ApiError> {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.append("limit", String(params.limit));
     if (params.offset) queryParams.append("offset", String(params.offset));
@@ -1088,21 +1089,21 @@ export class ApiClient {
     if (params.type) queryParams.append("type", params.type);
     if (params.target) queryParams.append("target", params.target);
 
-    return this.get<{ items: any[]; pagination: any }>(
+    return this.get<{ items: Record<string, unknown>[]; pagination: Record<string, unknown> }>(
       `/v1/notifications/admin/logs?${queryParams.toString()}`
     );
   }
 
-  async createAdminNotificationGroup(data: any): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>("/v1/notifications/admin/groups", data);
+  async createAdminNotificationGroup(data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.post<Record<string, unknown>>("/v1/notifications/admin/groups", data);
   }
 
-  async updateAdminNotificationGroup(id: string, data: any): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(`/v1/notifications/admin/groups/${id}`, data);
+  async updateAdminNotificationGroup(id: string, data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.patch<Record<string, unknown>>(`/v1/notifications/admin/groups/${id}`, data);
   }
 
-  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<any> | ApiError> {
-    return this.delete<any>(`/v1/notifications/admin/groups/${id}`);
+  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.delete<Record<string, unknown>>(`/v1/notifications/admin/groups/${id}`);
   }
 
   async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
@@ -1168,7 +1169,7 @@ export class ApiClient {
 
   async updateInvoice(
     id: string,
-    details: Partial<InvoiceDetails> & { contractId?: string | null; document?: any }
+    details: Partial<InvoiceDetails> & { contractId?: string | null; document?: Record<string, unknown> }
   ): Promise<ApiResponse<Invoice> | ApiError> {
     /**
      * UPDATE INVOICE
@@ -1179,7 +1180,7 @@ export class ApiClient {
      * - contractId: optional, can be null or cuid string
      */
     const { contractId, document, ...detailsRest } = details;
-    const body: any = {};
+    const body: Record<string, unknown> = {};
     
     if (Object.keys(detailsRest).length > 0) {
       body.details = detailsRest;
