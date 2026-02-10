@@ -199,16 +199,16 @@ export function OrganizationSwitcher() {
   };
 
   const handleSelectOrganization = async (org: Organization) => {
-    // Check if this org has an in-progress regtank onboarding and redirect to verify_link
+    // Check if this org has an in-progress regtank onboarding — open RegTank in new window (like investor corporate onboarding)
     const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
     if (org.regtankOnboardingStatus && inProgressStatuses.includes(org.regtankOnboardingStatus) && org.regtankVerifyLink) {
-      window.location.href = org.regtankVerifyLink;
+      window.open(org.regtankVerifyLink, "_blank");
       return;
     }
     
-    // If status is PENDING, redirect to RegTank portal (verifyLink)
+    // If status is PENDING, open RegTank portal in new window
     if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
-      window.location.href = org.regtankVerifyLink;
+      window.open(org.regtankVerifyLink, "_blank");
       return;
     }
     
@@ -248,7 +248,7 @@ export function OrganizationSwitcher() {
         }>(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
         
         if (result.success && result.data?.verifyLink) {
-          window.location.href = result.data.verifyLink;
+          window.open(result.data.verifyLink, "_blank");
           return;
         }
       } catch (error) {
@@ -411,7 +411,7 @@ export function OrganizationSwitcher() {
                           }
                           
                           if (org.regtankVerifyLink) {
-                            window.location.href = org.regtankVerifyLink;
+                            window.open(org.regtankVerifyLink, "_blank");
                           }
                         }}
                       className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 cursor-pointer hover:bg-accent/10"
