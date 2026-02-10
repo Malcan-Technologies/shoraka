@@ -25,6 +25,7 @@ import {
   formSelectTriggerClassName,
   formTextareaClassName,
 } from "@/app/applications/components/form-control";
+import { formatMoney } from "../components/money";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -59,10 +60,26 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
+
+
 function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
   return new Date(start).getTime() < new Date(end).getTime();
 }
+
+
+const MIN_CONTRACT_MONTHS = 6;
+
+function isEndDateTooSoon(endDate?: string, minMonths = MIN_CONTRACT_MONTHS) {
+  if (!endDate) return false;
+
+  const today = new Date();
+  const minAllowedEndDate = new Date(today);
+  minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
+
+  return new Date(endDate) < minAllowedEndDate;
+}
+
 
 /** Render blocks
  *
@@ -217,6 +234,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       formData.contract.end_date
     );
   }, [formData.contract.start_date, formData.contract.end_date]);
+
+  const isContractTooShort = React.useMemo(() => {
+    return isEndDateTooSoon(formData.contract.end_date);
+  }, [formData.contract.end_date]);
+
 
 
   // Stable reference for onDataChange callback
@@ -631,12 +653,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                 type="text"
                 inputMode="decimal"
                 value={formData.contract.value === 0 ? "" : formData.contract.value}
-                placeholder="eg. 5000000.00"
+                placeholder={`eg. ${formatMoney(5000000)}`}
                 className={inputClassName + " pl-12"}
                 onChange={(e) => {
-                  const raw = e.target.value;
+                  const raw = e.target.value.replace(/,/g, "");
 
-                  // allow empty
                   if (raw === "") {
                     handleInputChange("contract", "value", "");
                     return;
@@ -645,21 +666,22 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
                   // digits + optional decimal (max 2 dp)
                   if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
 
-                  // HARD LIMIT: max 12 digits before decimal
                   const [intPart] = raw.split(".");
                   if (intPart.length > 12) return;
 
                   handleInputChange("contract", "value", raw);
                 }}
+
                 onBlur={() => {
                   if (formData.contract.value !== "") {
                     handleInputChange(
                       "contract",
                       "value",
-                      Number(formData.contract.value).toFixed(2)
+                      formatMoney(formData.contract.value)
                     );
                   }
                 }}
+
               />
             </div>
           </div>
@@ -674,6 +696,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           />
 
 
+
           <Label className={labelClassName}>Contract end date</Label>
           <div className="space-y-1">
             <DateInput
@@ -681,13 +704,21 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               onChange={(v) => handleInputChange("contract", "end_date", v)}
               className={cn(
                 inputClassName,
-                hasDateOrderError && "border-destructive focus-visible:ring-destructive"
+                (hasDateOrderError || isContractTooShort) &&
+                "border-destructive focus-visible:ring-destructive"
               )}
               placeholder="e.g. Jun 12, 2025"
             />
+
             {hasDateOrderError && (
               <p className="text-xs text-destructive">
                 End date must be after start date
+              </p>
+            )}
+
+            {isContractTooShort && !hasDateOrderError && (
+              <p className="text-xs text-destructive">
+                Use Invoice-only financing.  Please return to the financing structure selection and choose invoice-only financing.
               </p>
             )}
           </div>
