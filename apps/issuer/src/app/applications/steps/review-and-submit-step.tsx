@@ -10,6 +10,7 @@ import { useS3ViewUrl } from "@/hooks/use-s3";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
+import { formLabelClassName } from "@/app/applications/components/form-control";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
@@ -42,7 +43,7 @@ interface ReviewAndSubmitStepProps {
  * REUSED STYLES FROM STEPS
  * Matching: business-details-step, contract-details-step patterns
  */
-const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
+const labelClassName = formLabelClassName;
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-12 gap-y-6 mt-4 px-3";

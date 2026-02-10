@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 
@@ -253,7 +254,7 @@ export function FinancingStructureStep({
           trailing={
             <Select value={selectedContractId} onValueChange={handleContractSelect}>
               <SelectTrigger
-                className="h-11 w-[280px] rounded-xl border border-input bg-background text-foreground"
+                className={formSelectTriggerClassName + " w-[280px]"}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (selectedStructure !== "existing_contract") {

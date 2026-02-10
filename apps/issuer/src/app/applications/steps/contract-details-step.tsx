@@ -65,11 +65,11 @@ const COUNTRIES = [
  * Why: Match the same yes/no UI used in `business-details-step.tsx`.
  * Data: `value` is `"yes" | "no" | ""` so we can avoid pre-selecting.
  */
-const radioSelectedLabel =
-  "text-sm md:text-base text-foreground";
-
-const radioUnselectedLabel =
-  "text-sm md:text-base text-muted-foreground";
+/**
+ * Radio labels (use canonical form label styles)
+ */
+const radioSelectedLabel = formLabelClassName;
+const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
 
 function CustomRadio({
   name,

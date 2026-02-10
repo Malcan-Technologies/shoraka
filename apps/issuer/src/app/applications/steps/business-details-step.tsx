@@ -173,7 +173,7 @@ const sectionHeaderClassName =
  * Why: Keep typography consistent while maintaining the left-column alignment used in screenshots.
  * Data: Shared label typography + step-specific alignment utilities.
  */
-const labelClassName = cn(formLabelClassName, "min-h-10 flex items-start");
+const labelClassName = formLabelClassName;
 
 /**
  * Inputs
@@ -204,13 +204,10 @@ const formOuterClassName =
   "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
 /**
- * Radio labels
+ * Radio labels (use canonical form label styles)
  */
-const radioSelectedLabel =
-  "text-sm md:text-base text-foreground";
-
-const radioUnselectedLabel =
-  "text-sm md:text-base text-muted-foreground";
+const radioSelectedLabel = formLabelClassName;
+const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
 
 function CustomRadio({
   name,
