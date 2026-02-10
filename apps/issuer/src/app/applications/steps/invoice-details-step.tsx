@@ -23,6 +23,7 @@ import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { formLabelClassName } from "@/app/applications/components/form-control";
+const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -475,23 +476,23 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           <div className="space-y-3 mt-4 px-3">
             <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
               <div className={formLabelClassName}>Contract title</div>
-              <div className="text-sm md:text-base leading-6 font-medium">{application.contract.contract_details?.title || "-"}</div>
+              <div className={valueClassName}>{application.contract.contract_details?.title || "-"}</div>
 
               <div className={formLabelClassName}>Customer</div>
-              <div className="text-sm md:text-base leading-6 font-medium">{application.contract.customer_details?.name || "-"}</div>
+              <div className={valueClassName}>{application.contract.customer_details?.name || "-"}</div>
 
               <div className={formLabelClassName}>Contract value</div>
-              <div className="text-sm md:text-base leading-6 font-medium">
+              <div className={valueClassName}>
                 {application.contract.contract_details?.value
                   ? formatRM(Number(application.contract.contract_details.value))
-                  : "-"}
+                  : "—"}
               </div>
 
               <div className={formLabelClassName}>Approved facility</div>
-              <div className="text-sm md:text-base leading-6 font-medium">
+              <div className={valueClassName}>
                 {application.contract.contract_details?.approved_facility != null
                   ? formatRM(Number(application.contract.contract_details.approved_facility))
-                  : "-"}
+                  : "—"}
               </div>
 
               <div className={formLabelClassName}>Available facility</div>

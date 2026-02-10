@@ -630,22 +630,26 @@ return (
         <Label htmlFor="amount-raised" className={labelClassName}>
           Amount raised
         </Label>
-        <div className="flex items-center rounded-xl border border-border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary">
-          <span className="pl-4 text-foreground text-sm md:text-base shrink-0">RM</span>
-          <Input
-            id="amount-raised"
-            type="text"
-            inputMode="numeric"
-            value={whyRaisingFunds.amountRaised}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                amountRaised: restrictDigitsOnly(e.target.value),
-              }))
-            }
-            placeholder="0"
-            className="border-0 rounded-none focus-visible:ring-0 shadow-none flex-1 h-11"
-          />
+        <div className="h-11 flex items-center">
+          <div className="relative w-full h-full flex items-center">
+            <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+              RM
+            </div>
+            <Input
+              id="amount-raised"
+              type="text"
+              inputMode="numeric"
+              value={whyRaisingFunds.amountRaised}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  amountRaised: restrictDigitsOnly(e.target.value),
+                }))
+              }
+              placeholder="0"
+              className={inputClassName + " pl-12"}
+            />
+          </div>
         </div>
 
         <Label className={labelClassName}>
