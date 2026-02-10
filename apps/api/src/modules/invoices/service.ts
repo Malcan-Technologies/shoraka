@@ -132,69 +132,88 @@ export class InvoiceService {
   }
 
   async updateInvoice(id: string, payload: any, userId: string): Promise<Invoice> {
-    const invoice = await this.verifyInvoiceAccess(id, userId);
+  const invoice = await this.verifyInvoiceAccess(id, userId);
 
-    if (invoice.status === "APPROVED") {
-      throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
-    }
-
-    /**
-     * PARSE PAYLOAD
-     *
-     * Payload can contain:
-     * - individual detail fields (number, value, maturity_date, financing_ratio_percent, document)
-     * - contractId (optional, can be null or cuid)
-     */
-    const { contractId, ...detailsPayload } = payload;
-
-    const prevS3Key = (invoice.details as any)?.document?.s3_key;
-    const nextS3Key = detailsPayload?.document?.s3_key;
-
-    const updatedDetails = Object.keys(detailsPayload).length > 0 ? {
-      ...(invoice.details as object),
-      ...detailsPayload,
-    } : invoice.details;
-
-    /**
-     * UPDATE INVOICE WITH OPTIONAL CONTRACT ID
-     *
-     * Build update payload with contract_id if provided
-     * contractId can be: undefined (skip), null (clear), or a cuid string (set)
-     */
-    const updatePayload: any = {
-      details: updatedDetails,
-      updated_at: new Date(),
-    };
-
-    if (contractId !== undefined) {
-      updatePayload.contract_id = contractId;
-      logger.info({ invoiceId: id, contractId }, "Updating invoice contract_id");
-    }
-
-    const updatedInvoice = await this.repository.update(id, updatePayload);
-
-    // 🔥 delete previous version AFTER successful update
-    if (
-      prevS3Key &&
-      nextS3Key &&
-      prevS3Key !== nextS3Key
-    ) {
-      try {
-        await deleteS3Object(prevS3Key);
-        logger.info(
-          { invoiceId: id, prevS3Key, nextS3Key },
-          "Old invoice document deleted after version replacement"
-        );
-      } catch (err) {
-        logger.error(
-          { invoiceId: id, prevS3Key, err },
-          "Failed to delete old invoice document from S3"
-        );
-      }
-    }
-
-    return updatedInvoice;
+  if (invoice.status === "APPROVED") {
+    throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
   }
+
+  /**
+   * PARSE PAYLOAD
+   * Can contain:
+   * - details: partial invoice details
+   * - document: top-level document field
+   * - contractId: optional, can be null or cuid string
+   */
+  const { contractId, details, document, ...otherFields } = payload;
+
+  const prevS3Key = (invoice.details as any)?.document?.s3_key;
+  const nextS3Key = document?.s3_key;
+
+  /**
+   * MERGE DETAILS
+   * Combine existing details with new details and document
+   */
+  let updatedDetails = invoice.details as object;
+
+  if (details && Object.keys(details).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...details,
+    };
+  }
+
+  if (document !== undefined) {
+    updatedDetails = {
+      ...updatedDetails,
+      document,
+    };
+  }
+
+  if (Object.keys(otherFields).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...otherFields,
+    };
+  }
+
+  /**
+   * BUILD UPDATE PAYLOAD
+   * Include contractId if provided
+   */
+  const updatePayload: any = {
+    details: updatedDetails,
+    updated_at: new Date(),
+  };
+
+  if (contractId !== undefined) {
+    updatePayload.contract_id = contractId;
+  }
+
+  const updatedInvoice = await this.repository.update(id, updatePayload);
+
+  // 🔥 delete previous version AFTER successful update
+  if (
+    prevS3Key &&
+    nextS3Key &&
+    prevS3Key !== nextS3Key
+  ) {
+    try {
+      await deleteS3Object(prevS3Key);
+      logger.info(
+        { invoiceId: id, prevS3Key, nextS3Key },
+        "Old invoice document deleted after version replacement"
+      );
+    } catch (err) {
+      logger.error(
+        { invoiceId: id, prevS3Key, err },
+        "Failed to delete old invoice document from S3"
+      );
+    }
+  }
+
+  return updatedInvoice;
+}
 
 
 
@@ -296,4 +315,3 @@ async deleteInvoice(id: string, userId: string) {
 }
 
 export const invoiceService = new InvoiceService();
-

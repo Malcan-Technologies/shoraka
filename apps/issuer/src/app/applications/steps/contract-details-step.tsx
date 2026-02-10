@@ -513,7 +513,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
     const isCurrentStepValid =
-      !!contractId &&
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
@@ -845,10 +844,10 @@ function FileUploadArea({
     const isPending = !!pendingFile;
 
     return (
-      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between bg-card/50">
-        <div className="flex items-center gap-3">
+      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className={cn(
-            "p-1 rounded-full",
+            "p-1 rounded-full shrink-0",
             isPending ? "bg-yellow-500/10" : "bg-primary/10"
           )}>
             <CheckCircle2 className={cn(
@@ -856,8 +855,8 @@ function FileUploadArea({
               isPending ? "text-yellow-500" : "text-primary"
             )} />
           </div>
-          <div>
-            <div className="text-sm font-medium">{fileName}</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {(fileSize / 1024 / 1024).toFixed(2)} MB
               {isPending}

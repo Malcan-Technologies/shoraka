@@ -67,7 +67,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           setApplication(resp.data);
         }
       } catch (err) {
-        console.error("Failed to load application", err);
+        
       }
     };
     loadApplication();
@@ -253,12 +253,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const structureType = application?.financing_structure?.structure_type;
     const isInvoiceOnly = structureType === "invoice_only";
 
-    console.log("🚀 saveFunction started", {
-      structureType,
-      isInvoiceOnly,
-      totalInvoices: invoices.length,
-    });
-
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);
     }
@@ -274,7 +268,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
        */
       const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
       if (isLocked) {
-        console.log("⏭️ Skipping locked invoice (SUBMITTED/APPROVED):", inv.id);
         continue;
       }
 
@@ -298,21 +291,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
          * - invoice_only: DO NOT pass contractId (will be null in DB)
          * - existing_contract or new_contract: pass contract_id if it exists
          */
-        if (!isInvoiceOnly && application?.contract_id) {
+        if (!isInvoiceOnly && application?.contract_id)
           createPayload.contractId = application.contract_id;
-          console.log("✏️ Creating invoice with contractId:", application.contract_id, "Payload:", createPayload);
-        } else if (isInvoiceOnly) {
-          console.log("✏️ Creating invoice_only invoice (no contractId). Payload:", createPayload);
-        } else {
-          console.log("✏️ No contract_id on application. Payload:", createPayload);
-        }
+
 
         const createResp: any = await apiClient.createInvoice(createPayload);
         if (!createResp?.success) {
           throw new Error("Failed to create invoice");
         }
         invoiceId = createResp.data.id;
-        console.log("✅ Invoice created with ID:", invoiceId);
       } else {
         /**
          * UPDATE EXISTING INVOICES
@@ -329,16 +316,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         if (isInvoiceOnly) {
           updatePayload.contractId = null;
-          console.log("🔄 Updating invoice to invoice_only (contractId → null). Payload:", updatePayload);
         } else if (application?.contract_id) {
           updatePayload.contractId = application.contract_id;
-          console.log("🔄 Updating invoice with contractId:", application.contract_id, "Payload:", updatePayload);
-        } else {
-          console.log("🔄 No contract_id on application. Payload:", updatePayload);
         }
-
         await apiClient.updateInvoice(invoiceId, updatePayload);
-        console.log("✅ Invoice updated with ID:", invoiceId);
       }
 
       const file = selectedFiles[inv.id] || selectedFiles[invoiceId];
@@ -376,7 +357,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       /**
        * UPDATE WITH DOCUMENT + CONTRACT ID
        *
-       * Merge document update with contractId in one call
+       * Structure: { document: {...}, contractId: ... }
        */
       const finalUpdatePayload: any = {
         document: {
@@ -388,16 +369,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
       if (isInvoiceOnly) {
         finalUpdatePayload.contractId = null;
-        console.log("📄 Updating invoice document + contractId (null). Final payload:", finalUpdatePayload);
       } else if (application?.contract_id) {
         finalUpdatePayload.contractId = application.contract_id;
-        console.log("📄 Updating invoice document + contractId:", application.contract_id, "Final payload:", finalUpdatePayload);
-      } else {
-        console.log("📄 Updating invoice document only (no contract_id). Final payload:", finalUpdatePayload);
       }
-
       await apiClient.updateInvoice(invoiceId, finalUpdatePayload);
-      console.log("✅ Invoice document updated for ID:", invoiceId);
       setLastS3Keys((prev) => ({
         ...prev,
         [invoiceId]: s3Key,
@@ -451,30 +426,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const loadInvoices = async () => {
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        const resp: any = await apiClient.getInvoicesByApplication(applicationId);
-        if (!("success" in resp) || !resp.success) return;
-        
-        const items: any[] = resp.data || [];
-        
-        /**
-         * FILTER INVOICES BY STRUCTURE TYPE
-         *
-         * - invoice_only: only DRAFT (exclude APPROVED, SUBMITTED, REJECTED)
-         * - existing_contract: all except REJECTED
-         * - new_contract: all except REJECTED
-         */
-        const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
-        const filtered = items.filter((it: any) => {
-          // Exclude REJECTED for all structures
-          if (it.status === "REJECTED") return false;
-          
-          // invoice_only: only DRAFT
-          if (isInvoiceOnly && it.status !== "DRAFT") return false;
-          
-          return true;
-        });
-        
-        const mapped: LocalInvoice[] = filtered.map((it) => {
+        const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
+        const contractId = application?.contract_id;
+
+        const toLocalInvoice = (it: any): LocalInvoice => {
           const d = it.details || {};
           return {
             id: it.id,
@@ -492,14 +447,61 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               }
               : null,
           };
-        });
-        
+        };
+
+        let mapped: LocalInvoice[];
+
+        if (isExistingContract && contractId) {
+          /**
+           * EXISTING CONTRACT: Fetch by contract first, then by application
+           * Contract invoices (APPROVED/SUBMITTED) come first
+           * Application invoices exclude APPROVED/SUBMITTED to avoid duplicates
+           */
+          const contractResp: any = await apiClient.getInvoicesByContract(contractId);
+          const contractItems: any[] =
+            "success" in contractResp && contractResp.success
+              ? (contractResp.data || []).filter(
+                (it: any) => it.status === "APPROVED" || it.status === "SUBMITTED"
+              )
+              : [];
+          const contractMapped = contractItems.map(toLocalInvoice);
+
+          const appResp: any = await apiClient.getInvoicesByApplication(applicationId);
+          if (!("success" in appResp) || !appResp.success) {
+            mapped = contractMapped;
+          } else {
+            const appItems: any[] = (appResp.data || []).filter(
+              (it: any) =>
+                it.status !== "REJECTED" &&
+                it.status !== "APPROVED" &&
+                it.status !== "SUBMITTED"
+            );
+            const appMapped = appItems.map(toLocalInvoice);
+            mapped = [...contractMapped, ...appMapped];
+          }
+        } else {
+          /**
+           * INVOICE_ONLY / NEW_CONTRACT: Single fetch by application
+           */
+          const resp: any = await apiClient.getInvoicesByApplication(applicationId);
+          if (!("success" in resp) || !resp.success) return;
+
+          const items: any[] = resp.data || [];
+          const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
+          const filtered = items.filter((it: any) => {
+            if (it.status === "REJECTED") return false;
+            if (isInvoiceOnly && it.status !== "DRAFT") return false;
+            return true;
+          });
+          mapped = filtered.map(toLocalInvoice);
+        }
+
         const baseline: Record<string, LocalInvoice> = {};
         mapped.forEach((inv) => {
           baseline[inv.id] = inv;
         });
         setInitialInvoices(baseline);
-        
+
         if (mounted) {
           setInvoices(mapped);
           const keys: Record<string, string> = {};
@@ -519,7 +521,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicationId, application?.financing_structure?.structure_type]);
+  }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
