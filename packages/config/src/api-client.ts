@@ -63,6 +63,13 @@ import type {
   CustomerDetails,
   Invoice,
   InvoiceDetails,
+  AdminNotificationType,
+  AdminNotificationGroup,
+  AdminNotificationLog,
+  AdminNotificationLogPagination,
+  AdminSendNotificationPayload,
+  AdminUpdateNotificationTypePayload,
+  AdminSeedTypesResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -1059,20 +1066,20 @@ export class ApiClient {
   }
 
   // Admin Notifications
-  async getAdminNotificationTypes(): Promise<ApiResponse<Record<string, unknown>[]> | ApiError> {
-    return this.get<Record<string, unknown>[]>("/v1/notifications/admin/types");
+  async getAdminNotificationTypes(): Promise<ApiResponse<AdminNotificationType[]> | ApiError> {
+    return this.get<AdminNotificationType[]>("/v1/notifications/admin/types");
   }
 
-  async updateAdminNotificationType(id: string, data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.patch<Record<string, unknown>>(`/v1/notifications/admin/types/${id}`, data);
+  async updateAdminNotificationType(id: string, data: AdminUpdateNotificationTypePayload): Promise<ApiResponse<AdminNotificationType> | ApiError> {
+    return this.patch<AdminNotificationType>(`/v1/notifications/admin/types/${id}`, data);
   }
 
-  async sendAdminNotification(data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.post<Record<string, unknown>>("/v1/notifications/admin/send", data);
+  async sendAdminNotification(data: AdminSendNotificationPayload): Promise<ApiResponse<{ sent: number }> | ApiError> {
+    return this.post<{ sent: number }>("/v1/notifications/admin/send", data);
   }
 
-  async getAdminNotificationGroups(): Promise<ApiResponse<Record<string, unknown>[]> | ApiError> {
-    return this.get<Record<string, unknown>[]>("/v1/notifications/admin/groups");
+  async getAdminNotificationGroups(): Promise<ApiResponse<AdminNotificationGroup[]> | ApiError> {
+    return this.get<AdminNotificationGroup[]>("/v1/notifications/admin/groups");
   }
 
   async getAdminNotificationLogs(params: {
@@ -1081,7 +1088,7 @@ export class ApiClient {
     search?: string;
     type?: string;
     target?: string;
-  }): Promise<ApiResponse<{ items: Record<string, unknown>[]; pagination: Record<string, unknown> }> | ApiError> {
+  }): Promise<ApiResponse<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }> | ApiError> {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.append("limit", String(params.limit));
     if (params.offset) queryParams.append("offset", String(params.offset));
@@ -1089,25 +1096,25 @@ export class ApiClient {
     if (params.type) queryParams.append("type", params.type);
     if (params.target) queryParams.append("target", params.target);
 
-    return this.get<{ items: Record<string, unknown>[]; pagination: Record<string, unknown> }>(
+    return this.get<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>(
       `/v1/notifications/admin/logs?${queryParams.toString()}`
     );
   }
 
-  async createAdminNotificationGroup(data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.post<Record<string, unknown>>("/v1/notifications/admin/groups", data);
+  async createAdminNotificationGroup(data: { name: string; description?: string; userIds: string[] }): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+    return this.post<AdminNotificationGroup>("/v1/notifications/admin/groups", data);
   }
 
-  async updateAdminNotificationGroup(id: string, data: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.patch<Record<string, unknown>>(`/v1/notifications/admin/groups/${id}`, data);
+  async updateAdminNotificationGroup(id: string, data: { name?: string; description?: string; userIds?: string[] }): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+    return this.patch<AdminNotificationGroup>(`/v1/notifications/admin/groups/${id}`, data);
   }
 
-  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.delete<Record<string, unknown>>(`/v1/notifications/admin/groups/${id}`);
+  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+    return this.delete<AdminNotificationGroup>(`/v1/notifications/admin/groups/${id}`);
   }
 
-  async seedAdminNotificationTypes(): Promise<ApiResponse<{ count: number }> | ApiError> {
-    return this.post<{ count: number }>("/v1/notifications/admin/seed-types");
+  async seedAdminNotificationTypes(): Promise<ApiResponse<AdminSeedTypesResponse> | ApiError> {
+    return this.post<AdminSeedTypesResponse>("/v1/notifications/admin/seed-types");
   }
 
   // Contracts

@@ -146,7 +146,7 @@ export function useAdminNotifications(
   });
 
   const updateTypeMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { enabled_platform?: boolean; enabled_email?: boolean } }) => {
       const response = await apiClient.updateAdminNotificationType(id, data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
@@ -157,7 +157,18 @@ export function useAdminNotifications(
   });
 
   const sendNotificationMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: {
+      targetType: string;
+      userIds?: string[];
+      groupId?: string;
+      typeId: string;
+      title: string;
+      message: string;
+      linkPath?: string;
+      sendToPlatform?: boolean;
+      sendToEmail?: boolean;
+      expiresAt?: string;
+    }) => {
       const response = await apiClient.sendAdminNotification(data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
@@ -186,7 +197,7 @@ export function useAdminNotifications(
   });
 
   const updateGroupMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; description?: string; userIds?: string[] } }) => {
       const response = await apiClient.updateAdminNotificationGroup(id, data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;

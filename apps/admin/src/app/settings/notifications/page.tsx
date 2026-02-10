@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import { useAdminNotifications } from "@cashsouk/config";
+import type {
+  AdminNotificationType,
+  AdminNotificationGroup,
+  AdminNotificationLog,
+  AdminSeedTypesResponse,
+} from "@cashsouk/types";
 import {
   Card,
   CardContent,
@@ -140,7 +146,7 @@ export default function NotificationsAdminPage() {
   const [sendToEmail, setSendToEmail] = useState<boolean>(false);
   const [expirationMode, setExpirationType] = useState<"presets" | "custom">("presets");
   const [retentionDays, setRetentionDays] = useState<string>("30");
-  const [customExpirationDate, setCustomExpirationDate] = useState<string>(
+  const [customExpirationDate, setCustomExpirationDate] = useState<string>(() =>
     format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")
   );
 
@@ -152,7 +158,7 @@ export default function NotificationsAdminPage() {
   const [editingGroupId, setGroupEditingId] = useState<string | null>(null);
 
   // Log View State
-  const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [selectedLog, setSelectedLog] = useState<AdminNotificationLog | null>(null);
   const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false);
 
   const handleTogglePlatform = (typeId: string, enabled: boolean) => {
@@ -226,7 +232,7 @@ export default function NotificationsAdminPage() {
           );
           setExpirationType("presets");
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
           toast.error(error.message || "Failed to send notifications");
         },
       }
@@ -283,7 +289,7 @@ export default function NotificationsAdminPage() {
     setIsGroupModalOpen(false);
   };
 
-  const handleEditGroup = (group: any) => {
+  const handleEditGroup = (group: AdminNotificationGroup) => {
     setGroupName(group.name);
     setGroupDescription(group.description || "");
     setGroupUserIds(group.user_ids.join(", "));
@@ -345,8 +351,8 @@ export default function NotificationsAdminPage() {
                     onClick={() => {
                       if (confirm("This will add any missing notification types. Existing types will not be modified. Continue?")) {
                         seedTypes(undefined, {
-                          onSuccess: (response: any) => {
-                            const added = response.data?.added || 0;
+                          onSuccess: (response: AdminSeedTypesResponse) => {
+                            const added = response.added || 0;
                             if (added > 0) {
                               toast.success(`Successfully added ${added} new notification types`);
                             } else {
@@ -374,8 +380,8 @@ export default function NotificationsAdminPage() {
                 ) : (
                   <div className="divide-y">
                     {types
-                      .filter((type: any) => type.category === "SYSTEM" || type.category === "AUTHENTICATION")
-                      .map((type: any) => (
+                      .filter((type: AdminNotificationType) => type.category === "SYSTEM" || type.category === "AUTHENTICATION")
+                      .map((type: AdminNotificationType) => (
                         <div
                           key={type.id}
                           className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
@@ -433,10 +439,10 @@ export default function NotificationsAdminPage() {
                       <SelectContent>
                         {types
                           .filter(
-                            (type: any) =>
+                            (type: AdminNotificationType) =>
                               type.category === "MARKETING" || type.category === "ANNOUNCEMENT"
                           )
-                          .map((type: any) => (
+                          .map((type: AdminNotificationType) => (
                             <SelectItem key={type.id} value={type.id}>
                               {type.name}
                             </SelectItem>
@@ -469,7 +475,7 @@ export default function NotificationsAdminPage() {
                           <SelectValue placeholder="Select a group" />
                         </SelectTrigger>
                         <SelectContent>
-                          {groups.map((group: any) => (
+                          {groups.map((group: AdminNotificationGroup) => (
                             <SelectItem key={group.id} value={group.id}>
                               {group.name} ({group.user_ids.length} users)
                             </SelectItem>
@@ -643,7 +649,7 @@ export default function NotificationsAdminPage() {
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {groups.map((group: any) => (
+                      {groups.map((group: AdminNotificationGroup) => (
                         <div
                           key={group.id}
                           className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
@@ -723,7 +729,7 @@ export default function NotificationsAdminPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {types.map((type: any) => (
+                {types.map((type: AdminNotificationType) => (
                   <SelectItem key={type.id} value={type.id}>
                     {type.name}
                   </SelectItem>
@@ -803,7 +809,7 @@ export default function NotificationsAdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {logs.map((log: any) => (
+                        {logs.map((log: AdminNotificationLog) => (
                           <TableRow key={log.id} className="hover:bg-muted/50 transition-colors">
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                               {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
@@ -857,7 +863,7 @@ export default function NotificationsAdminPage() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {log.device_info ? (
-                                <span title={log.user_agent} className="line-clamp-2 leading-snug">
+                                <span title={log.user_agent ?? undefined} className="line-clamp-2 leading-snug">
                                   {log.device_info}
                                 </span>
                               ) : (

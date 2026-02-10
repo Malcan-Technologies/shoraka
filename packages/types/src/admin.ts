@@ -895,6 +895,90 @@ export interface ExportProductLogsParams extends Omit<GetProductLogsParams, "pag
   format?: "csv" | "json";
 }
 
+// Notifications (Admin)
+export type AdminNotificationCategory = "AUTHENTICATION" | "SYSTEM" | "MARKETING" | "ANNOUNCEMENT";
+export type AdminNotificationPriority = "INFO" | "WARNING" | "CRITICAL";
+
+export interface AdminNotificationType {
+  id: string;
+  name: string;
+  description: string | null;
+  category: AdminNotificationCategory;
+  default_priority: AdminNotificationPriority;
+  enabled_platform: boolean;
+  enabled_email: boolean;
+  user_configurable: boolean;
+  retention_days: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminNotificationGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  user_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminNotificationLog {
+  id: string;
+  admin_user_id: string;
+  target_type: string;
+  target_group_id: string | null;
+  notification_type_id: string;
+  title: string;
+  message: string;
+  recipient_count: number;
+  metadata: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_info: string | null;
+  created_at: string;
+  admin: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  notification_type: AdminNotificationType | null;
+}
+
+export interface AdminNotificationLogPagination {
+  total: number;
+  limit: number;
+  offset: number;
+  pages: number;
+}
+
+export interface AdminNotificationLogsResponse {
+  items: AdminNotificationLog[];
+  pagination: AdminNotificationLogPagination;
+}
+
+export interface AdminSendNotificationPayload {
+  targetType: string;
+  userIds?: string[];
+  groupId?: string;
+  typeId: string;
+  title: string;
+  message: string;
+  linkPath?: string;
+  sendToPlatform?: boolean;
+  sendToEmail?: boolean;
+  expiresAt?: string;
+}
+
+export interface AdminUpdateNotificationTypePayload {
+  enabled_platform?: boolean;
+  enabled_email?: boolean;
+}
+
+export interface AdminSeedTypesResponse {
+  count: number;
+  added: number;
+}
+
 // Products
 export interface GetProductsParams {
   page: number;
