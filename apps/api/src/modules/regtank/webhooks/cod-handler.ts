@@ -190,6 +190,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             tin: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
             industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
             numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
+            phoneNumber: basicContent.find((f: any) => f.fieldName === "Phone Number")?.fieldValue || null,
           };
 
           // Extract entity criteria
@@ -739,6 +740,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
               },
             });
 

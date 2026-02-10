@@ -16,21 +16,26 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
   const { corporateInfo, isLoading, update, isUpdating } = useCorporateInfo(organizationId);
   const [isEditing, setIsEditing] = React.useState(false);
 
+  const [tinNumber, setTinNumber] = React.useState("");
   const [industry, setIndustry] = React.useState("");
   const [entityType, setEntityType] = React.useState("");
   const [businessName, setBusinessName] = React.useState("");
-  const [natureOfBusiness, setNatureOfBusiness] = React.useState("");
   const [numberOfEmployees, setNumberOfEmployees] = React.useState("");
   const [ssmRegisterNumber, setSsmRegisterNumber] = React.useState("");
 
   React.useEffect(() => {
     if (corporateInfo) {
+      const basic = corporateInfo.basicInfo as { tinNumber?: string; tin?: string } | undefined;
+      setTinNumber(basic?.tinNumber || basic?.tin || "");
       setIndustry(corporateInfo.basicInfo?.industry || "");
       setEntityType(corporateInfo.basicInfo?.entityType || "");
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
-      setNatureOfBusiness((corporateInfo.basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
-      setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
+      setSsmRegisterNumber(
+        corporateInfo.basicInfo?.ssmRegisterNumber ||
+          (corporateInfo.basicInfo as { ssmRegistrationNumber?: string })?.ssmRegistrationNumber ||
+          ""
+      );
     }
   }, [corporateInfo]);
 
@@ -48,12 +53,13 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
 
   const handleCancel = () => {
     if (corporateInfo) {
+      const basic = corporateInfo.basicInfo as { tinNumber?: string; tin?: string; ssmRegistrationNumber?: string } | undefined;
+      setTinNumber(basic?.tinNumber || basic?.tin || "");
       setIndustry(corporateInfo.basicInfo?.industry || "");
       setEntityType(corporateInfo.basicInfo?.entityType || "");
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
-      setNatureOfBusiness((corporateInfo.basicInfo as { natureOfBusiness?: string })?.natureOfBusiness || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
-      setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
+      setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || basic?.ssmRegistrationNumber || "");
     }
     setIsEditing(false);
   };
@@ -92,18 +98,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       <div className="p-6 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label className="text-muted-foreground">Company Name</Label>
-            <Input value={businessName} disabled className="bg-muted cursor-not-allowed opacity-60" />
-            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Type of Entity</Label>
-            <Input value={entityType} disabled className="bg-muted cursor-not-allowed opacity-60" />
-            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">SSM No</Label>
-            <Input value={ssmRegisterNumber} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <Label className="text-muted-foreground">TIN Number</Label>
+            <Input value={tinNumber} disabled className="bg-muted cursor-not-allowed opacity-60" />
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
@@ -114,10 +110,16 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
               disabled={!isEditing}
               className={!isEditing ? "bg-muted" : ""}
             />
+            <p className="text-xs text-muted-foreground">&nbsp;</p>
           </div>
           <div className="space-y-2">
-            <Label className="text-muted-foreground">Nature of Business</Label>
-            <Input value={natureOfBusiness || "—"} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <Label className="text-muted-foreground">Entity Type</Label>
+            <Input value={entityType} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Business Name</Label>
+            <Input value={businessName} disabled className="bg-muted cursor-not-allowed opacity-60" />
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
           <div className="space-y-2">
@@ -129,6 +131,12 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
               disabled={!isEditing}
               className={!isEditing ? "bg-muted" : ""}
             />
+            <p className="text-xs text-muted-foreground">&nbsp;</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">SSM Register Number</Label>
+            <Input value={ssmRegisterNumber} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
         </div>
         {isEditing && (
