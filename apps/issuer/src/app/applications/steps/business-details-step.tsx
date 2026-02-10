@@ -184,11 +184,10 @@ const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
 
 /**
  * Core form grid
- * ❌ removed pl-3 / sm:pl-4 / md:pl-6
- * ✅ alignment now matches Financing Type + other steps
+ * Includes px-3 for consistent indentation with other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
 
 /**
  * Section wrapper
