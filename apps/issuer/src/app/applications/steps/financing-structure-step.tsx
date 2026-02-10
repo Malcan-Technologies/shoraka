@@ -55,6 +55,8 @@ export function FinancingStructureStep({
   const { data: approvedContracts = [] } = useApprovedContracts(
     application?.issuer_organization_id || ""
   );
+  const hasApprovedContracts = approvedContracts.length > 0;
+
 
   /** Local state
    *
