@@ -522,6 +522,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
+  const isNewContract =
+    application?.financing_structure?.structure_type === "new_contract";
+
+
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
@@ -547,27 +551,33 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   : "—"}
               </div>
 
-              <div className={formLabelClassName}>Approved facility</div>
-              <div className={valueClassName}>
-                {application.contract.contract_details?.approved_facility != null
-                  ? formatMoney(application.contract.contract_details.approved_facility)
-                  : "—"}
-              </div>
 
-              <div className={formLabelClassName}>Available facility</div>
-              <div
-                className={cn(
-                  "text-sm md:text-base leading-6 font-medium",
-                  liveAvailableFacility < 0 && "text-destructive"
-                )}
-              >
-                {formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}
-                {!approvedFacility && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    * Subject to credit approval
-                  </div>
-                )}
-              </div>
+<div className={formLabelClassName}>Approved facility</div>
+<div className={valueClassName}>
+  {isNewContract ? "—" : (
+    application.contract.contract_details?.approved_facility != null
+      ? formatMoney(application.contract.contract_details.approved_facility)
+      : "—"
+  )}
+</div>
+
+
+
+
+
+<div className={formLabelClassName}>Available facility</div>
+<div
+  className={cn(
+    "text-sm md:text-base leading-6 font-medium",
+    !isNewContract && liveAvailableFacility < 0 && "text-destructive"
+  )}
+>
+  {isNewContract ? "—" : formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}
+</div>
+
+ 
+
+
             </div>
           </div>
         </div>
