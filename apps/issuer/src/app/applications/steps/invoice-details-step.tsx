@@ -23,6 +23,7 @@ import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { formLabelClassName } from "@/app/applications/components/form-control";
+import { StatusBadge } from "../components/invoice-status-badge";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -601,7 +602,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       Invoice
                     </TableHead>
 
-                    <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold">
+                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
                       Status
                     </TableHead>
 
@@ -609,7 +610,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                       Maturity date
                     </TableHead>
 
-                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
+                    <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
                       Invoice value (RM)
                     </TableHead>
 
@@ -854,35 +855,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         )}
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status = "DRAFT" }: { status?: string }) {
-  /**
-   * STATUS BADGE
-   *
-   * Only allow DRAFT, SUBMITTED, APPROVED statuses.
-   * Return null for invalid statuses like REJECTED.
-   */
-  if (status !== "DRAFT" && status !== "SUBMITTED" && status !== "APPROVED") {
-    return null;
-  }
-
-  const styles: Record<"DRAFT" | "SUBMITTED" | "APPROVED", string> = {
-    DRAFT: "bg-muted text-muted-foreground border-border",
-    SUBMITTED: "bg-secondary/40 text-secondary-foreground border-secondary/60",
-    APPROVED: "bg-primary/10 text-primary border-primary/30",
-  };
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center h-6 rounded-full border px-2.5 text-[11px] font-medium leading-none whitespace-nowrap",
-        styles[status]
-      )}
-    >
-      {status}
-    </span>
   );
 }
 
