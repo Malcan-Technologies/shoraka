@@ -342,12 +342,22 @@ export default function EditApplicationPage() {
     APPLICATION_STEP_KEYS_WITH_UI.includes(currentStepKey as any);
 
 
-  // Get custom title/description or fall back to workflow step name
-
-  const currentStepInfo = (currentStepKey && STEP_KEY_DISPLAY[currentStepKey]) || {
-    title: effectiveWorkflow[stepFromUrl - 1]?.name || "Loading...",
-    description: "Complete this step to continue"
-  };
+  // Get custom title/description for page display
+  // Use pageTitle if available (descriptive), otherwise fall back to title, then workflow name
+  const currentStepInfo = React.useMemo(() => {
+    if (!currentStepKey) {
+      return {
+        title: effectiveWorkflow[stepFromUrl - 1]?.name || "Loading...",
+        description: "Complete this step to continue",
+      };
+    }
+    
+    const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
+    return {
+      title: stepDisplay.pageTitle || stepDisplay.title,
+      description: stepDisplay.description || "",
+    };
+  }, [currentStepKey, effectiveWorkflow, stepFromUrl]);
 
 
   /**
@@ -499,6 +509,12 @@ export default function EditApplicationPage() {
       return;
     }
 
+    // Skip validation for review_and_submit step (it's always the final step regardless of filtering)
+    // This allows users to submit even if contract_details was filtered out earlier
+    if (currentStepKey === "review_and_submit") {
+      return;
+    }
+
     const lastCompleted = application.last_completed_step || 1;
     const maxAllowedStep = lastCompleted + 1;
 
@@ -540,6 +556,7 @@ export default function EditApplicationPage() {
     effectiveWorkflow,
     applicationBlockReason,
     searchParams,
+    currentStepKey,
   ]);
 
   /**
@@ -842,7 +859,7 @@ export default function EditApplicationPage() {
 
         setHasUnsavedChanges(false);
         toast.success("Application submitted successfully!");
-        router.push("/applications");
+        router.push("/");
         return;
       }
 

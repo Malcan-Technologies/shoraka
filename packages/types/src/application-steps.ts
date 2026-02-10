@@ -31,7 +31,11 @@ export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
 ];
 
 export interface StepKeyDisplay {
+  /** Name shown in workflow builder (short form) */
   title: string;
+  /** Title shown on application page (descriptive form) */
+  pageTitle?: string;
+  /** Description shown on application page */
   description?: string;
 }
 
@@ -39,35 +43,44 @@ export interface StepKeyDisplay {
 export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   financing_type: {
     title: "Financing Type",
+    pageTitle: "Choose Your Financing Type",
     description: "Choose the type of financing that best suits your business needs",
   },
   financing_structure: {
-    title: "How would you like to apply for financing?",
+    title: "Financing Structure",
+    pageTitle: "How would you like to apply for financing?",
   },
   contract_details: {
-    title: "Provide Contract and Customer Details",
+    title: "Contract Details",
+    pageTitle: "Provide Contract and Customer Details",
     description: "Help us understand your contract and your customer billed under this invoice",
   },
   invoice_details: {
-    title: "Upload invoice(s)",
+    title: "Invoice Details",
+    pageTitle: "Upload invoice(s)",
     description: "Provide the invoice(s) to apply for financing",
   },
   company_details: {
-    title: "Verify company details",
+    title: "Company Details",
+    pageTitle: "Verify company details",
     description: "Make sure all company details are up to date",
   },
   business_details: {
     title: "Business Details",
+    pageTitle: "Business Details",
     description: "Tell us about your business",
   },
   supporting_documents: {
-    title: "Upload Supporting Documents",
+    title: "Supporting Documents",
+    pageTitle: "Upload Supporting Documents",
   },
   declarations: {
     title: "Declarations",
+    pageTitle: "Declarations",
   },
   review_and_submit: {
-    title: "Review and submit",
+    title: "Review & Submit",
+    pageTitle: "Review & Submit",
     description: "Ensure that all information provided are accurate and up to date",
   },
 };
