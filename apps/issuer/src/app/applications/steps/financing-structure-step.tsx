@@ -145,16 +145,16 @@ export function FinancingStructureStep({
     const savedStructure = application?.financing_structure as any;
     const previousStructureType = savedStructure?.structure_type;
 
-  // Check if user made changes from what's in DB
-  const structureChanged =
-    !savedStructure ||  // No saved data yet (first time) → need to save
-    savedStructure.structure_type !== selectedStructure ||  // Structure type changed
-    (
-      selectedStructure === "existing_contract" &&
-      savedStructure.existing_contract_id !== selectedContractId  // Contract ID changed
-    );
+    // Check if user made changes from what's in DB
+    const structureChanged =
+      !savedStructure ||  // No saved data yet (first time) → need to save
+      savedStructure.structure_type !== selectedStructure ||  // Structure type changed
+      (
+        selectedStructure === "existing_contract" &&
+        savedStructure.existing_contract_id !== selectedContractId  // Contract ID changed
+      );
 
-  const hasPendingChanges = structureChanged;
+    const hasPendingChanges = structureChanged;
 
 
 
@@ -241,27 +241,38 @@ export function FinancingStructureStep({
           isSelected={selectedStructure === "existing_contract"}
           onClick={() => handleStructureSelect("existing_contract")}
           trailing={
-            <Select value={selectedContractId} onValueChange={handleContractSelect}>
-              <SelectTrigger
-                className={formSelectTriggerClassName + " w-[280px]"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (selectedStructure !== "existing_contract") {
-                    handleStructureSelect("existing_contract");
-                  }
-                }}
+            hasApprovedContracts ? (
+              <Select value={selectedContractId} onValueChange={handleContractSelect}>
+                <SelectTrigger
+                  className={formSelectTriggerClassName + " w-[280px]"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectedStructure !== "existing_contract") {
+                      handleStructureSelect("existing_contract");
+                    }
+                  }}
+                >
+                  <SelectValue placeholder="Select an existing contract" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {approvedContracts.map((contract: any) => (
+                    <SelectItem key={contract.id} value={contract.id}>
+                      {(contract.contract_details as any)?.title || "Untitled Contract"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div
+                className="w-[280px] rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground bg-muted/30"
+                onClick={(e) => e.stopPropagation()}
               >
-                <SelectValue placeholder="Select an existing contract" />
-              </SelectTrigger>
-              <SelectContent>
-                {approvedContracts.map((contract: any) => (
-                  <SelectItem key={contract.id} value={contract.id}>
-                    {(contract.contract_details as any)?.title || "Untitled Contract"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                No existing contracts
+              </div>
+            )
           }
+
         />
 
         {/* Option 3: Invoice-only financing */}
