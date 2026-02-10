@@ -5,11 +5,22 @@ import { Switch } from "./switch";
 import { Label } from "./label";
 import { Skeleton } from "./skeleton";
 
+interface NotificationPref {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  enabled_platform: boolean;
+  enabled_email: boolean;
+  user_configurable: boolean;
+}
+
 export function NotificationPreferences() {
-  const { preferences, isLoading, updatePreference } = useNotificationPreferences();
+  const { preferences: rawPreferences, isLoading, updatePreference } = useNotificationPreferences();
+  const preferences = rawPreferences as unknown as NotificationPref[];
 
   const handleToggle = (typeId: string, channel: "platform" | "email", checked: boolean) => {
-    const pref = preferences.find((p: any) => p.id === typeId);
+    const pref = preferences.find((p) => p.id === typeId);
     if (!pref) return;
 
     updatePreference({
@@ -51,12 +62,12 @@ export function NotificationPreferences() {
 
   // Filter only configurable marketing preferences
   const configurablePrefs = preferences.filter(
-    (p: any) => p.user_configurable && p.category === "MARKETING"
+    (p) => p.user_configurable && p.category === "MARKETING"
   );
 
   return (
     <div className="space-y-6">
-      {configurablePrefs.map((type: any) => (
+      {configurablePrefs.map((type) => (
         <div
           key={type.id}
           className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
