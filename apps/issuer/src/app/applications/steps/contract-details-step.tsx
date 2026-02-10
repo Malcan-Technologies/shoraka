@@ -26,6 +26,7 @@ import {
   formTextareaClassName,
 } from "@/app/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
+import { MoneyInput } from "@/app/applications/components/money-input";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -677,45 +678,13 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
 
           <Label className={labelClassName}>Contract value</Label>
           <div className="h-11 flex items-center">
-            <div className="relative w-full h-full flex items-center">
-              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                RM
-              </div>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={formData.contract.value === 0 ? "" : formData.contract.value}
-                placeholder={`eg. ${formatMoney(5000000)}`}
-                className={inputClassName + " pl-12"}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/,/g, "");
-
-                  if (raw === "") {
-                    handleInputChange("contract", "value", "");
-                    return;
-                  }
-
-                  // digits + optional decimal (max 2 dp)
-                  if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
-
-                  const [intPart] = raw.split(".");
-                  if (intPart.length > 12) return;
-
-                  handleInputChange("contract", "value", raw);
-                }}
-
-                onBlur={() => {
-                  if (formData.contract.value !== "") {
-                    handleInputChange(
-                      "contract",
-                      "value",
-                      formatMoney(formData.contract.value)
-                    );
-                  }
-                }}
-
-              />
-            </div>
+            <MoneyInput
+              value={formData.contract.value === 0 ? "" : String(formData.contract.value)}
+              onValueChange={(v) => handleInputChange("contract", "value", v)}
+              placeholder={`eg. ${formatMoney(5000000)}`}
+              prefix="RM"
+              inputClassName={inputClassName}
+            />
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>

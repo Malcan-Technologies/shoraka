@@ -25,6 +25,7 @@ import { cn } from "@cashsouk/ui";
 import { formLabelClassName } from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
+import { MoneyInput } from "@/app/applications/components/money-input";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -671,40 +672,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </TableCell>
 
                         <TableCell className="p-2">
-                          <Input
-                            type="text"                 // IMPORTANT
-                            inputMode="decimal"
+                          <MoneyInput
                             value={inv.value}
-                            disabled={!isEditable}
+                            onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
                             placeholder="Enter value"
-                            onChange={(e) => {
-                              const raw = e.target.value;
-
-                              // allow empty
-                              if (raw === "") {
-                                updateInvoiceField(inv.id, "value", "");
-                                return;
-                              }
-
-                              // digits + optional decimal (max 2 dp)
-                              if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
-
-                              // HARD LIMIT: max 12 digits before decimal
-                              const [intPart] = raw.split(".");
-                              if (intPart.length > 12) return;
-
-                              updateInvoiceField(inv.id, "value", raw);
-                            }}
-                            onBlur={() => {
-                              if (inv.value !== "") {
-                                updateInvoiceField(
-                                  inv.id,
-                                  "value",
-                                  formatMoney(inv.value)
-                                );
-                              }
-                            }}
-                            className="h-9 text-xs"
+                            disabled={!isEditable}
+                            inputClassName="h-9 text-xs"
                           />
                         </TableCell>
 
