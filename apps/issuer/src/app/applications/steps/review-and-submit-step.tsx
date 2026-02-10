@@ -16,6 +16,19 @@ import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
+import { StatusBadge } from "../components/invoice-status-badge";
+
+const INVOICE_TABLE_COLUMNS = {
+  invoice: "w-[140px]",
+  status: "w-[100px]",
+  maturity: "w-[150px]",
+  value: "w-[150px]",
+  ratio: "w-[130px]",
+  amount: "w-[200px]",
+  document: "w-[160px]",
+  action: "w-[50px]",
+};
+
 
 
 /**
@@ -298,9 +311,9 @@ export function ReviewAndSubmitStep({
                 title={financingTypeConfig.name}
                 description={financingTypeConfig.description}
                 isSelected={false}
-                onClick={() => {}}
-              leading={
-                <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                onClick={() => { }}
+                leading={
+                  <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
                     {isLoadingProductImage ? (
                       <Skeleton className="h-full w-full rounded-md" />
                     ) : productImageUrl ? (
@@ -315,9 +328,9 @@ export function ReviewAndSubmitStep({
                         <br />
                         512x512
                       </div>
-                  )}
-                </div>
-              }
+                    )}
+                  </div>
+                }
               />
             </div>
           ) : (
@@ -393,63 +406,104 @@ export function ReviewAndSubmitStep({
                   <Table className="table-fixed w-full">
                     <TableHeader className="bg-muted/20">
                       <TableRow>
-                        <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Invoice</TableHead>
-                        <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold">Status</TableHead>
-                        <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Maturity date</TableHead>
-                        <TableHead className="w-[120px] whitespace-nowrap text-xs font-semibold">Value</TableHead>
-                        <TableHead className="w-[180px] whitespace-nowrap text-xs font-semibold">Ratio</TableHead>
-                        <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Amount</TableHead>
-                        <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Document</TableHead>
-                        <TableHead className="w-[50px]" />
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                          Invoice
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                          Status
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
+                          Maturity date
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
+                          Invoice value (RM)
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
+                          Financing ratio
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
+                          Maximum financing amount (RM)
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                          Documents
+                        </TableHead>
+                        <TableHead className={INVOICE_TABLE_COLUMNS.action} />
                       </TableRow>
                     </TableHeader>
 
+
                     <TableBody>
                       {invoices.map((invoice: any) => {
-                        const details = invoice.details || {};
-                        const invoiceValue = Number(details.value || 0);
-                        const ratio = (details.financing_ratio_percent ?? 60);
-                        const maxFinancing = invoiceValue * (ratio / 100);
+                        const d = invoice.details || {};
+                        const value = Number(d.value || 0);
+                        const ratio = d.financing_ratio_percent ?? 60;
+                        const financingAmount = value * (ratio / 100);
 
                         return (
-                          <TableRow key={invoice.id}>
-                            <TableCell className="p-2 text-xs whitespace-nowrap">#{details.number || "—"}</TableCell>
-                            <TableCell className="p-2 text-xs">
-                              {invoice.status ? <span className="text-muted-foreground">{invoice.status}</span> : "—"}
-                            </TableCell>
-                            <TableCell className="p-2 text-xs whitespace-nowrap">{formatDate(details.maturity_date)}</TableCell>
+                          <TableRow key={invoice.id} className="hover:bg-muted/40">
+                            {/* Invoice */}
                             <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {invoiceValue > 0 ? formatCurrency(invoiceValue) : "—"}
+                              {d.number || "—"}
                             </TableCell>
-                            <TableCell className="p-2 text-xs whitespace-nowrap">{ratio}%</TableCell>
+
+                            {/* Status */}
+                            <TableCell className="p-2">
+                              <StatusBadge status={invoice.status} />
+                            </TableCell>
+
+                            {/* Maturity */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {formatDate(d.maturity_date)}
+                            </TableCell>
+
+                            {/* Value */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
+                              {value > 0 ? formatCurrency(value) : "—"}
+                            </TableCell>
+
+                            {/* Ratio */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {ratio}%
+                            </TableCell>
+
+                            {/* Amount */}
                             <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                              {maxFinancing > 0 ? formatCurrency(maxFinancing) : "—"}
+                              {financingAmount > 0 ? formatCurrency(financingAmount) : "—"}
                             </TableCell>
-                            <TableCell className="p-2 text-xs truncate max-w-[120px]">
-                              {details.document?.file_name ? (
+
+                            {/* Document */}
+                            <TableCell className="p-2">
+                              {d.document?.file_name ? (
                                 <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
                                   <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
                                     <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                                   </div>
-                                  <span className="text-[14px] font-medium truncate max-w-[100px]">{details.document.file_name}</span>
+                                  <span className="text-xs font-medium truncate max-w-[120px]">
+                                    {d.document.file_name}
+                                  </span>
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </TableCell>
-                            <TableCell className="p-2" />
+
+                            {/* Empty action column (keeps width alignment) */}
+                            <TableCell />
                           </TableRow>
                         );
                       })}
-                    <TableRow className="bg-muted/10">
-                      <TableCell colSpan={5} />
-                      <TableCell className="p-2 font-semibold text-xs">
-                        {formatCurrency(totalFinancingAmount)}
-                        <div className="text-xs text-muted-foreground font-normal">Total</div>
-                      </TableCell>
-                      <TableCell colSpan={2} />
-                    </TableRow>
-                  </TableBody>
+
+                      {/* TOTAL — identical to Invoice Details */}
+                      <TableRow className="bg-muted/10">
+                        <TableCell colSpan={5} />
+                        <TableCell className="p-2 font-semibold text-xs">
+                          {formatCurrency(totalFinancingAmount)}
+                          <div className="text-xs text-muted-foreground font-normal">Total</div>
+                        </TableCell>
+                        <TableCell colSpan={2} />
+                      </TableRow>
+                    </TableBody>
+
                   </Table>
                 </div>
               </>

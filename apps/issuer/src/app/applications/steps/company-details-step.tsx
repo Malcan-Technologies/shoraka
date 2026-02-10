@@ -187,7 +187,7 @@ export function CompanyDetailsStep({
    */
   const { data: application } = useApplication(applicationId);
   const savedContactPerson = (application?.company_details as any)?.contact_person;
-  
+
   const [contactPerson, setContactPerson] = React.useState<{
     name: string;
     position: string;
@@ -423,7 +423,7 @@ export function CompanyDetailsStep({
         contactPerson.contact?.trim()
       );
     }
-    
+
     // Compare trimmed values
     return (
       (contactPerson.name?.trim() || "") !== (savedContactPerson.name?.trim() || "") ||
@@ -452,6 +452,51 @@ export function CompanyDetailsStep({
   }, [pendingCompanyInfo, pendingAddress, pendingBanking, hasContactPersonChanged]);
 
   /**
+ * STEP COMPLETENESS CHECK (NOT strict validation)
+ *
+ * Used ONLY to enable/disable "Save & Continue".
+ * Format validation still runs on save click.
+ */
+  const isStepComplete = React.useMemo(() => {
+    // Contact person (required)
+    if (!contactPerson.name?.trim()) return false;
+    if (!contactPerson.position?.trim()) return false;
+    if (!contactPerson.ic?.trim()) return false;
+    if (!contactPerson.contact?.trim()) return false;
+
+    // Company info (required editable fields)
+    const industry =
+      pendingCompanyInfo?.industry ??
+      corporateInfo?.basicInfo?.industry;
+    if (!industry?.trim()) return false;
+
+    const numEmployees =
+      pendingCompanyInfo?.numberOfEmployees ??
+      corporateInfo?.basicInfo?.numberOfEmployees?.toString();
+    if (!numEmployees?.trim()) return false;
+
+    // Banking (required)
+    const bankName =
+      pendingBanking?.bankName ??
+      getBankField(bankAccountDetails, "Bank");
+    if (!bankName?.trim()) return false;
+
+    const bankAccount =
+      pendingBanking?.bankAccountNumber ??
+      getBankField(bankAccountDetails, "Bank account number");
+    if (!bankAccount?.toString().trim()) return false;
+
+    return true;
+  }, [
+    contactPerson,
+    pendingCompanyInfo,
+    pendingBanking,
+    corporateInfo,
+    bankAccountDetails,
+  ]);
+
+
+  /**
    * PASS DATA TO PARENT
    * 
    * Parent will call saveFunction when user clicks "Save and Continue".
@@ -463,8 +508,7 @@ export function CompanyDetailsStep({
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
 
-    const { errors: initialErrors } = validateAll();
-    const isCurrentStepValid = initialErrors.length === 0;
+    const isCurrentStepValid = isStepComplete;
 
     const saveFunctionWithValidation = async () => {
       const { errors, fieldErrors: nextFieldErrors } = validateAll();
@@ -480,7 +524,7 @@ export function CompanyDetailsStep({
 
       setFieldErrors({});
       await saveAllPendingChanges();
-      
+
       // Return contact person data to be saved to application
       // The data will be saved to company_details field
       return {
@@ -496,6 +540,12 @@ export function CompanyDetailsStep({
     // Structure data to be saved to company_details field
     // Include both issuer_organization_id and contact_person
     // Pass hasPendingChanges flag so parent knows if there are actual unsaved changes
+    /**
+     * What: Expose step data and validation flag to parent.
+     * Why: Parent `EditApplicationPage` expects `isValid` to control the
+     *       "Save and Continue" button enable state.
+     * Data: issuer_organization_id, contact_person, saveFunction, hasPendingChanges, isValid
+     */
     onDataChange({
       issuer_organization_id: organizationId,
       contact_person: {
@@ -506,9 +556,19 @@ export function CompanyDetailsStep({
       },
       saveFunction: saveFunctionWithValidation,
       hasPendingChanges: hasPendingChanges,
-      isCurrentStepValid: isCurrentStepValid,
+      // Provide `isValid` so parent can disable save when any required field is empty/invalid.
+      isValid: isCurrentStepValid,
     });
-  }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateAll, hasPendingChanges]);
+  }, [
+    organizationId,
+    onDataChange,
+    saveAllPendingChanges,
+    contactPerson,
+    validateAll,
+    hasPendingChanges,
+    isStepComplete,
+  ]);
+
 
   /**
    * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
@@ -523,7 +583,7 @@ export function CompanyDetailsStep({
   const directorsDisplay = entitiesData?.directorsDisplay ?? [];
   const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
   const corporateShareholders = entitiesData?.corporateShareholders ?? [];
-  
+
   const combinedList = React.useMemo(() => {
     const seen = new Set<string>();
     const result: any[] = [];
@@ -533,10 +593,10 @@ export function CompanyDetailsStep({
       const normalized = normalizeName(d.name);
       if (!seen.has(normalized)) {
         seen.add(normalized);
-        
+
         // If director has ownership (not "—"), they're also a shareholder
         const isAlsoShareholder = d.ownershipLabel !== "—";
-        
+
         result.push({
           type: "director",
           name: d.name,
@@ -574,10 +634,10 @@ export function CompanyDetailsStep({
       );
       const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
       const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
-      
+
       // Check KYB approval status
       const kybApproved = corp.approveStatus === "APPROVED";
-      
+
       result.push({
         type: "corporate_shareholder",
         name: corp.businessName || corp.companyName || "—",
@@ -648,333 +708,333 @@ export function CompanyDetailsStep({
    * 
    * Display all company information in read-only format
    */
-return (
-  <div className="space-y-10 px-3">
-    {/* Company Info Section */}
-    <div className="space-y-4">
-      <div>
-        <h3 className={sectionHeaderClassName}>Company info</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-        <div className={labelClassName}>Company name</div>
-        <Input
-          value={basicInfo?.businessName || "eg. Company Name"}
-          disabled
-          className={inputClassName}
-        />
-
-        <div className={labelClassName}>Type of entity</div>
-        <Input
-          value={basicInfo?.entityType || "eg. Private Limited Company"}
-          disabled
-          className={inputClassName}
-        />
-
-        <div className={labelClassName}>SSM no</div>
-        <Input
-          value={basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
-          disabled
-          className={inputClassName}
-        />
-
-        <div className={labelClassNameEditable}>Industry</div>
+  return (
+    <div className="space-y-10 px-3">
+      {/* Company Info Section */}
+      <div className="space-y-4">
         <div>
-          <Input
-            value={displayIndustry ?? ""}
-            onChange={(e) =>
-              setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
-            }
-            placeholder="eg. Technology"
-            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
-          />
-          {fieldErrors.industry && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.industry}
-            </p>
-          )}
+          <h3 className={sectionHeaderClassName}>Company info</h3>
+          <div className="mt-2 h-px bg-border" />
         </div>
 
-        <div className={labelClassNameEditable}>Number of employees</div>
-        <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className={labelClassName}>Company name</div>
           <Input
-            value={displayNumberOfEmployees?.toString() ?? ""}
-            onChange={(e) => {
-              const v = restrictDigitsOnly(e.target.value);
-              setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
-            }}
-            placeholder="eg. 10"
-            className={withFieldError(
-              inputClassNameEditable,
-              Boolean(fieldErrors.numberOfEmployees)
+            value={basicInfo?.businessName || "eg. Company Name"}
+            disabled
+            className={inputClassName}
+          />
+
+          <div className={labelClassName}>Type of entity</div>
+          <Input
+            value={basicInfo?.entityType || "eg. Private Limited Company"}
+            disabled
+            className={inputClassName}
+          />
+
+          <div className={labelClassName}>SSM no</div>
+          <Input
+            value={basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
+            disabled
+            className={inputClassName}
+          />
+
+          <div className={labelClassNameEditable}>Industry</div>
+          <div>
+            <Input
+              value={displayIndustry ?? ""}
+              onChange={(e) =>
+                setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
+              }
+              placeholder="eg. Technology"
+              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
+            />
+            {fieldErrors.industry && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.industry}
+              </p>
             )}
-          />
-          {fieldErrors.numberOfEmployees && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.numberOfEmployees}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+          </div>
 
-    {/* Address Section */}
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className={sectionHeaderClassName}>Address</h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsEditAddressOpen(true)}
-          className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-        >
-          Edit
-          <PencilIcon className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="mt-2 h-px bg-border" />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-        <div className={labelClassName}>Business address</div>
-        <Input
-          value={formatAddress(displayBusinessAddress)}
-          disabled
-          className={inputClassName}
-        />
-
-        <div className={labelClassName}>Registered address</div>
-        <Input
-          value={formatAddress(displayRegisteredAddress)}
-          disabled
-          className={inputClassName}
-        />
-      </div>
-    </div>
-
-    {/* Directors & Shareholders Section */}
-    <div className="space-y-4">
-      <div>
-        <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-        {!hasDirectorsOrShareholders ? (
-          <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
-            No directors or shareholders found
-          </p>
-        ) : (
-          combinedList.map((item) => (
-            <React.Fragment key={item.key}>
-              <div className={labelClassName}>{item.roleLabel}</div>
-              <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                  {item.name}
-                </div>
-                <div className="h-4 w-px bg-border" />
-                <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                  {item.ownership}
-                </div>
-                <div className="h-4 w-px bg-border" />
-                {item.statusVerified ? (
-                  <div className="flex items-center gap-1.5 whitespace-nowrap">
-                    <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                    <span className="text-[17px] leading-7 text-green-600">
-                      {item.statusType === "kyb" ? "KYB" : "KYC"}
-                    </span>
-                  </div>
-                ) : (
-                  <div />
-                )}
-              </div>
-            </React.Fragment>
-          ))
-        )}
-      </div>
-    </div>
-
-    {/* Banking Details Section */}
-    <div className="space-y-4">
-      <div>
-        <h3 className={sectionHeaderClassName}>Banking details</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-        <div className={labelClassNameEditable}>Bank name</div>
-        <div>
-          <Select
-            value={displayBankName ?? ""}
-            onValueChange={(value) =>
-              setPendingBanking((prev) => ({ ...prev, bankName: value }))
-            }
-          >
-            <SelectTrigger
+          <div className={labelClassNameEditable}>Number of employees</div>
+          <div>
+            <Input
+              value={displayNumberOfEmployees?.toString() ?? ""}
+              onChange={(e) => {
+                const v = restrictDigitsOnly(e.target.value);
+                setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
+              }}
+              placeholder="eg. 10"
               className={withFieldError(
-                formSelectTriggerClassName,
-                Boolean(fieldErrors.bankName)
+                inputClassNameEditable,
+                Boolean(fieldErrors.numberOfEmployees)
               )}
-            >
-              <SelectValue placeholder="Select bank" />
-            </SelectTrigger>
-            <SelectContent>
-              {MALAYSIAN_BANKS.map((bank) => (
-                <SelectItem key={bank.value} value={bank.value}>
-                  {bank.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {fieldErrors.bankName && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.bankName}
-            </p>
-          )}
-        </div>
-
-        <div className={labelClassNameEditable}>Bank account number</div>
-        <div>
-          <Input
-            value={displayAccountNumber ?? ""}
-            onChange={(e) =>
-              setPendingBanking((prev) => ({
-                ...prev,
-                bankAccountNumber: restrictDigitsOnly(e.target.value),
-              }))
-            }
-            placeholder="eg. 1234123412341234"
-            className={withFieldError(
-              inputClassNameEditable,
-              Boolean(fieldErrors.bankAccountNumber)
+            />
+            {fieldErrors.numberOfEmployees && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.numberOfEmployees}
+              </p>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Address Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className={sectionHeaderClassName}>Address</h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsEditAddressOpen(true)}
+            className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
+          >
+            Edit
+            <PencilIcon className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="mt-2 h-px bg-border" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className={labelClassName}>Business address</div>
+          <Input
+            value={formatAddress(displayBusinessAddress)}
+            disabled
+            className={inputClassName}
           />
 
-          {fieldErrors.bankAccountNumber ? (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.bankAccountNumber}
+          <div className={labelClassName}>Registered address</div>
+          <Input
+            value={formatAddress(displayRegisteredAddress)}
+            disabled
+            className={inputClassName}
+          />
+        </div>
+      </div>
+
+      {/* Directors & Shareholders Section */}
+      <div className="space-y-4">
+        <div>
+          <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          {!hasDirectorsOrShareholders ? (
+            <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
+              No directors or shareholders found
             </p>
           ) : (
-            <p className="text-muted-foreground text-sm mt-1">
-              {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
-            </p>
+            combinedList.map((item) => (
+              <React.Fragment key={item.key}>
+                <div className={labelClassName}>{item.roleLabel}</div>
+                <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                  <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
+                    {item.name}
+                  </div>
+                  <div className="h-4 w-px bg-border" />
+                  <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                    {item.ownership}
+                  </div>
+                  <div className="h-4 w-px bg-border" />
+                  {item.statusVerified ? (
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                      <span className="text-[17px] leading-7 text-green-600">
+                        {item.statusType === "kyb" ? "KYB" : "KYC"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+              </React.Fragment>
+            ))
           )}
         </div>
       </div>
-    </div>
 
-    {/* Contact Person Section */}
-    <div className="space-y-4">
-      <div>
-        <h3 className={sectionHeaderClassName}>Contact Person</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-        <div className={labelClassNameEditable}>Applicant name</div>
+      {/* Banking Details Section */}
+      <div className="space-y-4">
         <div>
-          <Input
-            value={contactPerson.name ?? ""}
-            onChange={(e) =>
-              setContactPerson((prev) => ({ ...prev, name: e.target.value }))
-            }
-            placeholder="eg. John Doe"
-            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.name))}
-          />
-          {fieldErrors.name && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.name}
-            </p>
-          )}
+          <h3 className={sectionHeaderClassName}>Banking details</h3>
+          <div className="mt-2 h-px bg-border" />
         </div>
 
-        <div className={labelClassNameEditable}>Applicant position</div>
-        <div>
-          <Input
-            value={contactPerson.position ?? ""}
-            onChange={(e) =>
-              setContactPerson((prev) => ({ ...prev, position: e.target.value }))
-            }
-            placeholder="eg. CEO"
-            className={withFieldError(
-              inputClassNameEditable,
-              Boolean(fieldErrors.position)
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className={labelClassNameEditable}>Bank name</div>
+          <div>
+            <Select
+              value={displayBankName ?? ""}
+              onValueChange={(value) =>
+                setPendingBanking((prev) => ({ ...prev, bankName: value }))
+              }
+            >
+              <SelectTrigger
+                className={withFieldError(
+                  formSelectTriggerClassName,
+                  Boolean(fieldErrors.bankName)
+                )}
+              >
+                <SelectValue placeholder="Select bank" />
+              </SelectTrigger>
+              <SelectContent>
+                {MALAYSIAN_BANKS.map((bank) => (
+                  <SelectItem key={bank.value} value={bank.value}>
+                    {bank.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {fieldErrors.bankName && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.bankName}
+              </p>
             )}
-          />
-          {fieldErrors.position && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.position}
-            </p>
-          )}
-        </div>
+          </div>
 
-        <div className={labelClassNameEditable}>Applicant IC no</div>
-        <div>
-          <Input
-            value={contactPerson.ic ?? ""}
-            onChange={(e) =>
-              setContactPerson((prev) => ({
-                ...prev,
-                ic: restrictIcNumber(e.target.value),
-              }))
-            }
-            placeholder="eg. 1234567890"
-            className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.ic))}
-          />
-          {fieldErrors.ic && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.ic}
-            </p>
-          )}
-        </div>
+          <div className={labelClassNameEditable}>Bank account number</div>
+          <div>
+            <Input
+              value={displayAccountNumber ?? ""}
+              onChange={(e) =>
+                setPendingBanking((prev) => ({
+                  ...prev,
+                  bankAccountNumber: restrictDigitsOnly(e.target.value),
+                }))
+              }
+              placeholder="eg. 1234123412341234"
+              className={withFieldError(
+                inputClassNameEditable,
+                Boolean(fieldErrors.bankAccountNumber)
+              )}
+            />
 
-        <div className={labelClassNameEditable}>Applicant contact</div>
-        <div>
-          <PhoneInput
-            international
-            defaultCountry="MY"
-            value={contactPerson.contact ?? undefined}
-            onChange={(v) =>
-              setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
-            }
-            className={cn(
-              withFieldError(formInputClassName, Boolean(fieldErrors.contact)),
-              "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+            {fieldErrors.bankAccountNumber ? (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.bankAccountNumber}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm mt-1">
+                {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
+              </p>
             )}
-          />
-          {fieldErrors.contact && (
-            <p className="text-destructive text-sm mt-1">
-              {fieldErrors.contact}
-            </p>
-          )}
+          </div>
         </div>
       </div>
-    </div>
 
-    <EditAddressDialog
-      open={isEditAddressOpen}
-      onOpenChange={setIsEditAddressOpen}
-      businessAddress={{
-        line1: displayBusinessAddress?.line1 || "",
-        line2: displayBusinessAddress?.line2 || "",
-        city: displayBusinessAddress?.city || "",
-        postalCode: displayBusinessAddress?.postalCode || "",
-        state: displayBusinessAddress?.state || "",
-        country: displayBusinessAddress?.country || "Malaysia",
-      }}
-      registeredAddress={{
-        line1: displayRegisteredAddress?.line1 || "",
-        line2: displayRegisteredAddress?.line2 || "",
-        city: displayRegisteredAddress?.city || "",
-        postalCode: displayRegisteredAddress?.postalCode || "",
-        state: displayRegisteredAddress?.state || "",
-        country: displayRegisteredAddress?.country || "Malaysia",
-      }}
-      onSave={handleSaveAddress}
-    />
-  </div>
-);
+      {/* Contact Person Section */}
+      <div className="space-y-4">
+        <div>
+          <h3 className={sectionHeaderClassName}>Contact Person</h3>
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className={labelClassNameEditable}>Applicant name</div>
+          <div>
+            <Input
+              value={contactPerson.name ?? ""}
+              onChange={(e) =>
+                setContactPerson((prev) => ({ ...prev, name: e.target.value }))
+              }
+              placeholder="eg. John Doe"
+              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.name))}
+            />
+            {fieldErrors.name && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.name}
+              </p>
+            )}
+          </div>
+
+          <div className={labelClassNameEditable}>Applicant position</div>
+          <div>
+            <Input
+              value={contactPerson.position ?? ""}
+              onChange={(e) =>
+                setContactPerson((prev) => ({ ...prev, position: e.target.value }))
+              }
+              placeholder="eg. CEO"
+              className={withFieldError(
+                inputClassNameEditable,
+                Boolean(fieldErrors.position)
+              )}
+            />
+            {fieldErrors.position && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.position}
+              </p>
+            )}
+          </div>
+
+          <div className={labelClassNameEditable}>Applicant IC no</div>
+          <div>
+            <Input
+              value={contactPerson.ic ?? ""}
+              onChange={(e) =>
+                setContactPerson((prev) => ({
+                  ...prev,
+                  ic: restrictIcNumber(e.target.value),
+                }))
+              }
+              placeholder="eg. 1234567890"
+              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.ic))}
+            />
+            {fieldErrors.ic && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.ic}
+              </p>
+            )}
+          </div>
+
+          <div className={labelClassNameEditable}>Applicant contact</div>
+          <div>
+            <PhoneInput
+              international
+              defaultCountry="MY"
+              value={contactPerson.contact ?? undefined}
+              onChange={(v) =>
+                setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
+              }
+              className={cn(
+                withFieldError(formInputClassName, Boolean(fieldErrors.contact)),
+                "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+              )}
+            />
+            {fieldErrors.contact && (
+              <p className="text-destructive text-sm mt-1">
+                {fieldErrors.contact}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <EditAddressDialog
+        open={isEditAddressOpen}
+        onOpenChange={setIsEditAddressOpen}
+        businessAddress={{
+          line1: displayBusinessAddress?.line1 || "",
+          line2: displayBusinessAddress?.line2 || "",
+          city: displayBusinessAddress?.city || "",
+          postalCode: displayBusinessAddress?.postalCode || "",
+          state: displayBusinessAddress?.state || "",
+          country: displayBusinessAddress?.country || "Malaysia",
+        }}
+        registeredAddress={{
+          line1: displayRegisteredAddress?.line1 || "",
+          line2: displayRegisteredAddress?.line2 || "",
+          city: displayRegisteredAddress?.city || "",
+          postalCode: displayRegisteredAddress?.postalCode || "",
+          state: displayRegisteredAddress?.state || "",
+          country: displayRegisteredAddress?.country || "Malaysia",
+        }}
+        onSave={handleSaveAddress}
+      />
+    </div>
+  );
 
 
 
