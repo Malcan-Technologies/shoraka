@@ -565,6 +565,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
 
+
+<div className={formLabelClassName}>Utilised facility</div>
+<div className={valueClassName}>
+  {isNewContract ? "—" : (
+    application.contract.contract_details?.utilized_facility != null
+      ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
+      : "—"
+  )}
+</div>
+
+
 <div className={formLabelClassName}>Available facility</div>
 <div
   className={cn(
