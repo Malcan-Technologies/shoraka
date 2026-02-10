@@ -30,6 +30,9 @@ const INVOICE_TABLE_COLUMNS = {
 };
 
 
+const isValidNumber = (v: any): v is number =>
+  typeof v === "number" && !Number.isNaN(v);
+
 
 /**
  * REVIEW AND SUBMIT STEP
@@ -186,7 +189,11 @@ export function ReviewAndSubmitStep({
       const shareField = corp.formContent?.displayAreas?.[0]?.content?.find(
         (f: any) => f.fieldName === "% of Shares"
       );
-      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
+      const sharePercentage =
+        shareField?.fieldValue != null
+          ? Number(shareField.fieldValue)
+          : null;
+
       const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
       const kybApproved = corp.approveStatus === "APPROVED";
 
@@ -359,25 +366,37 @@ export function ReviewAndSubmitStep({
             <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
             <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>{contractDetails.value ? formatCurrency(contractDetails.value) : "—"}</div>
+            <div className={valueClassName}>
+              {isValidNumber(contractValue)
+                ? formatCurrency(contractValue)
+                : "—"}
+            </div>
+
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "—"}
+              {isValidNumber(approvedFacility)
+                ? formatCurrency(approvedFacility)
+                : "—"}
+
             </div>
 
             <div className={labelClassName}>Utilised facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract"
+              {structureType === "existing_contract" &&
+                isValidNumber(totalFinancingAmount)
                 ? formatCurrency(totalFinancingAmount)
                 : "—"}
+
             </div>
 
             <div className={labelClassName}>Available facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract" && calculatedAvailableFacility > 0
+              {structureType === "existing_contract" &&
+                isValidNumber(calculatedAvailableFacility)
                 ? formatCurrency(calculatedAvailableFacility)
                 : "—"}
+
             </div>
           </div>
         </section>
@@ -458,7 +477,10 @@ export function ReviewAndSubmitStep({
 
                             {/* Value */}
                             <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
-                              {value > 0 ? formatCurrency(value) : "—"}
+                              {isValidNumber(value)
+                                ? formatCurrency(value)
+                                : "—"}
+
                             </TableCell>
 
                             {/* Ratio */}
@@ -468,7 +490,10 @@ export function ReviewAndSubmitStep({
 
                             {/* Amount */}
                             <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                              {financingAmount > 0 ? formatCurrency(financingAmount) : "—"}
+                              {isValidNumber(financingAmount)
+                                ? formatCurrency(financingAmount)
+                                : "—"}
+
                             </TableCell>
 
                             {/* Document */}
@@ -497,7 +522,10 @@ export function ReviewAndSubmitStep({
                       <TableRow className="bg-muted/10">
                         <TableCell colSpan={5} />
                         <TableCell className="p-2 font-semibold text-xs">
-                          {formatCurrency(totalFinancingAmount)}
+                          {isValidNumber(totalFinancingAmount)
+                            ? formatCurrency(totalFinancingAmount)
+                            : "—"}
+
                           <div className="text-xs text-muted-foreground font-normal">Total</div>
                         </TableCell>
                         <TableCell colSpan={2} />
