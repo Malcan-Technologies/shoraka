@@ -1168,9 +1168,32 @@ export class ApiClient {
 
   async updateInvoice(
     id: string,
-    details: Partial<InvoiceDetails>
+    payload: Partial<InvoiceDetails> & { contractId?: string | null }
   ): Promise<ApiResponse<Invoice> | ApiError> {
-    return this.patch<Invoice>(`/v1/invoices/${id}`, { details });
+    /**
+     * UPDATE INVOICE
+     *
+     * Payload can include:
+     * - details: partial invoice details (number, value, maturity_date, financing_ratio_percent, document)
+     * - contractId: optional, can be undefined (skip), null (clear), or cuid string (set)
+     */
+    const body: any = {};
+    
+    // Extract contractId if present
+    const { contractId, ...details } = payload;
+    
+    // Only add details if there are actual detail fields
+    const detailsKeys = Object.keys(details);
+    if (detailsKeys.length > 0) {
+      body.details = details;
+    }
+    
+    // Only add contractId if explicitly provided (undefined is skipped)
+    if (contractId !== undefined) {
+      body.contractId = contractId;
+    }
+    
+    return this.patch<Invoice>(`/v1/invoices/${id}`, body);
   }
 
   async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {

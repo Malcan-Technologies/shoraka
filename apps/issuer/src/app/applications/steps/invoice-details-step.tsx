@@ -53,7 +53,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
   const [deletedInvoices, setDeletedInvoices] = React.useState<Record<string, { s3_key?: string }>>({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
-  const [contractInvoices, setContractInvoices] = React.useState<LocalInvoice[]>([]);
 
   const { getAccessToken } = useAuthToken();
 
@@ -65,42 +64,6 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const resp: any = await apiClient.get(`/v1/applications/${applicationId}`);
         if (resp.success && mounted) {
           setApplication(resp.data);
-          const financingStructure = resp.data?.financing_structure;
-          const contractId = resp.data?.contract_id;
-          const isExistingContract = financingStructure?.structure_type === "existing_contract";
-          if (isExistingContract && contractId) {
-            try {
-              const contractResp: any = await apiClient.get(`/v1/invoices/by-contract/${contractId}`);
-              if (contractResp.success) {
-                const contractInvoicesList = (contractResp.data || [])
-                  .filter((inv: any) => inv.status === "APPROVED" || inv.status === "SUBMITTED")
-                  .map((it: any) => {
-                    const d = it.details || {};
-                    return {
-                      id: it.id,
-                      isPersisted: true,
-                      number: d.number || "",
-                      status: it.status || "DRAFT",
-                      value: typeof d.value === "number" ? d.value.toFixed(2) : d.value ? Number(d.value).toFixed(2) : "",
-                      maturity_date: d.maturity_date || "",
-                      financing_ratio_percent: d.financing_ratio_percent || 60,
-                      document: d.document
-                        ? {
-                          file_name: d.document.file_name,
-                          file_size: d.document.file_size,
-                          s3_key: d.document.s3_key,
-                        }
-                        : null,
-                    };
-                  });
-                if (mounted) {
-                  setContractInvoices(contractInvoicesList);
-                }
-              }
-            } catch (err) {
-              console.error("Failed to load contract invoices", err);
-            }
-          }
         }
       } catch (err) {
         console.error("Failed to load application", err);
@@ -215,16 +178,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return acc + value * ratio;
   }, 0);
 
-  const contractInvoicesFinancingAmount = contractInvoices.reduce((acc, inv) => {
-    const value = inv.value === "" ? 0 : Number(inv.value);
-    const ratio = (inv.financing_ratio_percent || 60) / 100;
-    return acc + value * ratio;
-  }, 0);
-
-  const isExistingContractStructure = application?.financing_structure?.structure_type === "existing_contract";
-  const totalFinancingAmount = isExistingContractStructure
-    ? applicationFinancingAmount + contractInvoicesFinancingAmount
-    : applicationFinancingAmount;
+  const totalFinancingAmount = applicationFinancingAmount;
 
   const approvedFacility = application?.contract?.contract_details?.approved_facility || 0;
   const contractValue = application?.contract?.contract_details?.value || 0;
@@ -244,9 +198,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     facilityLimit = Number(approvedFacility || 0);
   }
 
-  const liveAvailableFacility = isExistingContractStructure
-    ? approvedFacility - contractInvoicesFinancingAmount - applicationFinancingAmount
-    : facilityLimit - totalFinancingAmount;
+  const liveAvailableFacility = facilityLimit - totalFinancingAmount;
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -261,8 +213,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }
 
   if (!validationError && (isInvoiceOnly || isExistingContract)) {
-    const hasAtLeastOneValidInvoice =
-      invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv)) || (isExistingContract && contractInvoices.length > 0);
+    const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
     if (!hasAtLeastOneValidInvoice) {
       validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
     }
@@ -283,6 +234,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const saveFunction = async () => {
     const apiClient = createApiClient(API_URL, getAccessToken);
     const token = await getAccessToken();
+    const structureType = application?.financing_structure?.structure_type;
+    const isInvoiceOnly = structureType === "invoice_only";
+
+    console.log("🚀 saveFunction started", {
+      structureType,
+      isInvoiceOnly,
+      totalInvoices: invoices.length,
+    });
 
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);
@@ -290,6 +249,18 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     for (const inv of invoices) {
       if (isRowEmpty(inv)) continue;
+
+      /**
+       * SKIP LOCKED INVOICES
+       *
+       * Don't try to update APPROVED or SUBMITTED invoices
+       * The backend rejects these with "Cannot update an approved invoice"
+       */
+      const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
+      if (isLocked) {
+        console.log("⏭️ Skipping locked invoice (SUBMITTED/APPROVED):", inv.id);
+        continue;
+      }
 
       let invoiceId = inv.id;
       let currentS3Key = lastS3Keys[inv.id] || lastS3Keys[invoiceId];
@@ -305,8 +276,19 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           },
         };
 
-        if (application?.contract_id) {
+        /**
+         * CONTRACT ID ASSIGNMENT FOR NEW INVOICES
+         *
+         * - invoice_only: DO NOT pass contractId (will be null in DB)
+         * - existing_contract or new_contract: pass contract_id if it exists
+         */
+        if (!isInvoiceOnly && application?.contract_id) {
           createPayload.contractId = application.contract_id;
+          console.log("✏️ Creating invoice with contractId:", application.contract_id, "Payload:", createPayload);
+        } else if (isInvoiceOnly) {
+          console.log("✏️ Creating invoice_only invoice (no contractId). Payload:", createPayload);
+        } else {
+          console.log("✏️ No contract_id on application. Payload:", createPayload);
         }
 
         const createResp: any = await apiClient.createInvoice(createPayload);
@@ -314,13 +296,33 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           throw new Error("Failed to create invoice");
         }
         invoiceId = createResp.data.id;
+        console.log("✅ Invoice created with ID:", invoiceId);
       } else {
-        await apiClient.updateInvoice(invoiceId, {
+        /**
+         * UPDATE EXISTING INVOICES
+         *
+         * For invoice_only: ALWAYS set contractId to null (clear any existing contract_id)
+         * For others: only update details, don't touch contractId
+         */
+        const updatePayload: any = {
           number: inv.number,
           value: Number(inv.value),
           maturity_date: inv.maturity_date,
           financing_ratio_percent: inv.financing_ratio_percent || 60,
-        });
+        };
+
+        if (isInvoiceOnly) {
+          updatePayload.contractId = null;
+          console.log("🔄 Updating invoice to invoice_only (contractId → null). Payload:", updatePayload);
+        } else if (application?.contract_id) {
+          updatePayload.contractId = application.contract_id;
+          console.log("🔄 Updating invoice with contractId:", application.contract_id, "Payload:", updatePayload);
+        } else {
+          console.log("🔄 No contract_id on application. Payload:", updatePayload);
+        }
+
+        await apiClient.updateInvoice(invoiceId, updatePayload);
+        console.log("✅ Invoice updated with ID:", invoiceId);
       }
 
       const file = selectedFiles[inv.id] || selectedFiles[invoiceId];
@@ -355,13 +357,31 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         headers: { "Content-Type": file.type },
       });
 
-      await apiClient.updateInvoice(invoiceId, {
+      /**
+       * UPDATE WITH DOCUMENT + CONTRACT ID
+       *
+       * Merge document update with contractId in one call
+       */
+      const finalUpdatePayload: any = {
         document: {
           file_name: file.name,
           file_size: file.size,
           s3_key: s3Key,
         },
-      });
+      };
+
+      if (isInvoiceOnly) {
+        finalUpdatePayload.contractId = null;
+        console.log("📄 Updating invoice document + contractId (null). Final payload:", finalUpdatePayload);
+      } else if (application?.contract_id) {
+        finalUpdatePayload.contractId = application.contract_id;
+        console.log("📄 Updating invoice document + contractId:", application.contract_id, "Final payload:", finalUpdatePayload);
+      } else {
+        console.log("📄 Updating invoice document only (no contract_id). Final payload:", finalUpdatePayload);
+      }
+
+      await apiClient.updateInvoice(invoiceId, finalUpdatePayload);
+      console.log("✅ Invoice document updated for ID:", invoiceId);
       setLastS3Keys((prev) => ({
         ...prev,
         [invoiceId]: s3Key,
@@ -408,7 +428,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, contractInvoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract]);
+  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -417,8 +437,28 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const apiClient = createApiClient(API_URL, getAccessToken);
         const resp: any = await apiClient.getInvoicesByApplication(applicationId);
         if (!("success" in resp) || !resp.success) return;
+        
         const items: any[] = resp.data || [];
-        const mapped: LocalInvoice[] = items.map((it) => {
+        
+        /**
+         * FILTER INVOICES BY STRUCTURE TYPE
+         *
+         * - invoice_only: only DRAFT (exclude APPROVED, SUBMITTED, REJECTED)
+         * - existing_contract: all except REJECTED
+         * - new_contract: all except REJECTED
+         */
+        const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
+        const filtered = items.filter((it: any) => {
+          // Exclude REJECTED for all structures
+          if (it.status === "REJECTED") return false;
+          
+          // invoice_only: only DRAFT
+          if (isInvoiceOnly && it.status !== "DRAFT") return false;
+          
+          return true;
+        });
+        
+        const mapped: LocalInvoice[] = filtered.map((it) => {
           const d = it.details || {};
           return {
             id: it.id,
@@ -437,11 +477,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               : null,
           };
         });
+        
         const baseline: Record<string, LocalInvoice> = {};
         mapped.forEach((inv) => {
           baseline[inv.id] = inv;
         });
         setInitialInvoices(baseline);
+        
         if (mounted) {
           setInvoices(mapped);
           const keys: Record<string, string> = {};
@@ -461,7 +503,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicationId]);
+  }, [applicationId, application?.financing_structure?.structure_type]);
 
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
@@ -573,42 +615,26 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                 </TableHeader>
 
                 <TableBody>
-                  {/* CONTRACT INVOICES (READ ONLY) */}
-                  {contractInvoices.map((inv) => {
-                    const ratio = inv.financing_ratio_percent || 60;
-                    const value = Number(inv.value || 0);
-                    const financingAmount = value * (ratio / 100);
-
-                    return (
-                      <TableRow key={`contract-${inv.id}`} className="bg-muted/30 opacity-60">
-                        <TableCell className="p-2 text-xs whitespace-nowrap">{inv.number}</TableCell>
-                        <TableCell className="p-2"><StatusBadge status={inv.status} /></TableCell>
-                        <TableCell className="p-2 text-xs whitespace-nowrap">{inv.maturity_date}</TableCell>
-                        <TableCell className="p-2 text-xs whitespace-nowrap">{inv.value}</TableCell>
-                        <TableCell className="p-2 text-xs whitespace-nowrap">{ratio}%</TableCell>
-                        <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                          {formatRM(financingAmount)}
-                        </TableCell>
-                        <TableCell className="p-2 text-xs truncate">{inv.document?.file_name || "-"}</TableCell>
-                        <TableCell className="p-2" />
-                      </TableRow>
-                    );
-                  })}
-
                   {/* APPLICATION INVOICES */}
                   {invoices.map((inv) => {
                     const ratio = inv.financing_ratio_percent || 60;
                     const value = Number(inv.value || 0);
                     const financingAmount = value * (ratio / 100);
-                    const isDisabled = !!inv.status && inv.status !== "DRAFT";
+                    const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
                     const isEditable = inv.status === "DRAFT" || !inv.status;
 
                     return (
-                      <TableRow key={inv.id} className="hover:bg-muted/40">
+                      <TableRow
+                        key={inv.id}
+                        className={cn(
+                          "hover:bg-muted/40 transition-colors",
+                          isLocked && "opacity-60 grayscale pointer-events-none"
+                        )}
+                      >
                         <TableCell className="p-2">
                           <Input
                             value={inv.number}
-                            disabled={isDisabled}
+                            disabled={!isEditable}
                             onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                             placeholder="Enter invoice"
                             className="h-9 text-xs"
@@ -624,7 +650,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             value={inv.maturity_date?.slice(0, 10) || ""}
                             onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
                             placeholder="Enter date"
-                            className={isDisabled ? "opacity-60 pointer-events-none" : ""}
+                            className={!isEditable ? "opacity-60 pointer-events-none" : ""}
                           />
                         </TableCell>
 
@@ -633,7 +659,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             type="text"                 // IMPORTANT
                             inputMode="decimal"
                             value={inv.value}
-                            disabled={isDisabled}
+                            disabled={!isEditable}
                             placeholder="Enter value"
                             onChange={(e) => {
                               const raw = e.target.value;
@@ -687,7 +713,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 max={80}
                                 step={1}
                                 value={[ratio]}
-                                disabled={isDisabled}
+                                disabled={!isEditable}
                                 onValueChange={(value) =>
                                   updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
                                 }
@@ -760,7 +786,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 type="file"
                                 accept="application/pdf"
                                 className="hidden"
-                                disabled={isDisabled}
+                                disabled={!isEditable}
                                 onChange={(e) => {
                                   const f = e.target.files?.[0];
                                   if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
@@ -771,7 +797,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </TableCell>
 
                         <TableCell className="p-2">
-                          <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isLocked}
+                            onClick={() => deleteInvoice(inv)}
+                            className={cn(
+                              isLocked
+                                ? "text-muted-foreground cursor-not-allowed"
+                                : "hover:text-destructive"
+                            )}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </TableCell>
@@ -807,18 +843,27 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 }
 
 function StatusBadge({ status = "DRAFT" }: { status?: string }) {
-  const styles: Record<string, string> = {
-    DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
-    SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
-    APPROVED: "bg-green-50 text-green-700 border-green-200",
-    REJECTED: "bg-red-50 text-red-700 border-red-200",
+  /**
+   * STATUS BADGE
+   *
+   * Only allow DRAFT, SUBMITTED, APPROVED statuses.
+   * Return null for invalid statuses like REJECTED.
+   */
+  if (status !== "DRAFT" && status !== "SUBMITTED" && status !== "APPROVED") {
+    return null;
+  }
+
+  const styles: Record<"DRAFT" | "SUBMITTED" | "APPROVED", string> = {
+    DRAFT: "bg-muted text-muted-foreground border-border",
+    SUBMITTED: "bg-secondary/40 text-secondary-foreground border-secondary/60",
+    APPROVED: "bg-primary/10 text-primary border-primary/30",
   };
 
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border",
-        styles[status] || styles.DRAFT
+        "inline-flex items-center h-6 rounded-full border px-2.5 text-[11px] font-medium leading-none whitespace-nowrap",
+        styles[status]
       )}
     >
       {status}
