@@ -59,6 +59,11 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
+function isStartBeforeEnd(start?: string, end?: string) {
+  if (!start || !end) return true;
+  return new Date(start).getTime() < new Date(end).getTime();
+}
+
 /** Render blocks
  *
  * What: Canonical yes/no radio group for boolean fields.
@@ -101,11 +106,10 @@ function CustomRadio({
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
-            checked
-              ? "bg-primary"
-              : "border-2 border-muted-foreground/50 bg-muted/30"
-          }`}
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked
+            ? "bg-primary"
+            : "border-2 border-muted-foreground/50 bg-muted/30"
+            }`}
           aria-hidden
         >
           {checked && (
@@ -206,6 +210,14 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     contract?: string;
     consent?: string;
   }>({});
+
+  const hasDateOrderError = React.useMemo(() => {
+    return !isStartBeforeEnd(
+      formData.contract.start_date,
+      formData.contract.end_date
+    );
+  }, [formData.contract.start_date, formData.contract.end_date]);
+
 
   // Stable reference for onDataChange callback
   const onDataChangeRef = React.useRef(onDataChange);
@@ -508,6 +520,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       (formData.contract.value !== "" && formData.contract.value !== 0) &&
       !!formData.contract.start_date &&
       !!formData.contract.end_date &&
+      !hasDateOrderError &&
       hasContractDocument &&
       !!formData.customer.name &&
       !!formData.customer.entity_type &&
@@ -657,17 +670,29 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
             value={formData.contract.start_date?.slice(0, 10) || ""}
             onChange={(v) => handleInputChange("contract", "start_date", v)}
             className={inputClassName}
-            placeholder="eg. 2025-04-12"
+            placeholder="e.g. Apr 12, 2025"
+
           />
 
 
           <Label className={labelClassName}>Contract end date</Label>
-          <DateInput
-            value={formData.contract.end_date?.slice(0, 10) || ""}
-            onChange={(v) => handleInputChange("contract", "end_date", v)}
-            className={inputClassName}
-            placeholder="eg. 2025-06-12"
-          />
+          <div className="space-y-1">
+            <DateInput
+              value={formData.contract.end_date?.slice(0, 10) || ""}
+              onChange={(v) => handleInputChange("contract", "end_date", v)}
+              className={cn(
+                inputClassName,
+                hasDateOrderError && "border-destructive focus-visible:ring-destructive"
+              )}
+              placeholder="e.g. Jun 12, 2025"
+            />
+            {hasDateOrderError && (
+              <p className="text-xs text-destructive">
+                End date must be after start date
+              </p>
+            )}
+          </div>
+
 
 
           <Label className={labelClassName}>Upload contract</Label>
@@ -747,11 +772,11 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
           <Label className={labelClassName}>is customer related to issuer?</Label>
           <div className="h-11 flex items-center">
-          <YesNoRadioGroup
-            name="related"
-            value={formData.customer.is_related_party}
-            onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
-          /></div>
+            <YesNoRadioGroup
+              name="related"
+              value={formData.customer.is_related_party}
+              onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
+            /></div>
 
           <Label className={labelClassName}>Upload customer consent</Label>
           <FileUploadArea
