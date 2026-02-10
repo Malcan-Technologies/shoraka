@@ -4,6 +4,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { DateInput } from "@/app/applications/components/date-input";
 import {
   Select,
   SelectContent,
@@ -597,21 +598,22 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>
-          <Input
-            type="date"
+          <DateInput
             value={formData.contract.start_date?.slice(0, 10) || ""}
-            onChange={(e) => handleInputChange("contract", "start_date", e.target.value)}
+            onChange={(v) => handleInputChange("contract", "start_date", v)}
             className={inputClassName}
+            placeholder="eg. 2025-04-12"
           />
 
 
           <Label className={labelClassName}>Contract end date</Label>
-<Input
-  type="date"
-  value={formData.contract.end_date?.slice(0, 10) || ""}
-  onChange={(e) => handleInputChange("contract", "end_date", e.target.value)}
-  className={inputClassName}
-/>
+          <Label className={labelClassName}>Contract end date</Label>
+          <DateInput
+            value={formData.contract.end_date?.slice(0, 10) || ""}
+            onChange={(v) => handleInputChange("contract", "end_date", v)}
+            className={inputClassName}
+            placeholder="eg. 2025-06-12"
+          />
 
 
           <Label className={labelClassName}>Upload contract</Label>
