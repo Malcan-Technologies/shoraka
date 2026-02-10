@@ -143,6 +143,7 @@ export function FinancingStructureStep({
       (selectedStructure !== "existing_contract" || selectedContractId !== "");
 
     const savedStructure = application?.financing_structure as any;
+    const previousStructureType = savedStructure?.structure_type;
 
   // Check if user made changes from what's in DB
   const structureChanged =
@@ -164,6 +165,7 @@ export function FinancingStructureStep({
       isValid,
       hasPendingChanges,
       structureChanged,
+      previousStructureType,
     });
 
   }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);

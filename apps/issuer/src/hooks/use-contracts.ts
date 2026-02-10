@@ -54,8 +54,10 @@ export function useCreateContract() {
       }
       return response.data;
     },
-    onSuccess: (_, applicationId) => {
+    onSuccess: (data, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["contract", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
     },
   });
 }
@@ -110,6 +112,7 @@ export function useUnlinkContract() {
     },
     onSuccess: (_, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to unlink contract", {

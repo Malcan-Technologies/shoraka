@@ -6,7 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useApplication, useUpdateApplicationStep, useArchiveApplication, useUpdateApplicationStatus } from "@/hooks/use-applications";
-import { useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -150,12 +149,6 @@ export default function EditApplicationPage() {
 
   const [sessionStructureType, setSessionStructureType] =
     React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
-
-
-  // Hooks for contract handling (for skip/autofill logic)
-  // Note: updateContractMutation is intentionally not used while invoice logic is being reworked
-  // const updateContractMutation = useUpdateContract();
-  const unlinkContractMutation = useUnlinkContract();
 
   /**
    * APPLICATION BLOCK REASON
@@ -692,11 +685,6 @@ export default function EditApplicationPage() {
   const handleSaveAndContinue = async () => {
 
     try {
-      const prevStructureType =
-        (application?.financing_structure as any)?.structure_type ?? null;
-
-      const prevHasContract = Boolean((application as any)?.contract_id);
-
       // Set saving flag to prevent onDataChange from corrupting state
       isSavingRef.current = true;
 
@@ -900,19 +888,8 @@ await updateStepMutation.mutateAsync({
   stepData: stepPayload,
 });
 
-      if (currentStepKey === "financing_structure") {
-        const nextStructureType = dataToSave?.structure_type;
-
-        const shouldUnlink =
-          prevHasContract &&
-          prevStructureType === "new_contract" &&
-          (nextStructureType === "invoice_only" ||
-            nextStructureType === "existing_contract");
-
-        if (shouldUnlink) {
-          await unlinkContractMutation.mutateAsync(applicationId);
-        }
-      }
+      // Backend now handles all contract linking/unlinking logic atomically
+      // No need for frontend to call separate unlink mutation
 
 
 
@@ -925,16 +902,36 @@ await updateStepMutation.mutateAsync({
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
-      // Ensure application query reflects the updated last_completed_step before navigation.
-      // Poll the application query for up to ~5s to see the server-updated last_completed_step.
+      // Ensure application query reflects the updated last_completed_step AND contract relationship before navigation.
+      // Refetch application data to ensure we have the latest state from the server.
       try {
-        await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
         const maxAttempts = 10;
         let attempt = 0;
         while (attempt < maxAttempts) {
+          // Force refetch from server (not just read from cache)
+          await queryClient.refetchQueries({ queryKey: ["application", applicationId] });
+
           const freshApp: any = queryClient.getQueryData(["application", applicationId]);
           const lastCompleted = freshApp?.last_completed_step || 1;
-          if (lastCompleted >= stepNumberToSave) break;
+
+          // For financing_structure step, also verify contract_id reflects the structure choice
+          if (currentStepKey === "financing_structure") {
+            const savedStructure = (freshApp?.financing_structure as any)?.structure_type;
+            const hasContract = Boolean(freshApp?.contract_id);
+
+            // Verify contract_id consistency with structure type:
+            // - existing_contract → must have contract_id
+            // - new_contract/invoice_only → must NOT have contract_id (backend should have disconnected)
+            const isContractConsistent =
+              (savedStructure === "existing_contract" && hasContract) ||
+              ((savedStructure === "new_contract" || savedStructure === "invoice_only") && !hasContract);
+
+            if (lastCompleted >= stepNumberToSave && isContractConsistent) break;
+          } else {
+            // For other steps, just check last_completed_step
+            if (lastCompleted >= stepNumberToSave) break;
+          }
+
           // eslint-disable-next-line no-await-in-loop
           await new Promise((res) => setTimeout(res, 300));
           attempt++;
@@ -955,12 +952,13 @@ await updateStepMutation.mutateAsync({
 
 didRewindProgressRef.current = false;
 
-router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
-// ✅ Clear override AFTER navigation completes
-setTimeout(() => {
+// Clear override immediately before navigation to prevent state inconsistency
+if (currentStepKey === "financing_structure") {
   sessionStorage.removeItem("cashsouk:financing_structure_override");
   setSessionStructureType(null);
-}, 0);
+}
+
+router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
 
 
     } catch (error) {
