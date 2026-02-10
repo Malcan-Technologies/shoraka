@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, AdminRole, OrganizationType } from "@prisma/client";
+import { PrismaClient, Prisma, UserRole, AdminRole, OrganizationType } from "@prisma/client";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 
@@ -1111,6 +1111,299 @@ async function main() {
     logger.info("✅ Yuen Zheng Chng personal investor seeded with full JSON data and onboarding logs");
   } else {
     logger.info("⏭️  Skipping Yuen Zheng Chng (already exists)");
+  }
+
+  // Seed "tested" investor company organization with full corporate data
+  const testedCompanyEmail = "ivan.chew@malcan.io";
+  let testedUser = await prisma.user.findUnique({
+    where: { email: testedCompanyEmail },
+  });
+
+  if (!testedUser) {
+    const testedUserId = await generateUniqueUserId();
+    testedUser = await prisma.user.upsert({
+      where: { email: testedCompanyEmail },
+      update: {},
+      create: {
+        user_id: testedUserId,
+        email: testedCompanyEmail,
+        cognito_sub: `seed_tested_company_${Date.now()}`,
+        cognito_username: testedCompanyEmail,
+        first_name: "Ivan Chew",
+        last_name: "Ken Yoong",
+        roles: [UserRole.INVESTOR],
+        investor_account: ["temp"],
+      },
+    });
+  }
+
+  const existingTestedOrg = await prisma.investorOrganization.findFirst({
+    where: { owner_user_id: testedUser.user_id, name: "tested" },
+  });
+
+  if (!existingTestedOrg) {
+    const testedOrg = await prisma.investorOrganization.create({
+      data: {
+        owner_user_id: testedUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "tested",
+        registration_number: "HFJEW",
+        onboarding_status: "COMPLETED",
+        onboarded_at: new Date("2026-02-10T10:17:45.226Z"),
+        first_name: null,
+        last_name: null,
+        nationality: null,
+        country: null,
+        phone_number: null,
+        onboarding_approved: true,
+        aml_approved: true,
+        tnc_accepted: true,
+        ssm_approved: true,
+        is_sophisticated_investor: true,
+        sophisticated_investor_reason: "Company organization",
+        bank_account_details: {
+          content: [
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: "Alliance Bank Malaysia Berhad" },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: "5050505050" },
+            { cn: false, fieldName: "Account type", fieldType: "picklist", fieldValue: "Savings" },
+          ],
+          displayArea: "Operational Information",
+        },
+        wealth_declaration: {
+          netAssetValue: null,
+          sourceOfFunds: null,
+          sourceOfFundsOther: null,
+        },
+        compliance_declaration: Prisma.DbNull,
+        kyc_response: {
+          tags: [],
+          status: "Approved",
+          assignee: "",
+          systemId: "KYC00128",
+          requestId: "KYC00128",
+          riskLevel: "Low Risk",
+          riskScore: "1.0",
+          timestamp: "2026-02-10T10:16:34.375+00:00",
+          referenceId: "",
+          onboardingId: "EOD05102",
+          messageStatus: "DONE",
+          possibleMatchCount: 2,
+          blacklistedMatchCount: 0,
+        },
+        corporate_entities: {
+          directors: [
+            {
+              status: "ID_UPLOADED",
+              kycType: "ACURIS",
+              documents: {
+                ocrStatus: "PROCESSING",
+                countryCode: null,
+                documentType: "Identity",
+                backDocumentUrl: "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD04313/document/a0a2f639054d49eaa4fdd7eec81bb1b5.png",
+                frontDocumentUrl: "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD04313/document/3d7c0aef79644d51bf5853a90a6f3d6f.png",
+              },
+              createdDate: "2026-02-10T10:12:27.742+00:00",
+              updatedDate: "2026-02-10T10:12:28.147+00:00",
+              eodRequestId: "EOD05102",
+              personalInfo: {
+                email: "ivan.chew@malcan.io",
+                fullName: "Ivan Chew  Ken Yoong",
+                lastName: "Ken Yoong",
+                firstName: "Ivan Chew",
+                middleName: null,
+                formContent: {
+                  content: [
+                    { alias: "First Name (As shown in ID document)", fieldName: "First Name", fieldType: "text", fieldValue: "Ivan Chew" },
+                    { alias: "Last Name (As shown in ID document)", fieldName: "Last Name", fieldType: "text", fieldValue: "Ken Yoong" },
+                    { fieldName: "Designation", fieldType: "picklist", fieldValue: "Director" },
+                    { fieldName: "Email Address", fieldType: "email", fieldValue: "ivan.chew@malcan.io" },
+                  ],
+                },
+              },
+              approveStatus: null,
+            },
+          ],
+          shareholders: [
+            {
+              status: "ID_UPLOADED",
+              kycType: "ACURIS",
+              documents: {
+                ocrStatus: "PROCESSING",
+                countryCode: null,
+                documentType: "Identity",
+                backDocumentUrl: "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD04313/document/a0a2f639054d49eaa4fdd7eec81bb1b5.png",
+                frontDocumentUrl: "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD04313/document/3d7c0aef79644d51bf5853a90a6f3d6f.png",
+              },
+              createdDate: "2026-02-10T10:12:27.097+00:00",
+              updatedDate: "2026-02-10T10:12:27.097+00:00",
+              eodRequestId: "EOD05101",
+              personalInfo: {
+                email: "ivan.chew@malcan.io",
+                fullName: "Ivan Chew  Ken Yoong",
+                lastName: "Ken Yoong",
+                firstName: "Ivan Chew",
+                middleName: null,
+                formContent: {
+                  content: [
+                    { alias: "First Name (As shown in ID document)", fieldName: "First Name", fieldType: "text", fieldValue: "Ivan Chew" },
+                    { alias: "Last Name (As shown in ID document)", fieldName: "Last Name", fieldType: "text", fieldValue: "Ken Yoong" },
+                    { fieldName: "% of Shares", fieldType: "number", fieldValue: "100" },
+                    { fieldName: "Email Address", fieldType: "email", fieldValue: "ivan.chew@malcan.io" },
+                  ],
+                },
+              },
+              approveStatus: null,
+            },
+          ],
+          corporateShareholders: [],
+        },
+        corporate_onboarding_data: {
+          addresses: {
+            business: { city: "Petaling Jaya", line1: "23, Jalan Kiara", line2: null, state: "Kuala Lumpur", country: "Malaysia", postalCode: "10250" },
+            registered: { city: "Petaling Jaya", line1: "24, Jalan Kiara", line2: null, state: "Kuala Lumpur", country: "Malaysia", postalCode: "10150" },
+          },
+          basicInfo: {
+            tin: "432143214321",
+            industry: "Manufacturing",
+            entityType: "Private Limited Company (Sdn Bhd)",
+            businessName: "tested",
+            numberOfEmployees: "12",
+            ssmRegistrationNumber: "123412341234",
+          },
+          entityCriteria: {
+            partnershipCriteria: null,
+            pensionFundCriteria: null,
+            trustCompanyCriteria: null,
+            publicCompanyCriteria: null,
+            statutoryBodyCriteria: null,
+            privateLimitedCriteria: null,
+          },
+        },
+        corporate_required_documents: [
+          {
+            url: "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD04313/document/afcba0d1ddd14795ae230f85a0a3db28.png",
+            fileName: "TrueStack.png",
+            fileType: "image/png",
+            fieldName: "Latest SSM Company Profile",
+          },
+        ],
+        director_aml_status: {
+          directors: [
+            {
+              name: "Ivan Chew Ken Yoong",
+              role: "Shareholder (100%)",
+              email: "ivan.chew@malcan.io",
+              kycId: "KYC00128",
+              amlStatus: "Approved",
+              lastUpdated: "2026-02-10T10:16:53.109Z",
+              amlRiskLevel: null,
+              amlRiskScore: null,
+              eodRequestId: "EOD05101",
+              amlMessageStatus: "DONE",
+            },
+          ],
+          lastSyncedAt: "2026-02-10T10:16:53.129Z",
+          businessShareholders: [],
+        },
+        director_kyc_status: {
+          directors: [
+            {
+              name: "Ivan Chew Ken Yoong",
+              role: "Director, Shareholder (100%)",
+              email: "ivan.chew@malcan.io",
+              kycId: "KYC00128",
+              kycStatus: "APPROVED",
+              lastUpdated: "2026-02-10T10:16:53.090Z",
+              eodRequestId: "EOD05102",
+              kycRequestInfo: {
+                id: null,
+                kycId: "KYC00128",
+                status: "APPROVED",
+                assignee: null,
+                createdAt: null,
+                createdBy: null,
+                updatedAt: null,
+                unresolved: null,
+                lastModifiedBy: null,
+                individualRequest: null,
+                individualRiskScore: null,
+              },
+              shareholderEodRequestId: "EOD05101",
+            },
+          ],
+          lastSyncedAt: "2026-02-10T10:15:53.028Z",
+          corpIndvDirectorCount: 1,
+          corpBizShareholderCount: 0,
+          corpIndvShareholderCount: 1,
+        },
+      },
+    });
+
+    // Create onboarding logs for the tested company
+    await prisma.onboardingLog.createMany({
+      data: [
+        {
+          user_id: testedUser.user_id,
+          investor_organization_id: testedOrg.id,
+          organization_name: "tested",
+          event_type: "ONBOARDING_STARTED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { organizationType: "COMPANY" },
+          created_at: new Date("2026-02-10T10:10:01.000Z"),
+        },
+        {
+          user_id: testedUser.user_id,
+          investor_organization_id: testedOrg.id,
+          organization_name: "tested",
+          event_type: "KYC_APPROVED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { kycId: "KYC00128", isCorporateOnboarding: true },
+          created_at: new Date("2026-02-10T10:16:34.000Z"),
+        },
+        {
+          user_id: testedUser.user_id,
+          investor_organization_id: testedOrg.id,
+          organization_name: "tested",
+          event_type: "AML_APPROVED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { isCorporateOnboarding: true },
+          created_at: new Date("2026-02-10T10:16:53.000Z"),
+        },
+        {
+          user_id: testedUser.user_id,
+          investor_organization_id: testedOrg.id,
+          organization_name: "tested",
+          event_type: "SOPHISTICATED_STATUS_UPDATED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: {
+            newStatus: true,
+            newReason: "Company organization",
+            updatedBy: "system",
+            action: "auto_granted",
+            source: "regtank_onboarding",
+          },
+          created_at: new Date("2026-02-10T10:17:00.000Z"),
+        },
+        {
+          user_id: testedUser.user_id,
+          investor_organization_id: testedOrg.id,
+          organization_name: "tested",
+          event_type: "FINAL_APPROVAL_COMPLETED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          metadata: { final_status: "COMPLETED", approvedBy: adminUser.user_id },
+          created_at: new Date("2026-02-10T10:17:45.000Z"),
+        },
+      ],
+    });
+
+    logger.info("✅ 'tested' company investor seeded with full corporate data and onboarding logs");
+  } else {
+    logger.info("⏭️  Skipping 'tested' company investor (already exists)");
   }
 
   logger.info("🎉 Database seed completed successfully!");

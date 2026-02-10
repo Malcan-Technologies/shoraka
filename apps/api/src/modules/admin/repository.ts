@@ -1662,6 +1662,11 @@ export class AdminRepository {
     liveness_check_info: unknown;
     kyc_response: unknown;
     corporate_onboarding_data: unknown;
+    corporate_entities: unknown;
+    corporate_required_documents: unknown;
+    director_aml_status: unknown;
+    director_kyc_status: unknown;
+    business_aml_status: unknown;
     // Sophisticated investor status (only for investor portal)
     is_sophisticated_investor?: boolean;
     sophisticated_investor_reason?: string | null;

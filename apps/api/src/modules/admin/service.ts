@@ -1518,6 +1518,11 @@ export class AdminService {
         };
       };
     };
+    corporateEntities?: Record<string, unknown> | null;
+    corporateRequiredDocuments?: Record<string, unknown>[] | null;
+    directorAmlStatus?: Record<string, unknown> | null;
+    directorKycStatus?: Record<string, unknown> | null;
+    businessAmlStatus?: Record<string, unknown> | null;
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -1620,6 +1625,11 @@ export class AdminService {
             : undefined,
         };
       })(),
+      corporateEntities: org.type === "COMPANY" ? (org.corporate_entities as Record<string, unknown> | null) : undefined,
+      corporateRequiredDocuments: org.type === "COMPANY" ? (org.corporate_required_documents as Record<string, unknown>[] | null) : undefined,
+      directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
+      directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,
+      businessAmlStatus: org.type === "COMPANY" ? (org.business_aml_status as Record<string, unknown> | null) : undefined,
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,

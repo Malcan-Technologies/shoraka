@@ -589,6 +589,21 @@ export interface OrganizationDetailResponse {
       };
     };
   };
+
+  // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only
+  corporateEntities?: Record<string, unknown> | null;
+
+  // Corporate required documents (SSM profile, etc.) — COMPANY only
+  corporateRequiredDocuments?: Record<string, unknown>[] | null;
+
+  // Director AML screening status — COMPANY only
+  directorAmlStatus?: Record<string, unknown> | null;
+
+  // Director KYC screening status — COMPANY only
+  directorKycStatus?: Record<string, unknown> | null;
+
+  // Business AML screening status — COMPANY only
+  businessAmlStatus?: Record<string, unknown> | null;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)
