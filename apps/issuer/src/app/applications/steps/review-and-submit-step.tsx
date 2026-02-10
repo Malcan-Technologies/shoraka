@@ -293,12 +293,12 @@ export function ReviewAndSubmitStep({
           </div>
 
           {financingTypeConfig ? (
-            <SelectionCard
-              title={financingTypeConfig.name}
-              description={financingTypeConfig.description}
-              isSelected={false}
-              onClick={() => {}}
-              className="cursor-default"
+            <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
+              <SelectionCard
+                title={financingTypeConfig.name}
+                description={financingTypeConfig.description}
+                isSelected={false}
+                onClick={() => {}}
               leading={
                 <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
                     {isLoadingProductImage ? (
@@ -318,7 +318,8 @@ export function ReviewAndSubmitStep({
                   )}
                 </div>
               }
-            />
+              />
+            </div>
           ) : (
             <div className="text-sm text-muted-foreground italic">
               Financing type not selected
@@ -388,7 +389,7 @@ export function ReviewAndSubmitStep({
             ) : (
               <>
                 {/* Table */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
                   <Table className="table-fixed w-full">
                     <TableHeader className="bg-muted/20">
                       <TableRow>
