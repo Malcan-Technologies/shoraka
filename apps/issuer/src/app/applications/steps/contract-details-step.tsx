@@ -610,45 +610,46 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           />
 
           <Label className={labelClassName}>Contract value</Label>
-          <div className="relative">
-            <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-              RM
+          <div className="h-11 flex items-center">
+            <div className="relative w-full h-full flex items-center">
+              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+                RM
+              </div>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={formData.contract.value === 0 ? "" : formData.contract.value}
+                placeholder="eg. 5000000.00"
+                className={inputClassName + " pl-12"}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  // allow empty
+                  if (raw === "") {
+                    handleInputChange("contract", "value", "");
+                    return;
+                  }
+
+                  // digits + optional decimal (max 2 dp)
+                  if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+
+                  // HARD LIMIT: max 12 digits before decimal
+                  const [intPart] = raw.split(".");
+                  if (intPart.length > 12) return;
+
+                  handleInputChange("contract", "value", raw);
+                }}
+                onBlur={() => {
+                  if (formData.contract.value !== "") {
+                    handleInputChange(
+                      "contract",
+                      "value",
+                      Number(formData.contract.value).toFixed(2)
+                    );
+                  }
+                }}
+              />
             </div>
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={formData.contract.value === 0 ? "" : formData.contract.value}
-              placeholder="eg. 5000000.00"
-              className={inputClassName + " pl-12"}
-              onChange={(e) => {
-                const raw = e.target.value;
-
-                // allow empty
-                if (raw === "") {
-                  handleInputChange("contract", "value", "");
-                  return;
-                }
-
-                // digits + optional decimal (max 2 dp)
-                if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
-
-                // HARD LIMIT: max 12 digits before decimal
-                const [intPart] = raw.split(".");
-                if (intPart.length > 12) return;
-
-                handleInputChange("contract", "value", raw);
-              }}
-              onBlur={() => {
-                if (formData.contract.value !== "") {
-                  handleInputChange(
-                    "contract",
-                    "value",
-                    Number(formData.contract.value).toFixed(2)
-                  );
-                }
-              }}
-            />
-
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>
@@ -745,11 +746,12 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           </Select>
 
           <Label className={labelClassName}>is customer related to issuer?</Label>
+          <div className="h-11 flex items-center">
           <YesNoRadioGroup
             name="related"
             value={formData.customer.is_related_party}
             onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
-          />
+          /></div>
 
           <Label className={labelClassName}>Upload customer consent</Label>
           <FileUploadArea

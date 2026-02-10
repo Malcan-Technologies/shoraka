@@ -250,7 +250,7 @@ return (
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
       <div className="rounded-xl border border-border bg-background p-6">
-        <div className="space-y-4">
+        <div className="space-y-6">
           {declarations.map((declaration: string, index: number) => {
             const isChecked = checkedDeclarations[index] || false;
 
@@ -260,7 +260,7 @@ return (
                 className="flex items-start gap-3 cursor-pointer hover:opacity-80 transition-opacity"
               >
                 {/* Checkbox */}
-                <div className="shrink-0 mt-0.5">
+                <div className="shrink-0 mt-1">
                   <Checkbox
                     checked={isChecked}
                     onCheckedChange={(checked) =>
