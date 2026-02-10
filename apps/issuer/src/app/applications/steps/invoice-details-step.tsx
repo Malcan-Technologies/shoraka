@@ -305,7 +305,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           },
         };
 
-        if (isExistingContract && application?.contract_id) {
+        if (application?.contract_id) {
           createPayload.contractId = application.contract_id;
         }
 
