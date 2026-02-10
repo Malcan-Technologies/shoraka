@@ -496,6 +496,12 @@ export function CompanyDetailsStep({
     // Structure data to be saved to company_details field
     // Include both issuer_organization_id and contact_person
     // Pass hasPendingChanges flag so parent knows if there are actual unsaved changes
+    /**
+     * What: Expose step data and validation flag to parent.
+     * Why: Parent `EditApplicationPage` expects `isValid` to control the
+     *       "Save and Continue" button enable state.
+     * Data: issuer_organization_id, contact_person, saveFunction, hasPendingChanges, isValid
+     */
     onDataChange({
       issuer_organization_id: organizationId,
       contact_person: {
@@ -506,7 +512,8 @@ export function CompanyDetailsStep({
       },
       saveFunction: saveFunctionWithValidation,
       hasPendingChanges: hasPendingChanges,
-      isCurrentStepValid: isCurrentStepValid,
+      // Provide `isValid` so parent can disable save when any required field is empty/invalid.
+      isValid: isCurrentStepValid,
     });
   }, [organizationId, onDataChange, saveAllPendingChanges, contactPerson, validateAll, hasPendingChanges]);
 

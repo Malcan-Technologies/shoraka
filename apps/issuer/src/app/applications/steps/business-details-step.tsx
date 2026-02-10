@@ -428,11 +428,18 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
 
+    /**
+     * What: Provide canonical validation flag to parent.
+     * Why: Parent `EditApplicationPage` expects `isValid` to determine
+     *       whether the "Save and Continue" button is enabled.
+     * Data: include `isValid` (boolean), `isDeclarationConfirmed`, and `hasPendingChanges`.
+     */
     onDataChangeRef.current({
       ...snakePayload,
       hasPendingChanges,
       isDeclarationConfirmed: declarationConfirmed,
-      isCurrentStepValid: validateBusinessDetails(),
+      // Parent reads `isValid` to set step validity. Ensure we send full validation result.
+      isValid: validateBusinessDetails(),
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
