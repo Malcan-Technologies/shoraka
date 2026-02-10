@@ -20,6 +20,7 @@ import {
   formLabelClassName,
 } from "@/app/applications/components/form-control";
 import { MoneyInput } from "@/app/applications/components/money-input";
+import { parseMoney, formatMoney } from "@/app/applications/components/money";
 
 /**
  * BUSINESS DETAILS STEP
@@ -77,7 +78,7 @@ interface BusinessDetailsSnake {
     backup_plan?: string;
     raising_on_other_p2p?: boolean;
     platform_name?: string;
-    amount_raised?: string;
+    amount_raised?: number;
     same_invoice_used?: boolean;
   };
   declaration_confirmed?: boolean;
@@ -110,7 +111,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
       platform_name: p.whyRaisingFunds.platformName ?? "",
-      amount_raised: p.whyRaisingFunds.amountRaised ?? "",
+      amount_raised: parseMoney(p.whyRaisingFunds.amountRaised ?? ""),
       same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
     },
     declaration_confirmed: p.declarationConfirmed,
@@ -135,7 +136,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
       raisingOnOtherP2P: booleanToYesNo(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
       platformName: w?.platform_name ?? w?.platformName ?? "",
-      amountRaised: w?.amount_raised ?? w?.amountRaised ?? "",
+      amountRaised: formatMoney(w?.amount_raised ?? w?.amountRaised ?? 0),
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
