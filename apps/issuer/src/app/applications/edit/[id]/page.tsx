@@ -828,10 +828,7 @@ export default function EditApplicationPage() {
 
       // After computing nextStep
       let nextStep = stepFromUrl + 1;
-      const stepNumberToSave = structureChanged
-  ? stepFromUrl            // rewind progress
-  : nextStep - 1;          // normal behavior
-  didRewindProgressRef.current = structureChanged;
+      didRewindProgressRef.current = structureChanged;
 
 
 
@@ -902,42 +899,18 @@ await updateStepMutation.mutateAsync({
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
-      // Ensure application query reflects the updated last_completed_step AND contract relationship before navigation.
-      // Refetch application data to ensure we have the latest state from the server.
-      try {
-        const maxAttempts = 10;
-        let attempt = 0;
-        while (attempt < maxAttempts) {
-          // Force refetch from server (not just read from cache)
-          await queryClient.refetchQueries({ queryKey: ["application", applicationId] });
+      // Invalidate relevant queries to ensure fresh data on next render
+      // The backend mutation is atomic, so we trust it completed successfully
+      await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
 
-          const freshApp: any = queryClient.getQueryData(["application", applicationId]);
-          const lastCompleted = freshApp?.last_completed_step || 1;
-
-          // For financing_structure step, also verify contract_id reflects the structure choice
-          if (currentStepKey === "financing_structure") {
-            const savedStructure = (freshApp?.financing_structure as any)?.structure_type;
-            const hasContract = Boolean(freshApp?.contract_id);
-
-            // Verify contract_id consistency with structure type:
-            // - existing_contract → must have contract_id
-            // - new_contract/invoice_only → must NOT have contract_id (backend should have disconnected)
-            const isContractConsistent =
-              (savedStructure === "existing_contract" && hasContract) ||
-              ((savedStructure === "new_contract" || savedStructure === "invoice_only") && !hasContract);
-
-            if (lastCompleted >= stepNumberToSave && isContractConsistent) break;
-          } else {
-            // For other steps, just check last_completed_step
-            if (lastCompleted >= stepNumberToSave) break;
-          }
-
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((res) => setTimeout(res, 300));
-          attempt++;
+      // For financing_structure step, also invalidate contract-related queries
+      if (currentStepKey === "financing_structure") {
+        const currentContractId = (application as any)?.contract?.id;
+        if (currentContractId) {
+          await queryClient.invalidateQueries({ queryKey: ["contract", currentContractId] });
         }
-      } catch (err) {
-        // ignore and proceed to navigate anyway
+        // Invalidate the contracts list to ensure it reflects any changes
+        await queryClient.invalidateQueries({ queryKey: ["contracts"] });
       }
 
       // Go to next step
