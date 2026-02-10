@@ -1,8 +1,14 @@
 "use client";
 
+/** Imports
+ *
+ * What: Financing structure step and shared UI pieces.
+ * Why: Provide the three structure choices and keep the selection card UI consistent with Financing Type.
+ * Data: Uses application data + approved contracts list; emits `{ structure_type, existing_contract_id }` to parent.
+ */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
-import { useApprovedContracts, useCreateContract } from "@/hooks/use-contracts";
+import { useApprovedContracts } from "@/hooks/use-contracts";
 import {
   Select,
   SelectContent,
@@ -10,7 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SelectionCard } from "@/app/applications/components/selection-card";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -36,23 +44,50 @@ export function FinancingStructureStep({
   applicationId,
   onDataChange,
 }: FinancingStructureStepProps) {
+  /** Local state
+   *
+   * What: Tracks user selection and initialization from DB.
+   * Why: Parent saves only on Save and Continue; we still need immediate UI updates.
+   * Data: `selectedStructure` is `"new_contract" | "existing_contract" | "invoice_only" | null`.
+   *       `selectedContractId` is a contract id string when `existing_contract`.
+   */
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const { data: approvedContracts = [] } = useApprovedContracts(
     application?.issuer_organization_id || ""
   );
 
-  // Track selected structure type
+  /** Local state
+   *
+   * What: Selected structure type.
+   * Why: Drives selected card styling and validation.
+   * Data: `FinancingStructureType | null`.
+   */
   const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType | null>(
     null
   );
 
-  // Track selected existing contract ID
+  /** Local state
+   *
+   * What: Selected contract id for existing contract path.
+   * Why: Required for validity when `structure_type === "existing_contract"`.
+   * Data: string id.
+   */
   const [selectedContractId, setSelectedContractId] = React.useState<string>("");
 
-  // Track if we loaded data from DB yet
+  /** Local state
+   *
+   * What: One-time initialization flag.
+   * Why: Prevent overwriting user changes on data refresh.
+   * Data: boolean.
+   */
   const [isInitialized, setIsInitialized] = React.useState(false);
 
-  // Stable reference for onDataChange callback
+  /** Refs
+   *
+   * What: Stable callback ref for `onDataChange`.
+   * Why: Avoid effect re-runs when parent passes a new function identity.
+   * Data: `onDataChange?: (data: any) => void`.
+   */
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
     onDataChangeRef.current = onDataChange;
@@ -79,8 +114,6 @@ export function FinancingStructureStep({
   /**
    * NOTIFY PARENT WHEN DATA CHANGES
    */
-  const createContractMutation = useCreateContract();
-
   React.useEffect(() => {
 
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -109,16 +142,8 @@ export function FinancingStructureStep({
       selectedStructure !== null &&
       (selectedStructure !== "existing_contract" || selectedContractId !== "");
 
-    // Save function: create contract when user selected "new_contract"
-    const saveFunction = async () => {
-      if (selectedStructure === "new_contract") {
-        await createContractMutation.mutateAsync(applicationId);
-        return null;
-      }
-      return null;
-    };
-
     const savedStructure = application?.financing_structure as any;
+    const previousStructureType = savedStructure?.structure_type;
 
   // Check if user made changes from what's in DB
   const structureChanged =
@@ -138,13 +163,12 @@ export function FinancingStructureStep({
       ...dataToSave,
       ...additionalData,
       isValid,
-      saveFunction,
       hasPendingChanges,
       structureChanged,
-      isCreatingContract: createContractMutation.isPending,
+      previousStructureType,
     });
 
-  }, [selectedStructure, selectedContractId, approvedContracts, approvedContracts, isInitialized, createContractMutation.isPending, applicationId, createContractMutation, application]);
+  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
 
   /**
    * Handle structure type selection
@@ -167,19 +191,19 @@ export function FinancingStructureStep({
   /**
    * Handle existing contract selection
    */
-const handleContractSelect = (contractId: string) => {
-  setSelectedContractId(contractId);
+  const handleContractSelect = (contractId: string) => {
+    setSelectedContractId(contractId);
 
-  if (selectedStructure !== "existing_contract") {
-    setSelectedStructure("existing_contract");
-  }
+    if (selectedStructure !== "existing_contract") {
+      setSelectedStructure("existing_contract");
+    }
 
-  sessionStorage.setItem(
-    "cashsouk:financing_structure_override",
-    "existing_contract"
-  );
-  window.dispatchEvent(new Event("storage"));
-};
+    sessionStorage.setItem(
+      "cashsouk:financing_structure_override",
+      "existing_contract"
+    );
+    window.dispatchEvent(new Event("storage"));
+  };
 
 
   // Loading state
@@ -193,131 +217,62 @@ const handleContractSelect = (contractId: string) => {
     );
   }
 
+  /** Render blocks
+   *
+   * What: Three selectable cards.
+   * Why: Matches Financing Type card layout while keeping a radio-style indicator.
+   * Data: Selected value is kept in local state; parent receives validity + saveFunction via effect.
+   */
   return (
-    <div className="space-y-4">
-      {/* Option 1: Submit a new contract */}
-      <OptionCard
-        title="Submit a new contract"
-        description="My invoice is under a contract that hasn't been approved by Cashsouk"
-        isSelected={selectedStructure === "new_contract"}
-        onClick={() => handleStructureSelect("new_contract")}
-      />
+    <div className="px-3">
+      <div className="space-y-4">
+        {/* Option 1: Submit a new contract */}
+        <SelectionCard
+          title="Submit a new contract"
+          description="My invoice is under a contract that hasn't been approved by Cashsouk"
+          isSelected={selectedStructure === "new_contract"}
+          onClick={() => handleStructureSelect("new_contract")}
+        />
 
-      {/* Option 2: Use an existing contract */}
-      <OptionCard
-        title="Use an existing contract"
-        description="My invoice is under a contract already approved by Cashsouk"
-        isSelected={selectedStructure === "existing_contract"}
-        onClick={() => handleStructureSelect("existing_contract")}
-        rightContent={
-          <Select value={selectedContractId} onValueChange={handleContractSelect}>
-            <SelectTrigger
-              className="w-[280px] rounded-xl border border-border bg-background text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Also select this option when clicking the dropdown
-                if (selectedStructure !== "existing_contract") {
-                  handleStructureSelect("existing_contract");
-                }
-              }}
-            >
-              <SelectValue placeholder="Select an existing contracts" />
-            </SelectTrigger>
-            <SelectContent>
-              {approvedContracts.map((contract: any) => (
-                <SelectItem key={contract.id} value={contract.id}>
-                  {(contract.contract_details as any)?.title || "Untitled Contract"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
-      />
+        {/* Option 2: Use an existing contract */}
+        <SelectionCard
+          title="Use an existing contract"
+          description="My invoice is under a contract already approved by Cashsouk"
+          isSelected={selectedStructure === "existing_contract"}
+          onClick={() => handleStructureSelect("existing_contract")}
+          trailing={
+            <Select value={selectedContractId} onValueChange={handleContractSelect}>
+              <SelectTrigger
+                className={formSelectTriggerClassName + " w-[280px]"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (selectedStructure !== "existing_contract") {
+                    handleStructureSelect("existing_contract");
+                  }
+                }}
+              >
+                <SelectValue placeholder="Select an existing contract" />
+              </SelectTrigger>
+              <SelectContent>
+                {approvedContracts.map((contract: any) => (
+                  <SelectItem key={contract.id} value={contract.id}>
+                    {(contract.contract_details as any)?.title || "Untitled Contract"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
 
-      {/* Option 3: Invoice-only financing */}
-      <OptionCard
-        title="Invoice-only financing"
-        description="I want to finance my invoice(s) without a contract"
-        isSelected={selectedStructure === "invoice_only"}
-        onClick={() => handleStructureSelect("invoice_only")}
-      />
-    </div>
-  );
-}
-
-/**
- * OPTION CARD COMPONENT
- *
- * A selectable card with radio-style indicator
- */
-interface OptionCardProps {
-  title: string;
-  description: string;
-  isSelected: boolean;
-  onClick: () => void;
-  rightContent?: React.ReactNode;
-}
-
-function OptionCard({ title, description, isSelected, onClick, rightContent }: OptionCardProps) {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className="block w-full cursor-pointer focus:outline-none focus:ring-primary/20"
-    >
-      {/* OUTER WRAPPER — reserve border space */}
-      <div className="rounded-xl border-2 border-transparent">
-        {/* VISIBLE ROW */}
-        <div
-          className={[
-            "w-full rounded-[10px] transition-colors",
-            "px-6 py-[12px]",
-            isSelected
-              ? "border-2 border-primary"
-              : "border border-border hover:border-primary/50",
-          ].join(" ")}
-        >
-          <div className="flex items-start justify-between gap-4">
-            {/* Left */}
-            <div className="flex items-start gap-4">
-              {/* Radio */}
-              <div className="mt-[6px] shrink-0">
-                <div
-                  className={[
-                    "h-4 w-4 rounded-full border-2 flex items-center justify-center",
-                    isSelected
-                      ? "border-primary"
-                      : "border-muted-foreground/40",
-                  ].join(" ")}
-                >
-                  {isSelected && (
-                    <div className="h-2 w-2 rounded-full bg-primary" />
-                  )}
-                </div>
-              </div>
-
-              {/* Text */}
-              <div className="min-w-0 flex-1">
-                <div className="text-[20px] leading-[28px] font-medium text-foreground">
-                  {title}
-                </div>
-                <div className="text-[16px] leading-[22px] text-muted-foreground">
-                  {description}
-                </div>
-              </div>
-            </div>
-
-            {rightContent && <div className="shrink-0">{rightContent}</div>}
-          </div>
-        </div>
+        {/* Option 3: Invoice-only financing */}
+        <SelectionCard
+          title="Invoice-only financing"
+          description="I want to finance my invoice(s) without a contract"
+          isSelected={selectedStructure === "invoice_only"}
+          onClick={() => handleStructureSelect("invoice_only")}
+        />
       </div>
     </div>
   );
 }
+

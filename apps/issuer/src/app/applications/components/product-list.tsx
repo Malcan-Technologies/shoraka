@@ -3,35 +3,30 @@
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useS3ViewUrl } from "@/hooks/use-s3";
+import { SelectionCard } from "@/app/applications/components/selection-card";
 
 
 
 function ProductCardSkeleton() {
   return (
     <div className="block w-full">
-      {/* Reserve 2px border space (same as real card) */}
-      <div className="rounded-xl border-2 border-transparent">
-        {/* Visible card */}
-        <div className="w-full rounded-[10px] border border-border px-6 py-[10px]">
+      <div className="w-full rounded-xl border border-border bg-background px-6 py-3">
           <div className="flex items-start gap-4">
-            {/* Image (56x56) */}
+            {/* Image */}
             <div className="shrink-0">
-              <div className="h-[56px] w-[56px] rounded-sm border border-border bg-white overflow-hidden">
+              <div className="h-14 w-14 rounded-md border border-border bg-white overflow-hidden">
                 <Skeleton className="h-full w-full" />
               </div>
             </div>
 
-            {/* Text (TOP aligned like real card) */}
-            <div className="min-w-0 flex-1 pt-[2px]">
-              {/* Title line ≈ 20px text */}
-              <Skeleton className="h-[20px] w-[62%] rounded" />
+            {/* Text */}
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-6 w-[62%] rounded" />
 
-              {/* Description line ≈ 16px text — nudged DOWN a bit */}
-              <Skeleton className="mt-[9px] h-[16px] w-[78%] rounded" />
+              <Skeleton className="mt-2 h-5 w-[78%] rounded" />
             </div>
           </div>
         </div>
-      </div>
     </div>
   )
 
@@ -42,11 +37,11 @@ function CategorySkeleton() {
     <section className="space-y-4">
       <div>
         {/* Category header — VERY SLIGHTLY higher */}
-        <Skeleton className="mt-[4px] h-[24px] w-[160px] rounded" />
+        <Skeleton className="h-[24px] w-[160px] rounded" />
         <div className="mt-2 h-px bg-border" />
       </div>
 
-      <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3">
+      <div className="space-y-3 px-3">
         <ProductCardSkeleton />
         <ProductCardSkeleton />
       </div>
@@ -68,7 +63,7 @@ function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
   const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
 
   if (isLoading) {
-    return <Skeleton className="w-full h-full rounded-sm" />;
+    return <Skeleton className="h-full w-full rounded-md" />;
   }
 
   if (!imageUrl) {
@@ -114,51 +109,17 @@ interface ProductCardProps {
 
 function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }: ProductCardProps) {
   return (
-    <label
+    <SelectionCard
+      title={name}
+      description={description}
+      isSelected={isSelected}
       onClick={() => onSelect(id)}
-      className="block w-full cursor-pointer"
-    >
-      {/* 
-        Outer wrapper ALWAYS reserves 2px border space 
-        so switching 1px → 2px never shifts layout
-      */}
-      <div className="rounded-xl border-2 border-transparent">
-        {/* Actual visible card */}
-        <div
-          className={[
-            "w-full rounded-[10px] transition-colors",
-            "px-6 py-[10px]", // tighter card
-            isSelected
-              ? "border-2 border-primary"
-              : "border border-border hover:border-primary/50",
-          ].join(" ")}
-        >
-          <div className="flex items-start gap-4">
-            {/* Image */}
-            <div className="shrink-0">
-              <div
-                className="h-[56px] w-[56px] rounded-sm border border-border bg-white flex items-center justify-center overflow-hidden"
-                style={{
-                  boxShadow: "0 1px 1px hsl(var(--border))",
-                }}
-              >
-                <ProductImage s3Key={imageS3Key} alt={name} />
-              </div>
-            </div>
-
-            {/* Text */}
-            <div className="min-w-0 flex-1">
-              <div className="text-[20px] leading-[28px] font-medium text-foreground line-clamp-1">
-                {name}
-              </div>
-              <div className=" text-[16px] leading-[22px] text-muted-foreground line-clamp-1">
-                {description}
-              </div>
-            </div>
-          </div>
+      leading={
+        <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+          <ProductImage s3Key={imageS3Key} alt={name} />
         </div>
-      </div>
-    </label>
+      }
+    />
   )
 
 }
@@ -247,7 +208,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
             <div className="mt-2 h-px bg-border" />
           </div>
 
-          <div className="space-y-3 pl-3 sm:pl-3 pr-3 sm:pr-3">
+          <div className="space-y-3 px-3">
             {categoryProducts.map((product) => (
               <ProductCard
                 key={product.id}

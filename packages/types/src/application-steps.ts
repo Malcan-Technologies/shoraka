@@ -32,7 +32,7 @@ export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
 
 export interface StepKeyDisplay {
   title: string;
-  description: string;
+  description?: string;
 }
 
 /** Display title and description per step key */
@@ -42,36 +42,33 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
     description: "Choose the type of financing that best suits your business needs",
   },
   financing_structure: {
-    title: "Financing Structure",
-    description: "Define the structure of your financing",
+    title: "How would you like to apply for financing?",
   },
   contract_details: {
-    title: "Contract Details",
-    description: "Review and confirm contract terms",
+    title: "Provide Contract and Customer Details",
+    description: "Help us understand your contract and your customer billed under this invoice",
   },
   invoice_details: {
-    title: "Invoice Details",
-    description: "Provide invoice information",
+    title: "Upload invoice(s)",
+    description: "Provide the invoice(s) to apply for financing",
   },
   company_details: {
-    title: "Company Details",
-    description: "Review and confirm your company details are accurate",
+    title: "Verify company details",
+    description: "Make sure all company details are up to date",
   },
   business_details: {
     title: "Business Details",
     description: "Tell us about your business",
   },
   supporting_documents: {
-    title: "Supporting Documents",
-    description: "Upload required documents",
+    title: "Upload Supporting Documents",
   },
   declarations: {
     title: "Declarations",
-    description: "Please read and accept all declarations to continue",
   },
   review_and_submit: {
-    title: "Review And Submit",
-    description: "Review your application and submit",
+    title: "Review and submit",
+    description: "Ensure that all information provided are accurate and up to date",
   },
 };
 

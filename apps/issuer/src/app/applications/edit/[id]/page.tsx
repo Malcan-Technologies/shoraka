@@ -6,7 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useApplication, useUpdateApplicationStep, useArchiveApplication, useUpdateApplicationStatus } from "@/hooks/use-applications";
-import { useUnlinkContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -150,12 +149,6 @@ export default function EditApplicationPage() {
 
   const [sessionStructureType, setSessionStructureType] =
     React.useState<"new_contract" | "existing_contract" | "invoice_only" | null>(null);
-
-
-  // Hooks for contract handling (for skip/autofill logic)
-  // Note: updateContractMutation is intentionally not used while invoice logic is being reworked
-  // const updateContractMutation = useUpdateContract();
-  const unlinkContractMutation = useUnlinkContract();
 
   /**
    * APPLICATION BLOCK REASON
@@ -692,11 +685,6 @@ export default function EditApplicationPage() {
   const handleSaveAndContinue = async () => {
 
     try {
-      const prevStructureType =
-        (application?.financing_structure as any)?.structure_type ?? null;
-
-      const prevHasContract = Boolean((application as any)?.contract_id);
-
       // Set saving flag to prevent onDataChange from corrupting state
       isSavingRef.current = true;
 
@@ -710,9 +698,6 @@ export default function EditApplicationPage() {
         return;
       }
 
-      // DEBUG: log step data at click time
-      // eslint-disable-next-line no-console
-      console.log("SAVE CLICK - stepFromUrl:", stepFromUrl, "currentStepKey:", currentStepKey, "stepDataPresent:", !!stepDataRef.current);
       // Get the data from the current step
       const rawData = stepDataRef.current;
       let dataToSave = rawData ? { ...rawData } : null;
@@ -727,8 +712,6 @@ export default function EditApplicationPage() {
         delete dataToSave.isValid;
       }
 
-      console.log(dataToSave);
-
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS
        *
@@ -738,13 +721,7 @@ export default function EditApplicationPage() {
        * - supporting_documents uploads files to S3 and returns updated data with S3 keys
        */
       if (dataToSave?.saveFunction) {
-        // DEBUG: indicate saveFunction start
-        // eslint-disable-next-line no-console
-        console.log("Calling step saveFunction for", currentStepKey);
         const returnedData = await dataToSave.saveFunction();
-        // DEBUG: log returned data from saveFunction
-        // eslint-disable-next-line no-console
-        console.log("saveFunction returned for", currentStepKey, returnedData);
 
         // Remove saveFunction from the data being sent to API
         delete dataToSave.saveFunction;
@@ -840,10 +817,7 @@ export default function EditApplicationPage() {
 
       // After computing nextStep
       let nextStep = stepFromUrl + 1;
-      const stepNumberToSave = structureChanged
-  ? stepFromUrl            // rewind progress
-  : nextStep - 1;          // normal behavior
-  didRewindProgressRef.current = structureChanged;
+      didRewindProgressRef.current = structureChanged;
 
 
 
@@ -900,47 +874,28 @@ await updateStepMutation.mutateAsync({
   stepData: stepPayload,
 });
 
-      if (currentStepKey === "financing_structure") {
-        const nextStructureType = dataToSave?.structure_type;
-
-        const shouldUnlink =
-          prevHasContract &&
-          prevStructureType === "new_contract" &&
-          (nextStructureType === "invoice_only" ||
-            nextStructureType === "existing_contract");
-
-        if (shouldUnlink) {
-          await unlinkContractMutation.mutateAsync(applicationId);
-        }
-      }
+      // Backend now handles all contract linking/unlinking logic atomically
+      // No need for frontend to call separate unlink mutation
 
 
 
-
-      // DEBUG: updateStepMutation completed
-      // eslint-disable-next-line no-console
-      console.log("updateStepMutation completed for step", currentStepId);
 
       // Success! Clear unsaved changes and navigate
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
-      // Ensure application query reflects the updated last_completed_step before navigation.
-      // Poll the application query for up to ~5s to see the server-updated last_completed_step.
-      try {
-        await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-        const maxAttempts = 10;
-        let attempt = 0;
-        while (attempt < maxAttempts) {
-          const freshApp: any = queryClient.getQueryData(["application", applicationId]);
-          const lastCompleted = freshApp?.last_completed_step || 1;
-          if (lastCompleted >= stepNumberToSave) break;
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((res) => setTimeout(res, 300));
-          attempt++;
+      // Invalidate relevant queries to ensure fresh data on next render
+      // The backend mutation is atomic, so we trust it completed successfully
+      await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+
+      // For financing_structure step, also invalidate contract-related queries
+      if (currentStepKey === "financing_structure") {
+        const currentContractId = (application as any)?.contract?.id;
+        if (currentContractId) {
+          await queryClient.invalidateQueries({ queryKey: ["contract", currentContractId] });
         }
-      } catch (err) {
-        // ignore and proceed to navigate anyway
+        // Invalidate the contracts list to ensure it reflects any changes
+        await queryClient.invalidateQueries({ queryKey: ["contracts"] });
       }
 
       // Go to next step
@@ -955,12 +910,13 @@ await updateStepMutation.mutateAsync({
 
 didRewindProgressRef.current = false;
 
-router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
-// ✅ Clear override AFTER navigation completes
-setTimeout(() => {
+// Clear override immediately before navigation to prevent state inconsistency
+if (currentStepKey === "financing_structure") {
   sessionStorage.removeItem("cashsouk:financing_structure_override");
   setSessionStructureType(null);
-}, 0);
+}
+
+router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
 
 
     } catch (error) {

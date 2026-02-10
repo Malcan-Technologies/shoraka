@@ -131,25 +131,66 @@ export class InvoiceService {
     return this.verifyInvoiceAccess(id, userId);
   }
 
-  async updateInvoice(id: string, details: any, userId: string): Promise<Invoice> {
+  async updateInvoice(id: string, payload: any, userId: string): Promise<Invoice> {
   const invoice = await this.verifyInvoiceAccess(id, userId);
 
   if (invoice.status === "APPROVED") {
     throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
   }
 
+  /**
+   * PARSE PAYLOAD
+   * Can contain:
+   * - details: partial invoice details
+   * - document: top-level document field
+   * - contractId: optional, can be null or cuid string
+   */
+  const { contractId, details, document, ...otherFields } = payload;
+
   const prevS3Key = (invoice.details as any)?.document?.s3_key;
-  const nextS3Key = details?.document?.s3_key;
+  const nextS3Key = document?.s3_key;
 
-  const updatedDetails = {
-    ...(invoice.details as object),
-    ...details,
-  };
+  /**
+   * MERGE DETAILS
+   * Combine existing details with new details and document
+   */
+  let updatedDetails = invoice.details as object;
 
-  const updatedInvoice = await this.repository.update(id, {
+  if (details && Object.keys(details).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...details,
+    };
+  }
+
+  if (document !== undefined) {
+    updatedDetails = {
+      ...updatedDetails,
+      document,
+    };
+  }
+
+  if (Object.keys(otherFields).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...otherFields,
+    };
+  }
+
+  /**
+   * BUILD UPDATE PAYLOAD
+   * Include contractId if provided
+   */
+  const updatePayload: any = {
     details: updatedDetails,
     updated_at: new Date(),
-  });
+  };
+
+  if (contractId !== undefined) {
+    updatePayload.contract_id = contractId;
+  }
+
+  const updatedInvoice = await this.repository.update(id, updatePayload);
 
   // 🔥 delete previous version AFTER successful update
   if (
@@ -274,4 +315,3 @@ async deleteInvoice(id: string, userId: string) {
 }
 
 export const invoiceService = new InvoiceService();
-

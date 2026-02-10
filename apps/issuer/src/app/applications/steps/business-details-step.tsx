@@ -1,5 +1,11 @@
 "use client";
 
+/** Imports
+ *
+ * What: Business details step UI and shared form controls.
+ * Why: Keep form control styling consistent across steps (inputs, textareas, radios, checkboxes).
+ * Data: Emits a snake_case payload to the parent save flow.
+ */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
@@ -7,6 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import {
+  formInputClassName,
+  formTextareaClassName,
+  formLabelClassName,
+} from "@/app/applications/components/form-control";
 
 /**
  * BUSINESS DETAILS STEP
@@ -155,25 +167,27 @@ interface BusinessDetailsStepProps {
 const sectionHeaderClassName =
   "text-base sm:text-lg md:text-xl font-semibold";
 
-const labelClassName =
-  "text-sm md:text-base leading-6 text-foreground min-h-10 flex items-start";
+/** Helpers
+ *
+ * What: Canonical label + layout behavior.
+ * Why: Keep typography consistent while maintaining the left-column alignment used in screenshots.
+ * Data: Shared label typography + step-specific alignment utilities.
+ */
+const labelClassName = cn(formLabelClassName, "font-normal");
 
 /**
  * Inputs
  */
-const inputClassName =
-  "rounded-xl border border-border bg-background text-foreground w-full h-11";
+const inputClassName = formInputClassName;
 
-const textareaClassName =
-  "rounded-xl border border-border bg-background text-foreground min-h-[100px] w-full";
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
 
 /**
  * Core form grid
- * ❌ removed pl-3 / sm:pl-4 / md:pl-6
- * ✅ alignment now matches Financing Type + other steps
+ * Includes px-3 for consistent indentation with other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-5 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
 
 /**
  * Section wrapper
@@ -186,17 +200,13 @@ const sectionWrapperClassName =
  * gap-8 = consistent section separation
  */
 const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-10";
+  "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
 /**
- * Radio labels
+ * Radio labels (use canonical form label styles)
  */
-const radioSelectedLabel =
-  "text-sm md:text-base text-foreground";
-
-const radioUnselectedLabel =
-  "text-sm md:text-base text-muted-foreground";
-
+const radioSelectedLabel = formLabelClassName;
+const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
 
 function CustomRadio({
   name,
@@ -228,11 +238,10 @@ function CustomRadio({
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
-            checked
-              ? "bg-primary"
-              : "border-2 border-muted-foreground/50 bg-muted/30"
-          }`}
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked
+            ? "bg-primary"
+            : "border-2 border-muted-foreground/50 bg-muted/30"
+            }`}
           aria-hidden
         >
           {checked && (
@@ -251,9 +260,53 @@ function CustomRadio({
   );
 }
 
-function restrictDigitsOnly(value: string): string {
-  return value.replace(/\D/g, "");
+function YesNoRadioGroup({
+  value,
+  onValueChange,
+  name,
+}: {
+  value: YesNo | "";
+  onValueChange: (v: YesNo) => void;
+  name: string;
+}) {
+  return (
+    <div className="flex gap-6 items-center">
+      <CustomRadio
+        name={name}
+        value="yes"
+        checked={value === "yes"}
+        onChange={() => onValueChange("yes")}
+        label="Yes"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+      />
+      <CustomRadio
+        name={name}
+        value="no"
+        checked={value === "no"}
+        onChange={() => onValueChange("no")}
+        label="No"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+      />
+    </div>
+  );
 }
+
+function restrictMoneyInput(value: string): string {
+  // allow empty
+  if (value === "") return "";
+
+  // digits + optional decimal, max 2 dp
+  if (!/^\d+(\.\d{0,2})?$/.test(value)) return value.slice(0, -1);
+
+  // HARD LIMIT: max 12 digits before decimal
+  const [intPart] = value.split(".");
+  if (intPart.length > 12) return value.slice(0, -1);
+
+  return value;
+}
+
 
 function TextareaWithCharCount({
   id,
@@ -359,7 +412,7 @@ export function BusinessDetailsStep({
     setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
-      amountRaised: restrictDigitsOnly(initial.whyRaisingFunds.amountRaised),
+      amountRaised: restrictMoneyInput(initial.whyRaisingFunds.amountRaised),
     });
     setDeclarationConfirmed(initial.declarationConfirmed);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
@@ -385,329 +438,280 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
 
+    /**
+     * What: Provide canonical validation flag to parent.
+     * Why: Parent `EditApplicationPage` expects `isValid` to determine
+     *       whether the "Save and Continue" button is enabled.
+     * Data: include `isValid` (boolean), `isDeclarationConfirmed`, and `hasPendingChanges`.
+     */
     onDataChangeRef.current({
       ...snakePayload,
       hasPendingChanges,
       isDeclarationConfirmed: declarationConfirmed,
-      isCurrentStepValid: validateBusinessDetails(),
+      // Parent reads `isValid` to set step validity. Ensure we send full validation result.
+      isValid: validateBusinessDetails(),
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
   if (isLoadingApp || !isInitialized) {
     return (
-    <BusinessDetailsSkeleton />
+      <BusinessDetailsSkeleton />
     );
   }
 
-return (
-  <div className={formOuterClassName}>
-    {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-    <section className={`${sectionWrapperClassName} space-y-4`}>
-      <div>
-        <h3 className={sectionHeaderClassName}>About your business</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className={rowGridClassName}>
-        <Label htmlFor="what-does-company-do" className={labelClassName}>
-          What does your company do?
-        </Label>
-        <TextareaWithCharCount
-          id="what-does-company-do"
-          value={aboutYourBusiness.whatDoesCompanyDo}
-          onChange={(e) =>
-            setAboutYourBusiness((prev) => ({
-              ...prev,
-              whatDoesCompanyDo: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
-        />
-
-        <Label htmlFor="main-customers" className={labelClassName}>
-          Who are your main customers?
-        </Label>
-        <TextareaWithCharCount
-          id="main-customers"
-          value={aboutYourBusiness.mainCustomers}
-          onChange={(e) =>
-            setAboutYourBusiness((prev) => ({
-              ...prev,
-              mainCustomers: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
-        />
-
-        <Label className={labelClassName}>
-          Does any single customer make up more than 50% of your revenue?
-        </Label>
-        <div className="flex gap-6 items-center">
-          <CustomRadio
-            name="singleCustomerOver50Revenue"
-            value="yes"
-            checked={aboutYourBusiness.singleCustomerOver50Revenue === "yes"}
-            onChange={() =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                singleCustomerOver50Revenue: "yes",
-              }))
-            }
-            label="Yes"
-            selectedLabelClass={radioSelectedLabel}
-            unselectedLabelClass={radioUnselectedLabel}
-          />
-          <CustomRadio
-            name="singleCustomerOver50Revenue"
-            value="no"
-            checked={aboutYourBusiness.singleCustomerOver50Revenue === "no"}
-            onChange={() =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                singleCustomerOver50Revenue: "no",
-              }))
-            }
-            label="No"
-            selectedLabelClass={radioSelectedLabel}
-            unselectedLabelClass={radioUnselectedLabel}
-          />
-        </div>
-      </div>
-    </section>
-
-    {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
-    <section className={`${sectionWrapperClassName} space-y-4`}>
-      <div>
-        <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className={rowGridClassName}>
-        <Label htmlFor="financing-for" className={labelClassName}>
-          What is this financing for?
-        </Label>
-        <TextareaWithCharCount
-          id="financing-for"
-          value={whyRaisingFunds.financingFor}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              financingFor: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
-        />
-
-        <Label htmlFor="how-funds-used" className={labelClassName}>
-          How will the funds be used?
-        </Label>
-        <TextareaWithCharCount
-          id="how-funds-used"
-          value={whyRaisingFunds.howFundsUsed}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              howFundsUsed: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
-        />
-
-        <Label htmlFor="business-plan" className={labelClassName}>
-          Tell us about your business plan
-        </Label>
-        <TextareaWithCharCount
-          id="business-plan"
-          value={whyRaisingFunds.businessPlan}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              businessPlan: e.target.value.slice(0, 1000),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={1000}
-          className={textareaClassName}
-          countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
-        />
-
-        <Label htmlFor="risks-delay-repayment" className={labelClassName}>
-          Are there any risks that may delay repayment of your invoices?
-        </Label>
-        <TextareaWithCharCount
-          id="risks-delay-repayment"
-          value={whyRaisingFunds.risksDelayRepayment}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              risksDelayRepayment: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
-        />
-
-        <Label htmlFor="backup-plan" className={labelClassName}>
-          If payment is delayed, what is your backup plan?
-        </Label>
-        <TextareaWithCharCount
-          id="backup-plan"
-          value={whyRaisingFunds.backupPlan}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              backupPlan: e.target.value.slice(0, 200),
-            }))
-          }
-          placeholder="Add details"
-          maxLength={200}
-          className={textareaClassName}
-          countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
-        />
-
-        <Label className={labelClassName}>
-          Are you currently raising/applying funds on any other P2P platforms?
-        </Label>
-        <div className="flex gap-6 items-center">
-                   <CustomRadio
-              name="raisingOnOtherP2P"
-              value="yes"
-              checked={whyRaisingFunds.raisingOnOtherP2P === "yes"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  raisingOnOtherP2P: "yes",
-                }))
-              }
-              label="Yes"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-            <CustomRadio
-              name="raisingOnOtherP2P"
-              value="no"
-              checked={whyRaisingFunds.raisingOnOtherP2P === "no"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  raisingOnOtherP2P: "no",
-                }))
-              }
-              label="NO"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
+  return (
+    <div className={formOuterClassName}>
+      {/* ===================== ABOUT YOUR BUSINESS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <h3 className={sectionHeaderClassName}>About your business</h3>
+          <div className="mt-2 h-px bg-border" />
         </div>
 
-        <Label htmlFor="platform-name" className={labelClassName}>
-          Name of platform
-        </Label>
-        <Input
-          id="platform-name"
-          value={whyRaisingFunds.platformName}
-          onChange={(e) =>
-            setWhyRaisingFunds((prev) => ({
-              ...prev,
-              platformName: e.target.value,
-            }))
-          }
-          placeholder="e.g. CARPAY"
-          className={inputClassName}
-        />
+        <div className={rowGridClassName}>
+          <Label htmlFor="what-does-company-do" className={labelClassName}>
+            What does your company do?
+          </Label>
+          <TextareaWithCharCount
+            id="what-does-company-do"
+            value={aboutYourBusiness.whatDoesCompanyDo}
+            onChange={(e) =>
+              setAboutYourBusiness((prev) => ({
+                ...prev,
+                whatDoesCompanyDo: e.target.value.slice(0, 200),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
+          />
 
-        <Label htmlFor="amount-raised" className={labelClassName}>
-          Amount raised
-        </Label>
-        <div className="flex items-center rounded-xl border border-border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary">
-          <span className="pl-4 text-foreground text-sm md:text-base shrink-0">RM</span>
-          <Input
-            id="amount-raised"
-            type="text"
-            inputMode="numeric"
-            value={whyRaisingFunds.amountRaised}
+          <Label htmlFor="main-customers" className={labelClassName}>
+            Who are your main customers?
+          </Label>
+          <TextareaWithCharCount
+            id="main-customers"
+            value={aboutYourBusiness.mainCustomers}
+            onChange={(e) =>
+              setAboutYourBusiness((prev) => ({
+                ...prev,
+                mainCustomers: e.target.value.slice(0, 200),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
+          />
+
+          <Label className={labelClassName}>
+            Does any single customer make up more than 50% of your revenue?
+          </Label>
+          <YesNoRadioGroup
+            name="singleCustomerOver50Revenue"
+            value={aboutYourBusiness.singleCustomerOver50Revenue}
+            onValueChange={(v) =>
+              setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
+            }
+          />
+        </div>
+      </section>
+
+      {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className={rowGridClassName}>
+          <Label htmlFor="financing-for" className={labelClassName}>
+            What is this financing for?
+          </Label>
+          <TextareaWithCharCount
+            id="financing-for"
+            value={whyRaisingFunds.financingFor}
             onChange={(e) =>
               setWhyRaisingFunds((prev) => ({
                 ...prev,
-                amountRaised: restrictDigitsOnly(e.target.value),
+                financingFor: e.target.value.slice(0, 200),
               }))
             }
-            placeholder="0"
-            className="border-0 rounded-none focus-visible:ring-0 shadow-none flex-1 h-11"
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+          />
+
+          <Label htmlFor="how-funds-used" className={labelClassName}>
+            How will the funds be used?
+          </Label>
+          <TextareaWithCharCount
+            id="how-funds-used"
+            value={whyRaisingFunds.howFundsUsed}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                howFundsUsed: e.target.value.slice(0, 200),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+          />
+
+          <Label htmlFor="business-plan" className={labelClassName}>
+            Tell us about your business plan
+          </Label>
+          <TextareaWithCharCount
+            id="business-plan"
+            value={whyRaisingFunds.businessPlan}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                businessPlan: e.target.value.slice(0, 1000),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={1000}
+            className={textareaClassName}
+            countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+          />
+
+          <Label htmlFor="risks-delay-repayment" className={labelClassName}>
+            Are there any risks that may delay repayment of your invoices?
+          </Label>
+          <TextareaWithCharCount
+            id="risks-delay-repayment"
+            value={whyRaisingFunds.risksDelayRepayment}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                risksDelayRepayment: e.target.value.slice(0, 200),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+          />
+
+          <Label htmlFor="backup-plan" className={labelClassName}>
+            If payment is delayed, what is your backup plan?
+          </Label>
+          <TextareaWithCharCount
+            id="backup-plan"
+            value={whyRaisingFunds.backupPlan}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                backupPlan: e.target.value.slice(0, 200),
+              }))
+            }
+            placeholder="Add details"
+            maxLength={200}
+            className={textareaClassName}
+            countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+          />
+
+          <Label className={labelClassName}>
+            Are you currently raising/applying funds on any other P2P platforms?
+          </Label>
+          <YesNoRadioGroup
+            name="raisingOnOtherP2P"
+            value={whyRaisingFunds.raisingOnOtherP2P}
+            onValueChange={(v) =>
+              setWhyRaisingFunds((prev) => ({ ...prev, raisingOnOtherP2P: v }))
+            }
+          />
+
+          <Label htmlFor="platform-name" className={labelClassName}>
+            Name of platform
+          </Label>
+          <Input
+            id="platform-name"
+            value={whyRaisingFunds.platformName}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                platformName: e.target.value,
+              }))
+            }
+            placeholder="e.g. CARPAY"
+            className={inputClassName}
+          />
+
+          <Label htmlFor="amount-raised" className={labelClassName}>
+            Amount raised
+          </Label>
+          <div className="h-11 flex items-center">
+            <div className="relative w-full h-full flex items-center">
+              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+                RM
+              </div>
+              <Input
+                id="amount-raised"
+                type="text"
+                inputMode="decimal"
+                value={whyRaisingFunds.amountRaised}
+                placeholder="0.00"
+                onChange={(e) =>
+                  setWhyRaisingFunds((prev) => ({
+                    ...prev,
+                    amountRaised: restrictMoneyInput(e.target.value),
+                  }))
+                }
+                onBlur={() => {
+                  if (whyRaisingFunds.amountRaised !== "") {
+                    setWhyRaisingFunds((prev) => ({
+                      ...prev,
+                      amountRaised: Number(prev.amountRaised).toFixed(2),
+                    }));
+                  }
+                }}
+                className={inputClassName + " pl-12"}
+              />
+
+            </div>
+          </div>
+
+          <Label className={labelClassName}>
+            Is the same invoice being used?
+          </Label>
+          <YesNoRadioGroup
+            name="sameInvoiceUsed"
+            value={whyRaisingFunds.sameInvoiceUsed}
+            onValueChange={(v) =>
+              setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+            }
           />
         </div>
+      </section>
 
-        <Label className={labelClassName}>
-          Is the same invoice being used?
-        </Label>
-        <div className="flex gap-6 items-center">
-           <CustomRadio
-              name="sameInvoiceUsed"
-              value="yes"
-              checked={whyRaisingFunds.sameInvoiceUsed === "yes"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  sameInvoiceUsed: "yes",
-                }))
-              }
-              label="Yes"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
-            <CustomRadio
-              name="sameInvoiceUsed"
-              value="no"
-              checked={whyRaisingFunds.sameInvoiceUsed === "no"}
-              onChange={() =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  sameInvoiceUsed: "no",
-                }))
-              }
-              label="NO"
-              selectedLabelClass={radioSelectedLabel}
-              unselectedLabelClass={radioUnselectedLabel}
-            />
+      {/* ===================== DECLARATIONS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <h3 className={sectionHeaderClassName}>Declarations</h3>
+          <div className="mt-2 h-px bg-border" />
         </div>
-      </div>
-    </section>
 
-    {/* ===================== DECLARATIONS ===================== */}
-    <section className={`${sectionWrapperClassName} space-y-4`}>
-      <div>
-        <h3 className={sectionHeaderClassName}>Declarations</h3>
-        <div className="mt-2 h-px bg-border" />
-      </div>
-
-      <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <Checkbox
-            checked={declarationConfirmed}
-            onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
-            className="mt-0.5 rounded-[4px]"
-          />
-          <span className="text-sm md:text-base leading-6 text-foreground">
-            {DECLARATION_TEXT}
-          </span>
-        </label>
-      </div>
-    </section>
-  </div>
-);
+        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <Checkbox
+              checked={declarationConfirmed}
+              onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
+              className="mt-0.5 rounded-[4px]"
+            />
+            <span className="text-sm md:text-base leading-6 text-foreground">
+              {DECLARATION_TEXT}
+            </span>
+          </label>
+        </div>
+      </section>
+    </div>
+  );
 
 }
 

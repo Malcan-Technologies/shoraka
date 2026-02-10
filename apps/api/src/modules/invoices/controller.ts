@@ -48,9 +48,9 @@ async function getInvoice(req: Request, res: Response, next: NextFunction) {
 async function updateInvoice(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = invoiceIdParamSchema.parse(req.params);
-    const { details } = updateInvoiceSchema.parse(req.body);
+    const payload = updateInvoiceSchema.parse(req.body);
     const userId = getUserId(req);
-    const invoice = await invoiceService.updateInvoice(id, details, userId);
+    const invoice = await invoiceService.updateInvoice(id, payload, userId);
 
     res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });
   } catch (error) {

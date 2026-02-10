@@ -8,11 +8,30 @@ import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { useS3ViewUrl } from "@/hooks/use-s3";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
+import { formLabelClassName } from "@/app/applications/components/form-control";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
+import { SelectionCard } from "@/app/applications/components/selection-card";
+import { StatusBadge } from "../components/invoice-status-badge";
+
+const INVOICE_TABLE_COLUMNS = {
+  invoice: "w-[140px]",
+  status: "w-[100px]",
+  maturity: "w-[150px]",
+  value: "w-[150px]",
+  ratio: "w-[130px]",
+  amount: "w-[200px]",
+  document: "w-[160px]",
+  action: "w-[50px]",
+};
+
+
+const isValidNumber = (v: any): v is number =>
+  typeof v === "number" && !Number.isNaN(v);
 
 
 /**
@@ -36,10 +55,15 @@ interface ReviewAndSubmitStepProps {
   onDataChange?: (data: any) => void;
 }
 
-const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
+/**
+ * REUSED STYLES FROM STEPS
+ * Matching: business-details-step, contract-details-step patterns
+ */
+const labelClassName = formLabelClassName;
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-6 gap-y-4 mt-4 px-3";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionSpacingClassName = "space-y-6";
 
 export function ReviewAndSubmitStep({
   applicationId,
@@ -165,7 +189,11 @@ export function ReviewAndSubmitStep({
       const shareField = corp.formContent?.displayAreas?.[0]?.content?.find(
         (f: any) => f.fieldName === "% of Shares"
       );
-      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
+      const sharePercentage =
+        shareField?.fieldValue != null
+          ? Number(shareField.fieldValue)
+          : null;
+
       const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
       const kybApproved = corp.approveStatus === "APPROVED";
 
@@ -256,9 +284,9 @@ export function ReviewAndSubmitStep({
   };
 
   const formatAddress = (addr: any) => {
-    if (!addr) return "--------";
+    if (!addr) return "—";
     const parts = [addr.line1, addr.line2, addr.city, addr.postalCode, addr.state, addr.country].filter(Boolean);
-    return parts.length ? parts.join(", ") : "--------";
+    return parts.length ? parts.join(", ") : "—";
   };
 
   // Extract data for sections (only if sections are shown)
@@ -278,33 +306,39 @@ export function ReviewAndSubmitStep({
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Financing details */}
       {showFinancingDetails && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Financing details</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Financing details</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
 
           {financingTypeConfig ? (
-            <div className="border rounded-xl px-4 py-4 flex items-start gap-4 bg-primary/5">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {isLoadingProductImage ? (
-                  <Skeleton className="w-full h-full" />
-                ) : productImageUrl ? (
-                  <img
-                    src={productImageUrl}
-                    alt={financingTypeConfig.name || "Product"}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <span className="text-primary text-xl font-serif">&ldquo;</span>
-                )}
-              </div>
-
-              <div>
-                <div className="text-base font-semibold">
-                  {financingTypeConfig.name}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {financingTypeConfig.description}
-                </div>
-              </div>
+            <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
+              <SelectionCard
+                title={financingTypeConfig.name}
+                description={financingTypeConfig.description}
+                isSelected={false}
+                onClick={() => { }}
+                leading={
+                  <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                    {isLoadingProductImage ? (
+                      <Skeleton className="h-full w-full rounded-md" />
+                    ) : productImageUrl ? (
+                      <img
+                        src={productImageUrl}
+                        alt={financingTypeConfig.name || "Product"}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+                        Image
+                        <br />
+                        512x512
+                      </div>
+                    )}
+                  </div>
+                }
+              />
             </div>
           ) : (
             <div className="text-sm text-muted-foreground italic">
@@ -316,38 +350,53 @@ export function ReviewAndSubmitStep({
 
       {/* Contract */}
       {showContractSection && contractId && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Contract</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Contract</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
           <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
-            <div className={valueClassName}>{contractDetails.title || "--------"}</div>
+            <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
             <div className={labelClassName}>Contract status</div>
             <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
 
             <div className={labelClassName}>Customer</div>
-            <div className={valueClassName}>{customerDetails.name || "--------"}</div>
+            <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
             <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>{contractDetails.value ? formatCurrency(contractDetails.value) : "--------"}</div>
+            <div className={valueClassName}>
+              {isValidNumber(contractValue)
+                ? formatCurrency(contractValue)
+                : "—"}
+            </div>
+
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "--------"}
+              {isValidNumber(approvedFacility)
+                ? formatCurrency(approvedFacility)
+                : "—"}
+
             </div>
 
             <div className={labelClassName}>Utilised facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract"
+              {structureType === "existing_contract" &&
+                isValidNumber(totalFinancingAmount)
                 ? formatCurrency(totalFinancingAmount)
-                : "--------"}
+                : "—"}
+
             </div>
 
             <div className={labelClassName}>Available facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract" && calculatedAvailableFacility > 0
+              {structureType === "existing_contract" &&
+                isValidNumber(calculatedAvailableFacility)
                 ? formatCurrency(calculatedAvailableFacility)
-                : "--------"}
+                : "—"}
+
             </div>
           </div>
         </section>
@@ -355,8 +404,11 @@ export function ReviewAndSubmitStep({
 
       {/* Invoices */}
       {showInvoiceSection && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Invoices</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Invoices</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
           <p className="text-sm text-muted-foreground">
             You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
           </p>
@@ -368,58 +420,119 @@ export function ReviewAndSubmitStep({
               </div>
             ) : (
               <>
-                {/* Table Header */}
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b bg-muted/30">
-                  <div className="text-sm font-medium text-muted-foreground">Invoice</div>
-                  <div className="text-sm font-medium text-muted-foreground">Invoice value (RM)</div>
-                  <div className="text-sm font-medium text-muted-foreground">Maturity date</div>
-                  <div className="text-sm font-medium text-muted-foreground">Maximum financing amount(RM)</div>
-                  <div className="text-sm font-medium text-muted-foreground w-[140px]">Documents</div>
-                </div>
-                {/* Table Rows */}
-                {invoices.map((invoice: any) => {
-                  const details = invoice.details || {};
-                  const invoiceValue = Number(details.value || 0);
-                  const ratio = (details.financing_ratio_percent ?? 60) / 100;
-                  const maxFinancing = invoiceValue * ratio;
+                {/* Table */}
+                <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
+                  <Table className="table-fixed w-full">
+                    <TableHeader className="bg-muted/20">
+                      <TableRow>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                          Invoice
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                          Status
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
+                          Maturity date
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
+                          Invoice value (RM)
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
+                          Financing ratio
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
+                          Maximum financing amount (RM)
+                        </TableHead>
+                        <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                          Documents
+                        </TableHead>
+                        <TableHead className={INVOICE_TABLE_COLUMNS.action} />
+                      </TableRow>
+                    </TableHeader>
 
-                  return (
-                    <div key={invoice.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b last:border-b-0">
-                      <div className={valueClassName}>#{details.number || "—"}</div>
-                      <div className={valueClassName}>
-                        {invoiceValue > 0 ? invoiceValue.toLocaleString() : "—"}
-                      </div>
-                      <div className={valueClassName}>{formatDate(details.maturity_date)}</div>
-                      <div className={valueClassName}>
-                        {maxFinancing > 0 ? maxFinancing.toLocaleString() : "—"}
-                      </div>
-                      <div className="w-[140px]">
-                        {details.document?.file_name ? (
-                          <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                            <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                            </div>
-                            <span className="text-[14px] font-medium truncate">{details.document.file_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {/* Total Row */}
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-muted/20">
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div className="text-left">
-                    <div className={valueClassName}>
-                      {totalFinancingAmount.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total financing amount</div>
-                  </div>
-                  <div className="w-[140px]"></div>
+
+                    <TableBody>
+                      {invoices.map((invoice: any) => {
+                        const d = invoice.details || {};
+                        const value = Number(d.value || 0);
+                        const ratio = d.financing_ratio_percent ?? 60;
+                        const financingAmount = value * (ratio / 100);
+
+                        return (
+                          <TableRow key={invoice.id} className="hover:bg-muted/40">
+                            {/* Invoice */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {d.number || "—"}
+                            </TableCell>
+
+                            {/* Status */}
+                            <TableCell className="p-2">
+                              <StatusBadge status={invoice.status} />
+                            </TableCell>
+
+                            {/* Maturity */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {formatDate(d.maturity_date)}
+                            </TableCell>
+
+                            {/* Value */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
+                              {isValidNumber(value)
+                                ? formatCurrency(value)
+                                : "—"}
+
+                            </TableCell>
+
+                            {/* Ratio */}
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {ratio}%
+                            </TableCell>
+
+                            {/* Amount */}
+                            <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                              {isValidNumber(financingAmount)
+                                ? formatCurrency(financingAmount)
+                                : "—"}
+
+                            </TableCell>
+
+                            {/* Document */}
+                            <TableCell className="p-2">
+                              {d.document?.file_name ? (
+                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                                  <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                    <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                  </div>
+                                  <span className="text-xs font-medium truncate max-w-[120px]">
+                                    {d.document.file_name}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+
+                            {/* Empty action column (keeps width alignment) */}
+                            <TableCell />
+                          </TableRow>
+                        );
+                      })}
+
+                      {/* TOTAL — identical to Invoice Details */}
+                      <TableRow className="bg-muted/10">
+                        <TableCell colSpan={5} />
+                        <TableCell className="p-2 font-semibold text-xs">
+                          {isValidNumber(totalFinancingAmount)
+                            ? formatCurrency(totalFinancingAmount)
+                            : "—"}
+
+                          <div className="text-xs text-muted-foreground font-normal">Total</div>
+                        </TableCell>
+                        <TableCell colSpan={2} />
+                      </TableRow>
+                    </TableBody>
+
+                  </Table>
                 </div>
               </>
             )}
@@ -430,32 +543,38 @@ export function ReviewAndSubmitStep({
       {/* Company Info */}
       {showCompanySection && (
         <>
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Company info</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Company info</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Company name</div>
-              <div className={valueClassName}>{basicInfo?.businessName || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
               <div className={labelClassName}>Type of entity</div>
-              <div className={valueClassName}>{basicInfo?.entityType || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
 
               <div className={labelClassName}>SSM no</div>
-              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
 
               <div className={labelClassName}>Industry</div>
-              <div className={valueClassName}>{basicInfo?.industry || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
 
               <div className={labelClassName}>Nature of business</div>
               <div className={valueClassName}>Private</div>
 
               <div className={labelClassName}>Number of employees</div>
-              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
             </div>
           </section>
 
           {/* Director & Shareholders */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             {combinedList.length === 0 ? (
               <div className="text-sm text-muted-foreground px-3">
                 No directors or shareholders found
@@ -465,8 +584,8 @@ export function ReviewAndSubmitStep({
                 {combinedList.map((item: any) => (
                   <React.Fragment key={item.key}>
                     <div className={labelClassName}>{item.roleLabel}</div>
-                    <div className="flex items-center gap-3 h-11">
-                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap truncate">
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
                         {item.name}
                       </div>
                       <div className="h-4 w-px bg-border" />
@@ -492,20 +611,26 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Banking details */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Banking details</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Banking details</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Bank name</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "--------"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
               <div className={labelClassName}>Bank account number</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "--------"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
             </div>
           </section>
 
           {/* Address */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Address</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Address</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Business address</div>
               <div className={valueClassName}>{formatAddress(businessAddress)}</div>
@@ -516,20 +641,23 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Contact Person */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Contact Person</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Contact Person</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Applicant name</div>
-              <div className={valueClassName}>{contactPerson.name || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
               <div className={labelClassName}>Applicant position</div>
-              <div className={valueClassName}>{contactPerson.position || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.position || "—"}</div>
 
               <div className={labelClassName}>Applicant IC no</div>
-              <div className={valueClassName}>{contactPerson.ic || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.ic || "—"}</div>
 
               <div className={labelClassName}>Applicant contact</div>
-              <div className={valueClassName}>{contactPerson.contact || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.contact || "—"}</div>
             </div>
           </section>
         </>
@@ -537,9 +665,12 @@ export function ReviewAndSubmitStep({
 
       {/* Legal docs */}
       {showSupportingDocsSection && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Legal docs</h3>
-          <div className="space-y-3 px-3">
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Legal docs</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+          <div className="space-y-4 px-3">
             {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
               <div key={i} className="flex justify-between items-center py-2">
                 <span className={labelClassName}>{doc.title}</span>

@@ -241,71 +241,63 @@ export function DeclarationsStep({
    * 
    * Left side: Checkboxes with declaration text
    * Right side: Info panel about what happens next
+   * 
+   * Layout: Grid that moves together - declarations and info panel are peers.
+   * When there are more declarations, both grow together proportionally.
    */
 return (
-  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 px-3">
-  {/* ================= LEFT: DECLARATIONS ================= */}
-  <div className="rounded-xl border border-border bg-background p-6">
-    <div className="space-y-5">
-      {declarations.map((declaration: string, index: number) => {
-        const isChecked = checkedDeclarations[index] || false;
+  <div className="px-3">
+    <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+      {/* ================= DECLARATIONS BOX ================= */}
+      <div className="rounded-xl border border-border bg-background p-4 sm:p-5 h-fit">
+        <div className="space-y-4">
+          {declarations.map((declaration: string, index: number) => {
+            const isChecked = checkedDeclarations[index] || false;
 
-        return (
-          <label
-            key={index}
-            className="
-              flex items-start gap-4
-              cursor-pointer
-            "
-          >
-            {/* Checkbox */}
-            <div className="shrink-0">
-              <Checkbox
-                checked={isChecked}
-                onCheckedChange={(checked) =>
-                  handleToggle(index, checked === true)
-                }
-                className="
-                  rounded-sm
-                  border-destructive
-                  data-[state=checked]:bg-destructive
-                  data-[state=checked]:border-destructive
-                "
-              />
-            </div>
+            return (
+              <label
+                key={index}
+                className="flex items-start gap-3 cursor-pointer"
+              >
+                {/* Checkbox */}
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={(checked) =>
+                    handleToggle(index, checked === true)
+                  }
+                  className="mt-0.5 rounded-[4px]"
+                />
 
-            {/* Text */}
-            <span className="text-base leading-6 text-foreground">
-              {declaration}
-            </span>
-          </label>
-        );
-      })}
+                {/* Declaration Text */}
+                <span className="text-sm md:text-base leading-6 text-foreground">
+                  {declaration}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ================= WHAT HAPPENS NEXT ================= */}
+      <div className="rounded-xl border border-border bg-background p-6">
+        <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground mb-3">
+          What happens next?
+        </h3>
+        <div className="mt-2 h-px bg-border" />
+
+        <ul className="list-disc pl-5 space-y-3 text-sm md:text-base leading-6 text-foreground mt-4">
+          <li>After submission, your application will be reviewed by our team.</li>
+          <li>If additional information is required, we will contact you for confirmation.</li>
+          <li>
+            Once approved, your financing request will be listed on the platform for investors.
+          </li>
+        </ul>
+
+        <p className="mt-5 text-xs md:text-sm leading-6 text-muted-foreground">
+          Submitting this application confirms that all declarations provided are accurate and complete.
+        </p>
+      </div>
     </div>
   </div>
-
-  {/* ================= RIGHT: WHAT HAPPENS NEXT ================= */}
-  <div className="rounded-xl border border-border bg-background p-6">
-    <h3 className="text-lg font-semibold text-foreground mb-4">
-      What happens next?
-    </h3>
-    <div className="mt-2 h-px bg-border" />
-
-    <ul className="list-disc pl-5 space-y-3 text-base leading-6 text-foreground">
-      <li>After submission, your application will be reviewed by our team.</li>
-      <li>If additional information is required, we will contact you for confirmation.</li>
-      <li>
-        Once approved, your financing request will be listed on the platform
-        for investors.
-      </li>
-    </ul>
-
-    <p className="mt-5 text-sm leading-6 text-muted-foreground">
-      Submitting this application confirms that all declarations provided are
-      accurate and complete.
-    </p>
-  </div>
-</div>
-
-)
+);
 }
