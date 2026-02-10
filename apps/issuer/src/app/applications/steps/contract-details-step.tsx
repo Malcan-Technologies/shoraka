@@ -679,7 +679,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
           <Label className={labelClassName}>Contract value</Label>
           <div className="h-11 flex items-center">
             <MoneyInput
-              value={formData.contract.value === 0 ? "" : String(formData.contract.value)}
+              value={String(formData.contract.value)}
               onValueChange={(v) => handleInputChange("contract", "value", v)}
               placeholder={`eg. ${formatMoney(5000000)}`}
               prefix="RM"

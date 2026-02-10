@@ -546,7 +546,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
               <div className={formLabelClassName}>Contract value</div>
               <div className={valueClassName}>
-                {application.contract.contract_details?.value
+                RM {application.contract.contract_details?.value != null
                   ? formatMoney(application.contract.contract_details.value)
                   : "—"}
               </div>
@@ -556,7 +556,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 <div className={valueClassName}>
   {isNewContract ? "—" : (
     application.contract.contract_details?.approved_facility != null
-      ? formatMoney(application.contract.contract_details.approved_facility)
+      ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
       : "—"
   )}
 </div>
@@ -572,7 +572,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     !isNewContract && liveAvailableFacility < 0 && "text-destructive"
   )}
 >
-  {isNewContract ? "—" : formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}
+  {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
 </div>
 
  
