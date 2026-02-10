@@ -451,30 +451,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const loadInvoices = async () => {
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        const resp: any = await apiClient.getInvoicesByApplication(applicationId);
-        if (!("success" in resp) || !resp.success) return;
-        
-        const items: any[] = resp.data || [];
-        
-        /**
-         * FILTER INVOICES BY STRUCTURE TYPE
-         *
-         * - invoice_only: only DRAFT (exclude APPROVED, SUBMITTED, REJECTED)
-         * - existing_contract: all except REJECTED
-         * - new_contract: all except REJECTED
-         */
-        const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
-        const filtered = items.filter((it: any) => {
-          // Exclude REJECTED for all structures
-          if (it.status === "REJECTED") return false;
-          
-          // invoice_only: only DRAFT
-          if (isInvoiceOnly && it.status !== "DRAFT") return false;
-          
-          return true;
-        });
-        
-        const mapped: LocalInvoice[] = filtered.map((it) => {
+        const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
+        const contractId = application?.contract_id;
+
+        const toLocalInvoice = (it: any): LocalInvoice => {
           const d = it.details || {};
           return {
             id: it.id,
@@ -492,14 +472,61 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               }
               : null,
           };
-        });
-        
+        };
+
+        let mapped: LocalInvoice[];
+
+        if (isExistingContract && contractId) {
+          /**
+           * EXISTING CONTRACT: Fetch by contract first, then by application
+           * Contract invoices (APPROVED/SUBMITTED) come first
+           * Application invoices exclude APPROVED/SUBMITTED to avoid duplicates
+           */
+          const contractResp: any = await apiClient.getInvoicesByContract(contractId);
+          const contractItems: any[] =
+            "success" in contractResp && contractResp.success
+              ? (contractResp.data || []).filter(
+                (it: any) => it.status === "APPROVED" || it.status === "SUBMITTED"
+              )
+              : [];
+          const contractMapped = contractItems.map(toLocalInvoice);
+
+          const appResp: any = await apiClient.getInvoicesByApplication(applicationId);
+          if (!("success" in appResp) || !appResp.success) {
+            mapped = contractMapped;
+          } else {
+            const appItems: any[] = (appResp.data || []).filter(
+              (it: any) =>
+                it.status !== "REJECTED" &&
+                it.status !== "APPROVED" &&
+                it.status !== "SUBMITTED"
+            );
+            const appMapped = appItems.map(toLocalInvoice);
+            mapped = [...contractMapped, ...appMapped];
+          }
+        } else {
+          /**
+           * INVOICE_ONLY / NEW_CONTRACT: Single fetch by application
+           */
+          const resp: any = await apiClient.getInvoicesByApplication(applicationId);
+          if (!("success" in resp) || !resp.success) return;
+
+          const items: any[] = resp.data || [];
+          const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
+          const filtered = items.filter((it: any) => {
+            if (it.status === "REJECTED") return false;
+            if (isInvoiceOnly && it.status !== "DRAFT") return false;
+            return true;
+          });
+          mapped = filtered.map(toLocalInvoice);
+        }
+
         const baseline: Record<string, LocalInvoice> = {};
         mapped.forEach((inv) => {
           baseline[inv.id] = inv;
         });
         setInitialInvoices(baseline);
-        
+
         if (mounted) {
           setInvoices(mapped);
           const keys: Record<string, string> = {};
@@ -519,7 +546,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicationId, application?.financing_structure?.structure_type]);
+  }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
