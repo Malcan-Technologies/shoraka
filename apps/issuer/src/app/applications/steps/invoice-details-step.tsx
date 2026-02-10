@@ -142,8 +142,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
   const isRowPartial = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return false;
+    /**
+     * CHECK PARTIAL DATA
+     *
+     * 0 is considered valid user input, not empty
+     * A row is partial if some fields are filled but not all 4
+     */
     const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = inv.value !== "" && Number(inv.value) > 0;
+    const hasValue = inv.value !== ""; // 0 is valid, empty string is not
     const hasDate = Boolean(String(inv.maturity_date).trim());
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
     const filledCount = [hasNumber, hasValue, hasDate, hasDocument].filter(Boolean).length;
@@ -152,8 +158,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
   const validateRow = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return true;
+    /**
+     * VALIDATE COMPLETE ROW
+     *
+     * All 4 fields must be filled:
+     * - number: non-empty string
+     * - value: non-empty (0 is valid, empty string is not)
+     * - maturity_date: non-empty string
+     * - document: file attached
+     */
     const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = inv.value !== "" && Number(inv.value) > 0;
+    const hasValue = inv.value !== ""; // 0 is valid, empty string is not
     const hasDate = Boolean(String(inv.maturity_date).trim());
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
     return hasNumber && hasValue && hasDate && hasDocument;
