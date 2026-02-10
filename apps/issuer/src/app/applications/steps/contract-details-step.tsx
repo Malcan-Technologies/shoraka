@@ -25,7 +25,7 @@ import {
   formSelectTriggerClassName,
   formTextareaClassName,
 } from "@/app/applications/components/form-control";
-import { formatMoney } from "../components/money";
+import { formatMoney, parseMoney } from "../components/money";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -500,15 +500,9 @@ if (isEndDateTooSoon(formData.contract.end_date)) {
     }
 
     // Convert values to numbers
-    const valueNum =
-      typeof updatedFormData.contract.value === "string"
-        ? parseFloat((updatedFormData.contract.value as string).replace(/[^0-9.]/g, "")) || 0
-        : (updatedFormData.contract.value as number);
+    const valueNum = parseMoney(updatedFormData.contract.value);
+const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facility);
 
-    const utilizedFacilityNum =
-      typeof updatedFormData.contract.utilized_facility === "string"
-        ? parseFloat((updatedFormData.contract.utilized_facility as string).replace(/[^0-9.]/g, "")) || 0
-        : (updatedFormData.contract.utilized_facility as number);
 
     // For now, approved_facility is 0 until admin approves
     // available_facility should be initialized to contract value (this is the single source of truth)

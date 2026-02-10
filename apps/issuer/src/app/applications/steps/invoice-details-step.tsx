@@ -24,6 +24,7 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { formLabelClassName } from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
+import { formatMoney, parseMoney } from "../components/money";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -67,7 +68,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           setApplication(resp.data);
         }
       } catch (err) {
-        
+
       }
     };
     loadApplication();
@@ -189,7 +190,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   };
 
   const applicationFinancingAmount = invoices.reduce((acc, inv) => {
-    const value = inv.value === "" ? 0 : Number(inv.value);
+
+    const value = parseMoney(inv.value);
+
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
@@ -199,19 +202,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const approvedFacility = application?.contract?.contract_details?.approved_facility || 0;
   const contractValue = application?.contract?.contract_details?.value || 0;
 
-  const formatRM = (n: number) =>
-    `RM ${n.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
 
   const structureType = application?.financing_structure?.structure_type;
   let facilityLimit = 0;
   if (structureType === "new_contract") {
-    facilityLimit = Number(contractValue || 0);
+    facilityLimit = parseMoney(contractValue);
   }
   if (structureType === "existing_contract") {
-    facilityLimit = Number(approvedFacility || 0);
+    facilityLimit = parseMoney(approvedFacility);
   }
 
   const liveAvailableFacility = facilityLimit - totalFinancingAmount;
@@ -243,7 +241,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       validationError = "Financing ratio must be between 60% and 80%.";
     }
     if (!validationError && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (${formatRM(totalFinancingAmount)}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+      validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
     }
   }
 
@@ -279,7 +277,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           applicationId,
           details: {
             number: inv.number,
-            value: Number(inv.value),
+            value: parseMoney(inv.value),
             maturity_date: inv.maturity_date,
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
@@ -309,7 +307,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
          */
         const updatePayload: any = {
           number: inv.number,
-          value: Number(inv.value),
+          value: parseMoney(inv.value),
           maturity_date: inv.maturity_date,
           financing_ratio_percent: inv.financing_ratio_percent || 60,
         };
@@ -436,7 +434,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             isPersisted: true,
             number: d.number || "",
             status: it.status || "DRAFT",
-            value: typeof d.value === "number" ? d.value.toFixed(2) : d.value ? Number(d.value).toFixed(2) : "",
+            value: d.value != null ? formatMoney(d.value) : "",
             maturity_date: d.maturity_date || "",
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
@@ -544,14 +542,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <div className={formLabelClassName}>Contract value</div>
               <div className={valueClassName}>
                 {application.contract.contract_details?.value
-                  ? formatRM(Number(application.contract.contract_details.value))
+                  ? formatMoney(application.contract.contract_details.value)
                   : "—"}
               </div>
 
               <div className={formLabelClassName}>Approved facility</div>
               <div className={valueClassName}>
                 {application.contract.contract_details?.approved_facility != null
-                  ? formatRM(Number(application.contract.contract_details.approved_facility))
+                  ? formatMoney(application.contract.contract_details.approved_facility)
                   : "—"}
               </div>
 
@@ -562,7 +560,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   liveAvailableFacility < 0 && "text-destructive"
                 )}
               >
-                {formatRM(Math.max(liveAvailableFacility ?? 0, 0))}
+                {formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}
                 {!approvedFacility && (
                   <div className="text-xs text-muted-foreground mt-1">
                     * Subject to credit approval
@@ -636,7 +634,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   {/* APPLICATION INVOICES */}
                   {invoices.map((inv) => {
                     const ratio = inv.financing_ratio_percent || 60;
-                    const value = Number(inv.value || 0);
+                    const value = parseMoney(inv.value);
                     const financingAmount = value * (ratio / 100);
                     const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
                     const isEditable = inv.status === "DRAFT" || !inv.status;
@@ -702,7 +700,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 updateInvoiceField(
                                   inv.id,
                                   "value",
-                                  Number(inv.value).toFixed(2)
+                                  formatMoney(inv.value)
                                 );
                               }
                             }}
@@ -758,7 +756,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </TableCell>
 
                         <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                          {formatRM(financingAmount)}
+                          {formatMoney(financingAmount)}
                         </TableCell>
 
                         <TableCell className="p-2">
@@ -837,7 +835,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   <TableRow className="bg-muted/10">
                     <TableCell colSpan={5} />
                     <TableCell className="p-2 font-semibold text-xs">
-                      {formatRM(totalFinancingAmount)}
+                      {formatMoney(totalFinancingAmount)}
                       <div className="text-xs text-muted-foreground font-normal">Total</div>
                     </TableCell>
                     <TableCell colSpan={2} />

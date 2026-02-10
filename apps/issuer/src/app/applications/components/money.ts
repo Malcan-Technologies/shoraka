@@ -19,10 +19,16 @@ export function formatMoney(value: number | string) {
 }
 
 /**
- * Parse a formatted money string back into a number.
- * Use before calculations or API calls if needed.
+ * Parse a numeric string OR number into a clean number.
+ * Use before calculations or API calls.
  */
-export function parseMoney(value: string) {
-  const num = Number(value.replace(/,/g, ""));
+export function parseMoney(value: string | number) {
+  if (value === "" || value === null || value === undefined) return 0;
+
+  const num =
+    typeof value === "string"
+      ? Number(value.replace(/,/g, ""))
+      : value;
+
   return Number.isNaN(num) ? 0 : num;
 }
