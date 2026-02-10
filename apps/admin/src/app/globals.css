@@ -117,11 +117,11 @@
   }
 }
 
-/* Override base p/li size inside onboarding/AML instruction blocks so steps render smaller */
+/* Override base p/li size inside onboarding/AML instruction blocks to match CardDescription */
 .instruction-steps ol li,
 .instruction-steps p.instruction-conclusion {
-  font-size: 15px;
-  line-height: 15px;
+  font-size: 0.875rem;
+  line-height: 1.625;
 }
 
 /* CashSouk Admin Portal Theme */
