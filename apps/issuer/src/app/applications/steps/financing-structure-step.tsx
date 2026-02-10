@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
-import { useApprovedContracts, useCreateContract } from "@/hooks/use-contracts";
+import { useApprovedContracts } from "@/hooks/use-contracts";
 import {
   Select,
   SelectContent,
@@ -114,8 +114,6 @@ export function FinancingStructureStep({
   /**
    * NOTIFY PARENT WHEN DATA CHANGES
    */
-  const createContractMutation = useCreateContract();
-
   React.useEffect(() => {
 
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -144,15 +142,6 @@ export function FinancingStructureStep({
       selectedStructure !== null &&
       (selectedStructure !== "existing_contract" || selectedContractId !== "");
 
-    // Save function: create contract when user selected "new_contract"
-    const saveFunction = async () => {
-      if (selectedStructure === "new_contract") {
-        await createContractMutation.mutateAsync(applicationId);
-        return null;
-      }
-      return null;
-    };
-
     const savedStructure = application?.financing_structure as any;
 
   // Check if user made changes from what's in DB
@@ -173,13 +162,11 @@ export function FinancingStructureStep({
       ...dataToSave,
       ...additionalData,
       isValid,
-      saveFunction,
       hasPendingChanges,
       structureChanged,
-      isCreatingContract: createContractMutation.isPending,
     });
 
-  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, createContractMutation.isPending, applicationId, createContractMutation, application]);
+  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
 
   /**
    * Handle structure type selection

@@ -513,7 +513,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
     const isCurrentStepValid =
-      !!contractId &&
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
