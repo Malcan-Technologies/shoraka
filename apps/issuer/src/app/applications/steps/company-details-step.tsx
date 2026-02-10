@@ -1051,66 +1051,66 @@ function EditAddressDialog({
             <h4 className="text-base font-semibold">Business address</h4>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="business-line1" className="text-sm font-medium">Address line 1</Label>
+                <Label htmlFor="business-line1" className={formLabelClassName}>Address line 1</Label>
                 <Input
                   id="business-line1"
                   value={businessAddress.line1}
                   onChange={(e) => updateBusinessAddress("line1", e.target.value)}
                   placeholder="Street Address"
-                  className="h-11 rounded-xl"
+                  className={formInputClassName}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="business-line2" className="text-sm font-medium">Address line 2</Label>
+                <Label htmlFor="business-line2" className={formLabelClassName}>Address line 2</Label>
                 <Input
                   id="business-line2"
                   value={businessAddress.line2}
                   onChange={(e) => updateBusinessAddress("line2", e.target.value)}
                   placeholder="Apartment, suite, etc. (optional)"
-                  className="h-11 rounded-xl"
+                  className={formInputClassName}
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="business-city" className="text-sm font-medium">City</Label>
+                  <Label htmlFor="business-city" className={formLabelClassName}>City</Label>
                   <Input
                     id="business-city"
                     value={businessAddress.city}
                     onChange={(e) => updateBusinessAddress("city", e.target.value)}
                     placeholder="Enter city"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="business-postal-code" className="text-sm font-medium">Postal code</Label>
+                  <Label htmlFor="business-postal-code" className={formLabelClassName}>Postal code</Label>
                   <Input
                     id="business-postal-code"
                     value={businessAddress.postalCode}
                     onChange={(e) => updateBusinessAddress("postalCode", restrictDigitsOnly(e.target.value))}
                     placeholder="Enter postal code (numbers only)"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="business-state" className="text-sm font-medium">State</Label>
+                  <Label htmlFor="business-state" className={formLabelClassName}>State</Label>
                   <Input
                     id="business-state"
                     value={businessAddress.state}
                     onChange={(e) => updateBusinessAddress("state", e.target.value)}
                     placeholder="Enter state"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="business-country" className="text-sm font-medium">Country</Label>
+                  <Label htmlFor="business-country" className={formLabelClassName}>Country</Label>
                   <Input
                     id="business-country"
                     value={businessAddress.country}
                     onChange={(e) => updateBusinessAddress("country", e.target.value)}
                     placeholder="Enter country"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
               </div>
@@ -1125,7 +1125,7 @@ function EditAddressDialog({
                   checked={registeredAddressSameAsBusiness}
                   onCheckedChange={(checked) => setRegisteredAddressSameAsBusiness(checked === true)}
                 />
-                <Label htmlFor="registered-same-as-business" className="text-sm font-medium cursor-pointer">
+                <Label htmlFor="registered-same-as-business" className={formLabelClassName}>
                   Same as business address
                 </Label>
               </div>
@@ -1133,66 +1133,66 @@ function EditAddressDialog({
             {!registeredAddressSameAsBusiness && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="registered-line1" className="text-sm font-medium">Address line 1</Label>
+                  <Label htmlFor="registered-line1" className={formLabelClassName}>Address line 1</Label>
                   <Input
                     id="registered-line1"
                     value={registeredAddress.line1}
                     onChange={(e) => updateRegisteredAddress("line1", e.target.value)}
                     placeholder="Street Address"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="registered-line2" className="text-sm font-medium">Address line 2</Label>
+                  <Label htmlFor="registered-line2" className={formLabelClassName}>Address line 2</Label>
                   <Input
                     id="registered-line2"
                     value={registeredAddress.line2}
                     onChange={(e) => updateRegisteredAddress("line2", e.target.value)}
                     placeholder="Apartment, suite, etc. (optional)"
-                    className="h-11 rounded-xl"
+                    className={formInputClassName}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="registered-city" className="text-sm font-medium">City</Label>
+                    <Label htmlFor="registered-city" className={formLabelClassName}>City</Label>
                     <Input
                       id="registered-city"
                       value={registeredAddress.city}
                       onChange={(e) => updateRegisteredAddress("city", e.target.value)}
                       placeholder="Enter city"
-                      className="h-11 rounded-xl"
+                      className={formInputClassName}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registered-postal-code" className="text-sm font-medium">Postal code</Label>
+                    <Label htmlFor="registered-postal-code" className={formLabelClassName}>Postal code</Label>
                     <Input
                       id="registered-postal-code"
                       value={registeredAddress.postalCode}
                       onChange={(e) => updateRegisteredAddress("postalCode", restrictDigitsOnly(e.target.value))}
                       placeholder="Enter postal code (numbers only)"
-                      className="h-11 rounded-xl"
+                      className={formInputClassName}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="registered-state" className="text-sm font-medium">State</Label>
+                    <Label htmlFor="registered-state" className={formLabelClassName}>State</Label>
                     <Input
                       id="registered-state"
                       value={registeredAddress.state}
                       onChange={(e) => updateRegisteredAddress("state", e.target.value)}
                       placeholder="Enter state"
-                      className="h-11 rounded-xl"
+                      className={formInputClassName}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registered-country" className="text-sm font-medium">Country</Label>
+                    <Label htmlFor="registered-country" className={formLabelClassName}>Country</Label>
                     <Input
                       id="registered-country"
                       value={registeredAddress.country}
                       onChange={(e) => updateRegisteredAddress("country", e.target.value)}
                       placeholder="Enter country"
-                      className="h-11 rounded-xl"
+                      className={formInputClassName}
                     />
                   </div>
                 </div>

@@ -439,25 +439,16 @@ export function ReviewAndSubmitStep({
                           </TableRow>
                         );
                       })}
-                    </TableBody>
+                    <TableRow className="bg-muted/10">
+                      <TableCell colSpan={5} />
+                      <TableCell className="p-2 font-semibold text-xs">
+                        {formatCurrency(totalFinancingAmount)}
+                        <div className="text-xs text-muted-foreground font-normal">Total</div>
+                      </TableCell>
+                      <TableCell colSpan={2} />
+                    </TableRow>
+                  </TableBody>
                   </Table>
-                </div>
-
-                {/* Total Row */}
-                <div className="grid grid-cols-[140px_90px_130px_120px_180px_130px_140px_50px] gap-4 px-4 py-3 bg-muted/20 border-t">
-                  <div />
-                  <div />
-                  <div />
-                  <div />
-                  <div />
-                  <div className="text-left">
-                    <div className={valueClassName}>
-                      {formatCurrency(totalFinancingAmount)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total financing amount</div>
-                  </div>
-                  <div />
-                  <div />
                 </div>
               </>
             )}
