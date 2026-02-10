@@ -8,6 +8,7 @@ import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { useS3ViewUrl } from "@/hooks/use-s3";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
@@ -37,10 +38,15 @@ interface ReviewAndSubmitStepProps {
   onDataChange?: (data: any) => void;
 }
 
+/**
+ * REUSED STYLES FROM STEPS
+ * Matching: business-details-step, contract-details-step patterns
+ */
 const labelClassName = "text-sm md:text-base leading-6 text-muted-foreground";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-6 gap-y-4 mt-4 px-3";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionSpacingClassName = "space-y-6";
 
 export function ReviewAndSubmitStep({
   applicationId,
@@ -257,9 +263,9 @@ export function ReviewAndSubmitStep({
   };
 
   const formatAddress = (addr: any) => {
-    if (!addr) return "--------";
+    if (!addr) return "—";
     const parts = [addr.line1, addr.line2, addr.city, addr.postalCode, addr.state, addr.country].filter(Boolean);
-    return parts.length ? parts.join(", ") : "--------";
+    return parts.length ? parts.join(", ") : "—";
   };
 
   // Extract data for sections (only if sections are shown)
@@ -279,32 +285,35 @@ export function ReviewAndSubmitStep({
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Financing details */}
       {showFinancingDetails && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Financing details</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Financing details</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
 
           {financingTypeConfig ? (
             <SelectionCard
               title={financingTypeConfig.name}
               description={financingTypeConfig.description}
-              isSelected
+              isSelected={false}
               onClick={() => {}}
               className="cursor-default"
               leading={
                 <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
-                  {isLoadingProductImage ? (
-                    <Skeleton className="h-full w-full rounded-md" />
-                  ) : productImageUrl ? (
-                    <img
-                      src={productImageUrl}
-                      alt={financingTypeConfig.name || "Product"}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                      Image
-                      <br />
-                      512x512
-                    </div>
+                    {isLoadingProductImage ? (
+                      <Skeleton className="h-full w-full rounded-md" />
+                    ) : productImageUrl ? (
+                      <img
+                        src={productImageUrl}
+                        alt={financingTypeConfig.name || "Product"}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+                        Image
+                        <br />
+                        512x512
+                      </div>
                   )}
                 </div>
               }
@@ -319,38 +328,41 @@ export function ReviewAndSubmitStep({
 
       {/* Contract */}
       {showContractSection && contractId && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Contract</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Contract</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
           <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
-            <div className={valueClassName}>{contractDetails.title || "--------"}</div>
+            <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
             <div className={labelClassName}>Contract status</div>
             <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
 
             <div className={labelClassName}>Customer</div>
-            <div className={valueClassName}>{customerDetails.name || "--------"}</div>
+            <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
             <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>{contractDetails.value ? formatCurrency(contractDetails.value) : "--------"}</div>
+            <div className={valueClassName}>{contractDetails.value ? formatCurrency(contractDetails.value) : "—"}</div>
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "--------"}
+              {approvedFacility > 0 ? formatCurrency(approvedFacility) : "—"}
             </div>
 
             <div className={labelClassName}>Utilised facility</div>
             <div className={valueClassName}>
               {structureType === "existing_contract"
                 ? formatCurrency(totalFinancingAmount)
-                : "--------"}
+                : "—"}
             </div>
 
             <div className={labelClassName}>Available facility</div>
             <div className={valueClassName}>
               {structureType === "existing_contract" && calculatedAvailableFacility > 0
                 ? formatCurrency(calculatedAvailableFacility)
-                : "--------"}
+                : "—"}
             </div>
           </div>
         </section>
@@ -358,8 +370,11 @@ export function ReviewAndSubmitStep({
 
       {/* Invoices */}
       {showInvoiceSection && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Invoices</h3>
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Invoices</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
           <p className="text-sm text-muted-foreground">
             You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
           </p>
@@ -371,58 +386,78 @@ export function ReviewAndSubmitStep({
               </div>
             ) : (
               <>
-                {/* Table Header */}
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b bg-muted/30">
-                  <div className="text-sm font-medium text-muted-foreground">Invoice</div>
-                  <div className="text-sm font-medium text-muted-foreground">Invoice value (RM)</div>
-                  <div className="text-sm font-medium text-muted-foreground">Maturity date</div>
-                  <div className="text-sm font-medium text-muted-foreground">Maximum financing amount(RM)</div>
-                  <div className="text-sm font-medium text-muted-foreground w-[140px]">Documents</div>
-                </div>
-                {/* Table Rows */}
-                {invoices.map((invoice: any) => {
-                  const details = invoice.details || {};
-                  const invoiceValue = Number(details.value || 0);
-                  const ratio = (details.financing_ratio_percent ?? 60) / 100;
-                  const maxFinancing = invoiceValue * ratio;
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <Table className="table-fixed w-full">
+                    <TableHeader className="bg-muted/20">
+                      <TableRow>
+                        <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Invoice</TableHead>
+                        <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold">Status</TableHead>
+                        <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Maturity date</TableHead>
+                        <TableHead className="w-[120px] whitespace-nowrap text-xs font-semibold">Value</TableHead>
+                        <TableHead className="w-[180px] whitespace-nowrap text-xs font-semibold">Ratio</TableHead>
+                        <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Amount</TableHead>
+                        <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Document</TableHead>
+                        <TableHead className="w-[50px]" />
+                      </TableRow>
+                    </TableHeader>
 
-                  return (
-                    <div key={invoice.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b last:border-b-0">
-                      <div className={valueClassName}>#{details.number || "—"}</div>
-                      <div className={valueClassName}>
-                        {invoiceValue > 0 ? formatCurrency(invoiceValue) : "—"}
-                      </div>
-                      <div className={valueClassName}>{formatDate(details.maturity_date)}</div>
-                      <div className={valueClassName}>
-                        {maxFinancing > 0 ? formatCurrency(maxFinancing) : "—"}
-                      </div>
-                      <div className="w-[140px]">
-                        {details.document?.file_name ? (
-                          <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                            <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                              <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                            </div>
-                            <span className="text-[14px] font-medium truncate">{details.document.file_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    <TableBody>
+                      {invoices.map((invoice: any) => {
+                        const details = invoice.details || {};
+                        const invoiceValue = Number(details.value || 0);
+                        const ratio = (details.financing_ratio_percent ?? 60);
+                        const maxFinancing = invoiceValue * (ratio / 100);
+
+                        return (
+                          <TableRow key={invoice.id}>
+                            <TableCell className="p-2 text-xs whitespace-nowrap">#{details.number || "—"}</TableCell>
+                            <TableCell className="p-2 text-xs">
+                              {invoice.status ? <span className="text-muted-foreground">{invoice.status}</span> : "—"}
+                            </TableCell>
+                            <TableCell className="p-2 text-xs whitespace-nowrap">{formatDate(details.maturity_date)}</TableCell>
+                            <TableCell className="p-2 text-xs whitespace-nowrap">
+                              {invoiceValue > 0 ? formatCurrency(invoiceValue) : "—"}
+                            </TableCell>
+                            <TableCell className="p-2 text-xs whitespace-nowrap">{ratio}%</TableCell>
+                            <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                              {maxFinancing > 0 ? formatCurrency(maxFinancing) : "—"}
+                            </TableCell>
+                            <TableCell className="p-2 text-xs truncate max-w-[120px]">
+                              {details.document?.file_name ? (
+                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                                  <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                    <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                  </div>
+                                  <span className="text-[14px] font-medium truncate max-w-[100px]">{details.document.file_name}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="p-2" />
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
                 {/* Total Row */}
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-muted/20">
-                  <div></div>
-                  <div></div>
-                  <div></div>
+                <div className="grid grid-cols-[140px_90px_130px_120px_180px_130px_140px_50px] gap-4 px-4 py-3 bg-muted/20 border-t">
+                  <div />
+                  <div />
+                  <div />
+                  <div />
+                  <div />
                   <div className="text-left">
                     <div className={valueClassName}>
                       {formatCurrency(totalFinancingAmount)}
                     </div>
                     <div className="text-xs text-muted-foreground">Total financing amount</div>
                   </div>
-                  <div className="w-[140px]"></div>
+                  <div />
+                  <div />
                 </div>
               </>
             )}
@@ -433,32 +468,38 @@ export function ReviewAndSubmitStep({
       {/* Company Info */}
       {showCompanySection && (
         <>
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Company info</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Company info</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Company name</div>
-              <div className={valueClassName}>{basicInfo?.businessName || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
               <div className={labelClassName}>Type of entity</div>
-              <div className={valueClassName}>{basicInfo?.entityType || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
 
               <div className={labelClassName}>SSM no</div>
-              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
 
               <div className={labelClassName}>Industry</div>
-              <div className={valueClassName}>{basicInfo?.industry || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
 
               <div className={labelClassName}>Nature of business</div>
               <div className={valueClassName}>Private</div>
 
               <div className={labelClassName}>Number of employees</div>
-              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "--------"}</div>
+              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
             </div>
           </section>
 
           {/* Director & Shareholders */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             {combinedList.length === 0 ? (
               <div className="text-sm text-muted-foreground px-3">
                 No directors or shareholders found
@@ -468,8 +509,8 @@ export function ReviewAndSubmitStep({
                 {combinedList.map((item: any) => (
                   <React.Fragment key={item.key}>
                     <div className={labelClassName}>{item.roleLabel}</div>
-                    <div className="flex items-center gap-3 h-11">
-                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap truncate">
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
                         {item.name}
                       </div>
                       <div className="h-4 w-px bg-border" />
@@ -495,20 +536,26 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Banking details */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Banking details</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Banking details</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Bank name</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "--------"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
               <div className={labelClassName}>Bank account number</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "--------"}</div>
+              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
             </div>
           </section>
 
           {/* Address */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Address</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Address</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Business address</div>
               <div className={valueClassName}>{formatAddress(businessAddress)}</div>
@@ -519,20 +566,23 @@ export function ReviewAndSubmitStep({
           </section>
 
           {/* Contact Person */}
-          <section className="space-y-6">
-            <h3 className={sectionHeaderClassName}>Contact Person</h3>
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Contact Person</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
             <div className={gridClassName}>
               <div className={labelClassName}>Applicant name</div>
-              <div className={valueClassName}>{contactPerson.name || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
               <div className={labelClassName}>Applicant position</div>
-              <div className={valueClassName}>{contactPerson.position || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.position || "—"}</div>
 
               <div className={labelClassName}>Applicant IC no</div>
-              <div className={valueClassName}>{contactPerson.ic || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.ic || "—"}</div>
 
               <div className={labelClassName}>Applicant contact</div>
-              <div className={valueClassName}>{contactPerson.contact || "--------"}</div>
+              <div className={valueClassName}>{contactPerson.contact || "—"}</div>
             </div>
           </section>
         </>
@@ -540,9 +590,12 @@ export function ReviewAndSubmitStep({
 
       {/* Legal docs */}
       {showSupportingDocsSection && (
-        <section className="space-y-6">
-          <h3 className={sectionHeaderClassName}>Legal docs</h3>
-          <div className="space-y-3 px-3">
+        <section className={sectionSpacingClassName}>
+          <div>
+            <h3 className={sectionHeaderClassName}>Legal docs</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+          <div className="space-y-4 px-3">
             {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
               <div key={i} className="flex justify-between items-center py-2">
                 <span className={labelClassName}>{doc.title}</span>

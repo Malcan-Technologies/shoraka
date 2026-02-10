@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -236,72 +235,53 @@ export function FinancingStructureStep({
    */
   return (
     <div className="px-3">
-      <RadioGroup
-        value={selectedStructure ?? ""}
-        onValueChange={(v) => handleStructureSelect(v as FinancingStructureType)}
-        className="space-y-4"
-      >
-      {/* Option 1: Submit a new contract */}
-      <SelectionCard
-        title="Submit a new contract"
-        description="My invoice is under a contract that hasn't been approved by Cashsouk"
-        isSelected={selectedStructure === "new_contract"}
-        onClick={() => handleStructureSelect("new_contract")}
-        leading={
-          <div className="mt-1.5">
-            <RadioGroupItem value="new_contract" id="fs-new_contract" className="h-4 w-4 rounded-full border" />
-          </div>
-        }
-      />
+      <div className="space-y-4">
+        {/* Option 1: Submit a new contract */}
+        <SelectionCard
+          title="Submit a new contract"
+          description="My invoice is under a contract that hasn't been approved by Cashsouk"
+          isSelected={selectedStructure === "new_contract"}
+          onClick={() => handleStructureSelect("new_contract")}
+        />
 
-      {/* Option 2: Use an existing contract */}
-      <SelectionCard
-        title="Use an existing contract"
-        description="My invoice is under a contract already approved by Cashsouk"
-        isSelected={selectedStructure === "existing_contract"}
-        onClick={() => handleStructureSelect("existing_contract")}
-        leading={
-          <div className="mt-1.5">
-            <RadioGroupItem value="existing_contract" id="fs-existing_contract" className="h-4 w-4 rounded-full border" />
-          </div>
-        }
-        trailing={
-          <Select value={selectedContractId} onValueChange={handleContractSelect}>
-            <SelectTrigger
-              className="h-11 w-[280px] rounded-xl border border-input bg-background text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (selectedStructure !== "existing_contract") {
-                  handleStructureSelect("existing_contract");
-                }
-              }}
-            >
-              <SelectValue placeholder="Select an existing contract" />
-            </SelectTrigger>
-            <SelectContent>
-              {approvedContracts.map((contract: any) => (
-                <SelectItem key={contract.id} value={contract.id}>
-                  {(contract.contract_details as any)?.title || "Untitled Contract"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
-      />
+        {/* Option 2: Use an existing contract */}
+        <SelectionCard
+          title="Use an existing contract"
+          description="My invoice is under a contract already approved by Cashsouk"
+          isSelected={selectedStructure === "existing_contract"}
+          onClick={() => handleStructureSelect("existing_contract")}
+          trailing={
+            <Select value={selectedContractId} onValueChange={handleContractSelect}>
+              <SelectTrigger
+                className="h-11 w-[280px] rounded-xl border border-input bg-background text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (selectedStructure !== "existing_contract") {
+                    handleStructureSelect("existing_contract");
+                  }
+                }}
+              >
+                <SelectValue placeholder="Select an existing contract" />
+              </SelectTrigger>
+              <SelectContent>
+                {approvedContracts.map((contract: any) => (
+                  <SelectItem key={contract.id} value={contract.id}>
+                    {(contract.contract_details as any)?.title || "Untitled Contract"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
 
-      {/* Option 3: Invoice-only financing */}
-      <SelectionCard
-        title="Invoice-only financing"
-        description="I want to finance my invoice(s) without a contract"
-        isSelected={selectedStructure === "invoice_only"}
-        onClick={() => handleStructureSelect("invoice_only")}
-        leading={
-          <div className="mt-1.5">
-            <RadioGroupItem value="invoice_only" id="fs-invoice_only" className="h-4 w-4 rounded-full border" />
-          </div>
-        }
-      />
-      </RadioGroup>
+        {/* Option 3: Invoice-only financing */}
+        <SelectionCard
+          title="Invoice-only financing"
+          description="I want to finance my invoice(s) without a contract"
+          isSelected={selectedStructure === "invoice_only"}
+          onClick={() => handleStructureSelect("invoice_only")}
+        />
+      </div>
     </div>
   );
 }
