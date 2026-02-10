@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
@@ -207,12 +206,65 @@ const formOuterClassName =
 /**
  * Radio labels
  */
-/** Render blocks
- *
- * What: Canonical yes/no radio group.
- * Why: Replace custom radios so all steps match the same radio behavior and visuals.
- * Data: `value` is `"yes" | "no" | ""`; `onValueChange` emits `"yes" | "no"`.
- */
+const radioSelectedLabel =
+  "text-sm md:text-base text-foreground";
+
+const radioUnselectedLabel =
+  "text-sm md:text-base text-muted-foreground";
+
+function CustomRadio({
+  name,
+  value,
+  checked,
+  onChange,
+  label,
+  selectedLabelClass,
+  unselectedLabelClass,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  selectedLabelClass: string;
+  unselectedLabelClass: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          onChange={onChange}
+          className="sr-only"
+          aria-hidden
+        />
+        <span
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
+            checked
+              ? "bg-primary"
+              : "border-2 border-muted-foreground/50 bg-muted/30"
+          }`}
+          aria-hidden
+        >
+          {checked && (
+            <span className="absolute inset-1 rounded-full bg-white" aria-hidden />
+          )}
+          {!checked && (
+            <span
+              className="absolute inset-1.5 rounded-full bg-muted-foreground/40"
+              aria-hidden
+            />
+          )}
+        </span>
+      </span>
+      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
+    </label>
+  );
+}
+
 function YesNoRadioGroup({
   value,
   onValueChange,
@@ -223,30 +275,26 @@ function YesNoRadioGroup({
   name: string;
 }) {
   return (
-    <RadioGroup
-      value={value}
-      onValueChange={(v) => onValueChange(v as YesNo)}
-      className="flex items-center gap-6 h-11"
-    >
-      <div className="flex items-center gap-2">
-        <RadioGroupItem value="yes" id={`${name}-yes`} />
-        <Label
-          htmlFor={`${name}-yes`}
-          className={cn(formLabelClassName, "cursor-pointer")}
-        >
-          Yes
-        </Label>
-      </div>
-      <div className="flex items-center gap-2">
-        <RadioGroupItem value="no" id={`${name}-no`} />
-        <Label
-          htmlFor={`${name}-no`}
-          className={cn(formLabelClassName, "cursor-pointer")}
-        >
-          No
-        </Label>
-      </div>
-    </RadioGroup>
+    <div className="flex gap-6 items-center">
+      <CustomRadio
+        name={name}
+        value="yes"
+        checked={value === "yes"}
+        onChange={() => onValueChange("yes")}
+        label="Yes"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+      />
+      <CustomRadio
+        name={name}
+        value="no"
+        checked={value === "no"}
+        onChange={() => onValueChange("no")}
+        label="No"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+      />
+    </div>
   );
 }
 
