@@ -173,7 +173,7 @@ const sectionHeaderClassName =
  * Why: Keep typography consistent while maintaining the left-column alignment used in screenshots.
  * Data: Shared label typography + step-specific alignment utilities.
  */
-const labelClassName = formLabelClassName;
+const labelClassName = cn(formLabelClassName, "font-normal");
 
 /**
  * Inputs

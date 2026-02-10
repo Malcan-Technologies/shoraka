@@ -565,7 +565,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * Data: Imported from local shared module under `apps/issuer`.
    */
   const inputClassName = formInputClassName;
-  const labelClassName = formLabelClassName;
+  const labelClassName = cn(formLabelClassName, "font-normal");
   const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 

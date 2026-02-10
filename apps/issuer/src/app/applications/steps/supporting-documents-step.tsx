@@ -532,7 +532,7 @@ export function SupportingDocumentsStep({
                     return (
                       <React.Fragment key={documentIndex}>
                         {/* Document title */}
-                        <div className="text-[16px] leading-[22px] text-muted-foreground">
+                        <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
                         </div>
 
