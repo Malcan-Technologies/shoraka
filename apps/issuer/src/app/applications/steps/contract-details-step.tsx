@@ -194,7 +194,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       title: "",
       description: "",
       number: "",
-      value: 0 as number | string,
+      value: "" as string,
       start_date: "",
       end_date: "",
       approved_facility: 0 as number | string,
@@ -285,7 +285,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           title: "",
           description: "",
           number: "",
-          value: 0,
+          value: "",
           start_date: "",
           end_date: "",
           approved_facility: 0,
@@ -313,7 +313,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         title: contractDetails.title || "",
         description: contractDetails.description || "",
         number: contractDetails.number || "",
-        value: contractDetails.value || 0,
+        value: contractDetails.value != null ? formatMoney(contractDetails.value) : "",
         start_date: contractDetails.start_date || "",
         end_date: contractDetails.end_date || "",
         approved_facility: contractDetails.approved_facility || 0,
@@ -535,7 +535,10 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
     setPendingFiles({});
     // Reflect saved values in local form state so hasPendingChanges becomes false immediately
     const newFormState = {
-      contract: updatedContractDetails,
+      contract: {
+        ...updatedContractDetails,
+        value: formatMoney(updatedContractDetails.value),
+      },
       customer: updatedFormData.customer,
     };
     setFormData(newFormState);
@@ -565,7 +568,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
-      (formData.contract.value !== "" && formData.contract.value !== 0) &&
+      !!formData.contract.value &&
       !!formData.contract.start_date &&
       !!formData.contract.end_date &&
       hasContractDocument &&
@@ -679,7 +682,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
           <Label className={labelClassName}>Contract value</Label>
           <div className="h-11 flex items-center">
             <MoneyInput
-              value={String(formData.contract.value)}
+              value={formData.contract.value}
               onValueChange={(v) => handleInputChange("contract", "value", v)}
               placeholder={`eg. ${formatMoney(5000000)}`}
               prefix="RM"
