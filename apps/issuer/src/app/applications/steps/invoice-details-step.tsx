@@ -540,13 +540,34 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               <Table className="table-fixed w-full">
                 <TableHeader className="bg-muted/20">
                   <TableRow>
-                    <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Invoice</TableHead>
-                    <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold">Status</TableHead>
-                    <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Maturity date</TableHead>
-                    <TableHead className="w-[120px] whitespace-nowrap text-xs font-semibold">Value</TableHead>
-                    <TableHead className="w-[180px] whitespace-nowrap text-xs font-semibold">Ratio</TableHead>
-                    <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">Amount</TableHead>
-                    <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">Document</TableHead>
+                    <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
+                      Invoice
+                    </TableHead>
+
+                    <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold">
+                      Status
+                    </TableHead>
+
+                    <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                      Maturity date
+                    </TableHead>
+
+                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
+                      Invoice value (RM)
+                    </TableHead>
+
+                    <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
+                      Financing ratio
+                    </TableHead>
+
+                    <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
+                      Maximum financing amount (RM)
+                    </TableHead>
+
+                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
+                      Documents
+                    </TableHead>
+
                     <TableHead className="w-[50px]" />
                   </TableRow>
                 </TableHeader>
@@ -589,7 +610,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             value={inv.number}
                             disabled={isDisabled}
                             onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                            placeholder="eg. Invoice #"
+                            placeholder="Enter invoice"
                             className="h-9 text-xs"
                           />
                         </TableCell>
@@ -609,14 +630,36 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                         <TableCell className="p-2">
                           <Input
+                            type="text"                 // IMPORTANT
+                            inputMode="decimal"
                             value={inv.value}
                             disabled={isDisabled}
-                            placeholder="0.00"
-                            onChange={(e) => updateInvoiceField(inv.id, "value", e.target.value)}
+                            placeholder="Enter value"
+                            onChange={(e) => {
+                              const raw = e.target.value;
+
+                              // allow empty
+                              if (raw === "") {
+                                updateInvoiceField(inv.id, "value", "");
+                                return;
+                              }
+
+                              // digits + optional decimal (max 2 dp)
+                              if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
+
+                              // HARD LIMIT: max 12 digits before decimal
+                              const [intPart] = raw.split(".");
+                              if (intPart.length > 12) return;
+
+                              updateInvoiceField(inv.id, "value", raw);
+                            }}
                             onBlur={() => {
                               if (inv.value !== "") {
-                                const normalized = Number(inv.value).toFixed(2);
-                                updateInvoiceField(inv.id, "value", normalized);
+                                updateInvoiceField(
+                                  inv.id,
+                                  "value",
+                                  Number(inv.value).toFixed(2)
+                                );
                               }
                             }}
                             className="h-9 text-xs"
@@ -638,16 +681,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                               </div>
                             </div>
 
-                            <Slider
-                              min={60}
-                              max={80}
-                              step={1}
-                              value={[ratio]}
-                              disabled={isDisabled}
-                              onValueChange={(value) =>
-                                updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
-                              }
-                              className="
+                            <div className="max-w-[110px] mx-auto">
+                              <Slider
+                                min={60}
+                                max={80}
+                                step={1}
+                                value={[ratio]}
+                                disabled={isDisabled}
+                                onValueChange={(value) =>
+                                  updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+                                }
+                                className="
                                 relative
                                 [&_[data-orientation=horizontal]]:h-1.5
                                 [&_[data-orientation=horizontal]]:bg-muted
@@ -659,7 +703,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 [&_[role=slider]]:bg-background
                                 [&_[role=slider]]:shadow-none
                               "
-                            />
+                              />
+                            </div>
 
                             <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
                               <span>60%</span>
