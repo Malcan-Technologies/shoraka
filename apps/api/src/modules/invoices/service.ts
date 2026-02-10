@@ -142,17 +142,40 @@ export class InvoiceService {
    * PARSE PAYLOAD
    * Can contain:
    * - details: partial invoice details
+   * - document: top-level document field
    * - contractId: optional, can be null or cuid string
    */
-  const { contractId, ...detailsPayload } = payload;
+  const { contractId, details, document, ...otherFields } = payload;
 
   const prevS3Key = (invoice.details as any)?.document?.s3_key;
-  const nextS3Key = detailsPayload?.document?.s3_key;
+  const nextS3Key = document?.s3_key;
 
-  const updatedDetails = {
-    ...(invoice.details as object),
-    ...detailsPayload,
-  };
+  /**
+   * MERGE DETAILS
+   * Combine existing details with new details and document
+   */
+  let updatedDetails = invoice.details as object;
+
+  if (details && Object.keys(details).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...details,
+    };
+  }
+
+  if (document !== undefined) {
+    updatedDetails = {
+      ...updatedDetails,
+      document,
+    };
+  }
+
+  if (Object.keys(otherFields).length > 0) {
+    updatedDetails = {
+      ...updatedDetails,
+      ...otherFields,
+    };
+  }
 
   /**
    * BUILD UPDATE PAYLOAD

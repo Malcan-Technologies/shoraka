@@ -16,7 +16,8 @@ export const createInvoiceSchema = z.object({
 });
 
 export const updateInvoiceSchema = z.object({
-  details: invoiceDetailsSchema.partial(),
+  details: invoiceDetailsSchema.partial().optional(),
+  document: documentSchema.nullable().optional(),
   contractId: z.string().cuid().nullable().optional(),
 });
 

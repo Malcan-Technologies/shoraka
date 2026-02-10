@@ -1168,17 +1168,26 @@ export class ApiClient {
 
   async updateInvoice(
     id: string,
-    details: Partial<InvoiceDetails> & { contractId?: string | null }
+    details: Partial<InvoiceDetails> & { contractId?: string | null; document?: any }
   ): Promise<ApiResponse<Invoice> | ApiError> {
     /**
      * UPDATE INVOICE
      *
      * Payload can include:
-     * - details: partial invoice details
+     * - details: partial invoice details (optional)
+     * - document: top-level document field (optional)
      * - contractId: optional, can be null or cuid string
      */
-    const { contractId, ...detailsRest } = details;
-    const body: any = { details: detailsRest };
+    const { contractId, document, ...detailsRest } = details;
+    const body: any = {};
+    
+    if (Object.keys(detailsRest).length > 0) {
+      body.details = detailsRest;
+    }
+    
+    if (document !== undefined) {
+      body.document = document;
+    }
     
     if (contractId !== undefined) {
       body.contractId = contractId;

@@ -376,7 +376,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       /**
        * UPDATE WITH DOCUMENT + CONTRACT ID
        *
-       * Merge document update with contractId in one call
+       * Structure: { document: {...}, contractId: ... }
        */
       const finalUpdatePayload: any = {
         document: {
