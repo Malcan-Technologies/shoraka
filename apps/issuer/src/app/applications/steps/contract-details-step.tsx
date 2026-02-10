@@ -214,6 +214,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   // Track if we've initialized the data
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [initialData, setInitialData] = React.useState<any>(null);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [isUploading] = React.useState<Record<string, boolean>>({});
 
   // Track pending files (not uploaded to S3 yet)
@@ -229,15 +230,17 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   }>({});
 
   const hasDateOrderError = React.useMemo(() => {
+    if (!hasSubmitted) return false;
     return !isStartBeforeEnd(
       formData.contract.start_date,
       formData.contract.end_date
     );
-  }, [formData.contract.start_date, formData.contract.end_date]);
+  }, [formData.contract.start_date, formData.contract.end_date, hasSubmitted]);
 
   const isContractTooShort = React.useMemo(() => {
+    if (!hasSubmitted) return false;
     return isEndDateTooSoon(formData.contract.end_date);
-  }, [formData.contract.end_date]);
+  }, [formData.contract.end_date, hasSubmitted]);
 
 
 
@@ -350,6 +353,34 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * SAVE FUNCTION
    */
   const handleSave = React.useCallback(async () => {
+setHasSubmitted(true);
+
+// ❌ SSM validation
+if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+  toast.error("SSM number must be exactly 12 digits");
+  throw new Error("VALIDATION_SSM");
+}
+
+// ❌ Date order
+if (
+  !isStartBeforeEnd(
+    formData.contract.start_date,
+    formData.contract.end_date
+  )
+) {
+  toast.error("Contract end date must be after start date");
+  throw new Error("VALIDATION_DATE_ORDER");
+}
+
+// ❌ Contract too short
+if (isEndDateTooSoon(formData.contract.end_date)) {
+  toast.error(
+    "Contract duration is too short. Please use invoice-only financing."
+  );
+  throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
+}
+
+
     // Ensure a contract exists before proceeding. If missing, create it now.
     let effectiveContractId = contractId;
     if (!effectiveContractId) {
@@ -534,6 +565,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
+
     const isCurrentStepValid =
       !!formData.contract.title &&
       !!formData.contract.description &&
@@ -541,7 +573,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       (formData.contract.value !== "" && formData.contract.value !== 0) &&
       !!formData.contract.start_date &&
       !!formData.contract.end_date &&
-      !hasDateOrderError &&
       hasContractDocument &&
       !!formData.customer.name &&
       !!formData.customer.entity_type &&
@@ -549,15 +580,22 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       !!formData.customer.country &&
       hasConsentDocument;
 
+
+
+
+
     onDataChangeRef.current({
       ...formData,
-      isValid: isCurrentStepValid,
-      isCurrentStepValid,
+      isValid: isCurrentStepValid, // ✅ single source of truth
       saveFunction: handleSave,
       hasPendingChanges,
       isCreatingContract: createContractMutation.isPending,
     });
+
+
   }, [formData, initialData, handleSave, pendingFiles, contractId, createContractMutation.isPending]);
+
+
 
   const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
     setFormData((prev) => ({
@@ -773,12 +811,35 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           </Select>
 
           <Label className={labelClassName}>Customer SSM number</Label>
-          <Input
-            value={formData.customer.ssm_number}
-            onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
-            placeholder="eg. 20212345678"
-            className={inputClassName}
-          />
+          <div className="space-y-1 min-h-[48px]">
+            <Input
+              value={formData.customer.ssm_number}
+              onChange={(e) => {
+                const raw = e.target.value;
+
+                // allow empty while typing
+                if (raw === "") {
+                  handleInputChange("customer", "ssm_number", "");
+                  return;
+                }
+
+                // only digits, max 12
+                if (!/^\d{0,12}$/.test(raw)) return;
+
+                handleInputChange("customer", "ssm_number", raw);
+              }}
+              placeholder="eg. 202123456789"
+              className={inputClassName}
+            />
+            {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
+              <p className="text-xs text-destructive">
+                SSM number must be 12 digits
+              </p>
+            )}
+          </div>
+
+
+
 
           <Label className={labelClassName}>Customer country</Label>
           <Select
