@@ -473,30 +473,30 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
           <div className="space-y-3 mt-4 px-3">
             <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-              <div className="text-xs text-muted-foreground font-medium">Contract title</div>
-              <div className="text-xs font-medium">{application.contract.contract_details?.title || "-"}</div>
+              <div className="text-sm md:text-base leading-6 text-muted-foreground font-medium">Contract title</div>
+              <div className="text-sm md:text-base leading-6 font-medium">{application.contract.contract_details?.title || "-"}</div>
 
-              <div className="text-xs text-muted-foreground font-medium">Customer</div>
-              <div className="text-xs font-medium">{application.contract.customer_details?.name || "-"}</div>
+              <div className="text-sm md:text-base leading-6 text-muted-foreground font-medium">Customer</div>
+              <div className="text-sm md:text-base leading-6 font-medium">{application.contract.customer_details?.name || "-"}</div>
 
-              <div className="text-xs text-muted-foreground font-medium">Contract value</div>
-              <div className="text-xs font-medium">
+              <div className="text-sm md:text-base leading-6 text-muted-foreground font-medium">Contract value</div>
+              <div className="text-sm md:text-base leading-6 font-medium">
                 {application.contract.contract_details?.value
                   ? formatRM(Number(application.contract.contract_details.value))
                   : "-"}
               </div>
 
-              <div className="text-xs text-muted-foreground font-medium">Approved facility</div>
-              <div className="text-xs font-medium">
+              <div className="text-sm md:text-base leading-6 text-muted-foreground font-medium">Approved facility</div>
+              <div className="text-sm md:text-base leading-6 font-medium">
                 {application.contract.contract_details?.approved_facility != null
                   ? formatRM(Number(application.contract.contract_details.approved_facility))
                   : "-"}
               </div>
 
-              <div className="text-xs text-muted-foreground font-medium">Available facility</div>
+              <div className="text-sm md:text-base leading-6 text-muted-foreground font-medium">Available facility</div>
               <div
                 className={cn(
-                  "text-xs font-medium",
+                  "text-sm md:text-base leading-6 font-medium",
                   liveAvailableFacility < 0 && "text-destructive"
                 )}
               >

@@ -607,7 +607,6 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
 
           <Label className={labelClassName}>Contract end date</Label>
-          <Label className={labelClassName}>Contract end date</Label>
           <DateInput
             value={formData.contract.end_date?.slice(0, 10) || ""}
             onChange={(v) => handleInputChange("contract", "end_date", v)}
