@@ -136,7 +136,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
       raisingOnOtherP2P: booleanToYesNo(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
       platformName: w?.platform_name ?? w?.platformName ?? "",
-      amountRaised: formatMoney(w?.amount_raised ?? w?.amountRaised ?? 0),
+      amountRaised: w?.amount_raised != null || w?.amountRaised != null ? formatMoney(w?.amount_raised ?? w?.amountRaised) : "",
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
