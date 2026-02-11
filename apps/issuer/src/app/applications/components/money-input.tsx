@@ -116,7 +116,6 @@ export function MoneyInput({
    * Why: Improves UX; prefix is not part of value, just visual affordance.
    */
   const hasPrefixDisplay = prefix && prefix.trim().length > 0;
-  const prefixPadding = hasPrefixDisplay ? `pl-${Math.max(8, prefix.length * 4)}` : "";
 
   return (
     <div className={cn("relative w-full h-full flex items-center", className)}>
