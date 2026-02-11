@@ -322,6 +322,8 @@ export function CompanyDetailsStep({
    */
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
+
   /**
    * VALIDATE CONTACT PERSON
    * Required fields and format: IC digits only, contact from PhoneInput
@@ -406,6 +408,20 @@ export function CompanyDetailsStep({
 
     return { errors, fieldErrors };
   }, [validateContactPerson, pendingCompanyInfo, pendingBanking, bankAccountDetails]);
+
+  React.useEffect(() => {
+    if (!hasSubmitted) return;
+
+    const { fieldErrors: nextFieldErrors } = validateAll();
+    setFieldErrors(nextFieldErrors);
+  }, [
+    hasSubmitted,
+    contactPerson,
+    pendingCompanyInfo,
+    pendingBanking,
+    validateAll,
+  ]);
+
 
   /**
    * CHECK IF CONTACT PERSON HAS CHANGED FROM SAVED STATE
@@ -511,15 +527,17 @@ export function CompanyDetailsStep({
     const isCurrentStepValid = isStepComplete;
 
     const saveFunctionWithValidation = async () => {
+      setHasSubmitted(true);
       const { errors, fieldErrors: nextFieldErrors } = validateAll();
       setFieldErrors(nextFieldErrors);
+
       if (errors.length > 0) {
         toast.error("Please fix the errors below", {
           description: errors.slice(0, 3).join("; "),
         });
-        const err = new Error(errors.join(", ")) as Error & { isValidationError?: boolean };
-        err.isValidationError = true;
-        throw err;
+
+        // MUST THROW — return/null/{} is WRONG
+        throw new Error("VALIDATION_COMPANY_DETAILS");
       }
 
       setFieldErrors({});
@@ -898,12 +916,18 @@ export function CompanyDetailsStep({
           <div>
             <Input
               value={displayAccountNumber ?? ""}
-              onChange={(e) =>
+              onChange={(e) => {
+                const digitsOnly = restrictDigitsOnly(e.target.value);
+
+                // ⛔ stop typing beyond 18 digits
+                if (digitsOnly.length > BANK_ACCOUNT_MAX_LENGTH) return;
+
                 setPendingBanking((prev) => ({
                   ...prev,
-                  bankAccountNumber: restrictDigitsOnly(e.target.value),
-                }))
-              }
+                  bankAccountNumber: digitsOnly,
+                }));
+              }}
+
               placeholder="eg. 1234123412341234"
               className={withFieldError(
                 inputClassNameEditable,
@@ -911,15 +935,18 @@ export function CompanyDetailsStep({
               )}
             />
 
-            {fieldErrors.bankAccountNumber ? (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.bankAccountNumber}
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-sm mt-1">
-                {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
-              </p>
-            )}
+            <div className="min-h-[20px] mt-1">
+              {fieldErrors.bankAccountNumber ? (
+                <p className="text-destructive text-sm">
+                  {fieldErrors.bankAccountNumber}
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
+                </p>
+              )}
+            </div>
+
           </div>
         </div>
       </div>

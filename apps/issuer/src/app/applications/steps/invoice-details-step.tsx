@@ -1,6 +1,48 @@
 "use client";
 
 /**
+ * INVOICE VALIDATION RULES (SUMMARY)
+ *
+ * 1. Partial rows
+ *    - All required columns must be filled.
+ *    - Half-filled invoice rows are not allowed.
+ *
+ * 2. Duplicate invoice numbers
+ *    - Each invoice must have a unique invoice number.
+ *
+ * 3. Past maturity date
+ *    - Invoice maturity date must be today or a future date.
+ *    - Overdue (past) invoices cannot be financed.
+ *
+ * 4. Product max maturity days
+ *    - Each product defines the maximum number of days
+ *      an invoice is allowed to mature from today.
+ *    - Invoice maturity date must be within this limit.
+ *
+ * 5. Contract date window (only if a contract exists)
+ *    - Invoice maturity date must fall within the
+ *      contract start and end dates.
+ *    - Skipped for invoice-only flows (no contract).
+ *
+ * 6. Minimum invoice value
+ *    - Each product defines a minimum invoice value.
+ *    - Invoice value must meet or exceed this amount.
+ *
+ * 7. Maximum invoice value
+ *    - Each product defines a maximum invoice value.
+ *    - Invoice value must not exceed this amount.
+ *
+ * 8. Financing ratio
+ *    - Only part of each invoice can be financed.
+ *    - Financing ratio must be between 60% and 80%.
+ *
+ * 9. Facility limit
+ *    - Total financing amount across all invoices
+ *      must not exceed the approved facility limit.
+ */
+
+
+/**
  * INVOICE DETAILS STEP
  *
  * - Manages invoice rows (local state until Save and Continue)
@@ -24,9 +66,62 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { formLabelClassName } from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
+import { formatMoney, parseMoney } from "../components/money";
+import { MoneyInput } from "@/app/applications/components/money-input";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/**
+ * VALIDATION CONSTANTS
+ *
+ * Product-level limits (will be configurable via Admin later).
+ * These control invoice acceptance criteria.
+ */
+const DEFAULT_MAX_INVOICE_MATURITY_DAYS = 180;
+const DEFAULT_MIN_INVOICE_VALUE = 1000;
+const DEFAULT_MAX_INVOICE_VALUE = 500000;
+
+/**
+ * VALIDATION HELPERS
+ *
+ * These helpers calculate validation properties.
+ * Extracted for easy replacement when product config becomes dynamic.
+ */
+function getMaxInvoiceMaturityDays(): number {
+  return DEFAULT_MAX_INVOICE_MATURITY_DAYS;
+}
+
+function getMinInvoiceValue(): number {
+  return DEFAULT_MIN_INVOICE_VALUE;
+}
+
+function getMaxInvoiceValue(): number {
+  return DEFAULT_MAX_INVOICE_VALUE;
+}
+
+/**
+ * Calculate days between two dates.
+ *
+ * What: Returns the difference in days (whole days only).
+ * Why: Used to validate maturity date constraints.
+ */
+function daysBetween(startDate: Date, endDate: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay);
+}
+
+/**
+ * Parse date string to Date object.
+ *
+ * What: Converts "YYYY-MM-DD" string to Date.
+ * Why: Normalize date comparisons.
+ */
+function parseDateString(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 /**
  * LOCAL INVOICE STATE SHAPE
@@ -67,7 +162,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           setApplication(resp.data);
         }
       } catch (err) {
-        
+
       }
     };
     loadApplication();
@@ -157,6 +252,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return filledCount > 0 && filledCount < 4;
   };
 
+
   const validateRow = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return true;
     /**
@@ -175,6 +271,84 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return hasNumber && hasValue && hasDate && hasDocument;
   };
 
+  const hasDuplicateInvoiceNumbers = () => {
+    const numbers = invoices
+      .filter((inv) => !isRowEmpty(inv))
+      .map((inv) => inv.number.trim())
+      .filter(Boolean);
+
+    const unique = new Set(numbers);
+    return unique.size !== numbers.length;
+  };
+
+  /**
+   * COMPREHENSIVE INVOICE VALIDATION
+   *
+   * Validates a single invoice against all product and contract constraints.
+   * Returns error message if validation fails, empty string if valid.
+   *
+   * Validation order:
+   * 1. Past maturity date
+   * 2. Product max maturity days
+   * 3. Contract date window (if contract exists)
+   * 4. Min invoice value
+   * 5. Max invoice value
+   */
+  const validateInvoiceConstraints = (inv: LocalInvoice): string => {
+    // Ignore empty rows
+    if (isRowEmpty(inv)) return "";
+
+    // Parse maturity date
+    const maturityDate = parseDateString(inv.maturity_date);
+    if (!maturityDate) return "";
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    // 1. Maturity date must be TODAY or in the future
+    if (maturityDate < today) {
+      return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
+    }
+
+    // 2. Maturity date must be within product max maturity days
+    const maxMaturityDays = getMaxInvoiceMaturityDays();
+    const daysUntilMaturity = daysBetween(today, maturityDate);
+    if (daysUntilMaturity > maxMaturityDays) {
+      return `Invoice ${inv.number}: Maturity date exceeds maximum ${maxMaturityDays} days limit.`;
+    }
+
+    // 3. Contract date window validation (if contract exists)
+    if (!isInvoiceOnly && application?.contract) {
+
+      const contractStart = parseDateString(application.contract.contract_details?.start_date);
+      const contractEnd = parseDateString(application.contract.contract_details?.end_date);
+
+      if (contractStart && maturityDate < contractStart) {
+        return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
+      }
+
+      if (contractEnd && maturityDate > contractEnd) {
+        return `Invoice ${inv.number}: Maturity date must be on or before contract end date.`;
+      }
+    }
+
+    // 4. Invoice value must be >= product minimum
+    const invoiceValue = parseMoney(inv.value);
+    const minValue = getMinInvoiceValue();
+    if (invoiceValue < minValue) {
+      return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
+    }
+
+    // 5. Invoice value must be <= product maximum
+    const maxValue = getMaxInvoiceValue();
+    if (invoiceValue > maxValue) {
+      return `Invoice ${inv.number}: Value cannot exceed ${formatMoney(maxValue)}.`;
+    }
+
+    return "";
+  };
+
+
   const hasRowChanged = (inv: LocalInvoice) => {
     if (!inv.isPersisted) return !isRowEmpty(inv);
     const base = initialInvoices[inv.id];
@@ -189,7 +363,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   };
 
   const applicationFinancingAmount = invoices.reduce((acc, inv) => {
-    const value = inv.value === "" ? 0 : Number(inv.value);
+
+    const value = parseMoney(inv.value);
+
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
@@ -199,19 +375,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const approvedFacility = application?.contract?.contract_details?.approved_facility || 0;
   const contractValue = application?.contract?.contract_details?.value || 0;
 
-  const formatRM = (n: number) =>
-    `RM ${n.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
 
   const structureType = application?.financing_structure?.structure_type;
   let facilityLimit = 0;
   if (structureType === "new_contract") {
-    facilityLimit = Number(contractValue || 0);
+    facilityLimit = parseMoney(contractValue);
   }
   if (structureType === "existing_contract") {
-    facilityLimit = Number(approvedFacility || 0);
+    facilityLimit = parseMoney(approvedFacility);
   }
 
   const liveAvailableFacility = facilityLimit - totalFinancingAmount;
@@ -224,8 +395,25 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
+
+
   if (hasPartialRows) {
     validationError = "Please complete all invoice details. Rows cannot have partial data.";
+  }
+
+  if (!validationError && hasDuplicateInvoiceNumbers()) {
+    validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
+  }
+
+  // Validate all invoice constraints (maturity date, value limits, contract window)
+  if (!validationError) {
+    for (const inv of invoices) {
+      const constraintError = validateInvoiceConstraints(inv);
+      if (constraintError) {
+        validationError = constraintError;
+        break;
+      }
+    }
   }
 
   if (!validationError && (isInvoiceOnly || isExistingContract)) {
@@ -243,7 +431,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       validationError = "Financing ratio must be between 60% and 80%.";
     }
     if (!validationError && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (${formatRM(totalFinancingAmount)}) exceeds facility limit (${formatRM(facilityLimit)}).`;
+      validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
     }
   }
 
@@ -279,7 +467,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           applicationId,
           details: {
             number: inv.number,
-            value: Number(inv.value),
+            value: parseMoney(inv.value),
             maturity_date: inv.maturity_date,
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
@@ -309,7 +497,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
          */
         const updatePayload: any = {
           number: inv.number,
-          value: Number(inv.value),
+          value: parseMoney(inv.value),
           maturity_date: inv.maturity_date,
           financing_ratio_percent: inv.financing_ratio_percent || 60,
         };
@@ -436,7 +624,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             isPersisted: true,
             number: d.number || "",
             status: it.status || "DRAFT",
-            value: typeof d.value === "number" ? d.value.toFixed(2) : d.value ? Number(d.value).toFixed(2) : "",
+            value: d.value != null ? formatMoney(d.value) : "",
             maturity_date: d.maturity_date || "",
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
@@ -523,6 +711,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
+  const isNewContract =
+    application?.financing_structure?.structure_type === "new_contract";
+
+
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
@@ -543,32 +735,49 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
               <div className={formLabelClassName}>Contract value</div>
               <div className={valueClassName}>
-                {application.contract.contract_details?.value
-                  ? formatRM(Number(application.contract.contract_details.value))
+                RM {application.contract.contract_details?.value != null
+                  ? formatMoney(application.contract.contract_details.value)
                   : "—"}
               </div>
 
+
               <div className={formLabelClassName}>Approved facility</div>
               <div className={valueClassName}>
-                {application.contract.contract_details?.approved_facility != null
-                  ? formatRM(Number(application.contract.contract_details.approved_facility))
-                  : "—"}
+                {isNewContract ? "—" : (
+                  application.contract.contract_details?.approved_facility != null
+                    ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
+                    : "—"
+                )}
               </div>
+
+
+
+
+
+
+              <div className={formLabelClassName}>Utilised facility</div>
+              <div className={valueClassName}>
+                {isNewContract ? "—" : (
+                  application.contract.contract_details?.utilized_facility != null
+                    ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
+                    : "—"
+                )}
+              </div>
+
 
               <div className={formLabelClassName}>Available facility</div>
               <div
                 className={cn(
                   "text-sm md:text-base leading-6 font-medium",
-                  liveAvailableFacility < 0 && "text-destructive"
+                  !isNewContract && liveAvailableFacility < 0 && "text-destructive"
                 )}
               >
-                {formatRM(Math.max(liveAvailableFacility ?? 0, 0))}
-                {!approvedFacility && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    * Subject to credit approval
-                  </div>
-                )}
+                {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
               </div>
+
+
+
+
             </div>
           </div>
         </div>
@@ -636,7 +845,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   {/* APPLICATION INVOICES */}
                   {invoices.map((inv) => {
                     const ratio = inv.financing_ratio_percent || 60;
-                    const value = Number(inv.value || 0);
+                    const value = parseMoney(inv.value);
                     const financingAmount = value * (ratio / 100);
                     const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
                     const isEditable = inv.status === "DRAFT" || !inv.status;
@@ -673,40 +882,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </TableCell>
 
                         <TableCell className="p-2">
-                          <Input
-                            type="text"                 // IMPORTANT
-                            inputMode="decimal"
+                          <MoneyInput
                             value={inv.value}
-                            disabled={!isEditable}
+                            onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
                             placeholder="Enter value"
-                            onChange={(e) => {
-                              const raw = e.target.value;
-
-                              // allow empty
-                              if (raw === "") {
-                                updateInvoiceField(inv.id, "value", "");
-                                return;
-                              }
-
-                              // digits + optional decimal (max 2 dp)
-                              if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
-
-                              // HARD LIMIT: max 12 digits before decimal
-                              const [intPart] = raw.split(".");
-                              if (intPart.length > 12) return;
-
-                              updateInvoiceField(inv.id, "value", raw);
-                            }}
-                            onBlur={() => {
-                              if (inv.value !== "") {
-                                updateInvoiceField(
-                                  inv.id,
-                                  "value",
-                                  Number(inv.value).toFixed(2)
-                                );
-                              }
-                            }}
-                            className="h-9 text-xs"
+                            disabled={!isEditable}
+                            inputClassName="h-9 text-xs"
                           />
                         </TableCell>
 
@@ -758,7 +939,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                         </TableCell>
 
                         <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                          {formatRM(financingAmount)}
+                          {formatMoney(financingAmount)}
                         </TableCell>
 
                         <TableCell className="p-2">
@@ -837,7 +1018,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                   <TableRow className="bg-muted/10">
                     <TableCell colSpan={5} />
                     <TableCell className="p-2 font-semibold text-xs">
-                      {formatRM(totalFinancingAmount)}
+                      {formatMoney(totalFinancingAmount)}
                       <div className="text-xs text-muted-foreground font-normal">Total</div>
                     </TableCell>
                     <TableCell colSpan={2} />

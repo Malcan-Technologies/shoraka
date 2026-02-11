@@ -58,6 +58,24 @@ export function ProgressIndicator({
     );
   }
 
+  function renderStepLabel(label: string) {
+    console.log(label)
+    switch (label.toLowerCase()) {
+      case "invoice details":
+        return (
+          <>
+            <span>Invoice</span>
+            <span>Details</span>
+          </>
+        );
+
+
+      default:
+        return label;
+    }
+  }
+
+
   return (
     <div className="mt-3">
       <div className="relative flex items-start justify-between">
@@ -122,13 +140,21 @@ export function ProgressIndicator({
 
               {/* Label */}
               <span
-                className={`mt-2.5 text-center text-[12px] leading-snug max-w-[90px] ${isActive && !isDisabled
-                  ? "font-medium text-foreground"
-                  : "text-muted-foreground"
+                className={`mt-2.5 text-center text-[12px] leading-snug max-w-[90px]
+                  ${isActive && !isDisabled
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground"
                   }`}
               >
-                {label}
+                {typeof renderStepLabel(label) === "string" ? (
+                  renderStepLabel(label)
+                ) : (
+                  <span className="flex flex-col items-center gap-[1px]">
+                    {renderStepLabel(label)}
+                  </span>
+                )}
               </span>
+
             </div>
           );
         })}

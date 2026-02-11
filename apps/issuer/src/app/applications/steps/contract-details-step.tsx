@@ -25,6 +25,8 @@ import {
   formSelectTriggerClassName,
   formTextareaClassName,
 } from "@/app/applications/components/form-control";
+import { formatMoney, parseMoney } from "../components/money";
+import { MoneyInput } from "@/app/applications/components/money-input";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -59,10 +61,26 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
+
+
 function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
   return new Date(start).getTime() < new Date(end).getTime();
 }
+
+
+const MIN_CONTRACT_MONTHS = 6;
+
+function isEndDateTooSoon(endDate?: string, minMonths = MIN_CONTRACT_MONTHS) {
+  if (!endDate) return false;
+
+  const today = new Date();
+  const minAllowedEndDate = new Date(today);
+  minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
+
+  return new Date(endDate) < minAllowedEndDate;
+}
+
 
 /** Render blocks
  *
@@ -176,7 +194,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       title: "",
       description: "",
       number: "",
-      value: 0 as number | string,
+      value: "" as string,
       start_date: "",
       end_date: "",
       approved_facility: 0 as number | string,
@@ -197,6 +215,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   // Track if we've initialized the data
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [initialData, setInitialData] = React.useState<any>(null);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [isUploading] = React.useState<Record<string, boolean>>({});
 
   // Track pending files (not uploaded to S3 yet)
@@ -212,11 +231,18 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   }>({});
 
   const hasDateOrderError = React.useMemo(() => {
+    if (!hasSubmitted) return false;
     return !isStartBeforeEnd(
       formData.contract.start_date,
       formData.contract.end_date
     );
-  }, [formData.contract.start_date, formData.contract.end_date]);
+  }, [formData.contract.start_date, formData.contract.end_date, hasSubmitted]);
+
+  const isContractTooShort = React.useMemo(() => {
+    if (!hasSubmitted) return false;
+    return isEndDateTooSoon(formData.contract.end_date);
+  }, [formData.contract.end_date, hasSubmitted]);
+
 
 
   // Stable reference for onDataChange callback
@@ -259,7 +285,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           title: "",
           description: "",
           number: "",
-          value: 0,
+          value: "",
           start_date: "",
           end_date: "",
           approved_facility: 0,
@@ -287,7 +313,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
         title: contractDetails.title || "",
         description: contractDetails.description || "",
         number: contractDetails.number || "",
-        value: contractDetails.value || 0,
+        value: contractDetails.value != null ? formatMoney(contractDetails.value) : "",
         start_date: contractDetails.start_date || "",
         end_date: contractDetails.end_date || "",
         approved_facility: contractDetails.approved_facility || 0,
@@ -328,6 +354,34 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
    * SAVE FUNCTION
    */
   const handleSave = React.useCallback(async () => {
+setHasSubmitted(true);
+
+// ❌ SSM validation
+if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+  toast.error("SSM number must be exactly 12 digits");
+  throw new Error("VALIDATION_SSM");
+}
+
+// ❌ Date order
+if (
+  !isStartBeforeEnd(
+    formData.contract.start_date,
+    formData.contract.end_date
+  )
+) {
+  toast.error("Contract end date must be after start date");
+  throw new Error("VALIDATION_DATE_ORDER");
+}
+
+// ❌ Contract too short
+if (isEndDateTooSoon(formData.contract.end_date)) {
+  toast.error(
+    "Contract duration is too short. Please use invoice-only financing."
+  );
+  throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
+}
+
+
     // Ensure a contract exists before proceeding. If missing, create it now.
     let effectiveContractId = contractId;
     if (!effectiveContractId) {
@@ -447,15 +501,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     }
 
     // Convert values to numbers
-    const valueNum =
-      typeof updatedFormData.contract.value === "string"
-        ? parseFloat((updatedFormData.contract.value as string).replace(/[^0-9.]/g, "")) || 0
-        : (updatedFormData.contract.value as number);
+    const valueNum = parseMoney(updatedFormData.contract.value);
+const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facility);
 
-    const utilizedFacilityNum =
-      typeof updatedFormData.contract.utilized_facility === "string"
-        ? parseFloat((updatedFormData.contract.utilized_facility as string).replace(/[^0-9.]/g, "")) || 0
-        : (updatedFormData.contract.utilized_facility as number);
 
     // For now, approved_facility is 0 until admin approves
     // available_facility should be initialized to contract value (this is the single source of truth)
@@ -487,7 +535,10 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     setPendingFiles({});
     // Reflect saved values in local form state so hasPendingChanges becomes false immediately
     const newFormState = {
-      contract: updatedContractDetails,
+      contract: {
+        ...updatedContractDetails,
+        value: formatMoney(updatedContractDetails.value),
+      },
       customer: updatedFormData.customer,
     };
     setFormData(newFormState);
@@ -512,14 +563,14 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
+
     const isCurrentStepValid =
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
-      (formData.contract.value !== "" && formData.contract.value !== 0) &&
+      !!formData.contract.value &&
       !!formData.contract.start_date &&
       !!formData.contract.end_date &&
-      !hasDateOrderError &&
       hasContractDocument &&
       !!formData.customer.name &&
       !!formData.customer.entity_type &&
@@ -527,15 +578,22 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       !!formData.customer.country &&
       hasConsentDocument;
 
+
+
+
+
     onDataChangeRef.current({
       ...formData,
-      isValid: isCurrentStepValid,
-      isCurrentStepValid,
+      isValid: isCurrentStepValid, // ✅ single source of truth
       saveFunction: handleSave,
       hasPendingChanges,
       isCreatingContract: createContractMutation.isPending,
     });
+
+
   }, [formData, initialData, handleSave, pendingFiles, contractId, createContractMutation.isPending]);
+
+
 
   const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
     setFormData((prev) => ({
@@ -623,45 +681,13 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
           <Label className={labelClassName}>Contract value</Label>
           <div className="h-11 flex items-center">
-            <div className="relative w-full h-full flex items-center">
-              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                RM
-              </div>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={formData.contract.value === 0 ? "" : formData.contract.value}
-                placeholder="eg. 5000000.00"
-                className={inputClassName + " pl-12"}
-                onChange={(e) => {
-                  const raw = e.target.value;
-
-                  // allow empty
-                  if (raw === "") {
-                    handleInputChange("contract", "value", "");
-                    return;
-                  }
-
-                  // digits + optional decimal (max 2 dp)
-                  if (!/^\d+(\.\d{0,2})?$/.test(raw)) return;
-
-                  // HARD LIMIT: max 12 digits before decimal
-                  const [intPart] = raw.split(".");
-                  if (intPart.length > 12) return;
-
-                  handleInputChange("contract", "value", raw);
-                }}
-                onBlur={() => {
-                  if (formData.contract.value !== "") {
-                    handleInputChange(
-                      "contract",
-                      "value",
-                      Number(formData.contract.value).toFixed(2)
-                    );
-                  }
-                }}
-              />
-            </div>
+            <MoneyInput
+              value={formData.contract.value}
+              onValueChange={(v) => handleInputChange("contract", "value", v)}
+              placeholder={`eg. ${formatMoney(5000000)}`}
+              prefix="RM"
+              inputClassName={inputClassName}
+            />
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>
@@ -674,6 +700,7 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           />
 
 
+
           <Label className={labelClassName}>Contract end date</Label>
           <div className="space-y-1">
             <DateInput
@@ -681,13 +708,21 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
               onChange={(v) => handleInputChange("contract", "end_date", v)}
               className={cn(
                 inputClassName,
-                hasDateOrderError && "border-destructive focus-visible:ring-destructive"
+                (hasDateOrderError || isContractTooShort) &&
+                "border-destructive focus-visible:ring-destructive"
               )}
               placeholder="e.g. Jun 12, 2025"
             />
+
             {hasDateOrderError && (
               <p className="text-xs text-destructive">
                 End date must be after start date
+              </p>
+            )}
+
+            {isContractTooShort && !hasDateOrderError && (
+              <p className="text-xs text-destructive">
+                Use Invoice-only financing.  Please return to the financing structure selection and choose invoice-only financing.
               </p>
             )}
           </div>
@@ -742,12 +777,35 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
           </Select>
 
           <Label className={labelClassName}>Customer SSM number</Label>
-          <Input
-            value={formData.customer.ssm_number}
-            onChange={(e) => handleInputChange("customer", "ssm_number", e.target.value)}
-            placeholder="eg. 20212345678"
-            className={inputClassName}
-          />
+          <div className="space-y-1 min-h-[48px]">
+            <Input
+              value={formData.customer.ssm_number}
+              onChange={(e) => {
+                const raw = e.target.value;
+
+                // allow empty while typing
+                if (raw === "") {
+                  handleInputChange("customer", "ssm_number", "");
+                  return;
+                }
+
+                // only digits, max 12
+                if (!/^\d{0,12}$/.test(raw)) return;
+
+                handleInputChange("customer", "ssm_number", raw);
+              }}
+              placeholder="eg. 202123456789"
+              className={inputClassName}
+            />
+            {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
+              <p className="text-xs text-destructive">
+                SSM number must be 12 digits
+              </p>
+            )}
+          </div>
+
+
+
 
           <Label className={labelClassName}>Customer country</Label>
           <Select

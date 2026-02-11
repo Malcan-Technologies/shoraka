@@ -19,6 +19,8 @@ import {
   formTextareaClassName,
   formLabelClassName,
 } from "@/app/applications/components/form-control";
+import { MoneyInput } from "@/app/applications/components/money-input";
+import { parseMoney, formatMoney } from "@/app/applications/components/money";
 
 /**
  * BUSINESS DETAILS STEP
@@ -76,7 +78,7 @@ interface BusinessDetailsSnake {
     backup_plan?: string;
     raising_on_other_p2p?: boolean;
     platform_name?: string;
-    amount_raised?: string;
+    amount_raised?: number;
     same_invoice_used?: boolean;
   };
   declaration_confirmed?: boolean;
@@ -109,7 +111,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
       platform_name: p.whyRaisingFunds.platformName ?? "",
-      amount_raised: p.whyRaisingFunds.amountRaised ?? "",
+      amount_raised: parseMoney(p.whyRaisingFunds.amountRaised ?? ""),
       same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
     },
     declaration_confirmed: p.declarationConfirmed,
@@ -134,7 +136,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
       raisingOnOtherP2P: booleanToYesNo(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
       platformName: w?.platform_name ?? w?.platformName ?? "",
-      amountRaised: w?.amount_raised ?? w?.amountRaised ?? "",
+      amountRaised: formatMoney(w?.amount_raised ?? w?.amountRaised ?? 0),
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
@@ -293,20 +295,6 @@ function YesNoRadioGroup({
   );
 }
 
-function restrictMoneyInput(value: string): string {
-  // allow empty
-  if (value === "") return "";
-
-  // digits + optional decimal, max 2 dp
-  if (!/^\d+(\.\d{0,2})?$/.test(value)) return value.slice(0, -1);
-
-  // HARD LIMIT: max 12 digits before decimal
-  const [intPart] = value.split(".");
-  if (intPart.length > 12) return value.slice(0, -1);
-
-  return value;
-}
-
 
 function TextareaWithCharCount({
   id,
@@ -412,7 +400,7 @@ export function BusinessDetailsStep({
     setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
-      amountRaised: restrictMoneyInput(initial.whyRaisingFunds.amountRaised),
+      amountRaised: initial.whyRaisingFunds.amountRaised,
     });
     setDeclarationConfirmed(initial.declarationConfirmed);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
@@ -651,27 +639,17 @@ export function BusinessDetailsStep({
               <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
                 RM
               </div>
-              <Input
-                id="amount-raised"
-                type="text"
-                inputMode="decimal"
+              <MoneyInput
                 value={whyRaisingFunds.amountRaised}
-                placeholder="0.00"
-                onChange={(e) =>
+                onValueChange={(v) =>
                   setWhyRaisingFunds((prev) => ({
                     ...prev,
-                    amountRaised: restrictMoneyInput(e.target.value),
+                    amountRaised: v,
                   }))
                 }
-                onBlur={() => {
-                  if (whyRaisingFunds.amountRaised !== "") {
-                    setWhyRaisingFunds((prev) => ({
-                      ...prev,
-                      amountRaised: Number(prev.amountRaised).toFixed(2),
-                    }));
-                  }
-                }}
-                className={inputClassName + " pl-12"}
+                placeholder="0.00"
+                prefix="RM"
+                inputClassName={inputClassName + " pl-12"}
               />
 
             </div>

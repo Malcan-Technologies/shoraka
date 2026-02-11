@@ -42,6 +42,133 @@ type ApplicationBlockReason =
 
 
 /**
+* ============================================================
+* SAVE & CONTINUE — VALIDATION & CONTROL FLOW CONTRACT
+* ============================================================
+*
+* IMPORTANT:
+* - Child step components (e.g. ContractDetailsStep) are
+*   responsible for ALL field-level validation.
+*
+* - Validation MUST happen ONLY when the user clicks
+*   "Save and Continue" (not while typing).
+*
+* - If validation FAILS inside a step:
+*   1. The step MUST show its own toast.error(...)
+*   2. The step MUST throw an Error (e.g. "VALIDATION_*")
+*
+* - Throwing an error is REQUIRED to:
+*   - Prevent database writes
+*   - Prevent navigation to the next step
+*   - Prevent the "Saved successfully" toast
+*
+* - The parent EditApplicationPage:
+*   - Treats thrown VALIDATION_* errors as a hard stop
+*   - Does NOT show a success toast
+*   - Does NOT advance the workflow
+*
+* DO NOT:
+* - Rely on isValid flags alone
+* - Return null / empty objects to block saving
+* - Show success toasts before validation passes
+*
+* RULE OF THUMB:
+* Toast shows the problem.
+* Throw stops the system.
+*
+* ============================================================
+ *  WRONG ASSUMPTION:
+ * -------------------
+ * "If I return null or {} from handleSave(), saving will stop"
+ *
+ * THIS IS FALSE.
+ *
+ * ---------------------------------------------------------------------
+ *  Example 1 — return null to stop saving (WRONG)
+ * ---------------------------------------------------------------------
+ *
+ * const handleSave = async () => {
+ *   setHasSubmitted(true);
+ *
+ *   if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+ *     toast.error("SSM number must be 12 digits");
+ *     return null; //  DOES NOT STOP SAVE
+ *   }
+ * };
+ *
+ *  What developer THINKS happens:
+ *   "I returned null, so saving stops"
+ *
+ *  What ACTUALLY happens:
+ *   - await saveFunction() RESOLVES successfully
+ *   - Parent continues execution
+ *   - DB is updated
+ *   - "Saved successfully" toast appears ❌
+ *
+ * ---------------------------------------------------------------------
+ *  Example 2 — return {} to “skip saving” (WRONG)
+ * ---------------------------------------------------------------------
+ *
+ * if (isContractTooShort) {
+ *   toast.error("Use invoice-only financing");
+ *   return {}; //  STILL RESOLVES SUCCESSFULLY
+ * }
+ *
+ *  Why this is dangerous:
+ *   - {} is a valid object
+ *   - Parent merges it into payload
+ *   - Save continues silently
+ *   - High risk of data corruption
+ *
+ * ---------------------------------------------------------------------
+ *  Example 3 — Relying on isValid only (WRONG)
+ * ---------------------------------------------------------------------
+ *
+ * if (!isValid) {
+ *   setIsCurrentStepValid(false);
+ *   toast.error("Fix errors");
+ *   return; //  DOES NOT STOP SAVE
+ * }
+ *
+ *  Why this fails:
+ *   - Parent already clicked "Save and Continue"
+ *   - handleSave() still resolves
+ *   - Save continues anyway
+ *
+ * ---------------------------------------------------------------------
+ *  Example 4 — Showing toast but continuing execution (WRONG)
+ * ---------------------------------------------------------------------
+ *
+ * if (!hasConsentDocument) {
+ *   toast.error("Consent document required");
+ *   //  forgot to stop execution
+ * }
+ *
+ * Execution CONTINUES unless you THROW.
+ *
+ * ---------------------------------------------------------------------
+ *  THE ONLY CORRECT WAY — THROW (REQUIRED)
+ * ---------------------------------------------------------------------
+ *
+ * if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+ *   toast.error("SSM number must be 12 digits");
+ *   throw new Error("VALIDATION_SSM");
+ * }
+ *
+ * ---------------------------------------------------------------------
+ *  RULE OF THUMB
+ * ---------------------------------------------------------------------
+ * - toast.error(...) → informs the user
+ * - throw Error(...) → STOPS saving, DB writes, navigation, success toast
+ *
+ * If you do NOT throw, saving WILL continue.
+ *
+ * =====================================================================
+ */
+
+
+
+/**
  * EDIT APPLICATION PAGE
  *
  * This is where users complete their application after creating it.
@@ -251,9 +378,9 @@ export default function EditApplicationPage() {
   // Has the financing structure source been resolved yet?
   // - sessionStructureType !== null → user changed it this session
   // - application.financing_structure !== undefined → DB has loaded
-    const isStructureResolved =
-  sessionStructureType !== null ||
-  application?.financing_structure?.structure_type !== undefined;
+  const isStructureResolved =
+    sessionStructureType !== null ||
+    application?.financing_structure?.structure_type !== undefined;
 
 
 
@@ -351,7 +478,7 @@ export default function EditApplicationPage() {
         description: "Complete this step to continue",
       };
     }
-    
+
     const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
     return {
       title: stepDisplay.pageTitle || stepDisplay.title,
@@ -720,8 +847,8 @@ export default function EditApplicationPage() {
       let dataToSave = rawData ? { ...rawData } : null;
 
       const structureChanged =
-  currentStepKey === "financing_structure" &&
-  dataToSave?.structureChanged === true;
+        currentStepKey === "financing_structure" &&
+        dataToSave?.structureChanged === true;
 
 
       // Remove isValid from JSON as it's only for frontend communication
@@ -840,8 +967,8 @@ export default function EditApplicationPage() {
 
       // Clear live structure override once user commits
       // if (currentStepKey === "financing_structure") {
-        // sessionStorage.removeItem("cashsouk:financing_structure_override");
-        // setSessionStructureType(null);
+      // sessionStorage.removeItem("cashsouk:financing_structure_override");
+      // setSessionStructureType(null);
 
       // }
 
@@ -864,32 +991,32 @@ export default function EditApplicationPage() {
       }
 
       if (
-  currentStepKey === "financing_structure" &&
-  structureChanged === false
-) {
-  // Just move forward, no DB write
-  setHasUnsavedChanges(false);
-  router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-  return;
-}
+        currentStepKey === "financing_structure" &&
+        structureChanged === false
+      ) {
+        // Just move forward, no DB write
+        setHasUnsavedChanges(false);
+        router.push(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        return;
+      }
 
       // Call API to save step data
       // DEBUG: log nextStep and payload before API call
       // eslint-disable-next-line no-console
       const stepPayload: any = {
-  stepId: currentStepId,
-  stepNumber: nextStep - 1,
-  data: dataToSave,
-};
+        stepId: currentStepId,
+        stepNumber: nextStep - 1,
+        data: dataToSave,
+      };
 
-if (structureChanged) {
-  stepPayload.forceRewindToStep = stepFromUrl;
-}
+      if (structureChanged) {
+        stepPayload.forceRewindToStep = stepFromUrl;
+      }
 
-await updateStepMutation.mutateAsync({
-  id: applicationId,
-  stepData: stepPayload,
-});
+      await updateStepMutation.mutateAsync({
+        id: applicationId,
+        stepData: stepPayload,
+      });
 
       // Backend now handles all contract linking/unlinking logic atomically
       // No need for frontend to call separate unlink mutation
@@ -922,22 +1049,26 @@ await updateStepMutation.mutateAsync({
         navigationInProgressRef.current = false;
       }, 3000);
       const navigationStep = didRewindProgressRef.current
-  ? stepFromUrl + 1
-  : nextStep;
+        ? stepFromUrl + 1
+        : nextStep;
 
-didRewindProgressRef.current = false;
+      didRewindProgressRef.current = false;
 
-// Clear override immediately before navigation to prevent state inconsistency
-if (currentStepKey === "financing_structure") {
-  sessionStorage.removeItem("cashsouk:financing_structure_override");
-  setSessionStructureType(null);
-}
+      // Clear override immediately before navigation to prevent state inconsistency
+      if (currentStepKey === "financing_structure") {
+        sessionStorage.removeItem("cashsouk:financing_structure_override");
+        setSessionStructureType(null);
+      }
 
-router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
+      router.push(`/applications/edit/${applicationId}?step=${navigationStep}`);
 
 
     } catch (error) {
-      // Error already shown by mutation hook
+      // Validation errors already showed their own toast
+      if (error instanceof Error && error.message.startsWith("VALIDATION_")) {
+        return;
+      }
+
       toast.error("Failed to save. Please try again.");
     } finally {
       // Clear saving flag

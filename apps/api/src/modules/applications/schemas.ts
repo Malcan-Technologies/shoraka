@@ -46,7 +46,7 @@ const whyRaisingFundsSchema = z.object({
   backup_plan: z.string().max(200).optional().default(""),
   raising_on_other_p2p: yesNoBooleanSchema,
   platform_name: z.string().optional().default(""),
-  amount_raised: z.string().optional().default(""),
+  amount_raised: z.union([z.string(), z.number()]).optional().default(0),
   same_invoice_used: yesNoBooleanSchema,
 });
 
