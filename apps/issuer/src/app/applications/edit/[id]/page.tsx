@@ -636,12 +636,6 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // Skip validation for review_and_submit step (it's always the final step regardless of filtering)
-    // This allows users to submit even if contract_details was filtered out earlier
-    if (currentStepKey === "review_and_submit") {
-      return;
-    }
-
     const lastCompleted = application.last_completed_step || 1;
     const maxAllowedStep = lastCompleted + 1;
 

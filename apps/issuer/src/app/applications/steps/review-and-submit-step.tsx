@@ -375,7 +375,7 @@ export function ReviewAndSubmitStep({
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {isValidNumber(approvedFacility)
+              {isValidNumber(approvedFacility) && approvedFacility > 0
                 ? formatCurrency(approvedFacility)
                 : "—"}
 
