@@ -56,57 +56,50 @@ export async function createApp(): Promise<Application> {
    * @swagger
    * /healthz:
    *   get:
-   *     summary: Health check endpoint
-   *     description: Check API and database connectivity status
+   *     summary: Liveness probe
+   *     description: |
+   *       Lightweight liveness check used by ALB / Docker HEALTHCHECK.
+   *       Always returns 200 as long as the process is running and can
+   *       serve HTTP. Does NOT query the database — a transient DB blip
+   *       must not cause ECS to kill the task.
    *     tags: [Health]
    *     responses:
    *       200:
-   *         description: Service is healthy
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 status:
-   *                   type: string
-   *                   example: ok
-   *                 database:
-   *                   type: string
-   *                   example: connected
-   *                 timestamp:
-   *                   type: string
-   *                   format: date-time
-   *       503:
-   *         description: Service is unhealthy
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 status:
-   *                   type: string
-   *                   example: error
-   *                 database:
-   *                   type: string
-   *                   example: disconnected
-   *                 error:
-   *                   type: string
-   *                 timestamp:
-   *                   type: string
-   *                   format: date-time
+   *         description: Process is alive
    */
-  app.get("/healthz", async (_, res) => {
-    try {
-      // Test database connection using shared Prisma client
-      await prisma.$queryRaw`SELECT 1 as health_check`;
+  app.get("/healthz", (_req, res) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+    });
+  });
 
+  /**
+   * @swagger
+   * /readyz:
+   *   get:
+   *     summary: Readiness / deep health check
+   *     description: |
+   *       Tests database connectivity. Use for dashboards, monitoring
+   *       alarms, and pre-deploy gating — NOT for ALB target-group or
+   *       Docker HEALTHCHECK (those should use /healthz).
+   *     tags: [Health]
+   *     responses:
+   *       200:
+   *         description: Service is fully ready
+   *       503:
+   *         description: Database is unreachable
+   */
+  app.get("/readyz", async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1 as health_check`;
       res.json({
         status: "ok",
         database: "connected",
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error({ error }, "Health check failed");
+      logger.error({ error }, "Readiness check failed — database unreachable");
       res.status(503).json({
         status: "error",
         database: "disconnected",
