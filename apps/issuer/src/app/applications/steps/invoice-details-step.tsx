@@ -79,7 +79,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  * These control invoice acceptance criteria.
  */
 const DEFAULT_MAX_INVOICE_MATURITY_DAYS = 180;
-const DEFAULT_MIN_INVOICE_VALUE = 1000;
+const DEFAULT_MIN_INVOICE_VALUE = 0;
 const DEFAULT_MAX_INVOICE_VALUE = 500000;
 
 /**
@@ -436,6 +436,18 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }
 
   const saveFunction = async () => {
+    /**
+     * VALIDATION CHECK
+     *
+     * If there are validation errors, show toast and prevent save.
+     */
+    if (validationError) {
+      toast.error("Cannot save invoices", {
+        description: validationError,
+      });
+      throw new Error("VALIDATION_INVOICES");
+    }
+
     const apiClient = createApiClient(API_URL, getAccessToken);
     const token = await getAccessToken();
     const structureType = application?.financing_structure?.structure_type;
