@@ -1021,26 +1021,36 @@ export default function EditApplicationPage() {
 
       // If this is the final submission, use updateStatusMutation
       if (currentStepKey === "review_and_submit") {
-        // First, update last_completed_step to reflect review_and_submit completion
-        await updateStepMutation.mutateAsync({
-          id: applicationId,
-          stepData: {
-            stepId: currentStepId,
-            stepNumber: stepFromUrl,
-            data: {},
-          },
-        });
+        try {
+          // First, update last_completed_step to reflect review_and_submit completion
+          await updateStepMutation.mutateAsync({
+            id: applicationId,
+            stepData: {
+              stepId: currentStepId,
+              stepNumber: stepFromUrl,
+              data: {},
+            },
+          });
 
-        // Then submit the application
-        await updateStatusMutation.mutateAsync({
-          id: applicationId,
-          status: "SUBMITTED",
-        });
+          // Then submit the application
+          await updateStatusMutation.mutateAsync({
+            id: applicationId,
+            status: "SUBMITTED",
+          });
 
-        setHasUnsavedChanges(false);
-        toast.success("Application submitted successfully!");
-        router.push("/");
-        return;
+          // Invalidate queries to ensure fresh state
+          await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+
+          setHasUnsavedChanges(false);
+          toast.success("Application submitted successfully!");
+          
+          // Use replace to prevent back navigation to the edit page
+          router.replace("/");
+          return;
+        } catch (error) {
+          toast.error("Failed to submit application. Please try again.");
+          throw error;
+        }
       }
 
       if (
