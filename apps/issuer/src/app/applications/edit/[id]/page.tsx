@@ -1021,6 +1021,17 @@ export default function EditApplicationPage() {
 
       // If this is the final submission, use updateStatusMutation
       if (currentStepKey === "review_and_submit") {
+        // First, update last_completed_step to reflect review_and_submit completion
+        await updateStepMutation.mutateAsync({
+          id: applicationId,
+          stepData: {
+            stepId: currentStepId,
+            stepNumber: stepFromUrl,
+            data: {},
+          },
+        });
+
+        // Then submit the application
         await updateStatusMutation.mutateAsync({
           id: applicationId,
           status: "SUBMITTED",
