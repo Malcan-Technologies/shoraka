@@ -1,6 +1,48 @@
 "use client";
 
 /**
+ * INVOICE VALIDATION RULES (SUMMARY)
+ *
+ * 1. Partial rows
+ *    - All required columns must be filled.
+ *    - Half-filled invoice rows are not allowed.
+ *
+ * 2. Duplicate invoice numbers
+ *    - Each invoice must have a unique invoice number.
+ *
+ * 3. Past maturity date
+ *    - Invoice maturity date must be today or a future date.
+ *    - Overdue (past) invoices cannot be financed.
+ *
+ * 4. Product max maturity days
+ *    - Each product defines the maximum number of days
+ *      an invoice is allowed to mature from today.
+ *    - Invoice maturity date must be within this limit.
+ *
+ * 5. Contract date window (only if a contract exists)
+ *    - Invoice maturity date must fall within the
+ *      contract start and end dates.
+ *    - Skipped for invoice-only flows (no contract).
+ *
+ * 6. Minimum invoice value
+ *    - Each product defines a minimum invoice value.
+ *    - Invoice value must meet or exceed this amount.
+ *
+ * 7. Maximum invoice value
+ *    - Each product defines a maximum invoice value.
+ *    - Invoice value must not exceed this amount.
+ *
+ * 8. Financing ratio
+ *    - Only part of each invoice can be financed.
+ *    - Financing ratio must be between 60% and 80%.
+ *
+ * 9. Facility limit
+ *    - Total financing amount across all invoices
+ *      must not exceed the approved facility limit.
+ */
+
+
+/**
  * INVOICE DETAILS STEP
  *
  * - Manages invoice rows (local state until Save and Continue)
@@ -29,6 +71,57 @@ import { MoneyInput } from "@/app/applications/components/money-input";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/**
+ * VALIDATION CONSTANTS
+ *
+ * Product-level limits (will be configurable via Admin later).
+ * These control invoice acceptance criteria.
+ */
+const DEFAULT_MAX_INVOICE_MATURITY_DAYS = 180;
+const DEFAULT_MIN_INVOICE_VALUE = 1000;
+const DEFAULT_MAX_INVOICE_VALUE = 500000;
+
+/**
+ * VALIDATION HELPERS
+ *
+ * These helpers calculate validation properties.
+ * Extracted for easy replacement when product config becomes dynamic.
+ */
+function getMaxInvoiceMaturityDays(): number {
+  return DEFAULT_MAX_INVOICE_MATURITY_DAYS;
+}
+
+function getMinInvoiceValue(): number {
+  return DEFAULT_MIN_INVOICE_VALUE;
+}
+
+function getMaxInvoiceValue(): number {
+  return DEFAULT_MAX_INVOICE_VALUE;
+}
+
+/**
+ * Calculate days between two dates.
+ *
+ * What: Returns the difference in days (whole days only).
+ * Why: Used to validate maturity date constraints.
+ */
+function daysBetween(startDate: Date, endDate: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay);
+}
+
+/**
+ * Parse date string to Date object.
+ *
+ * What: Converts "YYYY-MM-DD" string to Date.
+ * Why: Normalize date comparisons.
+ */
+function parseDateString(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 /**
  * LOCAL INVOICE STATE SHAPE
@@ -188,6 +281,73 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return unique.size !== numbers.length;
   };
 
+  /**
+   * COMPREHENSIVE INVOICE VALIDATION
+   *
+   * Validates a single invoice against all product and contract constraints.
+   * Returns error message if validation fails, empty string if valid.
+   *
+   * Validation order:
+   * 1. Past maturity date
+   * 2. Product max maturity days
+   * 3. Contract date window (if contract exists)
+   * 4. Min invoice value
+   * 5. Max invoice value
+   */
+  const validateInvoiceConstraints = (inv: LocalInvoice): string => {
+    // Ignore empty rows
+    if (isRowEmpty(inv)) return "";
+
+    // Parse maturity date
+    const maturityDate = parseDateString(inv.maturity_date);
+    if (!maturityDate) return "";
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    // 1. Maturity date must be TODAY or in the future
+    if (maturityDate < today) {
+      return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
+    }
+
+    // 2. Maturity date must be within product max maturity days
+    const maxMaturityDays = getMaxInvoiceMaturityDays();
+    const daysUntilMaturity = daysBetween(today, maturityDate);
+    if (daysUntilMaturity > maxMaturityDays) {
+      return `Invoice ${inv.number}: Maturity date exceeds maximum ${maxMaturityDays} days limit.`;
+    }
+
+    // 3. Contract date window validation (if contract exists)
+    if (!isInvoiceOnly && application?.contract) {
+
+      const contractStart = parseDateString(application.contract.contract_details?.start_date);
+      const contractEnd = parseDateString(application.contract.contract_details?.end_date);
+
+      if (contractStart && maturityDate < contractStart) {
+        return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
+      }
+
+      if (contractEnd && maturityDate > contractEnd) {
+        return `Invoice ${inv.number}: Maturity date must be on or before contract end date.`;
+      }
+    }
+
+    // 4. Invoice value must be >= product minimum
+    const invoiceValue = parseMoney(inv.value);
+    const minValue = getMinInvoiceValue();
+    if (invoiceValue < minValue) {
+      return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
+    }
+
+    // 5. Invoice value must be <= product maximum
+    const maxValue = getMaxInvoiceValue();
+    if (invoiceValue > maxValue) {
+      return `Invoice ${inv.number}: Value cannot exceed ${formatMoney(maxValue)}.`;
+    }
+
+    return "";
+  };
+
 
   const hasRowChanged = (inv: LocalInvoice) => {
     if (!inv.isPersisted) return !isRowEmpty(inv);
@@ -243,6 +403,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
   if (!validationError && hasDuplicateInvoiceNumbers()) {
     validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
+  }
+
+  // Validate all invoice constraints (maturity date, value limits, contract window)
+  if (!validationError) {
+    for (const inv of invoices) {
+      const constraintError = validateInvoiceConstraints(inv);
+      if (constraintError) {
+        validationError = constraintError;
+        break;
+      }
+    }
   }
 
   if (!validationError && (isInvoiceOnly || isExistingContract)) {
