@@ -159,6 +159,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     return filledCount > 0 && filledCount < 4;
   };
 
+
   const validateRow = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return true;
     /**
@@ -176,6 +177,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
     return hasNumber && hasValue && hasDate && hasDocument;
   };
+
+  const hasDuplicateInvoiceNumbers = () => {
+    const numbers = invoices
+      .filter((inv) => !isRowEmpty(inv))
+      .map((inv) => inv.number.trim())
+      .filter(Boolean);
+
+    const unique = new Set(numbers);
+    return unique.size !== numbers.length;
+  };
+
 
   const hasRowChanged = (inv: LocalInvoice) => {
     if (!inv.isPersisted) return !isRowEmpty(inv);
@@ -223,8 +235,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
+
+
   if (hasPartialRows) {
     validationError = "Please complete all invoice details. Rows cannot have partial data.";
+  }
+
+  if (!validationError && hasDuplicateInvoiceNumbers()) {
+    validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
   }
 
   if (!validationError && (isInvoiceOnly || isExistingContract)) {
@@ -552,41 +570,41 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               </div>
 
 
-<div className={formLabelClassName}>Approved facility</div>
-<div className={valueClassName}>
-  {isNewContract ? "—" : (
-    application.contract.contract_details?.approved_facility != null
-      ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
-      : "—"
-  )}
-</div>
+              <div className={formLabelClassName}>Approved facility</div>
+              <div className={valueClassName}>
+                {isNewContract ? "—" : (
+                  application.contract.contract_details?.approved_facility != null
+                    ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
+                    : "—"
+                )}
+              </div>
 
 
 
 
 
 
-<div className={formLabelClassName}>Utilised facility</div>
-<div className={valueClassName}>
-  {isNewContract ? "—" : (
-    application.contract.contract_details?.utilized_facility != null
-      ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
-      : "—"
-  )}
-</div>
+              <div className={formLabelClassName}>Utilised facility</div>
+              <div className={valueClassName}>
+                {isNewContract ? "—" : (
+                  application.contract.contract_details?.utilized_facility != null
+                    ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
+                    : "—"
+                )}
+              </div>
 
 
-<div className={formLabelClassName}>Available facility</div>
-<div
-  className={cn(
-    "text-sm md:text-base leading-6 font-medium",
-    !isNewContract && liveAvailableFacility < 0 && "text-destructive"
-  )}
->
-  {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
-</div>
+              <div className={formLabelClassName}>Available facility</div>
+              <div
+                className={cn(
+                  "text-sm md:text-base leading-6 font-medium",
+                  !isNewContract && liveAvailableFacility < 0 && "text-destructive"
+                )}
+              >
+                {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
+              </div>
 
- 
+
 
 
             </div>
