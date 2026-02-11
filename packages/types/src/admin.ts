@@ -547,6 +547,7 @@ export interface OrganizationDetailResponse {
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
+  codRequestId: string | null;
 
   // Applications (issuer only)
   applications?: {

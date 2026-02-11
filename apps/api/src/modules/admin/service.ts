@@ -41,18 +41,21 @@ import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
+import { AmlIdentityRepository } from "../regtank/aml-identity-repository";
 
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
   private notificationService: NotificationService;
+  private amlIdentityRepository: AmlIdentityRepository;
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
+    this.amlIdentityRepository = new AmlIdentityRepository();
   }
 
   /**
@@ -1480,6 +1483,7 @@ export class AdminService {
     sophisticatedInvestorReason: string | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
+    codRequestId: string | null;
     applications?: {
       id: string;
       status: string;
@@ -1528,6 +1532,13 @@ export class AdminService {
 
     if (!org) {
       return null;
+    }
+
+    let codRequestId: string | null = null;
+    if (org.type === "COMPANY") {
+      const mappings = await this.amlIdentityRepository.findByOrganization(org.id);
+      const mappingWithCod = mappings.find((m) => m.cod_request_id != null);
+      codRequestId = mappingWithCod?.cod_request_id ?? null;
     }
 
     return {
@@ -1646,9 +1657,16 @@ export class AdminService {
         portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
-      regtankPortalUrl: org.regtank_onboarding?.[0]?.request_id
-        ? `${getRegTankConfig().adminPortalUrl}/app/liveness/${org.regtank_onboarding[0].request_id}?archived=false`
-        : null,
+      codRequestId,
+      regtankPortalUrl: (() => {
+        const requestId = org.regtank_onboarding?.[0]?.request_id;
+        if (!requestId) return null;
+        const baseUrl = getRegTankConfig().adminPortalUrl;
+        if (org.type === "COMPANY" && requestId.startsWith("COD")) {
+          return `${baseUrl}/app/onboardingCorporate/${requestId}?archived=false`;
+        }
+        return `${baseUrl}/app/liveness/${requestId}?archived=false`;
+      })(),
       // Applications (issuer only)
       applications: (portal === "issuer" && org.applications)
         ? org.applications.map((app: { id: string; status: string; product_version: number; last_completed_step: number; submitted_at: Date | null; created_at: Date; updated_at: Date; contract_id: string | null }) => ({
@@ -2195,6 +2213,16 @@ export class AdminService {
       })
       : undefined;
 
+    // Derive organization name and SSM from top-level or corporate_onboarding_data.basicInfo
+    const corporateData = org
+      ? (org as { corporate_onboarding_data?: { basicInfo?: { businessName?: string; ssmRegistrationNumber?: string; ssmRegisterNumber?: string } } }).corporate_onboarding_data
+      : undefined;
+    const basicInfo = corporateData?.basicInfo;
+    const organizationName =
+      org?.name ?? basicInfo?.businessName ?? null;
+    const registrationNumber =
+      org?.registration_number ?? basicInfo?.ssmRegistrationNumber ?? basicInfo?.ssmRegisterNumber ?? null;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2203,8 +2231,8 @@ export class AdminService {
       type: record.organization_type as "PERSONAL" | "COMPANY",
       portal: record.portal_type as "investor" | "issuer",
       organizationId: org?.id || "",
-      organizationName: org?.name || null,
-      registrationNumber: org?.registration_number || null,
+      organizationName,
+      registrationNumber,
       regtankRequestId: record.request_id,
       regtankStatus: record.status,
       regtankSubstatus: record.substatus,

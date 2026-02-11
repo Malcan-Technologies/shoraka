@@ -378,6 +378,7 @@ export class RegTankRepository {
             name: true,
             type: true,
             registration_number: true,
+            corporate_onboarding_data: true,
             onboarding_status: true,
             onboarded_at: true,
             onboarding_approved: true,
@@ -398,6 +399,7 @@ export class RegTankRepository {
             name: true,
             type: true,
             registration_number: true,
+            corporate_onboarding_data: true,
             onboarding_status: true,
             onboarded_at: true,
             onboarding_approved: true,
@@ -477,6 +479,7 @@ export class RegTankRepository {
               name: true,
               type: true,
               registration_number: true,
+              corporate_onboarding_data: true,
               onboarding_status: true,
               onboarded_at: true,
               onboarding_approved: true,
@@ -497,6 +500,7 @@ export class RegTankRepository {
               name: true,
               type: true,
               registration_number: true,
+              corporate_onboarding_data: true,
               onboarding_status: true,
               onboarded_at: true,
               onboarding_approved: true,
@@ -531,6 +535,7 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     name: string | null;
     type: OrganizationType;
     registration_number: string | null;
+    corporate_onboarding_data: unknown;
     onboarding_status: string;
     onboarded_at: Date | null;
     onboarding_approved: boolean;
@@ -546,6 +551,7 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     name: string | null;
     type: OrganizationType;
     registration_number: string | null;
+    corporate_onboarding_data: unknown;
     onboarding_status: string;
     onboarded_at: Date | null;
     onboarding_approved: boolean;

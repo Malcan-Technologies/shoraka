@@ -159,7 +159,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           };
         };
 
-        // Extract Beneficiary Account Information
+        // Extract Beneficiary Account Information (Compliance Declaration)
+        // Return full RegTank format with content array for frontend FormDataDisplay
         const extractBeneficiaryInfo = (codDetails: any) => {
           const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Beneficiary Account Information"
@@ -167,11 +168,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           if (!beneficiaryInfo) return null;
 
-          const content = beneficiaryInfo.content || [];
-          return {
-            pepStatus: content.find((f: any) => f.fieldName?.includes("PEP"))?.fieldValue || null,
-            belongsToGroups: content.find((f: any) => f.fieldName?.includes("belong to any"))?.fieldValue || null,
-          };
+          return beneficiaryInfo;
         };
 
         // Extract Corporate Onboarding Data

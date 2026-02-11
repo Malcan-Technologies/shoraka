@@ -701,13 +701,16 @@ function DirectorStatusDisplay({
   label,
   icon: Icon,
   statusKey,
+  filterFn,
 }: {
   data: Record<string, unknown>;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   statusKey: "kycStatus" | "amlStatus";
+  filterFn?: (dir: Record<string, unknown>) => boolean;
 }) {
-  const directors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
+  const allDirectors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
+  const directors = filterFn ? allDirectors.filter(filterFn) : allDirectors;
   const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
 
   if (directors.length === 0) return null;
@@ -999,9 +1002,16 @@ export default function OrganizationDetailPage() {
                       </p>
                     )}
 
-                    <p className="text-xs text-muted-foreground font-mono">
-                      ID: {org.id}
-                    </p>
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground font-mono">
+                        ID: {org.id}
+                      </p>
+                      {org.type === "COMPANY" && org.codRequestId && (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          COD: {org.codRequestId}
+                        </p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1279,25 +1289,57 @@ export default function OrganizationDetailPage() {
                   <CorporateEntitiesDisplay data={org.corporateEntities as Record<string, unknown>} />
                 )}
 
-                {/* Director KYC & AML Status (COMPANY only) */}
+                {/* Director & Shareholder KYC & AML Status (COMPANY only) */}
                 {org.type === "COMPANY" &&
                   (org.directorKycStatus || org.directorAmlStatus) && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {org.directorKycStatus && (
-                        <DirectorStatusDisplay
-                          data={org.directorKycStatus as Record<string, unknown>}
-                          label="Director KYC Status"
-                          icon={ShieldCheckIcon}
-                          statusKey="kycStatus"
-                        />
+                        <>
+                          <DirectorStatusDisplay
+                            data={org.directorKycStatus as Record<string, unknown>}
+                            label="Directors KYC Status"
+                            icon={ShieldCheckIcon}
+                            statusKey="kycStatus"
+                            filterFn={(dir) => {
+                              const role = String(dir.role || "");
+                              return !role.includes("Shareholder");
+                            }}
+                          />
+                          <DirectorStatusDisplay
+                            data={org.directorKycStatus as Record<string, unknown>}
+                            label="Individual Shareholders KYC Status"
+                            icon={ShieldCheckIcon}
+                            statusKey="kycStatus"
+                            filterFn={(dir) => {
+                              const role = String(dir.role || "");
+                              return role.includes("Shareholder");
+                            }}
+                          />
+                        </>
                       )}
                       {org.directorAmlStatus && (
-                        <DirectorStatusDisplay
-                          data={org.directorAmlStatus as Record<string, unknown>}
-                          label="Director AML Status"
-                          icon={ShieldExclamationIcon}
-                          statusKey="amlStatus"
-                        />
+                        <>
+                          <DirectorStatusDisplay
+                            data={org.directorAmlStatus as Record<string, unknown>}
+                            label="Directors AML Status"
+                            icon={ShieldExclamationIcon}
+                            statusKey="amlStatus"
+                            filterFn={(dir) => {
+                              const role = String(dir.role || "");
+                              return !role.includes("Shareholder");
+                            }}
+                          />
+                          <DirectorStatusDisplay
+                            data={org.directorAmlStatus as Record<string, unknown>}
+                            label="Individual Shareholders AML Status"
+                            icon={ShieldExclamationIcon}
+                            statusKey="amlStatus"
+                            filterFn={(dir) => {
+                              const role = String(dir.role || "");
+                              return role.includes("Shareholder");
+                            }}
+                          />
+                        </>
                       )}
                     </div>
                   )}
