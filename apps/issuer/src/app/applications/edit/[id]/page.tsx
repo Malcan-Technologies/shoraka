@@ -13,6 +13,7 @@ import {
   getStepKeyFromStepId,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
+  type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import { useHeader, SidebarTrigger } from "@cashsouk/ui";
@@ -450,15 +451,55 @@ export default function EditApplicationPage() {
     return effectiveWorkflow[stepFromUrl - 1] ?? null;
   }, [effectiveWorkflow, stepFromUrl]);
 
-
-
-  // Get the step ID (e.g., "financing_type_1", "verify_company_info_1")
+  /**
+   * FALLBACK STEP DETECTION
+   * 
+   * If current step is beyond the workflow (user viewing completed step),
+   * try to determine which step they're viewing based on application data.
+   * This allows users to review completed steps even if workflow changed.
+   */
   const currentStepId = currentStepConfig?.id || "";
-  // Derive step key; treat "verify_company_info" (admin workflow) as "company_details"
-  const rawKey = currentStepId.replace(/_\d+$/, "");
-  const currentStepKey =
-    getStepKeyFromStepId(currentStepId) ??
-    (rawKey === "verify_company_info" ? ("company_details" as const) : null);
+  const currentStepKey = React.useMemo(() => {
+    // First try: get from current config
+    let key = getStepKeyFromStepId(currentStepId);
+    if (key) {
+      return key;
+    }
+
+    // Second try: detect from application data structure
+    // Check which step column has data at this position
+    if (application && stepFromUrl > 1) {
+      const stepSequence: ApplicationStepKey[] = [
+        "financing_type",
+        "financing_structure",
+        "contract_details",
+        "invoice_details",
+        "company_details",
+        "business_details",
+        "supporting_documents",
+        "declarations",
+        "review_and_submit",
+      ];
+      
+      // Map step number (1-based) to step key
+      const stepIndex = stepFromUrl - 1;
+      if (stepIndex < stepSequence.length) {
+        const possibleKey = stepSequence[stepIndex];
+        // Check if this step has data in application
+        if ((application as any)?.[possibleKey] !== undefined) {
+          return possibleKey;
+        }
+      }
+    }
+
+    // Third try: handle admin workflow step name
+    const rawKey = currentStepId.replace(/_\d+$/, "");
+    if (rawKey === "verify_company_info") {
+      return "company_details" as const;
+    }
+
+    return null;
+  }, [currentStepId, application, stepFromUrl]);
 
   /**
    * Check if current step is mapped to a component
@@ -646,8 +687,15 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // SCENARIO 3: Step beyond workflow length → go to max step they can have
+    // SCENARIO 3: Step beyond workflow length but within already completed steps
+    // Allow viewing previously completed steps even if workflow changed
     if (effectiveWorkflow.length > 0 && stepFromUrl > effectiveWorkflow.length) {
+      // If user is trying to view a step they already completed, allow it
+      if (stepFromUrl <= lastCompleted + 1) {
+        // Step is within their completed range, allow viewing
+        return;
+      }
+      // Otherwise, redirect to max step they can have
       const maxStepUserCanHave = Math.min(maxAllowedStep, effectiveWorkflow.length);
       toast.error("This step no longer exists in the workflow");
       router.replace(`/applications/edit/${applicationId}?step=${maxStepUserCanHave}`);
