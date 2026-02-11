@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/auth";
@@ -11,6 +11,8 @@ import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
+import { AccountOverviewCard } from "../components/account-overview-card";
+import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { useHeader } from "@cashsouk/ui";
 
 function IssuerDashboardContent() {
@@ -30,83 +32,79 @@ function IssuerDashboardContent() {
     isPendingApproval,
     organizations,
   } = useOrganization();
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const hasRedirected = useRef(false);
 
-  // Check onboarding status after authentication is confirmed
+  // Determine whether the dashboard can be shown (derived, no setState needed)
+  const canShowDashboard = useMemo(() => {
+    if (!isAuthenticated || isOrgLoading) return false;
+    if (organizations.length === 0) return false;
+    if (!activeOrganization) {
+      // No active org selected yet — check if any org qualifies
+      return organizations.some(
+        (org) =>
+          org.onboardingStatus === "COMPLETED" ||
+          org.onboardingStatus === "PENDING_APPROVAL" ||
+          org.onboardingStatus === "PENDING_AML" ||
+          org.onboardingStatus === "REJECTED"
+      );
+    }
+    return (
+      isOnboarded ||
+      isPendingApproval ||
+      activeOrganization.onboardingStatus === "REJECTED"
+    );
+  }, [isAuthenticated, isOrgLoading, organizations, activeOrganization, isOnboarded, isPendingApproval]);
+
+  // Side-effect only: redirects that need router.push
   useEffect(() => {
-    if (isAuthenticated && !isOrgLoading) {
-      // Check for pending invitation token (fallback mechanism)
-      // Note: The primary invitation redirect mechanism is now through OAuth state
-      const hasPendingInvitation = checkAndRedirectForPendingInvitation();
-      if (hasPendingInvitation) {
-        return; // Redirect is happening, stop further execution
-      }
+    if (!isAuthenticated || isOrgLoading) return;
 
-      // If no organizations at all, redirect to onboarding
-      if (organizations.length === 0) {
-        if (!hasRedirected.current) {
-          hasRedirected.current = true;
-          router.push("/onboarding-start");
-        }
-        return;
-      }
+    const hasPendingInvitation = checkAndRedirectForPendingInvitation();
+    if (hasPendingInvitation) return;
 
-      // If active organization exists and is onboarded, show dashboard
-      if (activeOrganization && isOnboarded) {
-        setCheckingOnboarding(false);
-        hasRedirected.current = false;
-        return;
+    if (organizations.length === 0) {
+      if (!hasRedirected.current) {
+        hasRedirected.current = true;
+        router.push("/onboarding-start");
       }
+      return;
+    }
 
-      // If active organization is pending approval, show dashboard with limited access
-      if (activeOrganization && isPendingApproval) {
-        setCheckingOnboarding(false);
-        hasRedirected.current = false;
-        return;
-      }
+    if (activeOrganization && isOnboarded) {
+      hasRedirected.current = false;
+      return;
+    }
 
-      // If active organization is rejected, show dashboard with rejection notice
-      if (activeOrganization && activeOrganization.onboardingStatus === "REJECTED") {
-        setCheckingOnboarding(false);
-        hasRedirected.current = false;
-        return;
-      }
+    if (activeOrganization && isPendingApproval) {
+      hasRedirected.current = false;
+      return;
+    }
 
-      // If active organization exists but not onboarded (and not pending approval or rejected), redirect to onboarding
-      if (activeOrganization && !isOnboarded && !isPendingApproval) {
-        if (!hasRedirected.current) {
-          hasRedirected.current = true;
-          router.push("/onboarding-start");
-        }
-        return;
-      }
+    if (activeOrganization && activeOrganization.onboardingStatus === "REJECTED") {
+      hasRedirected.current = false;
+      return;
+    }
 
-      // No active organization but has organizations
-      // This can happen when state is still settling or there's a mismatch
-      // Check if any organization is onboarded, pending approval, or rejected and show dashboard if so
-      if (!activeOrganization && organizations.length > 0) {
-        const anyOnboarded = organizations.some((org) => org.onboardingStatus === "COMPLETED");
-        const anyPendingApproval = organizations.some(
-          (org) =>
-            org.onboardingStatus === "PENDING_APPROVAL" || org.onboardingStatus === "PENDING_AML"
-        );
-        const anyRejected = organizations.some((org) => org.onboardingStatus === "REJECTED");
-        if (anyOnboarded || anyPendingApproval || anyRejected) {
-          // There's an onboarded, pending approval, or rejected org but no active one selected yet
-          // The context should auto-select one, just wait a bit
-          return;
-        } else {
-          // No onboarded, pending approval, or rejected orgs, redirect to onboarding
-          if (!hasRedirected.current) {
-            hasRedirected.current = true;
-            router.push("/onboarding-start");
-          }
-          return;
-        }
+    if (activeOrganization && !isOnboarded && !isPendingApproval) {
+      if (!hasRedirected.current) {
+        hasRedirected.current = true;
+        router.push("/onboarding-start");
       }
-    } else if (isAuthenticated === false) {
-      setCheckingOnboarding(false);
+      return;
+    }
+
+    if (!activeOrganization && organizations.length > 0) {
+      const anyQualified = organizations.some(
+        (org) =>
+          org.onboardingStatus === "COMPLETED" ||
+          org.onboardingStatus === "PENDING_APPROVAL" ||
+          org.onboardingStatus === "PENDING_AML" ||
+          org.onboardingStatus === "REJECTED"
+      );
+      if (!anyQualified && !hasRedirected.current) {
+        hasRedirected.current = true;
+        router.push("/onboarding-start");
+      }
     }
   }, [
     isAuthenticated,
@@ -119,7 +117,7 @@ function IssuerDashboardContent() {
   ]);
 
   // Show loading while checking auth or onboarding
-  if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
+  if (isAuthenticated === null || isOrgLoading || !canShowDashboard) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
@@ -164,6 +162,7 @@ function IssuerDashboardContent() {
   const needsTncAcceptance = currentStep?.id === "tnc";
   const isAwaitingApproval = currentStep?.id === "approval";
   const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
+  const isAccountEnabled = activeOrganization?.onboardingStatus === "COMPLETED";
 
   return (
     <>
@@ -231,20 +230,25 @@ function IssuerDashboardContent() {
 
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
-            <section className="flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-                <p className="text-[17px] leading-7 text-muted-foreground">
-                  Manage your financing requests and track your applications from your dashboard.
-                </p>
-              </div>
-              <Button asChild className="gap-2">
-                <Link href="/applications/new">
-                  <PlusIcon className="h-4 w-4" />
-                  Get Financed
-                </Link>
-              </Button>
-            </section>
+            <>
+              <section className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
+                  <p className="text-[17px] leading-7 text-muted-foreground">
+                    Manage your financing requests and track your applications from your dashboard.
+                  </p>
+                </div>
+                <Button asChild className="gap-2">
+                  <Link href="/applications/new">
+                    <PlusIcon className="h-4 w-4" />
+                    Get Financed
+                  </Link>
+                </Button>
+              </section>
+
+              <AccountOverviewCard isDisabled={!isAccountEnabled} />
+              <RepaymentPerformanceCard isDisabled={!isAccountEnabled} />
+            </>
           )}
         </div>
       </div>
