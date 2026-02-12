@@ -618,10 +618,14 @@ function CorporateEntitiesDisplay({
   const renderPerson = (person: Record<string, unknown>, idx: number, isCorporate = false) => {
     let name: string;
     let email: string;
-    const status = String(person.status || "—");
+    const status = String(person.status || person.approveStatus || "—");
     const kycType = person.kycType ? String(person.kycType) : null;
     const eodRequestId = person.eodRequestId ? String(person.eodRequestId) : null;
-    const docs = person.documents as Record<string, unknown> | undefined;
+    const corpOnboarding = person.corporateOnboardingRequest as Record<string, unknown> | undefined;
+    const codRequestId = isCorporate
+      ? (person.requestId ? String(person.requestId) : corpOnboarding?.requestId ? String(corpOnboarding.requestId) : null)
+      : null;
+    const docs = (person.documents ?? person.corporateDocumentInfo ?? person.documentInfo) as Record<string, unknown> | undefined;
 
     if (isCorporate) {
       const formContent = person.formContent as Record<string, unknown> | undefined;
@@ -632,13 +636,19 @@ function CorporateEntitiesDisplay({
       const content = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
       const businessNameField = content.find((f: { fieldName?: string }) => f.fieldName === "Business Name");
       const shareField = content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares");
+      const emailField =
+        content.find((f: { fieldName?: string }) => f.fieldName === "Email") ??
+        content.find((f: { fieldName?: string }) => f.fieldName === "Contact Email") ??
+        content.find((f: { fieldName?: string }) => f.fieldName === "Email Address" || f.fieldName === "Business Email");
       name = String(
         businessNameField?.fieldValue || person.companyName || person.businessName || "Unknown"
       );
       if (shareField?.fieldValue) {
         name += ` (${shareField.fieldValue}%)`;
       }
-      email = String(person.email || "—");
+      email = String(
+        emailField?.fieldValue || person.email || person.contactEmail || "—"
+      );
     } else {
       const info = person.personalInfo as Record<string, unknown> | undefined;
       name = String(
@@ -647,18 +657,22 @@ function CorporateEntitiesDisplay({
       email = String(info?.email || "—");
     }
 
+    const idLabel = isCorporate ? "COD" : "EOD";
+    const idValue = isCorporate ? codRequestId : eodRequestId;
+    const hasDetails = idValue || typeof docs?.frontDocumentUrl === "string" || typeof docs?.backDocumentUrl === "string";
+
     return (
       <div key={idx} className="py-2.5 first:pt-0 last:pb-0 border-b last:border-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">{name}</p>
-            {!isCorporate && <p className="text-xs text-muted-foreground">{email}</p>}
+            <p className="text-xs text-muted-foreground">{email}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge
               variant="outline"
               className={
-                status === "APPROVED" || status === "ID_UPLOADED"
+                status === "APPROVED" || status === "ID_UPLOADED" || status === "CHECKED"
                   ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
                   : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
               }
@@ -672,9 +686,9 @@ function CorporateEntitiesDisplay({
             )}
           </div>
         </div>
-        {!isCorporate && (
+        {hasDetails && (
           <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-            {eodRequestId && <span className="font-mono">EOD: {eodRequestId}</span>}
+            {idValue && <span className="font-mono">{idLabel}: {idValue}</span>}
             {typeof docs?.frontDocumentUrl === "string" && (
               <a
                 href={docs.frontDocumentUrl}
