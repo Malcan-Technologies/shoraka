@@ -869,7 +869,6 @@ export default function EditApplicationPage() {
    * The data is stored in stepDataRef by child step components.
    */
   const handleSaveAndContinue = async () => {
-
     try {
       // Set saving flag to prevent onDataChange from corrupting state
       isSavingRef.current = true;

@@ -261,6 +261,19 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   // We avoid auto-creating here to keep control in the step save flow.
 
   /**
+   * INITIALIZE EMPTY FORM FOR NEW CONTRACTS
+   * 
+   * If there's no existing contract on mount (contractId is undefined),
+   * set isInitialized = true immediately. This prevents the load data effect
+   * from overwriting user-entered data when the contract is created during save.
+   */
+  React.useEffect(() => {
+    if (!contractId && !isInitialized) {
+      setIsInitialized(true);
+    }
+  }, [contractId, isInitialized]);
+
+  /**
    * LOAD SAVED DATA
    */
   React.useEffect(() => {
