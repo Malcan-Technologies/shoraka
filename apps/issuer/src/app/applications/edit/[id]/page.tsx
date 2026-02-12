@@ -838,26 +838,15 @@ export default function EditApplicationPage() {
       setHasUnsavedChanges(false);
       toast.success("Saved successfully");
 
-      // Invalidate cache
-      await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-
-      if (currentStepKey === "financing_structure") {
-        const currentContractId = (application as unknown as Record<string, unknown>)
-          ?.contract as Record<string, unknown>;
-        const contractId = currentContractId?.id as string | undefined;
-        if (contractId) {
-          await queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
-        }
-        await queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      }
-
-      // Clear session override before navigation
+      // Clear session override BEFORE navigation (if financing structure changed)
       if (currentStepKey === "financing_structure") {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
         setSessionStructureType(null);
       }
 
-      // Navigate to next step (deterministic, no loops)
+      // Navigate to next step IMMEDIATELY (deterministic, no loops)
+      // Do NOT invalidate queries - this causes skeleton reload flicker
+      // The next page will load fresh data on mount
       const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
       router.replace(`/applications/edit/${applicationId}?step=${navigationStep}`);
     } catch (err) {
