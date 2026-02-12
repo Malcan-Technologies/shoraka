@@ -194,6 +194,12 @@ export function CompanyDetailsStep({
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
 
   /* ================================================================
+     INITIAL STATE TRACKING - For change detection
+     ================================================================ */
+
+  const initialStateRef = React.useRef<FormState | null>(null);
+
+  /* ================================================================
      DETERMINISTIC HYDRATION - Run once after all data loads
      ================================================================ */
 
@@ -211,7 +217,7 @@ export function CompanyDetailsStep({
     const registeredAddress = corporateInfo?.addresses?.registered;
     const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
 
-    setFormState({
+    const hydratedState: FormState = {
       industry: basicInfo?.industry || "",
       numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
       businessAddress: (businessAddress as Record<string, unknown>) || null,
@@ -222,7 +228,10 @@ export function CompanyDetailsStep({
       contactPersonPosition: (savedContactPerson?.position as string) || "",
       contactPersonIc: (savedContactPerson?.ic as string) || "",
       contactPersonContact: (savedContactPerson?.contact as string) || "",
-    });
+    };
+
+    setFormState(hydratedState);
+    initialStateRef.current = hydratedState;
 
     hasHydratedRef.current = true;
     console.warn("[COMPANY] Hydrated");
@@ -389,6 +398,15 @@ export function CompanyDetailsStep({
   }, [formState]);
 
   /* ================================================================
+     CHANGE DETECTION - Real pending changes logic
+     ================================================================ */
+
+  const hasPendingChanges = React.useMemo(() => {
+    if (!initialStateRef.current) return false;
+    return JSON.stringify(formState) !== JSON.stringify(initialStateRef.current);
+  }, [formState]);
+
+  /* ================================================================
      NOTIFY PARENT - One effect, stable dependencies
      ================================================================ */
 
@@ -404,10 +422,10 @@ export function CompanyDetailsStep({
         contact: formState.contactPersonContact,
       },
       saveFunction,
-      hasPendingChanges: true,
+      hasPendingChanges,
       isValid,
     });
-  }, [organizationId, onDataChange, saveFunction, isValid, formState]);
+  }, [organizationId, onDataChange, saveFunction, isValid, formState, hasPendingChanges]);
 
   /* ================================================================
      DIRECTORS & SHAREHOLDERS LIST
