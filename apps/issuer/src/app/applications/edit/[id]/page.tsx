@@ -255,7 +255,7 @@ export default function EditApplicationPage() {
       ?.product_id as string | undefined;
     if (!productId) return null;
 
-    const product = (productsData.products as any)?.find((p: { id: string; version: number }) => p.id === productId);
+    const product = ((productsData?.products as unknown) as Array<{ id: string; version: number }>)?.find((p: { id: string; version: number }) => p.id === productId);
     if (!product) return "PRODUCT_DELETED";
     if (application.product_version !== product.version)
       return "PRODUCT_VERSION_CHANGED";
@@ -609,7 +609,7 @@ export default function EditApplicationPage() {
     }
   };
 
-  const handleDataChange = (data: Record<string, unknown> | null) => {
+  const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
     stepDataRef.current = data;
 
     if (data && (data.product_id as string | undefined)) {
@@ -635,7 +635,7 @@ export default function EditApplicationPage() {
         setHasUnsavedChanges(true);
       }
     }
-  };
+  }, []);
 
   /* ================================================================
      SAVE & CONTINUE HANDLER
@@ -678,37 +678,32 @@ export default function EditApplicationPage() {
       )?.saveFunction as (() => Promise<unknown>) | undefined;
       
       if (saveFunctionFromData) {
-        try {
-          const returnedData = await saveFunctionFromData();
-          delete (dataToSave as Record<string, unknown>).saveFunction;
+        const returnedData = await saveFunctionFromData();
+        delete (dataToSave as Record<string, unknown>).saveFunction;
 
-          if (returnedData) {
-            if (
-              typeof returnedData === "object" &&
-              returnedData !== null &&
-              "isValid" in returnedData
-            ) {
-              delete (returnedData as Record<string, unknown>).isValid;
-            }
-
-            if (currentStepKey === "supporting_documents") {
-              dataToSave = { supporting_documents: returnedData };
-            } else if (
-              currentStepKey === "invoice_details" &&
-              (returnedData as Record<string, unknown>)?.supporting_documents
-            ) {
-              dataToSave = {
-                supporting_documents: (returnedData as Record<string, unknown>)
-                  .supporting_documents,
-              };
-            } else {
-              // Merge returned data with remaining dataToSave
-              dataToSave = { ...dataToSave, ...returnedData };
-            }
+        if (returnedData) {
+          if (
+            typeof returnedData === "object" &&
+            returnedData !== null &&
+            "isValid" in returnedData
+          ) {
+            delete (returnedData as Record<string, unknown>).isValid;
           }
-        } catch (err) {
-          // saveFunction threw an error (validation or upload failed)
-          throw err;
+
+          if (currentStepKey === "supporting_documents") {
+            dataToSave = { supporting_documents: returnedData };
+          } else if (
+            currentStepKey === "invoice_details" &&
+            (returnedData as Record<string, unknown>)?.supporting_documents
+          ) {
+            dataToSave = {
+              supporting_documents: (returnedData as Record<string, unknown>)
+                .supporting_documents,
+            };
+          } else {
+            // Merge returned data with remaining dataToSave
+            dataToSave = { ...dataToSave, ...returnedData };
+          }
         }
       }
 
