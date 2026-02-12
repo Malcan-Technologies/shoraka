@@ -832,7 +832,7 @@ export default function EditApplicationPage() {
       }
 
       setHasUnsavedChanges(false);
-      toast.success("Changes saved successfully");
+      toast.success("Saved successfully");
 
       // Clear session override BEFORE navigation (if financing structure changed)
       if (currentStepKey === "financing_structure") {
