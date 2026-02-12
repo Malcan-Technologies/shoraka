@@ -817,7 +817,10 @@ function DirectorStatusDisplay({
           {directors.map((dir, idx) => {
             const name = String(dir.name || "Unknown");
             const email = dir.email ? String(dir.email) : null;
-            const role = dir.role ? String(dir.role) : null;
+            const rawRole = dir.role ? String(dir.role) : null;
+            const role = rawRole
+              ? [...new Set(rawRole.split(",").map((s) => s.trim()).filter(Boolean))].join(", ")
+              : null;
             const status = dir[statusKey] ? String(dir[statusKey]) : (dir.amlStatus ? String(dir.amlStatus) : null);
             const kycId = dir.kycId ? String(dir.kycId) : null;
             const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
