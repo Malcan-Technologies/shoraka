@@ -30,8 +30,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma and curl for downloading RDS certificate
-RUN apk add --no-cache openssl curl
+# Install OpenSSL for Prisma, curl for RDS cert, and libstdc++/libgcc for native modules (bcrypt)
+RUN apk add --no-cache openssl curl libstdc++ libgcc
 
 # Download AWS RDS global CA certificate bundle
 # This is required for SSL connections to RDS
