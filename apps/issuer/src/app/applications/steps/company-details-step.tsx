@@ -359,7 +359,6 @@ export function CompanyDetailsStep({
       queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
 
       setFieldErrors({});
-      toast.success("Changes saved successfully");
 
       // Return contact person for application save
       return {

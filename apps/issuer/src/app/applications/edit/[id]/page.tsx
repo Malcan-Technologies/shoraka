@@ -782,7 +782,7 @@ export default function EditApplicationPage() {
           await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
 
           setHasUnsavedChanges(false);
-          toast.success("Application submitted successfully!");
+          toast.success("Application submitted successfully");
 
           // eslint-disable-next-line no-console
           console.log(`[SUBMIT] Application submitted, redirecting to /dashboard`);
@@ -790,7 +790,8 @@ export default function EditApplicationPage() {
           router.replace("/");
           return;
         } catch (error) {
-          toast.error("Failed to submit application. Please try again.");
+          console.warn("[SUBMIT] Error:", error instanceof Error ? error.message : error);
+          toast.error("Something went wrong. Please try again.");
           throw error;
         }
       }
@@ -831,7 +832,7 @@ export default function EditApplicationPage() {
       }
 
       setHasUnsavedChanges(false);
-      toast.success("Saved successfully");
+      toast.success("Changes saved successfully");
 
       // Clear session override BEFORE navigation (if financing structure changed)
       if (currentStepKey === "financing_structure") {
@@ -848,7 +849,7 @@ export default function EditApplicationPage() {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
       }
-      toast.error("Failed to save. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       isSavingRef.current = false;
     }
