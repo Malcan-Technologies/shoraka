@@ -147,9 +147,9 @@ function YesNoRadioGroup({
   onValueChange: (value: YesNo) => void;
 }) {
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 items-center">
       <CustomRadio
-        name="yes-no"
+        name="related"
         value="yes"
         checked={value === "yes"}
         onChange={() => onValueChange("yes")}
@@ -158,7 +158,7 @@ function YesNoRadioGroup({
         unselectedLabelClass={radioUnselectedLabel}
       />
       <CustomRadio
-        name="yes-no"
+        name="related"
         value="no"
         checked={value === "no"}
         onChange={() => onValueChange("no")}
@@ -691,200 +691,206 @@ export function ContractDetailsStep({
     return <ContractDetailsSkeleton />;
   }
 
-  const labelClassName = formLabelClassName;
+  const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = formInputClassName;
+  const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
     <div className="space-y-10 px-3">
-      {/* Contract Details */}
+      {/* Contract Details Section */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Contract Details</h2>
+          <h3 className={sectionHeaderClassName}>Contract details</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          <div>
-            <Label className={labelClassName}>Contract title</Label>
-            <Input
-              value={formData.contract.title}
-              onChange={(e) => handleInputChange("contract", "title", e.target.value)}
-              className={inputClassName}
-              placeholder="eg. Service Agreement"
-            />
-          </div>
+        <div className={sectionGridClassName}>
+          <Label className={labelClassName}>Contract title</Label>
+          <Input
+            value={formData.contract.title}
+            onChange={(e) => handleInputChange("contract", "title", e.target.value)}
+            placeholder="eg. Mining Rig Repair 12654"
+            className={inputClassName}
+          />
 
-          <div>
-            <Label className={labelClassName}>Contract description</Label>
-            <Textarea
-              value={formData.contract.description}
-              onChange={(e) =>
-                handleInputChange("contract", "description", e.target.value)
-              }
-              className={formTextareaClassName}
-              placeholder="Describe the contract"
-            />
-          </div>
+          <Label className={labelClassName}>Contract description</Label>
+          <Textarea
+            value={formData.contract.description}
+            onChange={(e) =>
+              handleInputChange("contract", "description", e.target.value)
+            }
+            placeholder="eg. Repair and maintenance for 12 mining rigs"
+            className={cn(formTextareaClassName, "min-h-[100px]")}
+          />
 
-          <div>
-            <Label className={labelClassName}>Contract number</Label>
-            <Input
-              value={formData.contract.number}
-              onChange={(e) => handleInputChange("contract", "number", e.target.value)}
-              className={inputClassName}
-              placeholder="eg. C001"
-            />
-          </div>
+          <Label className={labelClassName}>Contract number</Label>
+          <Input
+            value={formData.contract.number}
+            onChange={(e) => handleInputChange("contract", "number", e.target.value)}
+            placeholder="eg. 20212345678"
+            className={inputClassName}
+          />
 
-          <div>
-            <Label className={labelClassName}>Contract value</Label>
+          <Label className={labelClassName}>Contract value</Label>
+          <div className="h-11 flex items-center">
             <MoneyInput
               value={formData.contract.value}
               onValueChange={(value) => handleInputChange("contract", "value", value)}
-              placeholder="RM 0.00"
+              placeholder={`eg. ${formatMoney(5000000)}`}
+              prefix="RM"
+              inputClassName={inputClassName}
             />
           </div>
 
-          <div>
-            <Label className={labelClassName}>Contract start date</Label>
-            <DateInput
-              value={formData.contract.start_date}
-              onChange={(date) => handleInputChange("contract", "start_date", date)}
-            />
-          </div>
+          <Label className={labelClassName}>Contract start date</Label>
+          <DateInput
+            value={formData.contract.start_date?.slice(0, 10) || ""}
+            onChange={(v) => handleInputChange("contract", "start_date", v)}
+            className={inputClassName}
+            placeholder="e.g. Apr 12, 2025"
+          />
 
-          <div>
-            <Label className={labelClassName}>Contract end date</Label>
+          <Label className={labelClassName}>Contract end date</Label>
+          <div className="space-y-1">
             <DateInput
-              value={formData.contract.end_date}
-              onChange={(date) => handleInputChange("contract", "end_date", date)}
+              value={formData.contract.end_date?.slice(0, 10) || ""}
+              onChange={(v) => handleInputChange("contract", "end_date", v)}
+              className={cn(
+                inputClassName,
+                (hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) ||
+                (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              )}
+              placeholder="e.g. Jun 12, 2025"
             />
+
             {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
-              <p className="text-xs text-destructive">End date must be after start date</p>
+              <p className="text-xs text-destructive">
+                End date must be after start date
+              </p>
+            )}
+
+            {hasSubmitted && isEndDateTooSoon(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) === false && (
+              <p className="text-xs text-destructive">
+                Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
+              </p>
             )}
           </div>
 
-          <div>
-            <Label className={labelClassName}>Upload contract</Label>
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("contract", file)}
-              isUploading={isUploading.contract}
-              uploadedFile={formData.contract.document}
-              pendingFile={pendingFiles.contract}
-              onRemove={() => {
-                handleInputChange("contract", "document", null);
-                setPendingFiles((prev) => ({ ...prev, contract: undefined }));
-              }}
-            />
-          </div>
+          <Label className={labelClassName}>Upload contract</Label>
+          <FileUploadArea
+            onFileSelect={(file) => handleFileUpload("contract", file)}
+            isUploading={isUploading.contract}
+            uploadedFile={formData.contract.document}
+            pendingFile={pendingFiles.contract}
+            onRemove={() => {
+              handleInputChange("contract", "document", null);
+              setPendingFiles((prev) => ({ ...prev, contract: undefined }));
+            }}
+          />
         </div>
       </section>
 
-      {/* Customer Details */}
+      {/* Customer Details Section */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Customer Details</h2>
+          <h3 className={sectionHeaderClassName}>Customer details</h3>
           <div className="mt-2 h-px bg-border" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          <div>
-            <Label className={labelClassName}>Customer name</Label>
-            <Input
-              value={formData.customer.name}
-              onChange={(e) => handleInputChange("customer", "name", e.target.value)}
-              className={inputClassName}
-              placeholder="eg. John Doe"
-            />
-          </div>
+        <div className={sectionGridClassName}>
+          <Label className={labelClassName}>Customer name</Label>
+          <Input
+            value={formData.customer.name}
+            onChange={(e) => handleInputChange("customer", "name", e.target.value)}
+            placeholder="eg. Petronas Chemical Bhd"
+            className={inputClassName}
+          />
 
-          <div>
-            <Label className={labelClassName}>Customer entity type</Label>
-            <Select
-              value={formData.customer.entity_type}
-              onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
-            >
-              <SelectTrigger className={formSelectTriggerClassName}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ENTITY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Label className={labelClassName}>Customer entity type</Label>
+          <Select
+            value={formData.customer.entity_type}
+            onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
+          >
+            <SelectTrigger className={formSelectTriggerClassName}>
+              <SelectValue placeholder="Select entity type" />
+            </SelectTrigger>
+            <SelectContent>
+              {ENTITY_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <div>
-            <Label className={labelClassName}>Customer SSM number</Label>
+          <Label className={labelClassName}>Customer SSM number</Label>
+          <div className="space-y-1 min-h-[48px]">
             <Input
               value={formData.customer.ssm_number}
               onChange={(e) => {
                 const raw = e.target.value;
+
                 if (raw === "") {
                   handleInputChange("customer", "ssm_number", "");
                   return;
                 }
+
                 if (!/^\d{0,12}$/.test(raw)) return;
+
                 handleInputChange("customer", "ssm_number", raw);
               }}
               placeholder="eg. 202123456789"
               className={inputClassName}
             />
             {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
-              <p className="text-xs text-destructive">SSM number must be 12 digits</p>
+              <p className="text-xs text-destructive">
+                SSM number must be 12 digits
+              </p>
             )}
           </div>
 
-          <div>
-            <Label className={labelClassName}>Customer country</Label>
-            <Select
-              value={formData.customer.country}
-              onValueChange={(value) => handleInputChange("customer", "country", value)}
-            >
-              <SelectTrigger className={formSelectTriggerClassName}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRIES.map((country) => (
-                  <SelectItem key={country.code} value={country.code}>
-                    <div className="flex items-center gap-2">
-                      <span>{country.flag}</span>
-                      <span>{country.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Label className={labelClassName}>Customer country</Label>
+          <Select
+            value={formData.customer.country}
+            onValueChange={(value) => handleInputChange("customer", "country", value)}
+          >
+            <SelectTrigger className={formSelectTriggerClassName}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map((country) => (
+                <SelectItem key={country.code} value={country.code}>
+                  <div className="flex items-center gap-2">
+                    <span>{country.flag}</span>
+                    <span>{country.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <div>
-            <Label className={labelClassName}>Is customer related to issuer?</Label>
-            <div className="h-11 flex items-center">
-              <YesNoRadioGroup
-                value={formData.customer.is_related_party}
-                onValueChange={(v) =>
-                  handleInputChange("customer", "is_related_party", v)
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className={labelClassName}>Upload customer consent</Label>
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("consent", file)}
-              isUploading={isUploading.consent}
-              uploadedFile={formData.customer.document}
-              pendingFile={pendingFiles.consent}
-              onRemove={() => {
-                handleInputChange("customer", "document", null);
-                setPendingFiles((prev) => ({ ...prev, consent: undefined }));
-              }}
+          <Label className={labelClassName}>is customer related to issuer?</Label>
+          <div className="h-11 flex items-center">
+            <YesNoRadioGroup
+              value={formData.customer.is_related_party}
+              onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
             />
           </div>
+
+          <Label className={labelClassName}>Upload customer consent</Label>
+          <FileUploadArea
+            onFileSelect={(file) => handleFileUpload("consent", file)}
+            isUploading={isUploading.consent}
+            uploadedFile={formData.customer.document}
+            pendingFile={pendingFiles.consent}
+            onRemove={() => {
+              handleInputChange("customer", "document", null);
+              setPendingFiles((prev) => ({ ...prev, consent: undefined }));
+            }}
+          />
         </div>
       </section>
     </div>
