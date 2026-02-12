@@ -612,7 +612,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     setSelectedFiles({});
     setDeletedInvoices({});
-    return { success: true };
+    
+    // Return persisted invoices for application-level persistence
+    return {
+      invoices: invoices.filter((inv) => !isRowEmpty(inv)),
+      totalFinancingAmount,
+    };
   };
 
   const hasUnsavedChanges =
