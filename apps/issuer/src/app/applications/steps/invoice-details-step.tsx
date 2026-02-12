@@ -230,11 +230,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const handleFileChange = (id: string, file: File, existingS3Key?: string) => {
     if (!file) return;
     if (file.type !== "application/pdf") {
-      toast.error("Invalid file type", { description: "Only PDF files are allowed" });
+      toast.error("Please select a PDF file");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large", { description: "File size must be less than 5MB" });
+      toast.error("File is too large (max 5MB)");
       return;
     }
     setSelectedFiles((p) => ({ ...p, [id]: file }));
@@ -243,7 +243,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       file_size: file.size,
       s3_key: existingS3Key,
     });
-    toast.success("File selected");
+    toast.success("File added");
   };
 
   const isRowEmpty = (inv: LocalInvoice) => {
@@ -456,9 +456,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      * If there are validation errors, show toast and prevent save.
      */
     if (validationError) {
-      toast.error("Cannot save invoices", {
-        description: validationError,
-      });
+      toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_INVOICES");
     }
 

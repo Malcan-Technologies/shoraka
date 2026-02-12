@@ -317,10 +317,8 @@ export function CompanyDetailsStep({
     setFieldErrors(nextFieldErrors);
 
     if (errors.length > 0) {
-      toast.error("Please fix the errors below", {
-        description: errors.slice(0, 3).join("; "),
-      });
-      throw new Error("VALIDATION_COMPANY_DETAILS");
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_COMPANY_REQUIRED_FIELDS");
     }
 
     // Persist to DB
@@ -361,7 +359,7 @@ export function CompanyDetailsStep({
       queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
 
       setFieldErrors({});
-      toast.success("Changes saved");
+      toast.success("Changes saved successfully");
 
       // Return contact person for application save
       return {
@@ -373,9 +371,8 @@ export function CompanyDetailsStep({
         },
       };
     } catch (error) {
-      toast.error("Failed to save changes", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
+      console.warn("[COMPANY] Save error:", error instanceof Error ? error.message : error);
+      toast.error("Something went wrong. Please try again.");
       throw error;
     }
   }, [formState, organizationId, apiClient, queryClient, validateAll]);

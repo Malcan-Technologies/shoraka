@@ -207,11 +207,11 @@ function FileUploadArea({
     const file = e.target.files?.[0];
     if (file) {
       if (file.type !== "application/pdf") {
-        toast.error("Invalid file type", { description: "Please upload a PDF file" });
+        toast.error("Please select a PDF file");
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        toast.error("File too large", { description: "Maximum file size is 5MB" });
+        toast.error("File is too large (max 5MB)");
         return;
       }
       onFileSelect(file);
@@ -447,20 +447,18 @@ export function ContractDetailsStep({
 
     // ❌ Validation
     if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
-      toast.error("SSM number must be exactly 12 digits");
-      throw new Error("VALIDATION_SSM");
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_SSM_FORMAT");
     }
 
     if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) {
-      toast.error("Contract end date must be after start date");
-      throw new Error("VALIDATION_DATE_ORDER");
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_DATE_ORDER");
     }
 
     if (isEndDateTooSoon(formData.contract.end_date)) {
-      toast.error(
-        "Contract duration is too short. Please use invoice-only financing."
-      );
-      throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
     }
 
     // Create contract if needed
@@ -470,11 +468,13 @@ export function ContractDetailsStep({
         const created = await createContractMutation.mutateAsync(applicationId);
         effectiveContractId = created?.id as string;
         if (!effectiveContractId) {
-          toast.error("Failed to create contract. Please try again.");
-          throw new Error("Contract creation did not return an id");
+          console.warn("[CONTRACT] Contract creation did not return an id");
+          toast.error("Something went wrong. Please try again.");
+          throw new Error("CONTRACT_CREATION_NO_ID");
         }
       } catch (err) {
-        toast.error("Contract creation failed. Please try again.");
+        console.warn("[CONTRACT] Contract creation error:", err);
+        toast.error("Something went wrong. Please try again.");
         throw err;
       }
     }
