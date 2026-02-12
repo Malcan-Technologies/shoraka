@@ -328,9 +328,9 @@ export function ContractDetailsStep({
   onDataChange,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
-  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const { data: application } = useApplication(applicationId);
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
-  const { data: contract } = useContract(contractId || "");
+  const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
 
@@ -381,7 +381,8 @@ export function ContractDetailsStep({
   React.useEffect(() => {
     // Only initialize once per applicationId
     if (isInitializedRef.current) return;
-    if (!application || isLoadingApp) return;
+    if (!application) return;
+    if (isLoadingContract) return;
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
@@ -434,7 +435,7 @@ export function ContractDetailsStep({
 
     isInitializedRef.current = true;
     console.warn("[CONTRACT] Hydrated");
-  }, [application, isLoadingApp, contract]);
+  }, [application, contract, isLoadingContract]);
 
   /* ================================================================
      SAVE FUNCTION
