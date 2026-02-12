@@ -218,16 +218,12 @@ export function SupportingDocumentsStep({
     if (!file) return;
 
     if (file.type !== "application/pdf") {
-      toast.error("Invalid file type", {
-        description: "Only PDF files are allowed",
-      });
+      toast.error("Please select a PDF file");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large", {
-        description: "File size must be less than 5MB",
-      });
+      toast.error("File is too large (max 5MB)");
       return;
     }
 
@@ -244,7 +240,7 @@ export function SupportingDocumentsStep({
       },
     }));
 
-    toast.success("File added.");
+    toast.success("File added");
   };
 
   const uploadFilesToS3 = React.useCallback(async () => {
@@ -327,7 +323,7 @@ export function SupportingDocumentsStep({
           setLastS3Keys((prev: any) => ({ ...prev, [key]: s3Key }));
         }
       } catch (error) {
-        toast.error(`Failed to upload ${typedFile.name}`);
+        console.warn(`[DOCUMENTS] Failed to upload ${typedFile.name}:`, error);
         throw error;
       } finally {
         setUploadingKeys((prev) => {
@@ -437,7 +433,6 @@ export function SupportingDocumentsStep({
       delete newFiles[key];
       return newFiles;
     });
-    toast.success("File removed");
   };
 
   const getCategoryStatus = (categoryIndex: number) => {

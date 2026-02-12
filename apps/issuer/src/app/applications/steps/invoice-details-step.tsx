@@ -68,6 +68,7 @@ import { formLabelClassName } from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
+import { Skeleton } from "@/components/ui/skeleton";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -149,12 +150,20 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
   const [deletedInvoices, setDeletedInvoices] = React.useState<Record<string, { s3_key?: string }>>({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
+  const [isLoadingApplication, setIsLoadingApplication] = React.useState(true);
+  const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
+  const [isInitialized, setIsInitialized] = React.useState(false);
 
   const { getAccessToken } = useAuthToken();
 
   React.useEffect(() => {
     let mounted = true;
     const loadApplication = async () => {
+      if (application) {
+        setIsLoadingApplication(false);
+        return;
+      }
+      setIsLoadingApplication(true);
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
         const resp: any = await apiClient.get(`/v1/applications/${applicationId}`);
@@ -163,13 +172,18 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         }
       } catch (err) {
 
+      } finally {
+        if (mounted) {
+          setIsLoadingApplication(false);
+        }
       }
     };
     loadApplication();
     return () => {
       mounted = false;
     };
-  }, [applicationId, getAccessToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId]);
 
   const addInvoice = () => {
     setInvoices((s) => [
@@ -216,11 +230,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const handleFileChange = (id: string, file: File, existingS3Key?: string) => {
     if (!file) return;
     if (file.type !== "application/pdf") {
-      toast.error("Invalid file type", { description: "Only PDF files are allowed" });
+      toast.error("Please select a PDF file");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large", { description: "File size must be less than 5MB" });
+      toast.error("File is too large (max 5MB)");
       return;
     }
     setSelectedFiles((p) => ({ ...p, [id]: file }));
@@ -229,7 +243,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       file_size: file.size,
       s3_key: existingS3Key,
     });
-    toast.success("File selected");
+    toast.success("File added");
   };
 
   const isRowEmpty = (inv: LocalInvoice) => {
@@ -442,9 +456,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      * If there are validation errors, show toast and prevent save.
      */
     if (validationError) {
-      toast.error("Cannot save invoices", {
-        description: validationError,
-      });
+      toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_INVOICES");
     }
 
@@ -598,7 +610,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     setSelectedFiles({});
     setDeletedInvoices({});
-    return { success: true };
+    
+    // Return persisted invoices for application-level persistence
+    return {
+      invoices: invoices.filter((inv) => !isRowEmpty(inv)),
+      totalFinancingAmount,
+    };
   };
 
   const hasUnsavedChanges =
@@ -622,8 +639,15 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract]);
 
   React.useEffect(() => {
+    if (!application) return;
+    if (isInitialized) {
+      setIsLoadingInvoices(false);
+      return;
+    }
+
     let mounted = true;
     const loadInvoices = async () => {
+      setIsLoadingInvoices(true);
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
         const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
@@ -711,9 +735,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             }
           });
           setLastS3Keys(keys);
+          setIsInitialized(true);
         }
       } catch (err) {
         console.error("Failed to load invoices", err);
+      } finally {
+        if (mounted) {
+          setIsLoadingInvoices(false);
+        }
       }
     };
     loadInvoices();
@@ -730,12 +759,36 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
-      {application?.contract && (
+      {isLoadingApplication ? (
         <div className="space-y-4">
           <div>
-            <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
+            <Skeleton className="h-7 w-32" />
             <div className="mt-2 h-px bg-border" />
           </div>
+          <div className="space-y-3 mt-4 px-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        application?.contract && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
 
           <div className="space-y-3 mt-4 px-3">
             <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
@@ -793,6 +846,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             </div>
           </div>
         </div>
+        )
       )}
 
       {/* ================= Invoice Details ================= */}
@@ -816,6 +870,22 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         {/* ================= Table ================= */}
         <div className="mt-4 px-3">
+          {isLoadingInvoices ? (
+            <div className="border rounded-xl bg-card overflow-hidden p-4 space-y-4">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-9 w-[140px]" />
+                <Skeleton className="h-9 w-[100px]" />
+                <Skeleton className="h-9 w-[150px]" />
+                <Skeleton className="h-9 w-[150px]" />
+                <Skeleton className="h-9 w-[130px]" />
+                <Skeleton className="h-9 w-[200px]" />
+                <Skeleton className="h-9 w-[160px]" />
+              </div>
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : (
           <div className="border rounded-xl bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <Table className="table-fixed w-full">
@@ -1039,6 +1109,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               </Table>
             </div>
           </div>
+          )}
         </div>
 
         {/* ================= Validation ================= */}

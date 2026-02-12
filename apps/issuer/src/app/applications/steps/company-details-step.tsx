@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * COMPANY DETAILS STEP - REBUILT FOR DETERMINISM
+ *
+ * Architecture:
+ * - Single local form state (source of truth)
+ * - Deterministic hydration (only once, after all data loads)
+ * - Stable saveFunction via useCallback
+ * - One onDataChange effect that computes validity from current state
+ * - No double-click risk
+ */
+
 import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
@@ -38,35 +49,34 @@ import {
   withFieldError,
 } from "@/app/applications/components/form-control";
 
-/**
- * COMPANY DETAILS STEP
- *
- * Read-only display of organization information.
- * User reviews their company details before submitting application.
- *
- * Data Flow:
- * 1. Load organization data from database using hooks
- * 2. Display in read-only format
- * 3. Pass organization ID to parent for saving
- *
- * Database format: { issuer_organization_id: "clx123" }
- */
-
 interface CompanyDetailsStepProps {
   applicationId: string;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: Record<string, unknown>) => void;
 }
 
 /**
- * Helper function to get bank field value from bank details object
+ * FORM DATA STATE - Single source of truth
  */
-function getBankField(bankDetails: any, fieldName: string): string {
+interface FormState {
+  industry: string;
+  numberOfEmployees: string;
+  businessAddress: Record<string, unknown> | null;
+  registeredAddress: Record<string, unknown> | null;
+  bankName: string;
+  bankAccountNumber: string;
+  contactPersonName: string;
+  contactPersonPosition: string;
+  contactPersonIc: string;
+  contactPersonContact: string;
+}
+
+function getBankField(bankDetails: Record<string, unknown> | null, fieldName: string): string {
   if (!bankDetails?.content) return "";
-  const field = bankDetails.content.find((f: any) => f.fieldName === fieldName);
+  const content = bankDetails.content as Array<{ fieldName: string; fieldValue: string }>;
+  const field = content.find((f) => f.fieldName === fieldName);
   return field?.fieldValue || "";
 }
 
-/** Malaysian banks list (values match RegTank format); same as profile page */
 const MALAYSIAN_BANKS = [
   { value: "Affin Bank Berhad", label: "Affin Bank" },
   { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
@@ -95,58 +105,41 @@ const MALAYSIAN_BANKS = [
 
 const ADDRESS_PLACEHOLDER = "No address entered";
 
-/**
- * Helper function to format address object into a single string.
- * When empty, returns a placeholder instead of "—".
- */
-function formatAddress(addr: any): string {
+function formatAddress(addr: Record<string, unknown> | null): string {
   if (!addr) return ADDRESS_PLACEHOLDER;
   const parts = [
-    addr.line1,
-    addr.line2,
-    addr.city,
-    addr.postalCode,
-    addr.state,
-    addr.country,
+    addr.line1 as string,
+    addr.line2 as string,
+    addr.city as string,
+    addr.postalCode as string,
+    addr.state as string,
+    addr.country as string,
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : ADDRESS_PLACEHOLDER;
 }
 
-/**
- * Helper function to normalize name for deduplication
- */
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Bank account number: digits only, length in range when provided */
 const BANK_ACCOUNT_REGEX = /^\d*$/;
 const BANK_ACCOUNT_MIN_LENGTH = 10;
 const BANK_ACCOUNT_MAX_LENGTH = 18;
-/** IC number: digits only (no dashes or letters) */
 const IC_NUMBER_REGEX = /^\d*$/;
-/** Number of employees: positive integer (digits only, non-zero) */
+
 function isValidNumberOfEmployees(value: string): boolean {
   const n = Number.parseInt(value.trim(), 10);
   return Number.isInteger(n) && n > 0 && value.trim().replace(/^0+/, "") !== "";
 }
 
-/** Restrict input to digits only (e.g. bank account, number of employees) */
 function restrictDigitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-/** Restrict input to digits only (IC number) */
 function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-/** Helpers
- *
- * What: Canonical form control styles shared across steps.
- * Why: Keep input/label styling identical across Business/Contract/Invoice/Review.
- * Data: Uses shared strings and an error helper that applies a thin red border.
- */
 const inputClassName = cn(formInputClassName, "bg-muted");
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
@@ -167,237 +160,140 @@ export function CompanyDetailsStep({
     [getAccessToken]
   );
 
-  const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
+  /* ================================================================
+     DATA LOADING HOOKS
+     ================================================================ */
 
-  /**
-   * PENDING CHANGES STATES
-   * 
-   * Store edits locally until user clicks "Save and Continue".
-   * These are NOT saved to database yet.
-   */
-  const [pendingCompanyInfo, setPendingCompanyInfo] = React.useState<{ industry?: string; numberOfEmployees?: string } | null>(null);
-  const [pendingAddress, setPendingAddress] = React.useState<{ businessAddress?: any; registeredAddress?: any } | null>(null);
-  const [pendingBanking, setPendingBanking] = React.useState<{ bankName?: string; bankAccountNumber?: string } | null>(null);
-
-  /**
-   * CONTACT PERSON STATE
-   *
-   * Contact person data is stored in application.company_details.contact_person
-   * This is user input, not fetched from organization.
-   */
   const { data: application } = useApplication(applicationId);
-  const savedContactPerson = (application?.company_details as any)?.contact_person;
-
-  const [contactPerson, setContactPerson] = React.useState<{
-    name: string;
-    position: string;
-    ic: string;
-    contact: string;
-  }>({
-    name: savedContactPerson?.name || "",
-    position: savedContactPerson?.position || "",
-    ic: savedContactPerson?.ic || "",
-    contact: savedContactPerson?.contact || "",
-  });
-
-  // Load saved contact person data when application loads
-  React.useEffect(() => {
-    if (savedContactPerson) {
-      setContactPerson({
-        name: savedContactPerson.name || "",
-        position: savedContactPerson.position || "",
-        ic: savedContactPerson.ic || "",
-        contact: savedContactPerson.contact || "",
-      });
-    }
-  }, [savedContactPerson]);
-
-  /**
-   * LOAD CORPORATE INFO
-   * 
-   * useCorporateInfo loads:
-   * - basicInfo (company name, entity type, SSM, industry, employees)
-   * - addresses (business and registered)
-   * - bankAccountDetails
-   */
   const {
     corporateInfo,
     bankAccountDetails,
     isLoading: isLoadingInfo,
   } = useCorporateInfo(organizationId);
-
-  /**
-   * LOAD CORPORATE ENTITIES
-   * 
-   * useCorporateEntities loads:
-   * - directorsDisplay (directors with KYC status and ownership)
-   * - shareholdersDisplay (shareholders with KYC status and ownership)
-   * - corporateShareholders (corporate entities with KYB status and ownership)
-   */
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
-  const isLoading = isLoadingInfo || isLoadingEntities;
+  const isLoadingData = isLoadingInfo || isLoadingEntities;
 
-  /**
-   * SAVE ALL PENDING CHANGES TO DATABASE
-   * 
-   * This function is called by the parent when user clicks "Save and Continue".
-   * It updates the issuer organization table with all pending changes.
-   */
-  const saveAllPendingChanges = React.useCallback(async () => {
-    if (!organizationId) {
-      return;
-    }
+  /* ================================================================
+     LOCAL FORM STATE - Single source of truth
+     ================================================================ */
 
-    try {
-      const updates: any = {};
+  const [formState, setFormState] = React.useState<FormState>({
+    industry: "",
+    numberOfEmployees: "",
+    businessAddress: null,
+    registeredAddress: null,
+    bankName: "",
+    bankAccountNumber: "",
+    contactPersonName: "",
+    contactPersonPosition: "",
+    contactPersonIc: "",
+    contactPersonContact: "",
+  });
 
-      // Save company info only for fields that have pending changes
-      if (pendingCompanyInfo) {
-        if (pendingCompanyInfo.industry !== undefined) {
-          updates.industry = pendingCompanyInfo.industry || null;
-        }
-        if (pendingCompanyInfo.numberOfEmployees !== undefined) {
-          updates.numberOfEmployees = pendingCompanyInfo.numberOfEmployees
-            ? Number.parseInt(pendingCompanyInfo.numberOfEmployees, 10)
-            : null;
-        }
-      }
-
-      // Save address if there are pending changes
-      if (pendingAddress) {
-        updates.businessAddress = pendingAddress.businessAddress;
-        updates.registeredAddress = pendingAddress.registeredAddress;
-      }
-
-      // Only make API call if there are updates
-      if (Object.keys(updates).length > 0) {
-        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, updates);
-        if (!result.success) {
-          throw new Error(result.error.message);
-        }
-        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      }
-
-      // Save banking if there are pending changes — use current display values so we never overwrite one field with empty
-      if (pendingBanking) {
-        const currentBankName =
-          pendingBanking.bankName !== undefined
-            ? pendingBanking.bankName
-            : getBankField(bankAccountDetails || null, "Bank");
-        const currentAccountNumber =
-          pendingBanking.bankAccountNumber !== undefined
-            ? pendingBanking.bankAccountNumber
-            : getBankField(bankAccountDetails || null, "Bank account number");
-        const bankAccountDetailsPayload = {
-          content: [
-            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: currentBankName ?? "" },
-            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: currentAccountNumber ?? "" },
-          ],
-          displayArea: "Operational Information",
-        };
-        const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-          bankAccountDetails: bankAccountDetailsPayload,
-        });
-        if (!result.success) {
-          throw new Error(result.error.message);
-        }
-        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-        queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
-      }
-
-      // Clear all pending changes after successful save
-      setPendingCompanyInfo(null);
-      setPendingAddress(null);
-      setPendingBanking(null);
-    } catch (error) {
-      toast.error("Failed to save changes", {
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
-      throw error;
-    }
-  }, [organizationId, apiClient, queryClient, pendingCompanyInfo, pendingAddress, pendingBanking, bankAccountDetails]);
-
-  /**
-   * Validation errors per field (for inline display)
-   */
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+  const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
 
-  const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  /* ================================================================
+     INITIAL STATE TRACKING - For change detection
+     ================================================================ */
 
-  /**
-   * VALIDATE CONTACT PERSON
-   * Required fields and format: IC digits only, contact from PhoneInput
-   */
-  const validateContactPerson = React.useCallback(() => {
-    const errors: string[] = [];
-    if (!contactPerson.name?.trim()) errors.push("Applicant name is required");
-    if (!contactPerson.position?.trim()) errors.push("Applicant position is required");
-    if (!contactPerson.ic?.trim()) {
-      errors.push("Applicant IC number is required");
-    } else if (!IC_NUMBER_REGEX.test(contactPerson.ic)) {
-      errors.push("Applicant IC number must contain only digits");
-    }
-    if (!contactPerson.contact?.trim()) {
-      errors.push("Applicant contact is required");
-    }
-    return errors;
-  }, [contactPerson]);
+  const initialStateRef = React.useRef<FormState | null>(null);
 
-  /**
-   * Validate all editable fields before save: contact person, number of employees, bank account
-   */
+  /* ================================================================
+     DETERMINISTIC HYDRATION - Run once after all data loads
+     ================================================================ */
+
+  const hasHydratedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (hasHydratedRef.current) return;
+    if (!application || !organizationId) return;
+    if (isLoadingData) return;
+
+    // Hydrate from all sources
+    const savedContactPerson = (application?.company_details as Record<string, unknown> | undefined)?.contact_person as Record<string, unknown> | undefined;
+    const basicInfo = corporateInfo?.basicInfo;
+    const businessAddress = corporateInfo?.addresses?.business;
+    const registeredAddress = corporateInfo?.addresses?.registered;
+    const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
+
+    const hydratedState: FormState = {
+      industry: basicInfo?.industry || "",
+      numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      businessAddress: (businessAddress as Record<string, unknown>) || null,
+      registeredAddress: (registeredAddress as Record<string, unknown>) || null,
+      bankName: getBankField(bankDetails, "Bank"),
+      bankAccountNumber: getBankField(bankDetails, "Bank account number"),
+      contactPersonName: (savedContactPerson?.name as string) || "",
+      contactPersonPosition: (savedContactPerson?.position as string) || "",
+      contactPersonIc: (savedContactPerson?.ic as string) || "",
+      contactPersonContact: (savedContactPerson?.contact as string) || "",
+    };
+
+    setFormState(hydratedState);
+    initialStateRef.current = hydratedState;
+
+    hasHydratedRef.current = true;
+    console.warn("[COMPANY] Hydrated");
+  }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails]);
+
+  /* ================================================================
+     VALIDATION - Pure function, no side effects
+     ================================================================ */
+
   const validateAll = React.useCallback((): { errors: string[]; fieldErrors: Record<string, string> } => {
     const errors: string[] = [];
     const fieldErrors: Record<string, string> = {};
 
-    const contactErrors = validateContactPerson();
-    if (contactErrors.length > 0) {
-      errors.push(...contactErrors);
-      if (contactErrors.some((e) => e.includes("IC"))) fieldErrors.ic = "Digits only";
-      if (contactErrors.some((e) => e.includes("contact"))) fieldErrors.contact = "Required";
-      if (contactErrors.some((e) => e.includes("name"))) fieldErrors.name = "Required";
-      if (contactErrors.some((e) => e.includes("position"))) fieldErrors.position = "Required";
+    // Contact person validation
+    if (!formState.contactPersonName?.trim()) {
+      errors.push("Applicant name is required");
+      fieldErrors.contactPersonName = "Required";
+    }
+    if (!formState.contactPersonPosition?.trim()) {
+      errors.push("Applicant position is required");
+      fieldErrors.contactPersonPosition = "Required";
+    }
+    if (!formState.contactPersonIc?.trim()) {
+      errors.push("Applicant IC number is required");
+      fieldErrors.contactPersonIc = "Required";
+    } else if (!IC_NUMBER_REGEX.test(formState.contactPersonIc)) {
+      errors.push("Applicant IC number must contain only digits");
+      fieldErrors.contactPersonIc = "Digits only";
+    }
+    if (!formState.contactPersonContact?.trim()) {
+      errors.push("Applicant contact is required");
+      fieldErrors.contactPersonContact = "Required";
     }
 
-    const industry = pendingCompanyInfo?.industry;
-    if (industry !== undefined && !industry.trim()) {
+    // Company info validation
+    if (!formState.industry?.trim()) {
       errors.push("Industry is required");
       fieldErrors.industry = "Required";
     }
-
-    const numEmp = pendingCompanyInfo?.numberOfEmployees;
-    if (numEmp !== undefined) {
-      if (!numEmp.trim()) {
-        errors.push("Number of employees is required");
-        fieldErrors.numberOfEmployees = "Required";
-      } else if (!isValidNumberOfEmployees(numEmp)) {
-        errors.push("Number of employees must be a positive whole number");
-        fieldErrors.numberOfEmployees = "Enter a positive whole number";
-      }
+    if (!formState.numberOfEmployees?.trim()) {
+      errors.push("Number of employees is required");
+      fieldErrors.numberOfEmployees = "Required";
+    } else if (!isValidNumberOfEmployees(formState.numberOfEmployees)) {
+      errors.push("Number of employees must be a positive whole number");
+      fieldErrors.numberOfEmployees = "Enter a positive whole number";
     }
 
-    const bankNameDisplay =
-      pendingBanking?.bankName !== undefined ? pendingBanking.bankName : getBankField(bankAccountDetails || null, "Bank");
-    const bankNameStr = (bankNameDisplay ?? "").trim();
-    if (!bankNameStr) {
+    // Banking validation
+    if (!formState.bankName?.trim()) {
       errors.push("Bank name is required");
       fieldErrors.bankName = "Select a bank";
     }
-
-    const bankNum =
-      pendingBanking?.bankAccountNumber ??
-      getBankField(bankAccountDetails || null, "Bank account number");
-    const bankNumStr = bankNum !== undefined && bankNum !== "" ? String(bankNum).trim() : "";
-    if (!bankNumStr) {
+    if (!formState.bankAccountNumber?.trim()) {
       errors.push("Bank account number is required");
       fieldErrors.bankAccountNumber = "Required";
     } else {
-      if (!BANK_ACCOUNT_REGEX.test(bankNumStr)) {
+      if (!BANK_ACCOUNT_REGEX.test(formState.bankAccountNumber)) {
         errors.push("Bank account number must contain only numbers");
         fieldErrors.bankAccountNumber = "Only numbers allowed";
       } else if (
-        bankNumStr.length < BANK_ACCOUNT_MIN_LENGTH ||
-        bankNumStr.length > BANK_ACCOUNT_MAX_LENGTH
+        formState.bankAccountNumber.length < BANK_ACCOUNT_MIN_LENGTH ||
+        formState.bankAccountNumber.length > BANK_ACCOUNT_MAX_LENGTH
       ) {
         errors.push(
           `Bank account number must be between ${BANK_ACCOUNT_MIN_LENGTH} and ${BANK_ACCOUNT_MAX_LENGTH} digits`
@@ -407,214 +303,143 @@ export function CompanyDetailsStep({
     }
 
     return { errors, fieldErrors };
-  }, [validateContactPerson, pendingCompanyInfo, pendingBanking, bankAccountDetails]);
+  }, [formState]);
 
-  React.useEffect(() => {
-    if (!hasSubmitted) return;
+  /* ================================================================
+     SAVE FUNCTION - Stable via useCallback
+     ================================================================ */
 
-    const { fieldErrors: nextFieldErrors } = validateAll();
+  const saveFunction = React.useCallback(async () => {
+    console.warn("[COMPANY] Save triggered");
+
+    // Validate immediately
+    const { errors, fieldErrors: nextFieldErrors } = validateAll();
     setFieldErrors(nextFieldErrors);
-  }, [
-    hasSubmitted,
-    contactPerson,
-    pendingCompanyInfo,
-    pendingBanking,
-    validateAll,
-  ]);
 
-
-  /**
-   * CHECK IF CONTACT PERSON HAS CHANGED FROM SAVED STATE
-   * 
-   * Compare current contactPerson with savedContactPerson to detect changes.
-   * Uses trimmed values for comparison.
-   */
-  const hasContactPersonChanged = React.useMemo(() => {
-    if (!savedContactPerson) {
-      // If no saved data, check if all fields are filled (user has entered data)
-      return !!(
-        contactPerson.name?.trim() ||
-        contactPerson.position?.trim() ||
-        contactPerson.ic?.trim() ||
-        contactPerson.contact?.trim()
-      );
+    if (errors.length > 0) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_COMPANY_REQUIRED_FIELDS");
     }
 
-    // Compare trimmed values
-    return (
-      (contactPerson.name?.trim() || "") !== (savedContactPerson.name?.trim() || "") ||
-      (contactPerson.position?.trim() || "") !== (savedContactPerson.position?.trim() || "") ||
-      (contactPerson.ic?.trim() || "") !== (savedContactPerson.ic?.trim() || "") ||
-      (contactPerson.contact?.trim() || "") !== (savedContactPerson.contact?.trim() || "")
-    );
-  }, [contactPerson, savedContactPerson]);
+    // Persist to DB
+    if (!organizationId) throw new Error("Organization ID required");
 
-  /**
-   * CHECK IF THERE ARE ANY PENDING CHANGES
-   * 
-   * Returns true if:
-   * - There are pending company info changes
-   * - There are pending address changes
-   * - There are pending banking changes
-   * - Contact person has changed from saved state
-   */
-  const hasPendingChanges = React.useMemo(() => {
+    try {
+      const updates: Record<string, unknown> = {};
+
+      if (formState.industry) updates.industry = formState.industry;
+      if (formState.numberOfEmployees) {
+        updates.numberOfEmployees = Number.parseInt(formState.numberOfEmployees, 10);
+      }
+      updates.businessAddress = formState.businessAddress;
+      updates.registeredAddress = formState.registeredAddress;
+
+      if (Object.keys(updates).length > 0) {
+        const result = await apiClient.patch(
+          `/v1/organizations/issuer/${organizationId}/corporate-info`,
+          updates
+        );
+        if (!result.success) throw new Error(result.error.message);
+        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
+      }
+
+      // Save banking
+      const bankAccountDetailsPayload = {
+        content: [
+          { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: formState.bankName ?? "" },
+          { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: formState.bankAccountNumber ?? "" },
+        ],
+        displayArea: "Operational Information",
+      };
+      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
+        bankAccountDetails: bankAccountDetailsPayload,
+      });
+      if (!result.success) throw new Error(result.error.message);
+      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+
+      setFieldErrors({});
+
+      // Return contact person for application save
+      return {
+        contact_person: {
+          name: formState.contactPersonName.trim(),
+          position: formState.contactPersonPosition.trim(),
+          ic: formState.contactPersonIc.trim(),
+          contact: formState.contactPersonContact.trim(),
+        },
+      };
+    } catch (error) {
+      console.warn("[COMPANY] Save error:", error instanceof Error ? error.message : error);
+      toast.error("Something went wrong. Please try again.");
+      throw error;
+    }
+  }, [formState, organizationId, apiClient, queryClient, validateAll]);
+
+  /* ================================================================
+     VALIDITY CHECK - Compute from current state
+     ================================================================ */
+
+  const isValid = React.useMemo(() => {
     return !!(
-      pendingCompanyInfo ||
-      pendingAddress ||
-      pendingBanking ||
-      hasContactPersonChanged
+      formState.contactPersonName?.trim() &&
+      formState.contactPersonPosition?.trim() &&
+      formState.contactPersonIc?.trim() &&
+      formState.contactPersonContact?.trim() &&
+      formState.industry?.trim() &&
+      formState.numberOfEmployees?.trim() &&
+      formState.bankName?.trim() &&
+      formState.bankAccountNumber?.trim()
     );
-  }, [pendingCompanyInfo, pendingAddress, pendingBanking, hasContactPersonChanged]);
+  }, [formState]);
 
-  /**
- * STEP COMPLETENESS CHECK (NOT strict validation)
- *
- * Used ONLY to enable/disable "Save & Continue".
- * Format validation still runs on save click.
- */
-  const isStepComplete = React.useMemo(() => {
-    // Contact person (required)
-    if (!contactPerson.name?.trim()) return false;
-    if (!contactPerson.position?.trim()) return false;
-    if (!contactPerson.ic?.trim()) return false;
-    if (!contactPerson.contact?.trim()) return false;
+  /* ================================================================
+     CHANGE DETECTION - Real pending changes logic
+     ================================================================ */
 
-    // Company info (required editable fields)
-    const industry =
-      pendingCompanyInfo?.industry ??
-      corporateInfo?.basicInfo?.industry;
-    if (!industry?.trim()) return false;
+  const hasPendingChanges = React.useMemo(() => {
+    if (!initialStateRef.current) return false;
+    return JSON.stringify(formState) !== JSON.stringify(initialStateRef.current);
+  }, [formState]);
 
-    const numEmployees =
-      pendingCompanyInfo?.numberOfEmployees ??
-      corporateInfo?.basicInfo?.numberOfEmployees?.toString();
-    if (!numEmployees?.trim()) return false;
+  /* ================================================================
+     NOTIFY PARENT - One effect, stable dependencies
+     ================================================================ */
 
-    // Banking (required)
-    const bankName =
-      pendingBanking?.bankName ??
-      getBankField(bankAccountDetails, "Bank");
-    if (!bankName?.trim()) return false;
-
-    const bankAccount =
-      pendingBanking?.bankAccountNumber ??
-      getBankField(bankAccountDetails, "Bank account number");
-    if (!bankAccount?.toString().trim()) return false;
-
-    return true;
-  }, [
-    contactPerson,
-    pendingCompanyInfo,
-    pendingBanking,
-    corporateInfo,
-    bankAccountDetails,
-  ]);
-
-
-  /**
-   * PASS DATA TO PARENT
-   * 
-   * Parent will call saveFunction when user clicks "Save and Continue".
-   * Contact person data is included in the data structure.
-   * Validation is done in the save function.
-   * 
-   * We pass hasPendingChanges flag so parent knows if there are actual unsaved changes.
-   */
   React.useEffect(() => {
     if (!onDataChange || !organizationId) return;
 
-    const isCurrentStepValid = isStepComplete;
-
-    const saveFunctionWithValidation = async () => {
-      setHasSubmitted(true);
-      const { errors, fieldErrors: nextFieldErrors } = validateAll();
-      setFieldErrors(nextFieldErrors);
-
-      if (errors.length > 0) {
-        toast.error("Please fix the errors below", {
-          description: errors.slice(0, 3).join("; "),
-        });
-
-        // MUST THROW — return/null/{} is WRONG
-        throw new Error("VALIDATION_COMPANY_DETAILS");
-      }
-
-      setFieldErrors({});
-      await saveAllPendingChanges();
-
-      // Return contact person data to be saved to application
-      // The data will be saved to company_details field
-      return {
-        contact_person: {
-          name: contactPerson.name.trim(),
-          position: contactPerson.position.trim(),
-          ic: contactPerson.ic.trim(),
-          contact: contactPerson.contact.trim(),
-        },
-      };
-    };
-
-    // Structure data to be saved to company_details field
-    // Include both issuer_organization_id and contact_person
-    // Pass hasPendingChanges flag so parent knows if there are actual unsaved changes
-    /**
-     * What: Expose step data and validation flag to parent.
-     * Why: Parent `EditApplicationPage` expects `isValid` to control the
-     *       "Save and Continue" button enable state.
-     * Data: issuer_organization_id, contact_person, saveFunction, hasPendingChanges, isValid
-     */
     onDataChange({
       issuer_organization_id: organizationId,
       contact_person: {
-        name: contactPerson.name,
-        position: contactPerson.position,
-        ic: contactPerson.ic,
-        contact: contactPerson.contact,
+        name: formState.contactPersonName,
+        position: formState.contactPersonPosition,
+        ic: formState.contactPersonIc,
+        contact: formState.contactPersonContact,
       },
-      saveFunction: saveFunctionWithValidation,
-      hasPendingChanges: hasPendingChanges,
-      // Provide `isValid` so parent can disable save when any required field is empty/invalid.
-      isValid: isCurrentStepValid,
+      saveFunction,
+      hasPendingChanges,
+      isValid,
     });
-  }, [
-    organizationId,
-    onDataChange,
-    saveAllPendingChanges,
-    contactPerson,
-    validateAll,
-    hasPendingChanges,
-    isStepComplete,
-  ]);
+  }, [organizationId, onDataChange, saveFunction, isValid, formState, hasPendingChanges]);
 
+  /* ================================================================
+     DIRECTORS & SHAREHOLDERS LIST
+     ================================================================ */
 
-  /**
-   * BUILD COMBINED LIST OF DIRECTORS AND SHAREHOLDERS
-   * 
-   * Logic:
-   * 1. Show directors first
-   * 2. If a director has ownership (not "—"), label them as "Director, Shareholder"
-   * 3. Show shareholders who are NOT already shown as directors
-   * 4. Show corporate shareholders with KYB status instead of KYC
-   * 5. Deduplicate by normalized name
-   */
   const directorsDisplay = entitiesData?.directorsDisplay ?? [];
   const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
   const corporateShareholders = entitiesData?.corporateShareholders ?? [];
 
   const combinedList = React.useMemo(() => {
     const seen = new Set<string>();
-    const result: any[] = [];
+    const result: Array<Record<string, unknown>> = [];
 
-    // Process directors first
     directorsDisplay.forEach((d) => {
       const normalized = normalizeName(d.name);
       if (!seen.has(normalized)) {
         seen.add(normalized);
-
-        // If director has ownership (not "—"), they're also a shareholder
         const isAlsoShareholder = d.ownershipLabel !== "—";
-
         result.push({
           type: "director",
           name: d.name,
@@ -627,7 +452,6 @@ export function CompanyDetailsStep({
       }
     });
 
-    // Process shareholders who are NOT directors
     shareholdersDisplay.forEach((s) => {
       const normalized = normalizeName(s.name);
       if (!seen.has(normalized)) {
@@ -644,16 +468,15 @@ export function CompanyDetailsStep({
       }
     });
 
-    // Process corporate shareholders
-    corporateShareholders.forEach((corp: any) => {
-      // Extract ownership percentage from formContent
-      const shareField = corp.formContent?.displayAreas?.[0]?.content?.find(
-        (f: any) => f.fieldName === "% of Shares"
+    corporateShareholders.forEach((corp: Record<string, unknown>) => {
+      const displayAreas = (corp.formContent as Record<string, unknown>)?.displayAreas as Array<Record<string, unknown>> | undefined;
+      const firstArea = displayAreas?.[0] as Record<string, unknown> | undefined;
+      const content = firstArea?.content as Array<Record<string, unknown>> | undefined;
+      const shareField = content?.find(
+        (f) => f.fieldName === "% of Shares"
       );
       const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
       const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
-
-      // Check KYB approval status
       const kybApproved = corp.approveStatus === "APPROVED";
 
       result.push({
@@ -672,20 +495,14 @@ export function CompanyDetailsStep({
 
   const hasDirectorsOrShareholders = combinedList.length > 0;
 
-  /**
-   * LOADING STATE
-   * 
-   * Show skeleton loaders while data is being fetched
-   */
-  if (isLoading) {
-    return (
-      <CompanyDetailsSkeleton />
-    );
+  /* ================================================================
+     RENDER
+     ================================================================ */
+
+  if (isLoadingData || !hasHydratedRef.current) {
+    return <CompanyDetailsSkeleton />;
   }
 
-  /**
-   * NO ORGANIZATION SELECTED STATE
-   */
   if (!organizationId) {
     return (
       <div className="text-center py-20 text-muted-foreground">
@@ -694,38 +511,15 @@ export function CompanyDetailsStep({
     );
   }
 
-  /**
-   * EXTRACT DATA FROM HOOKS
-   * 
-   * Get all the data we need to display from the hooks
-   */
-  const basicInfo = corporateInfo?.basicInfo;
-  const businessAddress = corporateInfo?.addresses?.business;
-  const registeredAddress = corporateInfo?.addresses?.registered;
-  const bankDetails: any = bankAccountDetails || null;
-  const bankName = getBankField(bankDetails, "Bank");
-  const accountNumber = getBankField(bankDetails, "Bank account number");
-
-  /**
-   * DISPLAY VALUES - show pending changes if they exist, otherwise show original data
-   */
-  const displayIndustry = pendingCompanyInfo?.industry !== undefined ? pendingCompanyInfo.industry : basicInfo?.industry;
-  const displayNumberOfEmployees = pendingCompanyInfo?.numberOfEmployees !== undefined ? pendingCompanyInfo.numberOfEmployees : basicInfo?.numberOfEmployees;
-  const displayBusinessAddress = pendingAddress?.businessAddress || businessAddress;
-  const displayRegisteredAddress = pendingAddress?.registeredAddress || registeredAddress;
-  const displayBankName = pendingBanking?.bankName !== undefined ? pendingBanking.bankName : bankName;
-  const displayAccountNumber = pendingBanking?.bankAccountNumber !== undefined ? pendingBanking.bankAccountNumber : accountNumber;
-
-  const handleSaveAddress = (businessAddress: any, registeredAddress: any) => {
-    setPendingAddress({ businessAddress, registeredAddress });
+  const handleSaveAddress = (businessAddress: Record<string, string>, registeredAddress: Record<string, string>) => {
+    setFormState((prev) => ({
+      ...prev,
+      businessAddress: businessAddress as Record<string, unknown>,
+      registeredAddress: registeredAddress as Record<string, unknown>,
+    }));
     setIsEditAddressOpen(false);
   };
 
-  /**
-   * MAIN UI
-   * 
-   * Display all company information in read-only format
-   */
   return (
     <div className="space-y-10 px-3">
       {/* Company Info Section */}
@@ -738,21 +532,21 @@ export function CompanyDetailsStep({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
           <div className={labelClassName}>Company name</div>
           <Input
-            value={basicInfo?.businessName || "eg. Company Name"}
+            value={corporateInfo?.basicInfo?.businessName || "eg. Company Name"}
             disabled
             className={inputClassName}
           />
 
           <div className={labelClassName}>Type of entity</div>
           <Input
-            value={basicInfo?.entityType || "eg. Private Limited Company"}
+            value={corporateInfo?.basicInfo?.entityType || "eg. Private Limited Company"}
             disabled
             className={inputClassName}
           />
 
           <div className={labelClassName}>SSM no</div>
           <Input
-            value={basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
+            value={corporateInfo?.basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
             disabled
             className={inputClassName}
           />
@@ -760,28 +554,26 @@ export function CompanyDetailsStep({
           <div className={labelClassNameEditable}>Industry</div>
           <div>
             <Input
-              value={displayIndustry ?? ""}
-              onChange={(e) =>
-                setPendingCompanyInfo((prev) => ({ ...prev, industry: e.target.value }))
-              }
+              value={formState.industry}
+              onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
               placeholder="eg. Technology"
               className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
             />
             {fieldErrors.industry && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.industry}
-              </p>
+              <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
             )}
           </div>
 
           <div className={labelClassNameEditable}>Number of employees</div>
           <div>
             <Input
-              value={displayNumberOfEmployees?.toString() ?? ""}
-              onChange={(e) => {
-                const v = restrictDigitsOnly(e.target.value);
-                setPendingCompanyInfo((prev) => ({ ...prev, numberOfEmployees: v }));
-              }}
+              value={formState.numberOfEmployees}
+              onChange={(e) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  numberOfEmployees: restrictDigitsOnly(e.target.value),
+                }))
+              }
               placeholder="eg. 10"
               className={withFieldError(
                 inputClassNameEditable,
@@ -816,14 +608,14 @@ export function CompanyDetailsStep({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
           <div className={labelClassName}>Business address</div>
           <Input
-            value={formatAddress(displayBusinessAddress)}
+            value={formatAddress(formState.businessAddress)}
             disabled
             className={inputClassName}
           />
 
           <div className={labelClassName}>Registered address</div>
           <Input
-            value={formatAddress(displayRegisteredAddress)}
+            value={formatAddress(formState.registeredAddress)}
             disabled
             className={inputClassName}
           />
@@ -844,15 +636,15 @@ export function CompanyDetailsStep({
             </p>
           ) : (
             combinedList.map((item) => (
-              <React.Fragment key={item.key}>
-                <div className={labelClassName}>{item.roleLabel}</div>
+              <React.Fragment key={item.key as string}>
+                <div className={labelClassName}>{item.roleLabel as string}</div>
                 <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
                   <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                    {item.name}
+                    {item.name as string}
                   </div>
                   <div className="h-4 w-px bg-border" />
                   <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                    {item.ownership}
+                    {item.ownership as string}
                   </div>
                   <div className="h-4 w-px bg-border" />
                   {item.statusVerified ? (
@@ -883,9 +675,9 @@ export function CompanyDetailsStep({
           <div className={labelClassNameEditable}>Bank name</div>
           <div>
             <Select
-              value={displayBankName ?? ""}
+              value={formState.bankName}
               onValueChange={(value) =>
-                setPendingBanking((prev) => ({ ...prev, bankName: value }))
+                setFormState((prev) => ({ ...prev, bankName: value }))
               }
             >
               <SelectTrigger
@@ -906,28 +698,22 @@ export function CompanyDetailsStep({
             </Select>
 
             {fieldErrors.bankName && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.bankName}
-              </p>
+              <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
             )}
           </div>
 
           <div className={labelClassNameEditable}>Bank account number</div>
           <div>
             <Input
-              value={displayAccountNumber ?? ""}
+              value={formState.bankAccountNumber}
               onChange={(e) => {
                 const digitsOnly = restrictDigitsOnly(e.target.value);
-
-                // ⛔ stop typing beyond 18 digits
                 if (digitsOnly.length > BANK_ACCOUNT_MAX_LENGTH) return;
-
-                setPendingBanking((prev) => ({
+                setFormState((prev) => ({
                   ...prev,
                   bankAccountNumber: digitsOnly,
                 }));
               }}
-
               placeholder="eg. 1234123412341234"
               className={withFieldError(
                 inputClassNameEditable,
@@ -946,7 +732,6 @@ export function CompanyDetailsStep({
                 </p>
               )}
             </div>
-
           </div>
         </div>
       </div>
@@ -962,16 +747,22 @@ export function CompanyDetailsStep({
           <div className={labelClassNameEditable}>Applicant name</div>
           <div>
             <Input
-              value={contactPerson.name ?? ""}
+              value={formState.contactPersonName}
               onChange={(e) =>
-                setContactPerson((prev) => ({ ...prev, name: e.target.value }))
+                setFormState((prev) => ({
+                  ...prev,
+                  contactPersonName: e.target.value,
+                }))
               }
               placeholder="eg. John Doe"
-              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.name))}
+              className={withFieldError(
+                inputClassNameEditable,
+                Boolean(fieldErrors.contactPersonName)
+              )}
             />
-            {fieldErrors.name && (
+            {fieldErrors.contactPersonName && (
               <p className="text-destructive text-sm mt-1">
-                {fieldErrors.name}
+                {fieldErrors.contactPersonName}
               </p>
             )}
           </div>
@@ -979,19 +770,22 @@ export function CompanyDetailsStep({
           <div className={labelClassNameEditable}>Applicant position</div>
           <div>
             <Input
-              value={contactPerson.position ?? ""}
+              value={formState.contactPersonPosition}
               onChange={(e) =>
-                setContactPerson((prev) => ({ ...prev, position: e.target.value }))
+                setFormState((prev) => ({
+                  ...prev,
+                  contactPersonPosition: e.target.value,
+                }))
               }
               placeholder="eg. CEO"
               className={withFieldError(
                 inputClassNameEditable,
-                Boolean(fieldErrors.position)
+                Boolean(fieldErrors.contactPersonPosition)
               )}
             />
-            {fieldErrors.position && (
+            {fieldErrors.contactPersonPosition && (
               <p className="text-destructive text-sm mt-1">
-                {fieldErrors.position}
+                {fieldErrors.contactPersonPosition}
               </p>
             )}
           </div>
@@ -999,19 +793,22 @@ export function CompanyDetailsStep({
           <div className={labelClassNameEditable}>Applicant IC no</div>
           <div>
             <Input
-              value={contactPerson.ic ?? ""}
+              value={formState.contactPersonIc}
               onChange={(e) =>
-                setContactPerson((prev) => ({
+                setFormState((prev) => ({
                   ...prev,
-                  ic: restrictIcNumber(e.target.value),
+                  contactPersonIc: restrictIcNumber(e.target.value),
                 }))
               }
               placeholder="eg. 1234567890"
-              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.ic))}
+              className={withFieldError(
+                inputClassNameEditable,
+                Boolean(fieldErrors.contactPersonIc)
+              )}
             />
-            {fieldErrors.ic && (
+            {fieldErrors.contactPersonIc && (
               <p className="text-destructive text-sm mt-1">
-                {fieldErrors.ic}
+                {fieldErrors.contactPersonIc}
               </p>
             )}
           </div>
@@ -1021,18 +818,21 @@ export function CompanyDetailsStep({
             <PhoneInput
               international
               defaultCountry="MY"
-              value={contactPerson.contact ?? undefined}
+              value={formState.contactPersonContact || undefined}
               onChange={(v) =>
-                setContactPerson((prev) => ({ ...prev, contact: v ?? "" }))
+                setFormState((prev) => ({
+                  ...prev,
+                  contactPersonContact: v ?? "",
+                }))
               }
               className={cn(
-                withFieldError(formInputClassName, Boolean(fieldErrors.contact)),
+                withFieldError(formInputClassName, Boolean(fieldErrors.contactPersonContact)),
                 "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
               )}
             />
-            {fieldErrors.contact && (
+            {fieldErrors.contactPersonContact && (
               <p className="text-destructive text-sm mt-1">
-                {fieldErrors.contact}
+                {fieldErrors.contactPersonContact}
               </p>
             )}
           </div>
@@ -1043,45 +843,42 @@ export function CompanyDetailsStep({
         open={isEditAddressOpen}
         onOpenChange={setIsEditAddressOpen}
         businessAddress={{
-          line1: displayBusinessAddress?.line1 || "",
-          line2: displayBusinessAddress?.line2 || "",
-          city: displayBusinessAddress?.city || "",
-          postalCode: displayBusinessAddress?.postalCode || "",
-          state: displayBusinessAddress?.state || "",
-          country: displayBusinessAddress?.country || "Malaysia",
+          line1: (formState.businessAddress?.line1 as string) || "",
+          line2: (formState.businessAddress?.line2 as string) || "",
+          city: (formState.businessAddress?.city as string) || "",
+          postalCode: (formState.businessAddress?.postalCode as string) || "",
+          state: (formState.businessAddress?.state as string) || "",
+          country: (formState.businessAddress?.country as string) || "Malaysia",
         }}
         registeredAddress={{
-          line1: displayRegisteredAddress?.line1 || "",
-          line2: displayRegisteredAddress?.line2 || "",
-          city: displayRegisteredAddress?.city || "",
-          postalCode: displayRegisteredAddress?.postalCode || "",
-          state: displayRegisteredAddress?.state || "",
-          country: displayRegisteredAddress?.country || "Malaysia",
+          line1: (formState.registeredAddress?.line1 as string) || "",
+          line2: (formState.registeredAddress?.line2 as string) || "",
+          city: (formState.registeredAddress?.city as string) || "",
+          postalCode: (formState.registeredAddress?.postalCode as string) || "",
+          state: (formState.registeredAddress?.state as string) || "",
+          country: (formState.registeredAddress?.country as string) || "Malaysia",
         }}
         onSave={handleSaveAddress}
       />
     </div>
   );
-
-
-
 }
 
-/**
- * EDIT ADDRESS DIALOG
- * 
- * Modal to edit business and registered addresses.
- * Shows pending values if they exist, otherwise original values.
- */
 function EditAddressDialog({
   open,
   onOpenChange,
   businessAddress: initialBusinessAddress,
   registeredAddress: initialRegisteredAddress,
   onSave,
-}: any) {
-  const [businessAddress, setBusinessAddress] = React.useState(initialBusinessAddress);
-  const [registeredAddress, setRegisteredAddress] = React.useState(initialRegisteredAddress);
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  businessAddress: Record<string, string>;
+  registeredAddress: Record<string, string>;
+  onSave: (businessAddress: Record<string, string>, registeredAddress: Record<string, string>) => void;
+}) {
+  const [businessAddress, setBusinessAddress] = React.useState<Record<string, string>>(initialBusinessAddress);
+  const [registeredAddress, setRegisteredAddress] = React.useState<Record<string, string>>(initialRegisteredAddress);
   const [registeredAddressSameAsBusiness, setRegisteredAddressSameAsBusiness] = React.useState(
     JSON.stringify(initialBusinessAddress) === JSON.stringify(initialRegisteredAddress)
   );
@@ -1117,11 +914,11 @@ function EditAddressDialog({
   };
 
   const updateBusinessAddress = (field: string, value: string) => {
-    setBusinessAddress((prev: any) => ({ ...prev, [field]: value }));
+    setBusinessAddress((prev) => ({ ...prev, [field]: value }));
   };
 
   const updateRegisteredAddress = (field: string, value: string) => {
-    setRegisteredAddress((prev: any) => ({ ...prev, [field]: value }));
+    setRegisteredAddress((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -1298,11 +1095,9 @@ function EditAddressDialog({
   );
 }
 
-
 function CompanyDetailsSkeleton() {
   return (
     <div className="mt-1 space-y-10">
-      {/* ================= Company Info ================= */}
       <section className="space-y-4">
         <div>
           <Skeleton className="h-6 w-56" />
@@ -1310,24 +1105,15 @@ function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <React.Fragment key={i}>
+              <Skeleton className="h-[22px] w-40" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </React.Fragment>
+          ))}
         </div>
       </section>
 
-      {/* ================= Address ================= */}
       <section className="space-y-4">
         <div>
           <Skeleton className="h-6 w-56" />
@@ -1343,7 +1129,6 @@ function CompanyDetailsSkeleton() {
         </div>
       </section>
 
-      {/* ================= Directors & Shareholders ================= */}
       <section className="space-y-4">
         <div>
           <Skeleton className="h-6 w-56" />
@@ -1360,7 +1145,6 @@ function CompanyDetailsSkeleton() {
         </div>
       </section>
 
-      {/* ================= Banking ================= */}
       <section className="space-y-4">
         <div>
           <Skeleton className="h-6 w-56" />
@@ -1376,7 +1160,6 @@ function CompanyDetailsSkeleton() {
         </div>
       </section>
 
-      {/* ================= Contact Person ================= */}
       <section className="space-y-4">
         <div>
           <Skeleton className="h-6 w-56" />
@@ -1384,17 +1167,12 @@ function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
+          {[1, 2, 3, 4].map((i) => (
+            <React.Fragment key={i}>
+              <Skeleton className="h-[22px] w-40" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </React.Fragment>
+          ))}
         </div>
       </section>
     </div>
