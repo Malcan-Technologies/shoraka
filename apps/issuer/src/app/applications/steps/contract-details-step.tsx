@@ -596,8 +596,9 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
 
 
     onDataChangeRef.current({
-      ...formData,
-      isValid: isCurrentStepValid, // ✅ single source of truth
+      contract_details: formData.contract,
+      customer_details: formData.customer,
+      isValid: isCurrentStepValid,
       saveFunction: handleSave,
       hasPendingChanges,
       isCreatingContract: createContractMutation.isPending,
