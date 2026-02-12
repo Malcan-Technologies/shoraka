@@ -61,3 +61,30 @@ export function useUpdateSophisticatedStatus() {
   });
 }
 
+export function useRefreshCorporateEntities() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      organizationId,
+      portal,
+    }: {
+      organizationId: string;
+      portal: PortalType;
+    }) => {
+      const response = await apiClient.refreshCorporateEntities(portal, organizationId);
+      if (!response.success) {
+        throw new Error("error" in response ? response.error.message : "Failed to refresh");
+      }
+      return response.data;
+    },
+    onSuccess: (_, { organizationId, portal }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "organization-detail", portal, organizationId],
+      });
+    },
+  });
+}
+

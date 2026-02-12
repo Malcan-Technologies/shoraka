@@ -293,6 +293,16 @@ export class ApiClient {
     );
   }
 
+  async refreshCorporateEntities(
+    portal: "investor" | "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<{ success: boolean; message: string }> | ApiError> {
+    return this.post<{ success: boolean; message: string }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/refresh-corporate-entities`,
+      {}
+    );
+  }
+
   // Admin - Onboarding Applications (Approval Queue)
   async getOnboardingApplications(
     params: GetOnboardingApplicationsParams

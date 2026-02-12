@@ -41,21 +41,19 @@ import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
-import { AmlIdentityRepository } from "../regtank/aml-identity-repository";
+import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
   private notificationService: NotificationService;
-  private amlIdentityRepository: AmlIdentityRepository;
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
-    this.amlIdentityRepository = new AmlIdentityRepository();
   }
 
   /**
@@ -1536,9 +1534,8 @@ export class AdminService {
 
     let codRequestId: string | null = null;
     if (org.type === "COMPANY") {
-      const mappings = await this.amlIdentityRepository.findByOrganization(org.id);
-      const mappingWithCod = mappings.find((m) => m.cod_request_id != null);
-      codRequestId = mappingWithCod?.cod_request_id ?? null;
+      const onboarding = await this.regTankRepository.findByOrganizationId(org.id, portal);
+      codRequestId = onboarding?.request_id ?? null;
     }
 
     return {
@@ -1681,6 +1678,47 @@ export class AdminService {
           }))
         : undefined,
     };
+  }
+
+  /**
+   * Refresh corporate entities from RegTank for a company organization.
+   * Fetches latest COD details and updates corporate_entities in the database.
+   */
+  async refreshOrganizationCorporateEntities(
+    organizationId: string,
+    portal: PortalType
+  ): Promise<{ success: boolean; message: string }> {
+    const org = await this.repository.getOrganizationById(portal, organizationId);
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Organization not found or not a company");
+    }
+
+    const onboarding = await this.regTankRepository.findByOrganizationId(organizationId, portal);
+    if (!onboarding?.request_id) {
+      throw new AppError(404, "NOT_FOUND", "No RegTank onboarding found for this organization");
+    }
+
+    const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
+    const corporateEntities = extractCorporateEntities(codDetails);
+
+    if (portal === "investor") {
+      await prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+      });
+    } else {
+      await prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+      });
+    }
+
+    logger.info(
+      { organizationId, portal, codRequestId: onboarding.request_id },
+      "Corporate entities refreshed successfully"
+    );
+
+    return { success: true, message: "Corporate entities refreshed successfully" };
   }
 
   /**
@@ -2686,6 +2724,39 @@ export class AdminService {
       status: "COMPLETED",
       completedAt: new Date(),
     });
+
+    // Refresh corporate entities for company organizations with latest data from RegTank
+    if (isCompany && onboarding.request_id) {
+      try {
+        const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
+        const corporateEntities = extractCorporateEntities(codDetails);
+
+        if (isInvestor) {
+          await prisma.investorOrganization.update({
+            where: { id: org.id },
+            data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+          });
+        } else {
+          await prisma.issuerOrganization.update({
+            where: { id: org.id },
+            data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+          });
+        }
+
+        logger.info(
+          { organizationId: org.id, codRequestId: onboarding.request_id },
+          "Corporate entities refreshed after final approval"
+        );
+      } catch (refreshError) {
+        logger.error(
+          {
+            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+            organizationId: org.id,
+          },
+          "Failed to refresh corporate entities after final approval (non-blocking)"
+        );
+      }
+    }
 
     // Verify the update by fetching the record again
     const updatedOnboarding = await this.regTankRepository.findByRequestId(onboarding.request_id);

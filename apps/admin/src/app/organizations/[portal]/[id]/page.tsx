@@ -26,6 +26,7 @@ import { OrganizationActivityTimeline } from "@/components/organization-activity
 import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
+  useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
 import type { PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
@@ -48,6 +49,7 @@ import {
   ShieldExclamationIcon,
   ExclamationTriangleIcon,
   ArrowLeftIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -598,28 +600,59 @@ function formatAddressDisplay(address?: {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
+function CorporateEntitiesDisplay({
+  data,
+  onRefresh,
+  isRefreshing,
+}: {
+  data: Record<string, unknown>;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}) {
   const directors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
   const shareholders = Array.isArray(data.shareholders) ? data.shareholders as Record<string, unknown>[] : [];
   const corporateShareholders = Array.isArray(data.corporateShareholders) ? data.corporateShareholders as Record<string, unknown>[] : [];
 
   if (directors.length === 0 && shareholders.length === 0 && corporateShareholders.length === 0) return null;
 
-  const renderPerson = (person: Record<string, unknown>, idx: number) => {
-    const info = person.personalInfo as Record<string, unknown> | undefined;
-    const name = String(info?.fullName || `${info?.firstName || ""} ${info?.lastName || ""}`.trim() || "Unknown");
-    const email = String(info?.email || "—");
+  const renderPerson = (person: Record<string, unknown>, idx: number, isCorporate = false) => {
+    let name: string;
+    let email: string;
     const status = String(person.status || "—");
     const kycType = person.kycType ? String(person.kycType) : null;
     const eodRequestId = person.eodRequestId ? String(person.eodRequestId) : null;
     const docs = person.documents as Record<string, unknown> | undefined;
+
+    if (isCorporate) {
+      const formContent = person.formContent as Record<string, unknown> | undefined;
+      const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+      const basicInfo = displayAreas.find(
+        (area: Record<string, unknown>) => area.displayArea === "Basic Information Setting"
+      ) as { content?: Array<{ fieldName?: string; fieldValue?: string }> } | undefined;
+      const content = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
+      const businessNameField = content.find((f: { fieldName?: string }) => f.fieldName === "Business Name");
+      const shareField = content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares");
+      name = String(
+        businessNameField?.fieldValue || person.companyName || person.businessName || "Unknown"
+      );
+      if (shareField?.fieldValue) {
+        name += ` (${shareField.fieldValue}%)`;
+      }
+      email = String(person.email || "—");
+    } else {
+      const info = person.personalInfo as Record<string, unknown> | undefined;
+      name = String(
+        info?.fullName || `${info?.firstName || ""} ${info?.lastName || ""}`.trim() || "Unknown"
+      );
+      email = String(info?.email || "—");
+    }
 
     return (
       <div key={idx} className="py-2.5 first:pt-0 last:pb-0 border-b last:border-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">{name}</p>
-            <p className="text-xs text-muted-foreground">{email}</p>
+            {!isCorporate && <p className="text-xs text-muted-foreground">{email}</p>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge
@@ -639,21 +672,33 @@ function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-          {eodRequestId && <span className="font-mono">EOD: {eodRequestId}</span>}
-          {typeof docs?.frontDocumentUrl === "string" && (
-            <a href={docs.frontDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
-              <LinkIcon className="h-3 w-3" />
-              Front ID
-            </a>
-          )}
-          {typeof docs?.backDocumentUrl === "string" && (
-            <a href={docs.backDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
-              <LinkIcon className="h-3 w-3" />
-              Back ID
-            </a>
-          )}
-        </div>
+        {!isCorporate && (
+          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+            {eodRequestId && <span className="font-mono">EOD: {eodRequestId}</span>}
+            {typeof docs?.frontDocumentUrl === "string" && (
+              <a
+                href={docs.frontDocumentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                <LinkIcon className="h-3 w-3" />
+                Front ID
+              </a>
+            )}
+            {typeof docs?.backDocumentUrl === "string" && (
+              <a
+                href={docs.backDocumentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                <LinkIcon className="h-3 w-3" />
+                Back ID
+              </a>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -661,10 +706,26 @@ function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <UsersIcon className="h-4 w-4" />
-          Corporate Entities
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <UsersIcon className="h-4 w-4" />
+            Corporate Entities
+          </CardTitle>
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="gap-1.5 h-7"
+            >
+              <ArrowPathIcon
+                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {directors.length > 0 && (
@@ -672,7 +733,9 @@ function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Directors ({directors.length})
             </p>
-            <div className="divide-y">{directors.map(renderPerson)}</div>
+            <div className="divide-y">
+              {directors.map((p, i) => renderPerson(p, i, false))}
+            </div>
           </div>
         )}
         {shareholders.length > 0 && (
@@ -680,7 +743,9 @@ function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Shareholders ({shareholders.length})
             </p>
-            <div className="divide-y">{shareholders.map(renderPerson)}</div>
+            <div className="divide-y">
+              {shareholders.map((p, i) => renderPerson(p, i, false))}
+            </div>
           </div>
         )}
         {corporateShareholders.length > 0 && (
@@ -688,7 +753,9 @@ function CorporateEntitiesDisplay({ data }: { data: Record<string, unknown> }) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Corporate Shareholders ({corporateShareholders.length})
             </p>
-            <div className="divide-y">{corporateShareholders.map(renderPerson)}</div>
+            <div className="divide-y">
+              {corporateShareholders.map((corp, idx) => renderPerson(corp, idx, true))}
+            </div>
           </div>
         )}
       </CardContent>
@@ -709,8 +776,23 @@ function DirectorStatusDisplay({
   statusKey: "kycStatus" | "amlStatus";
   filterFn?: (dir: Record<string, unknown>) => boolean;
 }) {
-  const allDirectors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
-  const directors = filterFn ? allDirectors.filter(filterFn) : allDirectors;
+  const directorsFromData = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
+  const individualShareholdersFromData = Array.isArray(data.individualShareholders)
+    ? data.individualShareholders as Record<string, unknown>[]
+    : [];
+  const allDirectors = [...directorsFromData, ...individualShareholdersFromData];
+  const deduplicatedMap = new Map<string, Record<string, unknown>>();
+  for (const dir of allDirectors) {
+    const email = String(dir.email || "").toLowerCase().trim();
+    const role = String(dir.role || "");
+    if (!email) continue;
+    const existing = deduplicatedMap.get(email);
+    if (!existing || role.includes("Shareholder")) {
+      deduplicatedMap.set(email, dir);
+    }
+  }
+  const deduplicatedDirectors = Array.from(deduplicatedMap.values());
+  const directors = filterFn ? deduplicatedDirectors.filter(filterFn) : deduplicatedDirectors;
   const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
 
   if (directors.length === 0) return null;
@@ -786,6 +868,93 @@ function DirectorStatusDisplay({
   );
 }
 
+function BusinessShareholderStatusDisplay({
+  data,
+  label,
+  icon: Icon,
+}: {
+  data: Record<string, unknown>;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  const businessShareholders = Array.isArray(data.businessShareholders)
+    ? (data.businessShareholders as Record<string, unknown>[])
+    : [];
+  const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
+
+  if (businessShareholders.length === 0) return null;
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Icon className="h-4 w-4" />
+            {label}
+          </CardTitle>
+          {lastSynced && (
+            <span className="text-[10px] text-muted-foreground">
+              Synced {format(new Date(lastSynced), "MMM d, yyyy HH:mm")}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="divide-y">
+          {businessShareholders.map((biz, idx) => {
+            const businessName = String(biz.businessName || "Unknown");
+            const sharePercentage = biz.sharePercentage ? `${biz.sharePercentage}%` : null;
+            const amlStatus = biz.amlStatus ? String(biz.amlStatus) : null;
+            const codRequestId = biz.codRequestId ? String(biz.codRequestId) : null;
+            const kybId = biz.kybId ? String(biz.kybId) : null;
+            const riskLevel = biz.amlRiskLevel ? String(biz.amlRiskLevel) : null;
+            const riskScore = biz.amlRiskScore ? String(biz.amlRiskScore) : null;
+
+            return (
+              <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{businessName}</p>
+                    {sharePercentage && (
+                      <p className="text-xs text-muted-foreground">Shareholding: {sharePercentage}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {amlStatus && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          amlStatus === "Approved"
+                            ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
+                            : amlStatus === "Rejected"
+                              ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
+                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
+                        }
+                      >
+                        {amlStatus}
+                      </Badge>
+                    )}
+                    {riskLevel && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {riskLevel}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
+                  {codRequestId && <span>COD: {codRequestId}</span>}
+                  {kybId && <span>KYB: {kybId}</span>}
+                  {riskScore && <span>Score: {riskScore}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PageSkeleton() {
   return (
     <div className="space-y-6">
@@ -811,6 +980,7 @@ export default function OrganizationDetailPage() {
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
+  const refreshCorporateEntitiesMutation = useRefreshCorporateEntities();
 
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
@@ -1286,7 +1456,20 @@ export default function OrganizationDetailPage() {
 
                 {/* Corporate entities — Directors & Shareholders (COMPANY only) */}
                 {org.type === "COMPANY" && org.corporateEntities && (
-                  <CorporateEntitiesDisplay data={org.corporateEntities as Record<string, unknown>} />
+                  <CorporateEntitiesDisplay
+                    data={org.corporateEntities as Record<string, unknown>}
+                    onRefresh={() =>
+                      refreshCorporateEntitiesMutation.mutate(
+                        { organizationId: org.id, portal },
+                        {
+                          onSuccess: () => toast.success("Corporate entities refreshed"),
+                          onError: (err) =>
+                            toast.error(`Failed to refresh: ${err instanceof Error ? err.message : "Unknown error"}`),
+                        }
+                      )
+                    }
+                    isRefreshing={refreshCorporateEntitiesMutation.isPending}
+                  />
                 )}
 
                 {/* Director & Shareholder KYC & AML Status (COMPANY only) */}
@@ -1338,6 +1521,11 @@ export default function OrganizationDetailPage() {
                               const role = String(dir.role || "");
                               return role.includes("Shareholder");
                             }}
+                          />
+                          <BusinessShareholderStatusDisplay
+                            data={org.directorAmlStatus as Record<string, unknown>}
+                            label="Business Shareholders AML Status"
+                            icon={BuildingOffice2Icon}
                           />
                         </>
                       )}
