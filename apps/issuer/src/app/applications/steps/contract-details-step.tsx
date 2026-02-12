@@ -216,7 +216,9 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [initialData, setInitialData] = React.useState<any>(null);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
-  const [isUploading] = React.useState<Record<string, boolean>>({});
+  
+  // Track upload state for UI feedback (shows "Uploading..." in file upload area)
+  const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
 
   // Track pending files (not uploaded to S3 yet)
   const [pendingFiles, setPendingFiles] = React.useState<{
@@ -365,34 +367,37 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
 
   /**
    * SAVE FUNCTION
+   * 
+   * Handles validation, file uploads, and contract/customer persistence.
+   * Updates UI with upload progress via isUploading state.
    */
   const handleSave = React.useCallback(async () => {
-setHasSubmitted(true);
+    setHasSubmitted(true);
 
-// ❌ SSM validation
-if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
-  toast.error("SSM number must be exactly 12 digits");
-  throw new Error("VALIDATION_SSM");
-}
+    // ❌ SSM validation
+    if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+      toast.error("SSM number must be exactly 12 digits");
+      throw new Error("VALIDATION_SSM");
+    }
 
-// ❌ Date order
-if (
-  !isStartBeforeEnd(
-    formData.contract.start_date,
-    formData.contract.end_date
-  )
-) {
-  toast.error("Contract end date must be after start date");
-  throw new Error("VALIDATION_DATE_ORDER");
-}
+    // ❌ Date order
+    if (
+      !isStartBeforeEnd(
+        formData.contract.start_date,
+        formData.contract.end_date
+      )
+    ) {
+      toast.error("Contract end date must be after start date");
+      throw new Error("VALIDATION_DATE_ORDER");
+    }
 
-// ❌ Contract too short
-if (isEndDateTooSoon(formData.contract.end_date)) {
-  toast.error(
-    "Contract duration is too short. Please use invoice-only financing."
-  );
-  throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
-}
+    // ❌ Contract too short
+    if (isEndDateTooSoon(formData.contract.end_date)) {
+      toast.error(
+        "Contract duration is too short. Please use invoice-only financing."
+      );
+      throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
+    }
 
 
     // Ensure a contract exists before proceeding. If missing, create it now.
@@ -419,98 +424,110 @@ if (isEndDateTooSoon(formData.contract.end_date)) {
 
     // Upload contract document if pending
     if (pendingFiles.contract) {
-      const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
+      try {
+        setIsUploading((prev) => ({ ...prev, contract: true }));
+        
+        const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
 
-      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
-        fileName: pendingFiles.contract.name,
-        contentType: pendingFiles.contract.type,
-        fileSize: pendingFiles.contract.size,
-        type: "contract",
-        existingS3Key: existingS3Key,
-      });
+        const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
+          fileName: pendingFiles.contract.name,
+          contentType: pendingFiles.contract.type,
+          fileSize: pendingFiles.contract.size,
+          type: "contract",
+          existingS3Key: existingS3Key,
+        });
 
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-
-      const { uploadUrl, s3Key } = response.data;
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: pendingFiles.contract,
-        headers: {
-          "Content-Type": pendingFiles.contract.type,
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload contract document to S3");
-      }
-
-      // Delete old file if S3 key changed
-      if (existingS3Key && existingS3Key !== s3Key) {
-        try {
-          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-        } catch (error) {
-          console.warn("Failed to delete old contract document:", error);
+        if (!response.success) {
+          throw new Error(response.error.message);
         }
+
+        const { uploadUrl, s3Key } = response.data;
+
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: pendingFiles.contract,
+          headers: {
+            "Content-Type": pendingFiles.contract.type,
+          },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload contract document to S3");
+        }
+
+        // Delete old file if S3 key changed
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
+          } catch (error) {
+            console.warn("Failed to delete old contract document:", error);
+          }
+        }
+
+        updatedFormData.contract.document = {
+          s3_key: s3Key,
+          file_name: pendingFiles.contract.name,
+          file_size: pendingFiles.contract.size,
+        };
+
+        setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
+      } finally {
+        setIsUploading((prev) => ({ ...prev, contract: false }));
       }
-
-      updatedFormData.contract.document = {
-        s3_key: s3Key,
-        file_name: pendingFiles.contract.name,
-        file_size: pendingFiles.contract.size,
-      };
-
-      setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
     }
 
     // Upload consent document if pending
     if (pendingFiles.consent) {
-      const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
+      try {
+        setIsUploading((prev) => ({ ...prev, consent: true }));
+        
+        const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
 
-      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
-        fileName: pendingFiles.consent.name,
-        contentType: pendingFiles.consent.type,
-        fileSize: pendingFiles.consent.size,
-        type: "consent",
-        existingS3Key: existingS3Key,
-      });
+        const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
+          fileName: pendingFiles.consent.name,
+          contentType: pendingFiles.consent.type,
+          fileSize: pendingFiles.consent.size,
+          type: "consent",
+          existingS3Key: existingS3Key,
+        });
 
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-
-      const { uploadUrl, s3Key } = response.data;
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: pendingFiles.consent,
-        headers: {
-          "Content-Type": pendingFiles.consent.type,
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload consent document to S3");
-      }
-
-      // Delete old file if S3 key changed
-      if (existingS3Key && existingS3Key !== s3Key) {
-        try {
-          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-        } catch (error) {
-          console.warn("Failed to delete old consent document:", error);
+        if (!response.success) {
+          throw new Error(response.error.message);
         }
+
+        const { uploadUrl, s3Key } = response.data;
+
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: pendingFiles.consent,
+          headers: {
+            "Content-Type": pendingFiles.consent.type,
+          },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload consent document to S3");
+        }
+
+        // Delete old file if S3 key changed
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
+          } catch (error) {
+            console.warn("Failed to delete old consent document:", error);
+          }
+        }
+
+        updatedFormData.customer.document = {
+          s3_key: s3Key,
+          file_name: pendingFiles.consent.name,
+          file_size: pendingFiles.consent.size,
+        };
+
+        setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
+      } finally {
+        setIsUploading((prev) => ({ ...prev, consent: false }));
       }
-
-      updatedFormData.customer.document = {
-        s3_key: s3Key,
-        file_name: pendingFiles.consent.name,
-        file_size: pendingFiles.consent.size,
-      };
-
-      setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
     }
 
     // Convert values to numbers
