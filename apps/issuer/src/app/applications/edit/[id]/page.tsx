@@ -109,7 +109,6 @@ export default function EditApplicationPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
 
   /* ================================================================
      DATA LOADING
