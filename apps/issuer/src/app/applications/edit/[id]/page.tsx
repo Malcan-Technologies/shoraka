@@ -61,6 +61,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DefaultSkeleton } from "../_components/default-skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -108,6 +109,7 @@ export default function EditApplicationPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   /* ================================================================
      DATA LOADING
@@ -153,6 +155,12 @@ export default function EditApplicationPage() {
    * after successful saves, WITHOUT relying on stale react-query cache.
    */
   const [wizardState, setWizardState] = React.useState<WizardState | null>(null);
+
+  /**
+   * Flag to prevent gating logic from running during submission
+   * This ensures router.replace("/") completes before any effect re-runs
+   */
+  const isSubmittingRef = React.useRef(false);
 
   /** Initialize wizard state from application data (run once) */
   React.useEffect(() => {
@@ -444,6 +452,12 @@ export default function EditApplicationPage() {
     console.log(
       `[GATING_DEPS] application=${!!application}, isLoadingApp=${isLoadingApp}, isLoadingProducts=${isLoadingProducts}, wizardState=${wizardState !== null}, step=${searchParams.get("step")}`
     );
+
+    // SKIP gating if submission is in progress
+    if (isSubmittingRef.current) {
+      console.log("[GATING] Submission in progress, skipping gating");
+      return;
+    }
 
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
@@ -785,6 +799,9 @@ export default function EditApplicationPage() {
       if (currentStepKey === "review_and_submit") {
         try {
           console.log("[SUBMIT] Starting submission flow");
+          
+          // Set flag to prevent gating during submission
+          isSubmittingRef.current = true;
 
           // Update last_completed_step
           console.log(`[SUBMIT] Updating step to ${stepFromUrl}`);
@@ -806,6 +823,17 @@ export default function EditApplicationPage() {
           });
           console.log("[SUBMIT] Status mutation completed");
 
+          // Update cache with new status immediately (don't wait for refetch)
+          queryClient.setQueryData(["application", applicationId], (oldData: any) => {
+            if (!oldData) return oldData;
+            console.log("[SUBMIT] Updated cache: status = SUBMITTED");
+            return {
+              ...oldData,
+              status: "SUBMITTED",
+              last_completed_step: stepFromUrl,
+            };
+          });
+
           // Update local wizard state
           if (wizardState) {
             console.log("[SUBMIT] Updating local wizardState");
@@ -814,11 +842,6 @@ export default function EditApplicationPage() {
               allowedMaxStep: stepFromUrl + 1,
             });
           }
-
-          // DO NOT invalidate cache here - it causes stale data to be refetched
-          // before the backend status update completes. Let the redirect happen
-          // and the next page will load fresh data on mount.
-          console.log("[SUBMIT] Skipping cache invalidation (will load fresh on next page)");
 
           setHasUnsavedChanges(false);
           toast.success("Application submitted successfully");
@@ -836,6 +859,7 @@ export default function EditApplicationPage() {
           return;
         } catch (error) {
           console.warn("[SUBMIT] Error:", error instanceof Error ? error.message : error);
+          isSubmittingRef.current = false;
           toast.error("Something went wrong. Please try again.");
           throw error;
         }
