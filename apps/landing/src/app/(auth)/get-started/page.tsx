@@ -28,7 +28,7 @@ function GetStartedPageContent() {
     <div className="flex flex-col items-center space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">Get Started</h1>
-        <p className="text-[15px] text-muted-foreground">Choose how you'd like to join CashSouk</p>
+        <p className="text-[15px] text-muted-foreground">Choose how you&apos;d like to join CashSouk</p>
       </div>
 
       {error === "user_exists" && errorMessage && (
@@ -60,7 +60,7 @@ function GetStartedPageContent() {
                   <BuildingLibraryIcon className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">I'm an Investor</CardTitle>
+                  <CardTitle className="text-lg">I&apos;m an Investor</CardTitle>
                   <CardDescription className="text-sm">
                     Invest in verified borrowers
                   </CardDescription>
@@ -89,7 +89,7 @@ function GetStartedPageContent() {
                   <UserIcon className="h-6 w-6 text-secondary-foreground" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">I'm an Issuer</CardTitle>
+                  <CardTitle className="text-lg">I&apos;m an Issuer</CardTitle>
                   <CardDescription className="text-sm">Get funding for your needs</CardDescription>
                 </div>
               </div>
@@ -120,7 +120,7 @@ function GetStartedPageContent() {
           </button>
         </p>
         <p className="text-xs text-muted-foreground">
-          Can't sign in?{" "}
+          Can&apos;t sign in?{" "}
           <a href="/verify-email-help" className="text-primary hover:underline font-medium">
             Verify your email
           </a>

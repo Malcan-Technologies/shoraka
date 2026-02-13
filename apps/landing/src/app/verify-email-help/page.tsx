@@ -122,7 +122,7 @@ function VerifyEmailHelpContent() {
                   disabled={isLoading}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Enter the email you used to sign up. We'll send you a verification code.
+                  Enter the email you used to sign up. We&apos;ll send you a verification code.
                 </p>
               </div>
 
@@ -153,7 +153,7 @@ function VerifyEmailHelpContent() {
             <div className="space-y-4">
               <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
                 <p className="text-sm text-green-700 dark:text-green-400">
-                  We've sent a verification code to <strong>{email}</strong>
+                  We&apos;ve sent a verification code to <strong>{email}</strong>
                 </p>
               </div>
 

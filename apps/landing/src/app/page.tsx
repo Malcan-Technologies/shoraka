@@ -103,7 +103,7 @@ export default function ComingSoonPage() {
                 </div>
 
                 <p className="text-[17px] leading-7 text-muted-foreground max-w-[55ch] mx-auto">
-                  We're building something exceptional. CashSouk is a modern peer-to-peer lending
+                  We&apos;re building something exceptional. CashSouk is a modern peer-to-peer lending
                   platform that connects issuers with investors — securely, transparently, and
                   efficiently.
                 </p>

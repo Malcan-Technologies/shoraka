@@ -101,6 +101,7 @@ interface WizardState {
 }
 
 export default function EditApplicationPage() {
+  const queryClient = useQueryClient();
   const { setTitle } = useHeader();
   React.useEffect(() => {
     setTitle("Edit Application");

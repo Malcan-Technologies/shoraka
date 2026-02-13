@@ -151,7 +151,7 @@ export function InviteMemberDialog({
         setRole("ORGANIZATION_MEMBER");
         onOpenChange(false);
       }
-    } catch (error) {
+    } catch {
       // Error is handled by the hook
     }
   };

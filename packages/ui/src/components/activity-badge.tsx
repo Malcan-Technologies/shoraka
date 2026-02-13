@@ -4,7 +4,7 @@ import { cn } from "../lib/utils";
 import { ActivityCategory, getEventConfig } from "@cashsouk/types";
 import { Badge } from "./badge";
 
-const badgeVariants = cva(
+const activityBadgeVariants = cva(
   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent",
   {
     variants: {
@@ -20,7 +20,7 @@ const badgeVariants = cva(
 
 interface ActivityBadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {
+    VariantProps<typeof activityBadgeVariants> {
   category?: ActivityCategory;
   eventType?: string;
   label?: string;
@@ -70,7 +70,7 @@ export function ActivityBadge({
   return (
     <Badge
       variant="outline"
-      className={cn("text-xs w-fit whitespace-nowrap", className)}
+      className={cn(activityBadgeVariants({ variant }), "text-xs w-fit whitespace-nowrap", className)}
       style={{
         backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
         borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,

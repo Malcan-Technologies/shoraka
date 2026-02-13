@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cashsouk/ui";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Navbar } from "../../components/navbar";
@@ -37,7 +37,7 @@ async function logoutFromCognito() {
       method: "GET",
       credentials: "include",
     });
-  } catch (error) {
+  } catch {
     // Ignore errors - we'll still redirect
   }
 
@@ -61,10 +61,12 @@ function AuthErrorPageContent() {
   const [countdown, setCountdown] = useState(wasPreviouslyAdmin ? 5 : 0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const hasInitiatedLogout = useRef(false);
+
   useEffect(() => {
     // If user was never an admin, logout immediately and redirect
-    if (!wasPreviouslyAdmin && !isLoggingOut) {
-      setIsLoggingOut(true);
+    if (!wasPreviouslyAdmin && !hasInitiatedLogout.current) {
+      hasInitiatedLogout.current = true;
       logoutFromCognito();
       return;
     }
@@ -76,12 +78,12 @@ function AuthErrorPageContent() {
           setCountdown(countdown - 1);
         }, 1000);
         return () => clearTimeout(timer);
-      } else if (countdown === 0 && !isLoggingOut) {
-        setIsLoggingOut(true);
+      } else if (countdown === 0 && !hasInitiatedLogout.current) {
+        hasInitiatedLogout.current = true;
         logoutFromCognito();
       }
     }
-  }, [countdown, wasPreviouslyAdmin, isLoggingOut]);
+  }, [countdown, wasPreviouslyAdmin]);
 
   const handleRetryLogin = () => {
     // Redirect to get-started page to initiate new login
