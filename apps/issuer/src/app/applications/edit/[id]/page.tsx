@@ -435,6 +435,11 @@ export default function EditApplicationPage() {
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
+    // EARLY GUARD: Skip gating if application is already submitted
+    if (application.status === "SUBMITTED") {
+      return;
+    }
+
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
 
@@ -783,6 +788,9 @@ export default function EditApplicationPage() {
 
           setHasUnsavedChanges(false);
           toast.success("Application submitted successfully");
+
+          // Clear any pending sessionStorage overrides to prevent gating interference
+          sessionStorage.removeItem("cashsouk:next_allowed_step");
 
           // eslint-disable-next-line no-console
           console.log(`[SUBMIT] Application submitted, redirecting to /dashboard`);
