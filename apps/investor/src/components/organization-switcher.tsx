@@ -166,9 +166,15 @@ export function OrganizationSwitcher() {
   } = useOrganization();
 
   const isOnboardingPage = pathname === "/onboarding-start";
-  
+
+  // Hide corporate accounts with Expired status (regtank_onboarding.status = EXPIRED)
+  const visibleOrganizations = organizations.filter((org) => {
+    if (org.type === "PERSONAL") return true;
+    return org.regtankOnboardingStatus !== "EXPIRED";
+  });
+
   // Sort organizations with personal account first
-  const sortedOrganizations = sortOrganizations(organizations);
+  const sortedOrganizations = sortOrganizations(visibleOrganizations);
   
   // Get onboarded organizations for showing in switcher (also sorted)
   const onboardedOrganizations = sortOrganizations(
