@@ -776,14 +776,6 @@ export default function EditApplicationPage() {
         }
       }
 
-      // No data case
-      if (dataToSave === null) {
-        toast.success("Step completed");
-        setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-        return;
-      }
-
       const nextStep = stepFromUrl + 1;
 
       // eslint-disable-next-line no-console
@@ -792,7 +784,7 @@ export default function EditApplicationPage() {
       );
 
       /* ============================================================
-         FINAL SUBMISSION (review_and_submit)
+         FINAL SUBMISSION (review_and_submit) — MUST RUN BEFORE NULL CHECK
          ============================================================ */
 
       if (currentStepKey === "review_and_submit") {
@@ -862,6 +854,14 @@ export default function EditApplicationPage() {
           toast.error("Something went wrong. Please try again.");
           throw error;
         }
+      }
+
+      // No data case (after submission check)
+      if (dataToSave === null) {
+        toast.success("Step completed");
+        setHasUnsavedChanges(false);
+        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        return;
       }
 
       /* ============================================================
