@@ -60,7 +60,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQueryClient } from "@tanstack/react-query";
 import { DefaultSkeleton } from "../_components/default-skeleton";
 
 /**
@@ -109,7 +108,6 @@ export default function EditApplicationPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
 
   /* ================================================================
      DATA LOADING
@@ -817,9 +815,10 @@ export default function EditApplicationPage() {
             });
           }
 
-          // Invalidate cache
-          console.log("[SUBMIT] Invalidating cache");
-          await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+          // DO NOT invalidate cache here - it causes stale data to be refetched
+          // before the backend status update completes. Let the redirect happen
+          // and the next page will load fresh data on mount.
+          console.log("[SUBMIT] Skipping cache invalidation (will load fresh on next page)");
 
           setHasUnsavedChanges(false);
           toast.success("Application submitted successfully");
