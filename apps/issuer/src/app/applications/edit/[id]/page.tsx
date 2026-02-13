@@ -131,6 +131,12 @@ export default function EditApplicationPage() {
     pageSize: 100,
   });
 
+  React.useEffect(() => {
+    console.log(
+      `[DATA_LOAD] App loaded: ${!!application}, Products loaded: ${!!productsData}`
+    );
+  }, [application, productsData]);
+
   /** Handle application not found */
   React.useEffect(() => {
     if (appError) {
@@ -152,9 +158,15 @@ export default function EditApplicationPage() {
 
   /** Initialize wizard state from application data (run once) */
   React.useEffect(() => {
+    console.log(
+      `[WIZARD_INIT] Check: application=${!!application}, wizardState=${wizardState !== null}, status=${application?.status}`
+    );
     if (!application || wizardState !== null) return;
 
     const lastCompleted = application.last_completed_step || 1;
+    console.log(
+      `[WIZARD_INIT] Setting state: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
+    );
     setWizardState({
       lastCompletedStep: lastCompleted,
       allowedMaxStep: lastCompleted + 1,
@@ -162,7 +174,7 @@ export default function EditApplicationPage() {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
+      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}, appStatus=${application.status}`
     );
   }, [application, wizardState]);
 
@@ -431,17 +443,32 @@ export default function EditApplicationPage() {
    * - Prevents "Please complete steps in order" loops
    */
   React.useEffect(() => {
+    console.log(
+      `[GATING_DEPS] application=${!!application}, isLoadingApp=${isLoadingApp}, isLoadingProducts=${isLoadingProducts}, wizardState=${wizardState !== null}, step=${searchParams.get("step")}`
+    );
+
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
+    console.log(
+      `[GATING] Running gating check. App status: ${application.status}, lastCompleted: ${application.last_completed_step}`
+    );
+
     // EARLY GUARD: Skip gating if application is already submitted
     if (application.status === "SUBMITTED") {
+      console.log(
+        `[GATING] Application already SUBMITTED (${application.status}), skipping gating`
+      );
       return;
     }
 
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
+
+    console.log(
+      `[GATING] Gate check: stepFromUrl=${stepFromUrl}, allowed=${maxAllowed}, workflow=${maxStepInWorkflow}, lastCompleted=${wizardState.lastCompletedStep}`
+    );
 
     // SCENARIO 1: Step 1 only available on /new page
     if (stepFromUrl === 1) {
@@ -759,7 +786,10 @@ export default function EditApplicationPage() {
 
       if (currentStepKey === "review_and_submit") {
         try {
+          console.log("[SUBMIT] Starting submission flow");
+
           // Update last_completed_step
+          console.log(`[SUBMIT] Updating step to ${stepFromUrl}`);
           await updateStepMutation.mutateAsync({
             id: applicationId,
             stepData: {
@@ -768,15 +798,19 @@ export default function EditApplicationPage() {
               data: {},
             },
           });
+          console.log("[SUBMIT] Step mutation completed");
 
           // Set status to SUBMITTED
+          console.log("[SUBMIT] Updating status to SUBMITTED");
           await updateStatusMutation.mutateAsync({
             id: applicationId,
             status: "SUBMITTED",
           });
+          console.log("[SUBMIT] Status mutation completed");
 
           // Update local wizard state
           if (wizardState) {
+            console.log("[SUBMIT] Updating local wizardState");
             setWizardState({
               lastCompletedStep: stepFromUrl,
               allowedMaxStep: stepFromUrl + 1,
@@ -784,6 +818,7 @@ export default function EditApplicationPage() {
           }
 
           // Invalidate cache
+          console.log("[SUBMIT] Invalidating cache");
           await queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
 
           setHasUnsavedChanges(false);
@@ -791,11 +826,14 @@ export default function EditApplicationPage() {
 
           // Clear any pending sessionStorage overrides to prevent gating interference
           sessionStorage.removeItem("cashsouk:next_allowed_step");
+          console.log("[SUBMIT] Cleared sessionStorage override");
 
           // eslint-disable-next-line no-console
-          console.log(`[SUBMIT] Application submitted, redirecting to /dashboard`);
+          console.log(`[SUBMIT] About to navigate to /`);
+          console.log(`[SUBMIT] Application status is now: SUBMITTED`);
 
           router.replace("/");
+          console.log("[SUBMIT] router.replace called");
           return;
         } catch (error) {
           console.warn("[SUBMIT] Error:", error instanceof Error ? error.message : error);
