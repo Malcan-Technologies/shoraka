@@ -412,6 +412,63 @@ router.get(
 
 /**
  * @swagger
+ * /v1/admin/organizations/{portal}/{id}/refresh-corporate-entities:
+ *   post:
+ *     summary: Refresh corporate entities from RegTank (admin only)
+ *     description: Fetches latest director/shareholder data from RegTank and updates the database
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: portal
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [investor, issuer]
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Corporate entities refreshed successfully
+ *       404:
+ *         description: Organization or RegTank onboarding not found
+ */
+router.post(
+  "/organizations/:portal/:id/refresh-corporate-entities",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+
+      const result = await adminService.refreshOrganizationCorporateEntities(id, portal);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+/**
+ * @swagger
  * /v1/admin/organizations/investor/{id}/sophisticated-status:
  *   patch:
  *     summary: Update sophisticated investor status (admin only)

@@ -359,7 +359,7 @@ export function OnboardingReviewDialog({
                         <TooltipTrigger asChild>
                           <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>
+                        <TooltipContent className="text-[9px]">
                           <p className="max-w-xs">
                             All directors/shareholders must complete their KYC verification in RegTank
                             before corporate onboarding can be approved.
@@ -497,7 +497,7 @@ export function OnboardingReviewDialog({
                         <TooltipTrigger asChild>
                           <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                         </TooltipTrigger>
-                        <TooltipContent>
+                        <TooltipContent className="text-[9px]">
                           <p className="max-w-xs">
                             Individual director AML screening must be completed and approved in RegTank
                             before corporate AML approval. Once all directors are approved, corporate KYB/AML will be

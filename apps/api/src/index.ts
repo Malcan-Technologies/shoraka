@@ -45,7 +45,8 @@ async function main(): Promise<void> {
 
   app.listen(PORT, () => {
     logger.info(`🚀 API server running on http://localhost:${PORT}`);
-    logger.info(`📊 Health check: http://localhost:${PORT}/healthz`);
+    logger.info(`📊 Liveness: http://localhost:${PORT}/healthz`);
+    logger.info(`📊 Readiness: http://localhost:${PORT}/readyz`);
 
     // Log auth bypass status
     if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

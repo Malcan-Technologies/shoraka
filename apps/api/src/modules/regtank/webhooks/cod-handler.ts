@@ -1,5 +1,6 @@
 import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankCODWebhook } from "../types";
+import { extractCorporateEntities } from "../helpers/extract-corporate-entities";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
@@ -143,7 +144,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           return operationalInfo || null;
         };
 
-        // Extract Transaction Information
+        // Extract Transaction Information (Wealth Declaration)
+        // Return full RegTank format with content array for frontend FormDataDisplay
         const extractTransactionInfo = (codDetails: any) => {
           const transactionInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Transaction Information"
@@ -151,15 +153,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           if (!transactionInfo) return null;
 
-          const content = transactionInfo.content || [];
-          return {
-            sourceOfFunds: content.find((f: any) => f.fieldName === "Source of funds")?.fieldValue || null,
-            sourceOfFundsOther: content.find((f: any) => f.fieldName?.includes("Others"))?.fieldValue || null,
-            netAssetValue: content.find((f: any) => f.fieldName === "Net asset value (RM)")?.fieldValue || null,
-          };
+          return transactionInfo;
         };
 
-        // Extract Beneficiary Account Information
+        // Extract Beneficiary Account Information (Compliance Declaration)
+        // Return full RegTank format with content array for frontend FormDataDisplay
         const extractBeneficiaryInfo = (codDetails: any) => {
           const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
             (area: any) => area.displayArea === "Beneficiary Account Information"
@@ -167,11 +165,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           if (!beneficiaryInfo) return null;
 
-          const content = beneficiaryInfo.content || [];
-          return {
-            pepStatus: content.find((f: any) => f.fieldName?.includes("PEP"))?.fieldValue || null,
-            belongsToGroups: content.find((f: any) => f.fieldName?.includes("belong to any"))?.fieldValue || null,
-          };
+          return beneficiaryInfo;
         };
 
         // Extract Corporate Onboarding Data
@@ -249,67 +243,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         };
 
         // Extract full entity details for corporate_entities
-        const extractCorporateEntities = (codDetails: any) => {
-          const directors = (codDetails.corpIndvDirectors || []).map((director: any) => ({
-            eodRequestId: director.corporateIndividualRequest?.requestId || null,
-            personalInfo: {
-              firstName: director.corporateUserRequestInfo?.firstName || null,
-              lastName: director.corporateUserRequestInfo?.lastName || null,
-              middleName: director.corporateUserRequestInfo?.middleName || null,
-              fullName: director.corporateUserRequestInfo?.fullName || null,
-              email: director.corporateUserRequestInfo?.email || null,
-              formContent: director.corporateUserRequestInfo?.formContent || null,
-            },
-            documents: {
-              documentType: director.corporateDocumentInfo?.documentType || null,
-              countryCode: director.corporateDocumentInfo?.countryCode || null,
-              ocrStatus: director.corporateDocumentInfo?.ocrStatus || null,
-              frontDocumentUrl: director.corporateDocumentInfo?.frontDocumentUrl || null,
-              backDocumentUrl: director.corporateDocumentInfo?.backDocumentUrl || null,
-            },
-            status: director.corporateIndividualRequest?.status || null,
-            approveStatus: director.corporateIndividualRequest?.approveStatus || null,
-            kycType: director.corporateIndividualRequest?.kycType || null,
-            createdDate: director.corporateIndividualRequest?.createdDate || null,
-            updatedDate: director.corporateIndividualRequest?.updatedDate || null,
-          }));
-
-          const shareholders = (codDetails.corpIndvShareholders || []).map((shareholder: any) => ({
-            eodRequestId: shareholder.corporateIndividualRequest?.requestId || null,
-            personalInfo: {
-              firstName: shareholder.corporateUserRequestInfo?.firstName || null,
-              lastName: shareholder.corporateUserRequestInfo?.lastName || null,
-              middleName: shareholder.corporateUserRequestInfo?.middleName || null,
-              fullName: shareholder.corporateUserRequestInfo?.fullName || null,
-              email: shareholder.corporateUserRequestInfo?.email || null,
-              formContent: shareholder.corporateUserRequestInfo?.formContent || null,
-            },
-            documents: {
-              documentType: shareholder.corporateDocumentInfo?.documentType || null,
-              countryCode: shareholder.corporateDocumentInfo?.countryCode || null,
-              ocrStatus: shareholder.corporateDocumentInfo?.ocrStatus || null,
-              frontDocumentUrl: shareholder.corporateDocumentInfo?.frontDocumentUrl || null,
-              backDocumentUrl: shareholder.corporateDocumentInfo?.backDocumentUrl || null,
-            },
-            status: shareholder.corporateIndividualRequest?.status || null,
-            approveStatus: shareholder.corporateIndividualRequest?.approveStatus || null,
-            kycType: shareholder.corporateIndividualRequest?.kycType || null,
-            createdDate: shareholder.corporateIndividualRequest?.createdDate || null,
-            updatedDate: shareholder.corporateIndividualRequest?.updatedDate || null,
-          }));
-
-          const corporateShareholders = (codDetails.corpBizShareholders || []).map((corpShareholder: any) => ({
-            // Extract corporate shareholder details if available
-            ...corpShareholder,
-          }));
-
-          return {
-            directors,
-            shareholders,
-            corporateShareholders,
-          };
-        };
-
         // Extract director information from COD details
         // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
         const directorsMap = new Map<string, {

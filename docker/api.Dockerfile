@@ -30,8 +30,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma and curl for downloading RDS certificate
-RUN apk add --no-cache openssl curl
+# Install OpenSSL for Prisma, curl for RDS cert, and libstdc++/libgcc for native modules (bcrypt)
+RUN apk add --no-cache openssl curl libstdc++ libgcc
 
 # Download AWS RDS global CA certificate bundle
 # This is required for SSL connections to RDS
@@ -66,9 +66,6 @@ RUN chown -R apiuser:nodejs /app
 USER apiuser
 
 EXPOSE 4000
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 CMD ["node", "apps/api/dist/index.js"]
 

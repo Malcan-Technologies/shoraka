@@ -22,7 +22,7 @@ export function SystemHealthIndicator() {
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.cashsouk.com";
 
-      const response = await fetch(`${apiUrl}/healthz`, {
+      const response = await fetch(`${apiUrl}/readyz`, {
         cache: "no-store",
         signal: AbortSignal.timeout(5000),
       });

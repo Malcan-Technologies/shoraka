@@ -2,8 +2,8 @@
   "family": "default-api-cashsouk-09ff",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
+  "cpu": "1024",
+  "memory": "2048",
   "executionRoleArn": "arn:aws:iam::652821469470:role/service-role/ecsTaskExecutionRole",
   "taskRoleArn": "arn:aws:iam::652821469470:role/ecsTaskRole",
   "containerDefinitions": [

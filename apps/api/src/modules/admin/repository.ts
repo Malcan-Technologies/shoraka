@@ -1543,16 +1543,29 @@ export class AdminRepository {
       };
     };
 
+    // Derive registration number from top-level column or corporate_onboarding_data.basicInfo
+    const getRegistrationNumber = (
+      org: { registration_number: string | null; corporate_onboarding_data?: unknown }
+    ): string | null => {
+      if (org.registration_number) return org.registration_number;
+      const data = org.corporate_onboarding_data as {
+        basicInfo?: { ssmRegistrationNumber?: string; ssmRegisterNumber?: string };
+      } | undefined;
+      const basic = data?.basicInfo;
+      return basic?.ssmRegistrationNumber ?? basic?.ssmRegisterNumber ?? null;
+    };
+
     // Combine and transform results
     const allOrgs = [
       ...investorOrgs.map((org) => {
         const { riskLevel, riskScore } = extractRiskInfo(org.kyc_response);
+        const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
           portal: "investor" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
-          registrationNumber: org.registration_number,
+          registrationNumber: getRegistrationNumber(orgWithData),
           onboardingStatus: org.onboarding_status as
             | "PENDING"
             | "IN_PROGRESS"
@@ -1580,12 +1593,13 @@ export class AdminRepository {
       }),
       ...issuerOrgs.map((org) => {
         const { riskLevel, riskScore } = extractRiskInfo(org.kyc_response);
+        const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
           portal: "issuer" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
-          registrationNumber: org.registration_number,
+          registrationNumber: getRegistrationNumber(orgWithData),
           onboardingStatus: org.onboarding_status as
             | "PENDING"
             | "IN_PROGRESS"
