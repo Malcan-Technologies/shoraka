@@ -9,6 +9,7 @@ import {
   SecurityLog,
   OrganizationType,
   OnboardingStatus,
+  ApplicationStatus,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -32,6 +33,7 @@ import type {
   GetOnboardingLogsQuery,
   ResetOnboardingInput,
   GetOnboardingApplicationsQuery,
+  GetAdminApplicationsQuery,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -1611,25 +1613,25 @@ export class AdminService {
         return {
           basicInfo: data.basicInfo
             ? {
-                tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
-                industry: data.basicInfo.industry,
-                entityType: data.basicInfo.entityType,
-                businessName: data.basicInfo.businessName,
-                numberOfEmployees:
-                  typeof data.basicInfo.numberOfEmployees === "string"
-                    ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
-                    : data.basicInfo.numberOfEmployees,
-                ssmRegisterNumber:
-                  data.basicInfo.ssmRegisterNumber ||
-                  data.basicInfo.ssmRegistrationNumber ||
-                  undefined,
-              }
+              tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
+              industry: data.basicInfo.industry,
+              entityType: data.basicInfo.entityType,
+              businessName: data.basicInfo.businessName,
+              numberOfEmployees:
+                typeof data.basicInfo.numberOfEmployees === "string"
+                  ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
+                  : data.basicInfo.numberOfEmployees,
+              ssmRegisterNumber:
+                data.basicInfo.ssmRegisterNumber ||
+                data.basicInfo.ssmRegistrationNumber ||
+                undefined,
+            }
             : undefined,
           addresses: data.addresses
             ? {
-                business: data.addresses.business || undefined,
-                registered: data.addresses.registered || undefined,
-              }
+              business: data.addresses.business || undefined,
+              registered: data.addresses.registered || undefined,
+            }
             : undefined,
         };
       })(),
@@ -1667,15 +1669,15 @@ export class AdminService {
       // Applications (issuer only)
       applications: (portal === "issuer" && org.applications)
         ? org.applications.map((app: { id: string; status: string; product_version: number; last_completed_step: number; submitted_at: Date | null; created_at: Date; updated_at: Date; contract_id: string | null }) => ({
-            id: app.id,
-            status: app.status,
-            productVersion: app.product_version,
-            lastCompletedStep: app.last_completed_step,
-            submittedAt: app.submitted_at?.toISOString() ?? null,
-            createdAt: app.created_at.toISOString(),
-            updatedAt: app.updated_at.toISOString(),
-            contractId: app.contract_id,
-          }))
+          id: app.id,
+          status: app.status,
+          productVersion: app.product_version,
+          lastCompletedStep: app.last_completed_step,
+          submittedAt: app.submitted_at?.toISOString() ?? null,
+          createdAt: app.created_at.toISOString(),
+          updatedAt: app.updated_at.toISOString(),
+          contractId: app.contract_id,
+        }))
         : undefined,
     };
   }
@@ -3713,5 +3715,73 @@ export class AdminService {
         `Failed to refresh corporate AML status: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  /**
+   * List all financing applications with pagination and filters
+   */
+  async listApplications(params: GetAdminApplicationsQuery): Promise<{
+    applications: {
+      id: string;
+      issuerOrganizationName: string | null;
+      financingTypeLabel: string;
+      requestedAmount: number;
+      status: string;
+      submittedAt: Date | null;
+      updatedAt: Date;
+    }[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const repository = new AdminRepository();
+    const { applications, total } = await repository.getApplications(params);
+
+    return {
+      applications,
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount: total,
+        totalPages: Math.ceil(total / params.pageSize),
+      },
+    };
+  }
+
+  /**
+   * Get financing application detail by ID
+   */
+  async getApplicationDetail(id: string) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(id);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    return application;
+  }
+
+  /**
+   * Update AR financing application status
+   */
+  async updateApplicationStatus(id: string, status: ApplicationStatus) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(id);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const updatedApplication = await repository.updateApplicationStatus(id, status);
+
+    // TODO: Send notification to issuer about status change
+
+    logger.info(
+      { applicationId: id, newStatus: status },
+      "AR financing application status updated by admin"
+    );
+
+    return updatedApplication;
   }
 }

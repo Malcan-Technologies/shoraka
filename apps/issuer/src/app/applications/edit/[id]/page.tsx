@@ -30,6 +30,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import {
   useApplication,
   useUpdateApplicationStep,
+  useUpdateApplicationStatus,
   useArchiveApplication,
   useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
@@ -688,7 +689,7 @@ if (isSubmitting) return;
 
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS (MUST RUN BEFORE REMOVING)
-       * 
+       *
        * Some steps (contract, invoice, supporting documents) have pending
        * file uploads that must happen BEFORE we delete saveFunction.
        * These functions return the fully persisted data.

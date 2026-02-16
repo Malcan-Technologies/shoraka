@@ -43,6 +43,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
+import { useProducts } from "@/hooks/use-products";
+import { productName } from "@/app/settings/products/product-utils";
 
 const navActionsConfig = [
   {
@@ -52,9 +54,10 @@ const navActionsConfig = [
     badgeKey: "onboardingApproval" as const,
   },
   {
-    title: "Note Approval",
-    url: "/note-approval",
+    title: "Applications",
+    url: "#",
     icon: DocumentCheckIcon,
+    items: [], // Will be populated dynamically
   },
 ];
 
@@ -108,11 +111,26 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
   // Build badges dynamically
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
   };
+
+  const dynamicNavActions = React.useMemo(() => {
+    return navActionsConfig.map((item) => {
+      if (item.title === "Applications") {
+        const productItems = productsData?.products.map((p) => ({
+          title: productName(p),
+          url: `/applications/${p.id}`,
+        })) || [];
+
+        return { ...item, items: productItems };
+      }
+      return item;
+    });
+  }, [productsData]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -151,9 +169,44 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Actions</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navActionsConfig.map((item) => {
+              {dynamicNavActions.map((item) => {
                 const Icon = item.icon;
                 const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+
+                if (item.items) {
+                  return (
+                    <Collapsible
+                      key={item.title}
+                      asChild
+                      defaultOpen={pathname.startsWith("/applications")}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton tooltip={item.title}>
+                            <Icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.items.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
+                                  <Link href={subItem.url}>
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
