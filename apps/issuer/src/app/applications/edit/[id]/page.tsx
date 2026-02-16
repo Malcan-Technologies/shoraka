@@ -440,11 +440,14 @@ export default function EditApplicationPage() {
    * - Prevents "Please complete steps in order" loops
    */
   React.useEffect(() => {
-    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
+    if (!application) return;
+
+    console.log('application', application, application.status)
+    if (application.status === "SUBMITTED") return;
+    if (isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
-    if (application.status === "SUBMITTED") return;
 
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
