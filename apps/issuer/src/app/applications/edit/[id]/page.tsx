@@ -31,7 +31,6 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useArchiveApplication,
-  useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -61,7 +60,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DefaultSkeleton } from "../_components/default-skeleton";
-import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -101,7 +99,6 @@ interface WizardState {
 }
 
 export default function EditApplicationPage() {
-  const queryClient = useQueryClient();
   const { setTitle } = useHeader();
   React.useEffect(() => {
     setTitle("Edit Application");
@@ -131,12 +128,6 @@ export default function EditApplicationPage() {
     pageSize: 100,
   });
 
-  React.useEffect(() => {
-    console.log(
-      `[DATA_LOAD] App loaded: ${!!application}, Products loaded: ${!!productsData}`
-    );
-  }, [application, productsData]);
-
   /** Handle application not found */
   React.useEffect(() => {
     if (appError) {
@@ -156,23 +147,11 @@ export default function EditApplicationPage() {
    */
   const [wizardState, setWizardState] = React.useState<WizardState | null>(null);
 
-  /**
-   * Flag to prevent gating logic from running during submission
-   * This ensures router.replace("/") completes before any effect re-runs
-   */
-  const isSubmittingRef = React.useRef(false);
-
   /** Initialize wizard state from application data (run once) */
   React.useEffect(() => {
-    console.log(
-      `[WIZARD_INIT] Check: application=${!!application}, wizardState=${wizardState !== null}, status=${application?.status}`
-    );
     if (!application || wizardState !== null) return;
 
     const lastCompleted = application.last_completed_step || 1;
-    console.log(
-      `[WIZARD_INIT] Setting state: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
-    );
     setWizardState({
       lastCompletedStep: lastCompleted,
       allowedMaxStep: lastCompleted + 1,
@@ -180,7 +159,7 @@ export default function EditApplicationPage() {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}, appStatus=${application.status}`
+      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
     );
   }, [application, wizardState]);
 
@@ -229,8 +208,8 @@ export default function EditApplicationPage() {
   const effectiveProductId = React.useMemo(() => {
     const savedProductId = (
       (application?.financing_type as Record<string, unknown>)?.product_id as
-        | string
-        | undefined
+      | string
+      | undefined
     ) || undefined;
     if (stepFromUrl === 1) {
       return selectedProductId ?? savedProductId ?? null;
@@ -293,6 +272,7 @@ export default function EditApplicationPage() {
   const currentStepId = (currentStepConfig?.id as string) || "";
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
+    console.log(currentStepId, 'key', key)
     if (key) return key;
 
     // Fallback detection from application data
@@ -363,8 +343,6 @@ export default function EditApplicationPage() {
 
   const updateStepMutation = useUpdateApplicationStep();
   const archiveApplicationMutation = useArchiveApplication();
-  const updateStatusMutation = useUpdateApplicationStatus();
-
   /* ================================================================
      UNSAVED CHANGES TRACKING
      ================================================================ */
@@ -449,38 +427,12 @@ export default function EditApplicationPage() {
    * - Prevents "Please complete steps in order" loops
    */
   React.useEffect(() => {
-    console.log(
-      `[GATING_DEPS] application=${!!application}, isLoadingApp=${isLoadingApp}, isLoadingProducts=${isLoadingProducts}, wizardState=${wizardState !== null}, step=${searchParams.get("step")}`
-    );
-
-    // SKIP gating if submission is in progress
-    if (isSubmittingRef.current) {
-      console.log("[GATING] Submission in progress, skipping gating");
-      return;
-    }
-
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
-    console.log(
-      `[GATING] Running gating check. App status: ${application.status}, lastCompleted: ${application.last_completed_step}`
-    );
-
-    // EARLY GUARD: Skip gating if application is already submitted
-    if (application.status === "SUBMITTED") {
-      console.log(
-        `[GATING] Application already SUBMITTED (${application.status}), skipping gating`
-      );
-      return;
-    }
-
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
-
-    console.log(
-      `[GATING] Gate check: stepFromUrl=${stepFromUrl}, allowed=${maxAllowed}, workflow=${maxStepInWorkflow}, lastCompleted=${wizardState.lastCompletedStep}`
-    );
 
     // SCENARIO 1: Step 1 only available on /new page
     if (stepFromUrl === 1) {
@@ -720,7 +672,7 @@ export default function EditApplicationPage() {
       const saveFunctionFromData = (
         dataToSave as Record<string, unknown>
       )?.saveFunction as (() => Promise<unknown>) | undefined;
-      
+
       if (saveFunctionFromData) {
         const returnedData = await saveFunctionFromData();
         delete (dataToSave as Record<string, unknown>).saveFunction;
@@ -777,6 +729,14 @@ export default function EditApplicationPage() {
         }
       }
 
+      // No data case
+      if (dataToSave === null) {
+        toast.success("Step completed");
+        setHasUnsavedChanges(false);
+        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        return;
+      }
+
       const nextStep = stepFromUrl + 1;
 
       // eslint-disable-next-line no-console
@@ -785,85 +745,25 @@ export default function EditApplicationPage() {
       );
 
       /* ============================================================
-         FINAL SUBMISSION (review_and_submit) — MUST RUN BEFORE NULL CHECK
+         FINAL SUBMISSION (review_and_submit)
          ============================================================ */
 
+      // FINAL SUBMISSION
       if (currentStepKey === "review_and_submit") {
-        try {
-          console.log("[SUBMIT] Starting submission flow");
-          
-          // Set flag to prevent gating during submission
-          isSubmittingRef.current = true;
+        // 1. Update application status to SUBMITTED
+        // await updateStatusMutation.mutateAsync({
+        //   id: applicationId,
+        //   status: "SUBMITTED",
+        // });
 
-          // Update last_completed_step
-          console.log(`[SUBMIT] Updating step to ${stepFromUrl}`);
-          await updateStepMutation.mutateAsync({
-            id: applicationId,
-            stepData: {
-              stepId: currentStepId,
-              stepNumber: stepFromUrl,
-              data: {},
-            },
-          });
-          console.log("[SUBMIT] Step mutation completed");
+        toast.success("Application submitted successfully");
 
-          // Set status to SUBMITTED
-          console.log("[SUBMIT] Updating status to SUBMITTED");
-          await updateStatusMutation.mutateAsync({
-            id: applicationId,
-            status: "SUBMITTED",
-          });
-          console.log("[SUBMIT] Status mutation completed");
+        // 2. Redirect somewhere (dashboard / applications list)
+        router.replace("/");
 
-          // Update cache with new status immediately (don't wait for refetch)
-          queryClient.setQueryData(["application", applicationId], (oldData: any) => {
-            if (!oldData) return oldData;
-            console.log("[SUBMIT] Updated cache: status = SUBMITTED");
-            return {
-              ...oldData,
-              status: "SUBMITTED",
-              last_completed_step: stepFromUrl,
-            };
-          });
-
-          // Update local wizard state
-          if (wizardState) {
-            console.log("[SUBMIT] Updating local wizardState");
-            setWizardState({
-              lastCompletedStep: stepFromUrl,
-              allowedMaxStep: stepFromUrl + 1,
-            });
-          }
-
-          setHasUnsavedChanges(false);
-          toast.success("Application submitted successfully");
-
-          // Clear any pending sessionStorage overrides to prevent gating interference
-          sessionStorage.removeItem("cashsouk:next_allowed_step");
-          console.log("[SUBMIT] Cleared sessionStorage override");
-
-          // eslint-disable-next-line no-console
-          console.log(`[SUBMIT] About to navigate to /`);
-          console.log(`[SUBMIT] Application status is now: SUBMITTED`);
-
-          router.replace("/");
-          console.log("[SUBMIT] router.replace called");
-          return;
-        } catch (error) {
-          console.warn("[SUBMIT] Error:", error instanceof Error ? error.message : error);
-          isSubmittingRef.current = false;
-          toast.error("Something went wrong. Please try again.");
-          throw error;
-        }
+        return; // 🚨 STOP here — do NOT run normal step logic
       }
 
-      // No data case (after submission check)
-      if (dataToSave === null) {
-        toast.success("Step completed");
-        setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
-        return;
-      }
 
       /* ============================================================
          FINANCING STRUCTURE NO-CHANGE CASE
@@ -963,7 +863,7 @@ export default function EditApplicationPage() {
           currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
         />
 
-        <Dialog open={applicationBlockReason !== null} onOpenChange={() => {}}>
+        <Dialog open={applicationBlockReason !== null} onOpenChange={() => { }}>
           <DialogContent className="[&>button]:hidden">
             <DialogHeader>
               <DialogTitle>
@@ -1053,17 +953,14 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
-              updateStatusMutation.isPending ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending || updateStatusMutation.isPending
+            {updateStepMutation.isPending
               ? "Saving..."
-              : currentStepKey === "review_and_submit"
-                ? "Submit Application"
-                : "Save and Continue"}
+              : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
