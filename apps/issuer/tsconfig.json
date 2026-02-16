@@ -8,7 +8,7 @@
     "moduleResolution": "bundler",
     "allowJs": true,
     "noEmit": true,
-    "incremental": true,
+    "incremental": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "plugins": [
