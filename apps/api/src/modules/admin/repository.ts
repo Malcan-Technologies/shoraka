@@ -11,6 +11,7 @@ import {
   OnboardingLog,
   OrganizationType,
   OnboardingStatus,
+  ApplicationStatus,
 } from "@prisma/client";
 import type {
   GetUsersQuery,
@@ -18,6 +19,7 @@ import type {
   GetAdminUsersQuery,
   GetSecurityLogsQuery,
   GetOnboardingLogsQuery,
+  GetAdminApplicationsQuery,
 } from "./schemas";
 
 
@@ -2108,5 +2110,149 @@ export class AdminRepository {
       avgTimeToOnboardingMinutes,
       avgTimeToOnboardingChangePercent,
     };
+  }
+
+  /**
+   * Get financing applications with pagination and filters
+   */
+  async getApplications(params: GetAdminApplicationsQuery): Promise<{
+    applications: {
+      id: string;
+      issuerOrganizationName: string | null;
+      financingTypeLabel: string;
+      requestedAmount: number;
+      status: string;
+      submittedAt: Date | null;
+      updatedAt: Date;
+    }[];
+    total: number;
+  }> {
+    const { page, pageSize, search, status, productId } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.ApplicationWhereInput = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (productId) {
+      where.financing_type = {
+        path: ["product_id"],
+        equals: productId,
+      };
+    }
+
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: "insensitive" } },
+        { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    const [applications, total] = await Promise.all([
+      prisma.application.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { created_at: "desc" },
+        include: {
+          issuer_organization: {
+            select: {
+              name: true,
+            },
+          },
+          invoices: {
+            select: {
+              details: true,
+            },
+          },
+          contract: {
+            select: {
+              contract_details: true,
+            },
+          },
+        },
+      }),
+      prisma.application.count({ where }),
+    ]);
+
+    // Transform and calculate requested amount
+    const transformedApplications = applications.map((app) => {
+      let requestedAmount = 0;
+
+      // Calculate from invoices if available
+      if (app.invoices && app.invoices.length > 0) {
+        requestedAmount = app.invoices.reduce((sum, inv) => {
+          const details = inv.details as any;
+          const invoiceValue = parseFloat(details?.value || 0);
+          const financingRatio = parseFloat(details?.financing_ratio_percent || 80);
+          return sum + (invoiceValue * financingRatio) / 100;
+        }, 0);
+      } else if (app.contract?.contract_details) {
+        // Fallback to contract value if no invoices
+        const contractDetails = app.contract.contract_details as any;
+        requestedAmount = parseFloat(
+          contractDetails?.value || contractDetails?.approved_facility || 0
+        );
+      }
+
+      const financingType = app.financing_type as any;
+      const productLabel = financingType?.product_name || "Financing Product";
+
+      // Financing Structure Label: Contract Financing if contract exists, otherwise Invoice Financing
+      const financingStructureLabel = app.contract_id ? "Contract Financing" : "Invoice Financing";
+
+      return {
+        id: app.id,
+        issuerOrganizationName: app.issuer_organization.name,
+        financingTypeLabel: productLabel,
+        financingStructureLabel,
+        requestedAmount,
+        status: app.status,
+        submittedAt: app.submitted_at,
+        updatedAt: app.updated_at,
+      };
+    });
+
+    return { applications: transformedApplications, total };
+  }
+
+  /**
+   * Get financing application by ID with all details
+   */
+  async getApplicationById(id: string) {
+    return prisma.application.findUnique({
+      where: { id },
+      include: {
+        issuer_organization: {
+          include: {
+            owner: {
+              select: {
+                user_id: true,
+                first_name: true,
+                last_name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        invoices: true,
+        contract: true,
+      },
+    });
+  }
+
+  /**
+   * Update financing application status
+   */
+  async updateApplicationStatus(id: string, status: ApplicationStatus) {
+    return prisma.application.update({
+      where: { id },
+      data: { status },
+      include: {
+        issuer_organization: true,
+      },
+    });
   }
 }

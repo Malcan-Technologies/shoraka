@@ -698,7 +698,7 @@ export default function EditApplicationPage() {
 
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS (MUST RUN BEFORE REMOVING)
-       * 
+       *
        * Some steps (contract, invoice, supporting documents) have pending
        * file uploads that must happen BEFORE we delete saveFunction.
        * These functions return the fully persisted data.
