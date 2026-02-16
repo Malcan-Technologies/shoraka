@@ -337,6 +337,8 @@ export default function EditApplicationPage() {
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
 
   /* ================================================================
      MUTATIONS
@@ -442,6 +444,8 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (!application) return;
+if (isSubmitting) return;
+
 
     console.log('application', application, application.status)
     if (application.status === "SUBMITTED") return;
@@ -500,6 +504,7 @@ export default function EditApplicationPage() {
     applicationBlockReason,
     searchParams,
     wizardState,
+      isSubmitting
   ]);
 
   /* ================================================================
@@ -778,39 +783,35 @@ export default function EditApplicationPage() {
          FINAL SUBMISSION (review_and_submit)
          ============================================================ */
 
-      // FINAL SUBMISSION
-      if (currentStepKey === "review_and_submit") {
-        //  1) Save the final step FIRST (updates last_completed_step)
-        console.log('hih', dataToSave)
-        await updateStepMutation.mutateAsync({
-          id: applicationId,
-          stepData: {
-            stepId: currentStepId,     // e.g. "review_and_submit_1"
-            stepNumber: stepFromUrl,   // IMPORTANT: current step number (not next)
-            data: dataToSave ?? {},    // ok to store {} or any review payload you want
-          },
-        });
+if (currentStepKey === "review_and_submit") {
+  setIsSubmitting(true);
 
-        //  2) Then submit (updates status + submitted_at + cleanup)
-        await updateStatusMutation.mutateAsync({
-          id: applicationId,
-          status: "SUBMITTED",
-        });
+  try {
+    await updateStepMutation.mutateAsync({
+      id: applicationId,
+      stepData: {
+        stepId: currentStepId,
+        stepNumber: stepFromUrl,
+        data: dataToSave ?? {},
+      },
+    });
 
-        //  Local wizard state update (optional but nice)
-        if (wizardState) {
-          setWizardState({
-            lastCompletedStep: Math.max(wizardState.lastCompletedStep, stepFromUrl),
-            allowedMaxStep: Math.max(wizardState.allowedMaxStep, stepFromUrl + 1),
-          });
-        }
-        toast.success("Application submitted successfully");
+    await updateStatusMutation.mutateAsync({
+      id: applicationId,
+      status: "SUBMITTED",
+    });
 
-        // 2. Redirect somewhere (dashboard / applications list)
-        router.replace("/");
+    console.log('success')
+    toast.success("Application submitted successfully");
+    router.replace("/");
+  } finally {
+    setIsSubmitting(false);
+  }
 
-        return; // 🚨 STOP here — do NOT run normal step logic
-      }
+  return;
+}
+
+
 
 
       /* ============================================================
@@ -1001,12 +1002,14 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
+              updateStatusMutation.isPending ||
+              isSubmitting ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending
+            {updateStepMutation.isPending || updateStatusMutation.isPending
               ? "Saving..."
               : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
