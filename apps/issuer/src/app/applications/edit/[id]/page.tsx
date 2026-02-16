@@ -31,7 +31,6 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useArchiveApplication,
-  useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -998,13 +997,12 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
-              updateStatusMutation.isPending ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending || updateStatusMutation.isPending
+            {updateStepMutation.isPending
               ? "Saving..."
               : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
