@@ -10,23 +10,32 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
-import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
 import { useProducts } from "@/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
+import {
+  useApproveReviewSection,
+  useRejectReviewSection,
+  useRequestAmendmentReviewSection,
+  useApproveReviewItem,
+  useRejectReviewItem,
+  useRequestAmendmentReviewItem,
+} from "@/hooks/use-application-review-actions";
+import {
+  ApplicationReviewTabs,
+  ApplicationReviewTabContent,
+  type ReviewSectionId,
+} from "@/components/application-review-tabs";
+import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  BuildingOffice2Icon,
   DocumentTextIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -35,6 +44,9 @@ import {
   ClipboardDocumentCheckIcon,
   XCircleIcon,
   ShieldCheckIcon,
+  ChevronDownIcon,
+  DocumentArrowDownIcon,
+  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 
@@ -80,6 +92,8 @@ function PageSkeleton() {
   );
 }
 
+const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"];
+
 export default function DynamicApplicationDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -87,27 +101,134 @@ export default function DynamicApplicationDetailPage() {
   const applicationId = params.id as string;
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
-  const updateStatus = useUpdateApplicationStatus();
+  const approveSection = useApproveReviewSection();
+  const rejectSection = useRejectReviewSection();
+  const requestAmendment = useRequestAmendmentReviewSection();
 
-  // Fetch products to get the current product name
+  const [noteDialog, setNoteDialog] = React.useState<
+    | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
+    | {
+        open: boolean;
+        action: "reject" | "amend";
+        itemType: "INVOICE" | "DOCUMENT";
+        itemId: string;
+      }
+  >({ open: false, action: "reject", section: "FINANCIAL" });
+
+  const approveItem = useApproveReviewItem();
+  const rejectItem = useRejectReviewItem();
+  const requestAmendmentItem = useRequestAmendmentReviewItem();
+
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
-  const currentProduct = productsData?.products.find(p => p.id === productKey);
+  const currentProduct = productsData?.products.find((p) => p.id === productKey);
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
-  const [confirmAction, setConfirmAction] = React.useState<{
-    type: "APPROVE" | "REJECT";
-    isOpen: boolean;
-  }>({ type: "APPROVE", isOpen: false });
+  const reviewSections = React.useMemo(() => {
+    if (!app?.application_reviews?.length) {
+      return [
+        { section: "FINANCIAL", status: "PENDING" },
+        { section: "JUSTIFICATION", status: "PENDING" },
+        { section: "DOCUMENTS", status: "PENDING" },
+      ];
+    }
+    return app.application_reviews.map((r: { section: string; status: string }) => ({
+      section: r.section,
+      status: r.status,
+    }));
+  }, [app?.application_reviews]);
 
-  const handleUpdateStatus = async (status: string) => {
+  const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
+
+  const handleApproveSection = async (section: string) => {
     try {
-      await updateStatus.mutateAsync({ id: applicationId, status });
-      toast.success(`Application ${status.toLowerCase()} successfully`);
-      setConfirmAction((prev) => ({ ...prev, isOpen: false }));
+      await approveSection.mutateAsync({ applicationId, section });
+      toast.success("Section approved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to approve");
     }
   };
+
+  const handleRejectItem = async (note: string) => {
+    const d = noteDialog;
+    if (!("itemType" in d)) return;
+    try {
+      await rejectItem.mutateAsync({
+        applicationId,
+        itemType: d.itemType,
+        itemId: d.itemId,
+        note,
+      });
+      toast.success("Item rejected");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject");
+      throw err;
+    }
+  };
+
+  const handleRequestAmendmentItem = async (note: string) => {
+    const d = noteDialog;
+    if (!("itemType" in d)) return;
+    try {
+      await requestAmendmentItem.mutateAsync({
+        applicationId,
+        itemType: d.itemType,
+        itemId: d.itemId,
+        note,
+      });
+      toast.success("Amendment requested");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to request amendment");
+      throw err;
+    }
+  };
+
+  const handleNoteDialogConfirm = async (note: string) => {
+    const d = noteDialog;
+    if (!d) return;
+    if ("section" in d) {
+      if (d.action === "reject") {
+        await rejectSection.mutateAsync({
+          applicationId,
+          section: d.section,
+          note,
+        });
+        toast.success("Section rejected");
+      } else {
+        await requestAmendment.mutateAsync({
+          applicationId,
+          section: d.section,
+          note,
+        });
+        toast.success("Amendment requested");
+      }
+    } else {
+      if (d.action === "reject") await handleRejectItem(note);
+      else await handleRequestAmendmentItem(note);
+    }
+  };
+
+  const noteDialogIsSection = noteDialog && "section" in noteDialog;
+  const noteDialogTitle = noteDialogIsSection
+    ? noteDialog.action === "reject"
+      ? `Reject ${noteDialog.section}?`
+      : `Request Amendment for ${noteDialog.section}?`
+    : noteDialog?.action === "reject"
+      ? "Reject document?"
+      : "Request amendment for document?";
+  const noteDialogDescription = noteDialogIsSection
+    ? noteDialog.action === "reject"
+      ? "This will reject the application. The issuer will be notified. A remark is required."
+            : "Request changes from the issuer. They will need to resubmit. A remark is required."
+    : noteDialog?.action === "reject"
+      ? "Reject this document. A remark is required."
+      : "Request changes for this document. A remark is required.";
+  const noteDialogSubmitLabel =
+    noteDialog?.action === "reject" ? "Reject" : "Send Amendment Request";
+  const noteDialogPending =
+    rejectSection.isPending ||
+    requestAmendment.isPending ||
+    rejectItem.isPending ||
+    requestAmendmentItem.isPending;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -116,6 +237,27 @@ export default function DynamicApplicationDetailPage() {
           <Badge className="bg-blue-500 text-white">
             <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
             Submitted for Review
+          </Badge>
+        );
+      case "UNDER_REVIEW":
+        return (
+          <Badge className="bg-secondary text-secondary-foreground">
+            <ClockIcon className="h-3.5 w-3.5 mr-1" />
+            Under Review
+          </Badge>
+        );
+      case "AMENDMENT_REQUESTED":
+        return (
+          <Badge className="bg-amber-500 text-white">
+            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
+            Amendment Requested
+          </Badge>
+        );
+      case "RESUBMITTED":
+        return (
+          <Badge className="bg-blue-500 text-white">
+            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
+            Resubmitted
           </Badge>
         );
       case "APPROVED":
@@ -127,7 +269,7 @@ export default function DynamicApplicationDetailPage() {
         );
       case "REJECTED":
         return (
-          <Badge className="bg-red-500 text-white">
+          <Badge className="bg-destructive text-destructive-foreground">
             <XCircleIcon className="h-3.5 w-3.5 mr-1" />
             Rejected
           </Badge>
@@ -153,10 +295,52 @@ export default function DynamicApplicationDetailPage() {
       }, 0);
     } else if (app.contract?.contract_details) {
       const contractDetails = app.contract.contract_details as any;
-      return parseFloat(contractDetails?.value || contractDetails?.approved_facility || 0);
+      return parseFloat(
+        contractDetails?.value || contractDetails?.approved_facility || 0
+      );
     }
     return 0;
   }, [app]);
+
+  const sectionActionDropdown = (section: ReviewSectionId) =>
+    isReviewable && (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
+            Action
+            <ChevronDownIcon className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="rounded-xl">
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => handleApproveSection(section)}
+            disabled={approveSection.isPending}
+          >
+            <CheckCircleIcon className="h-4 w-4 mr-2" />
+            Approve
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="rounded-lg text-destructive focus:text-destructive"
+            onClick={() =>
+              setNoteDialog({ open: true, action: "reject", section })
+            }
+          >
+            <XCircleIcon className="h-4 w-4 mr-2" />
+            Reject (leave remark)
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() =>
+              setNoteDialog({ open: true, action: "amend", section })
+            }
+          >
+            <DocumentTextIcon className="h-4 w-4 mr-2" />
+            Request amendment
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
 
   return (
     <>
@@ -174,7 +358,9 @@ export default function DynamicApplicationDetailPage() {
         </Button>
         <Separator orientation="vertical" className="mx-2 h-4" />
         <h1 className="text-lg font-semibold truncate">
-          {isLoading ? "Loading..." : `Application ${applicationId.slice(-8).toUpperCase()}`}
+          {isLoading
+            ? "Loading..."
+            : `Application ${applicationId.slice(-8).toUpperCase()}`}
         </h1>
         <div className="ml-auto">
           <SystemHealthIndicator />
@@ -194,7 +380,6 @@ export default function DynamicApplicationDetailPage() {
 
           {app && (
             <>
-              {/* Header Card */}
               <Card className="rounded-2xl">
                 <CardContent className="pt-6 space-y-4">
                   <div className="flex items-start justify-between">
@@ -205,7 +390,7 @@ export default function DynamicApplicationDetailPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h2 className="text-xl font-bold">
-                            {app.financing_type?.product_name || "Financing Product"}
+                            {app.financing_type?.product_name || "AR Financing"}
                           </h2>
                           {getStatusBadge(app.status)}
                         </div>
@@ -228,205 +413,381 @@ export default function DynamicApplicationDetailPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Reference
+                      </div>
                       <div className="text-sm font-medium">{app.id}</div>
                     </div>
                     <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Submitted At</div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Submitted At
+                      </div>
                       <div className="text-sm font-medium">
-                        {app.submitted_at ? format(new Date(app.submitted_at), "PPP p") : "Not submitted"}
+                        {app.submitted_at
+                          ? format(new Date(app.submitted_at), "PPP p")
+                          : "Not submitted"}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Updated</div>
-                      <div className="text-sm font-medium">{format(new Date(app.updated_at), "PPP p")}</div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Last Updated
+                      </div>
+                      <div className="text-sm font-medium">
+                        {format(new Date(app.updated_at), "PPP p")}
+                      </div>
                     </div>
                   </div>
-
-                  {app.status === "SUBMITTED" && (
-                    <div className="flex items-center gap-3 pt-2">
-                      <Button
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                        onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                      >
-                        <CheckCircleIcon className="h-4 w-4" />
-                        Approve Application
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-2 border-red-200"
-                        onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
-                      >
-                        <XCircleIcon className="h-4 w-4" />
-                        Reject Application
-                      </Button>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Financing Structure Section */}
+              <ApplicationReviewTabs
+                sections={reviewSections}
+                defaultSection="FINANCIAL"
+              >
+                <ApplicationReviewTabContent value="FINANCIAL">
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <BanknotesIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Financing Structure</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BanknotesIcon className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-base font-semibold">
+                            Financial & CashSouk Intel
+                          </CardTitle>
+                        </div>
+                        {sectionActionDropdown("FINANCIAL")}
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-                        <DetailRow
-                          label="Structure Type"
-                          value={app.contract_id ? "Contract Financing" : "Invoice Financing"}
-                        />
-                        <DetailRow
-                          label="Product"
-                          value={app.financing_type?.product_name || "Financing Product"}
-                        />
+                    <CardContent className="space-y-6">
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">
+                          Financing Structure
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                          <DetailRow
+                            label="Structure Type"
+                            value={
+                              app.contract_id
+                                ? "Contract Financing"
+                                : "Invoice Financing"
+                            }
+                          />
+                          <DetailRow
+                            label="Product"
+                            value={
+                              app.financing_type?.product_name || "AR Financing"
+                            }
+                          />
+                        </div>
+                      </div>
+                      {app.company_details && typeof app.company_details === "object" && (
+                        <div>
+                          <h4 className="text-sm font-semibold mb-2">
+                            Company Details
+                          </h4>
+                          <pre className="text-sm bg-muted/50 rounded-xl p-4 overflow-auto max-h-48">
+                            {JSON.stringify(app.company_details, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
+                        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
                       </div>
                     </CardContent>
                   </Card>
+                </ApplicationReviewTabContent>
 
-                  {/* Issuer Information */}
+                <ApplicationReviewTabContent value="JUSTIFICATION">
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Issuer Information</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-                        <DetailRow label="Organization" value={app.issuer_organization.name} />
-                        <DetailRow
-                          label="Owner Name"
-                          value={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}
-                        />
-                        <DetailRow label="Email Address" value={app.issuer_organization.owner.email} />
-                        <DetailRow label="Organization ID" value={app.issuer_organization_id} />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Invoices or Contract Details */}
-                  {app.invoices && app.invoices.length > 0 ? (
-                    <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <DocumentTextIcon className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-base font-semibold">Invoice Details</CardTitle>
+                          <CardTitle className="text-base font-semibold">
+                            Justification
+                          </CardTitle>
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="divide-y">
-                          {app.invoices.map((inv: any, idx: number) => {
-                            const details = inv.details as any;
-                            return (
-                              <div key={inv.id} className="py-4 first:pt-0 last:pb-0">
-                                <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-medium text-sm">Invoice #{details?.number || idx + 1}</h4>
-                                  <Badge variant="outline">{formatCurrency(parseFloat(details?.value || 0))}</Badge>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Customer</span>
-                                    {details?.customer_name || "N/A"}
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Financing Ratio</span>
-                                    {details?.financing_ratio_percent || 80}%
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Due Date</span>
-                                    {details?.due_date ? format(new Date(details.due_date), "dd MMM yyyy") : "N/A"}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : app.contract ? (
-                    <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                          <DocumentTextIcon className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-base font-semibold">Contract Details</CardTitle>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {(() => {
-                          const details = app.contract.contract_details as any;
-                          return (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                              <DetailRow label="Contract Number" value={details?.number || "N/A"} />
-                              <DetailRow label="Contract Value" value={details?.value ? formatCurrency(details.value) : "N/A"} />
-                              <DetailRow label="Start Date" value={details?.start_date ? format(new Date(details.start_date), "dd MMM yyyy") : "N/A"} />
-                              <DetailRow label="End Date" value={details?.end_date ? format(new Date(details.end_date), "dd MMM yyyy") : "N/A"} />
-                              <DetailRow label="Description" value={details?.description} />
-                            </div>
-                          );
-                        })()}
-                      </CardContent>
-                    </Card>
-                  ) : null}
-                </div>
-
-                <div className="space-y-6">
-                  {/* Status & Compliance */}
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheckIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Compliance & Audit</CardTitle>
+                        {sectionActionDropdown("JUSTIFICATION")}
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <DetailRow label="Internal Status" value={app.status} />
-                      <DetailRow label="Product Version" value={`v${app.product_version}`} />
-                      <DetailRow label="Last Completed Step" value={app.last_completed_step} />
-                      <Separator />
-                      <div className="text-[10px] text-muted-foreground leading-relaxed">
-                        By approving this application, you confirm that all KYC/KYB documents have been verified and the
-                        requested facility is within the organization's approved limits.
+                    <CardContent className="space-y-6">
+                      {app.business_details &&
+                        typeof app.business_details === "object" && (
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2">
+                              About your business & funding
+                            </h4>
+                            <pre className="text-sm bg-muted/50 rounded-xl p-4 overflow-auto max-h-64">
+                              {JSON.stringify(app.business_details, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      {(!app.business_details ||
+                        typeof app.business_details !== "object") && (
+                        <p className="text-sm text-muted-foreground">
+                          No justification details submitted.
+                        </p>
+                      )}
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          Add Remarks
+                        </Label>
+                        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </ApplicationReviewTabContent>
+
+                <ApplicationReviewTabContent value="DOCUMENTS">
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <DocumentTextIcon className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-base font-semibold">
+                            Supporting Documents
+                          </CardTitle>
+                        </div>
+                        {sectionActionDropdown("DOCUMENTS")}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {app.supporting_documents &&
+                        typeof app.supporting_documents === "object" && (
+                          <DocumentList
+                            documents={app.supporting_documents}
+                            reviewItems={
+                              (app.application_review_items as any[]) ?? []
+                            }
+                            isReviewable={isReviewable}
+                            onApproveItem={async (itemId) => {
+                              await approveItem.mutateAsync({
+                                applicationId,
+                                itemType: "DOCUMENT",
+                                itemId,
+                              });
+                              toast.success("Document approved");
+                            }}
+                            onRejectItem={(itemId) =>
+                              setNoteDialog({
+                                open: true,
+                                action: "reject",
+                                itemType: "DOCUMENT",
+                                itemId,
+                              })
+                            }
+                            onRequestAmendmentItem={(itemId) =>
+                              setNoteDialog({
+                                open: true,
+                                action: "amend",
+                                itemType: "DOCUMENT",
+                                itemId,
+                              })
+                            }
+                            isItemActionPending={approveItem.isPending}
+                          />
+                        )}
+                      {(!app.supporting_documents ||
+                        (typeof app.supporting_documents === "object" &&
+                          Object.keys(app.supporting_documents).length === 0)) && (
+                        <p className="text-sm text-muted-foreground">
+                          No supporting documents submitted.
+                        </p>
+                      )}
+                      <div className="mt-6">
+                        <Label className="text-xs text-muted-foreground">
+                          Add Remarks
+                        </Label>
+                        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </ApplicationReviewTabContent>
+              </ApplicationReviewTabs>
+
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="rounded-2xl">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheckIcon className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-base font-semibold">
+                        Compliance & Audit
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <DetailRow label="Internal Status" value={app.status} />
+                    <DetailRow
+                      label="Product Version"
+                      value={`v${app.product_version}`}
+                    />
+                    <DetailRow
+                      label="Last Completed Step"
+                      value={String(app.last_completed_step)}
+                    />
+                    <Separator />
+                    <div className="text-[10px] text-muted-foreground leading-relaxed">
+                      By approving sections, you confirm review of the submitted
+                      information. Remarks are required for reject and amendment
+                      requests.
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </>
           )}
         </div>
       </div>
 
-      <AlertDialog open={confirmAction.isOpen} onOpenChange={(open) => setConfirmAction((prev) => ({ ...prev, isOpen: open }))}>
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmAction.type === "APPROVE" ? "Approve Application?" : "Reject Application?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmAction.type === "APPROVE"
-                ? "This will approve the financing application and move it to the next stage in the workflow."
-                : "This will reject the application. The issuer will be notified and will need to submit a new application."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={`rounded-xl ${
-                confirmAction.type === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
-              }`}
-              onClick={() => handleUpdateStatus(confirmAction.type === "APPROVE" ? "APPROVED" : "REJECTED")}
-            >
-              Confirm {confirmAction.type === "APPROVE" ? "Approval" : "Rejection"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ApplicationReviewRemarkDialog
+        open={noteDialog.open}
+        onOpenChange={(open) =>
+          setNoteDialog((prev) =>
+            prev ? { ...prev, open } : ({ open: false, action: "reject", section: "FINANCIAL" })
+          )
+        }
+        title={noteDialogTitle}
+        description={noteDialogDescription}
+        submitLabel={noteDialogSubmitLabel}
+        variant={noteDialog?.action === "reject" ? "destructive" : "default"}
+        onConfirm={handleNoteDialogConfirm}
+        isPending={noteDialogPending}
+      />
     </>
+  );
+}
+
+function DocumentList({
+  documents,
+  reviewItems,
+  isReviewable,
+  onApproveItem,
+  onRejectItem,
+  onRequestAmendmentItem,
+  isItemActionPending,
+}: {
+  documents: any;
+  reviewItems: { item_type: string; item_id: string; status: string }[];
+  isReviewable: boolean;
+  onApproveItem: (itemId: string) => Promise<void>;
+  onRejectItem: (itemId: string) => void;
+  onRequestAmendmentItem: (itemId: string) => void;
+  isItemActionPending: boolean;
+}) {
+  const items = React.useMemo(() => {
+    const out: { key: string; label: string }[] = [];
+    if (typeof documents !== "object") return out;
+    const raw = documents?.supporting_documents ?? documents;
+    if (Array.isArray(raw)) {
+      raw.forEach((d: any, i: number) => {
+        out.push({
+          key: `doc:${i}:${d?.name ?? d?.title ?? "document"}`,
+          label: d?.name ?? d?.title ?? `Document ${i + 1}`,
+        });
+      });
+    } else if (typeof raw === "object") {
+      Object.entries(raw).forEach(([k, v]) => {
+        const arr = Array.isArray(v) ? v : [v];
+        arr.forEach((d: any, i: number) => {
+          out.push({
+            key: `doc:${k}:${i}:${d?.name ?? d?.title ?? "doc"}`,
+            label: d?.name ?? d?.title ?? `${k} ${i + 1}`,
+          });
+        });
+      });
+    }
+    return out;
+  }, [documents]);
+
+  const getItemStatus = (key: string) =>
+    reviewItems.find(
+      (r) => r.item_type === "DOCUMENT" && r.item_id === key
+    )?.status ?? "PENDING";
+
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No document entries in supporting_documents.
+      </p>
+    );
+  }
+
+  return (
+    <div className="divide-y">
+      {items.map(({ key, label }) => {
+        const status = getItemStatus(key);
+        return (
+          <div
+            key={key}
+            className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
+          >
+            <div className="flex items-center gap-3">
+              <DocumentArrowDownIcon className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm font-medium">{label}</span>
+              {status !== "PENDING" && (
+                <Badge
+                  variant={status === "APPROVED" ? "default" : "secondary"}
+                  className={
+                    status === "APPROVED"
+                      ? "bg-emerald-500 text-white"
+                      : ""
+                  }
+                >
+                  {status}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="rounded-lg h-9">
+                <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-1" />
+                View
+              </Button>
+              <Button variant="ghost" size="sm" className="rounded-lg h-9">
+                <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                Download
+              </Button>
+              {isReviewable && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg h-9 gap-1"
+                      disabled={isItemActionPending}
+                    >
+                      Action
+                      <ChevronDownIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    <DropdownMenuItem
+                      className="rounded-lg"
+                      onClick={() => onApproveItem(key)}
+                    >
+                      <CheckCircleIcon className="h-4 w-4 mr-2" />
+                      Approve
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="rounded-lg text-destructive focus:text-destructive"
+                      onClick={() => onRejectItem(key)}
+                    >
+                      <XCircleIcon className="h-4 w-4 mr-2" />
+                      Reject (leave remark)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="rounded-lg"
+                      onClick={() => onRequestAmendmentItem(key)}
+                    >
+                      <DocumentTextIcon className="h-4 w-4 mr-2" />
+                      Request Amendment
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

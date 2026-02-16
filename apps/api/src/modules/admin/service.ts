@@ -10,6 +10,8 @@ import {
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
+  ReviewSection,
+  ReviewStepStatus,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -3775,13 +3777,359 @@ export class AdminService {
 
     const updatedApplication = await repository.updateApplicationStatus(id, status);
 
-    // TODO: Send notification to issuer about status change
-
     logger.info(
       { applicationId: id, newStatus: status },
       "AR financing application status updated by admin"
     );
 
     return updatedApplication;
+  }
+
+  /**
+   * Transition application to UNDER_REVIEW on first review action (when SUBMITTED or RESUBMITTED)
+   */
+  private async ensureUnderReview(repository: AdminRepository, applicationId: string, appStatus: ApplicationStatus) {
+    if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
+      await repository.updateApplicationStatus(applicationId, ApplicationStatus.UNDER_REVIEW);
+    }
+  }
+
+  /**
+   * Approve a review section
+   */
+  async approveReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    await repository.ensureApplicationReviewSections(applicationId);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.APPROVED,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "APPROVED",
+      reviewerUserId,
+      null,
+      "section",
+      section
+    );
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reject a review section (terminal: application set to REJECTED)
+   */
+  async rejectReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    note: string,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    await repository.ensureApplicationReviewSections(applicationId);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.REJECTED,
+      reviewerUserId
+    );
+    await repository.createReviewNote(
+      applicationId,
+      "section",
+      section,
+      "REJECT",
+      note,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "REJECTED",
+      reviewerUserId,
+      note,
+      "section",
+      section
+    );
+    await repository.updateApplicationStatus(applicationId, ApplicationStatus.REJECTED);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Review section rejected");
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Request amendment for a review section (application set to AMENDMENT_REQUESTED)
+   */
+  async requestAmendmentReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    note: string,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    await repository.ensureApplicationReviewSections(applicationId);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.AMENDMENT_REQUESTED,
+      reviewerUserId
+    );
+    await repository.createReviewNote(
+      applicationId,
+      "section",
+      section,
+      "REQUEST_AMENDMENT",
+      note,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "AMENDMENT_REQUESTED",
+      reviewerUserId,
+      note,
+      "section",
+      section
+    );
+    await repository.updateApplicationStatus(applicationId, ApplicationStatus.AMENDMENT_REQUESTED);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Amendment requested for review section");
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Approve a review item (invoice or document)
+   */
+  async approveReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.APPROVED,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "APPROVED",
+      reviewerUserId,
+      null,
+      itemType,
+      itemId
+    );
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reject a review item
+   */
+  async rejectReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string,
+    note: string,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.REJECTED,
+      reviewerUserId
+    );
+    await repository.createReviewNote(
+      applicationId,
+      "item",
+      `${itemType}:${itemId}`,
+      "REJECT",
+      note,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "REJECTED",
+      reviewerUserId,
+      note,
+      itemType,
+      itemId
+    );
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Request amendment for a review item
+   */
+  async requestAmendmentReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string,
+    note: string,
+    reviewerUserId: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (
+      application.status !== ApplicationStatus.SUBMITTED &&
+      application.status !== ApplicationStatus.UNDER_REVIEW &&
+      application.status !== ApplicationStatus.RESUBMITTED
+    ) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+
+    await this.ensureUnderReview(repository, applicationId, application.status);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.AMENDMENT_REQUESTED,
+      reviewerUserId
+    );
+    await repository.createReviewNote(
+      applicationId,
+      "item",
+      `${itemType}:${itemId}`,
+      "REQUEST_AMENDMENT",
+      note,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "AMENDMENT_REQUESTED",
+      reviewerUserId,
+      note,
+      itemType,
+      itemId
+    );
+
+    return repository.getApplicationById(applicationId);
   }
 }

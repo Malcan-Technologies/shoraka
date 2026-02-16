@@ -313,11 +313,11 @@ model IssuerOrganization {
 }
 
 model Application {
-  id                     String             @id @default(cuid())
+  id                     String                    @id @default(cuid())
   issuer_organization_id String
   product_version        Int
-  status                 ApplicationStatus  @default(DRAFT)
-  last_completed_step    Int                @default(0)
+  status                 ApplicationStatus         @default(DRAFT)
+  last_completed_step    Int                       @default(0)
   financing_type         Json?
   financing_structure    Json?
   company_details        Json?
@@ -327,13 +327,98 @@ model Application {
   review_and_submit      Json?
   contract_id            String?
   submitted_at           DateTime?
-  created_at             DateTime           @default(now())
-  updated_at             DateTime           @updatedAt
-  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  contract               Contract?          @relation(fields: [contract_id], references: [id])
-  invoices               Invoice[]
+  created_at             DateTime                 @default(now())
+  updated_at             DateTime                 @updatedAt
+  issuer_organization    IssuerOrganization      @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  contract               Contract?                @relation(fields: [contract_id], references: [id])
+  invoices                 Invoice[]
+  application_reviews      ApplicationReview[]
+  application_review_items  ApplicationReviewItem[]
+  application_review_notes  ApplicationReviewNote[]
+  application_review_events ApplicationReviewEvent[]
 
   @@map("applications")
+}
+
+enum ReviewSection {
+  FINANCIAL
+  JUSTIFICATION
+  DOCUMENTS
+}
+
+enum ReviewStepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  AMENDMENT_REQUESTED
+}
+
+model ApplicationReview {
+  id                  String           @id @default(cuid())
+  application_id      String
+  section             ReviewSection
+  status              ReviewStepStatus  @default(PENDING)
+  reviewer_user_id    String?
+  reviewed_at         DateTime?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+  application         Application      @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@unique([application_id, section])
+  @@index([application_id])
+  @@map("application_reviews")
+}
+
+model ApplicationReviewItem {
+  id                  String           @id @default(cuid())
+  application_id       String
+  item_type           String           // INVOICE | DOCUMENT
+  item_id             String           // invoice id or document key from supporting_documents
+  status              ReviewStepStatus @default(PENDING)
+  reviewer_user_id    String?
+  reviewed_at         DateTime?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+  application         Application      @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@unique([application_id, item_type, item_id])
+  @@index([application_id])
+  @@index([application_id, item_type])
+  @@map("application_review_items")
+}
+
+model ApplicationReviewNote {
+  id               String     @id @default(cuid())
+  application_id   String
+  scope            String     // section | item
+  scope_key        String     // FINANCIAL | JUSTIFICATION | DOCUMENTS | invoice:{id} | document:{key}
+  action_type      String     // APPROVE | REJECT | REQUEST_AMENDMENT
+  note             String
+  author_user_id   String
+  created_at       DateTime   @default(now())
+  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([application_id])
+  @@index([application_id, scope_key])
+  @@map("application_review_notes")
+}
+
+model ApplicationReviewEvent {
+  id                String      @id @default(cuid())
+  application_id    String
+  event_type        String      // STATUS_CHANGE | SECTION_REVIEWED | ITEM_REVIEWED
+  scope             String?
+  scope_key         String?
+  old_status        String?
+  new_status        String
+  reviewer_user_id   String?
+  note              String?
+  created_at        DateTime    @default(now())
+  application       Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([application_id])
+  @@index([application_id, created_at])
+  @@map("application_review_events")
 }
 
 model Contract {
@@ -626,6 +711,9 @@ enum SiteDocumentType {
 enum ApplicationStatus {
   DRAFT
   SUBMITTED
+  UNDER_REVIEW
+  AMENDMENT_REQUESTED
+  RESUBMITTED
   APPROVED
   REJECTED
   ARCHIVED

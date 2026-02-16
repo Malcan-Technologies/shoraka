@@ -12,6 +12,8 @@ import {
   XCircleIcon,
   ClipboardDocumentCheckIcon,
   ArchiveBoxIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 
@@ -59,6 +61,27 @@ export function ApplicationsTableRow({
           <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />
             Draft
+          </Badge>
+        );
+      case "UNDER_REVIEW":
+        return (
+          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
+            Under Review
+          </Badge>
+        );
+      case "AMENDMENT_REQUESTED":
+        return (
+          <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
+            <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-yellow-600" />
+            Amendment Requested
+          </Badge>
+        );
+      case "RESUBMITTED":
+        return (
+          <Badge variant="outline" className="border-orange-500/30 text-foreground bg-orange-500/10">
+            <ArrowPathIcon className="h-3 w-3 mr-1 text-orange-600" />
+            Resubmitted
           </Badge>
         );
       default:

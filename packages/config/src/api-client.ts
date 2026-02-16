@@ -361,6 +361,73 @@ export class ApiClient {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
   }
 
+  async approveReviewSection(
+    applicationId: string,
+    section: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/approve`,
+      {}
+    );
+  }
+
+  async rejectReviewSection(
+    applicationId: string,
+    section: string,
+    note: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reject`,
+      { note }
+    );
+  }
+
+  async requestAmendmentReviewSection(
+    applicationId: string,
+    section: string,
+    note: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/request-amendment`,
+      { note }
+    );
+  }
+
+  async approveReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/approve`,
+      { itemType, itemId }
+    );
+  }
+
+  async rejectReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string,
+    note: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/reject`,
+      { itemType, itemId, note }
+    );
+  }
+
+  async requestAmendmentReviewItem(
+    applicationId: string,
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string,
+    note: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/request-amendment`,
+      { itemType, itemId, note }
+    );
+  }
+
   // Request redo onboarding for an application
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<

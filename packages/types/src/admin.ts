@@ -1018,6 +1018,66 @@ export interface AdminApplicationsResponse {
   pagination: PaginationResponse;
 }
 
+export interface ApplicationReviewSection {
+  id: string;
+  application_id: string;
+  section: string;
+  status: string;
+  reviewer_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationReviewItem {
+  id: string;
+  application_id: string;
+  item_type: string;
+  item_id: string;
+  status: string;
+  reviewer_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationReviewNote {
+  id: string;
+  application_id: string;
+  scope: string;
+  scope_key: string;
+  action_type: string;
+  note: string;
+  author_user_id: string;
+  created_at: string;
+}
+
+export interface ApplicationReviewEvent {
+  id: string;
+  application_id: string;
+  event_type: string;
+  scope: string | null;
+  scope_key: string | null;
+  old_status: string | null;
+  new_status: string;
+  reviewer_user_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface ReviewItemActionPayload {
+  itemType: "INVOICE" | "DOCUMENT";
+  itemId: string;
+}
+
+export interface ReviewItemRejectPayload extends ReviewItemActionPayload {
+  note: string;
+}
+
+export interface ReviewItemRequestAmendmentPayload extends ReviewItemActionPayload {
+  note: string;
+}
+
 // Products
 export interface GetProductsParams {
   page: number;

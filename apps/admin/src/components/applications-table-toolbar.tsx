@@ -85,6 +85,9 @@ export function ApplicationsTableToolbar({
             <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="SUBMITTED">Submitted</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="UNDER_REVIEW">Under Review</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="AMENDMENT_REQUESTED">Amendment Requested</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="RESUBMITTED">Resubmitted</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>

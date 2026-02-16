@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole, AdminRole, ApplicationStatus } from "@prisma/client";
+import { UserRole, AdminRole, ApplicationStatus, ReviewSection } from "@prisma/client";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -256,3 +256,24 @@ export const updateApplicationStatusSchema = z.object({
 });
 
 export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;
+
+export const reviewSectionSchema = z.nativeEnum(ReviewSection);
+
+export const reviewSectionRejectSchema = z.object({
+  note: z.string().min(1, "Remark is required for rejection"),
+});
+export const reviewSectionRequestAmendmentSchema = z.object({
+  note: z.string().min(1, "Remark is required for amendment request"),
+});
+
+export const reviewItemActionSchema = z.object({
+  itemType: z.enum(["INVOICE", "DOCUMENT"]),
+  itemId: z.string().min(1),
+});
+export const reviewItemApproveSchema = reviewItemActionSchema;
+export const reviewItemRejectSchema = reviewItemActionSchema.extend({
+  note: z.string().min(1, "Remark is required for rejection"),
+});
+export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
+  note: z.string().min(1, "Remark is required for amendment request"),
+});

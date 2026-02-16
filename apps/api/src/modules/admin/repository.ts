@@ -12,6 +12,8 @@ import {
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
+  ReviewSection,
+  ReviewStepStatus,
 } from "@prisma/client";
 import type {
   GetUsersQuery,
@@ -2219,7 +2221,7 @@ export class AdminRepository {
   }
 
   /**
-   * Get financing application by ID with all details
+   * Get financing application by ID with all details and review data
    */
   async getApplicationById(id: string) {
     return prisma.application.findUnique({
@@ -2239,6 +2241,138 @@ export class AdminRepository {
         },
         invoices: true,
         contract: true,
+        application_reviews: true,
+        application_review_items: true,
+        application_review_notes: { orderBy: { created_at: "desc" } },
+        application_review_events: { orderBy: { created_at: "desc" }, take: 50 },
+      },
+    });
+  }
+
+  /**
+   * Ensure review section rows exist for an application (creates if missing)
+   */
+  async ensureApplicationReviewSections(applicationId: string) {
+    const sections = [ReviewSection.FINANCIAL, ReviewSection.JUSTIFICATION, ReviewSection.DOCUMENTS];
+    for (const section of sections) {
+      await prisma.applicationReview.upsert({
+        where: {
+          application_id_section: { application_id: applicationId, section },
+        },
+        create: { application_id: applicationId, section },
+        update: {},
+      });
+    }
+  }
+
+  /**
+   * Update section review status
+   */
+  async updateSectionReviewStatus(
+    applicationId: string,
+    section: ReviewSection,
+    status: ReviewStepStatus,
+    reviewerUserId: string
+  ) {
+    return prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: {
+        application_id: applicationId,
+        section,
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+      update: {
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Upsert item review status
+   */
+  async upsertItemReviewStatus(
+    applicationId: string,
+    itemType: string,
+    itemId: string,
+    status: ReviewStepStatus,
+    reviewerUserId: string
+  ) {
+    return prisma.applicationReviewItem.upsert({
+      where: {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: itemType,
+          item_id: itemId,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        item_type: itemType,
+        item_id: itemId,
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+      update: {
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Create review note
+   */
+  async createReviewNote(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    actionType: string,
+    note: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewNote.create({
+      data: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: actionType,
+        note,
+        author_user_id: authorUserId,
+      },
+    });
+  }
+
+  /**
+   * Create review event (audit trail)
+   */
+  async createReviewEvent(
+    applicationId: string,
+    eventType: string,
+    oldStatus: string | null,
+    newStatus: string,
+    reviewerUserId: string | null,
+    note: string | null,
+    scope?: string,
+    scopeKey?: string
+  ) {
+    return prisma.applicationReviewEvent.create({
+      data: {
+        application_id: applicationId,
+        event_type: eventType,
+        old_status: oldStatus,
+        new_status: newStatus,
+        reviewer_user_id: reviewerUserId,
+        note,
+        scope,
+        scope_key: scopeKey,
       },
     });
   }
