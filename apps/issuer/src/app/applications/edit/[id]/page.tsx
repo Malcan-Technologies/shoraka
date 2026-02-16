@@ -31,6 +31,7 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useArchiveApplication,
+  useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -342,6 +343,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const updateStepMutation = useUpdateApplicationStep();
+  const updateStatusMutation = useUpdateApplicationStatus();
   const archiveApplicationMutation = useArchiveApplication();
   /* ================================================================
      UNSAVED CHANGES TRACKING
@@ -416,9 +418,21 @@ export default function EditApplicationPage() {
     }
   }, [application, applicationId, router, searchParams, isLoadingApp, wizardState]);
 
+
+
+
   /* ================================================================
      NAVIGATION GATING & VALIDATION
      ================================================================ */
+
+  //  make edit page not accessible after submit
+  React.useEffect(() => {
+    if (application?.status === "SUBMITTED") {
+      router.replace("/");
+    }
+  }, [application, router]);
+
+
 
   /**
    * Single stable gating effect:
@@ -430,6 +444,8 @@ export default function EditApplicationPage() {
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
+
+    if (application.status === "SUBMITTED") return;
 
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
@@ -704,15 +720,26 @@ export default function EditApplicationPage() {
       }
 
       // Remove frontend-only properties AFTER saveFunction completes
+      const stripUiFields = (data: Record<string, unknown>) => {
+        const {
+          isValid,
+          hasPendingChanges,
+          validationError,
+          autofillContract,
+          structureChanged,
+          isCreatingContract,
+          _uploadFiles,
+          isCurrentStepValid,
+          ...cleaned
+        } = data;
+
+        return cleaned;
+      };
+
       if (dataToSave) {
-        delete (dataToSave as Record<string, unknown>).isValid;
-        delete (dataToSave as Record<string, unknown>).hasPendingChanges;
-        delete (dataToSave as Record<string, unknown>).validationError;
-        delete (dataToSave as Record<string, unknown>).autofillContract;
-        delete (dataToSave as Record<string, unknown>).structureChanged;
-        delete (dataToSave as Record<string, unknown>).isCreatingContract;
-        delete (dataToSave as Record<string, unknown>)._uploadFiles;
+        dataToSave = stripUiFields(dataToSave);
       }
+
 
       // DECLARATIONS validation
       if (currentStepId === "declarations_1") {
@@ -750,12 +777,30 @@ export default function EditApplicationPage() {
 
       // FINAL SUBMISSION
       if (currentStepKey === "review_and_submit") {
-        // 1. Update application status to SUBMITTED
-        // await updateStatusMutation.mutateAsync({
-        //   id: applicationId,
-        //   status: "SUBMITTED",
-        // });
+        //  1) Save the final step FIRST (updates last_completed_step)
+        console.log('hih', dataToSave)
+        await updateStepMutation.mutateAsync({
+          id: applicationId,
+          stepData: {
+            stepId: currentStepId,     // e.g. "review_and_submit_1"
+            stepNumber: stepFromUrl,   // IMPORTANT: current step number (not next)
+            data: dataToSave ?? {},    // ok to store {} or any review payload you want
+          },
+        });
 
+        //  2) Then submit (updates status + submitted_at + cleanup)
+        await updateStatusMutation.mutateAsync({
+          id: applicationId,
+          status: "SUBMITTED",
+        });
+
+        //  Local wizard state update (optional but nice)
+        if (wizardState) {
+          setWizardState({
+            lastCompletedStep: Math.max(wizardState.lastCompletedStep, stepFromUrl),
+            allowedMaxStep: Math.max(wizardState.allowedMaxStep, stepFromUrl + 1),
+          });
+        }
         toast.success("Application submitted successfully");
 
         // 2. Redirect somewhere (dashboard / applications list)
@@ -953,12 +998,13 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
+              updateStatusMutation.isPending ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending
+            {updateStepMutation.isPending || updateStatusMutation.isPending
               ? "Saving..."
               : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
