@@ -1127,7 +1127,7 @@ export default function OrganizationDetailPage() {
                             {org.onboardingStatus === "COMPLETED" ? (
                               <Badge className="bg-emerald-500 text-white text-xs">
                                 <CheckCircleIcon className="h-3 w-3 mr-1" />
-                                Onboarding Completed
+                                Onboarded
                               </Badge>
                             ) : (
                               <Badge variant="secondary" className="text-xs">

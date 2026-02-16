@@ -29,7 +29,7 @@ export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalPro
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Sign in as</SheetTitle>
-          <SheetDescription>Choose how you'd like to sign in</SheetDescription>
+          <SheetDescription>Choose how you&apos;d like to sign in</SheetDescription>
         </SheetHeader>
         <div className="grid gap-4 py-4">
           <Button

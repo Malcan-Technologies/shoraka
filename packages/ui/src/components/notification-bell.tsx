@@ -3,6 +3,16 @@
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@cashsouk/config";
+
+interface NotificationItem {
+  id: string;
+  read_at?: string | null;
+  link_path?: string | null;
+  priority?: string;
+  created_at?: string;
+  title?: string;
+  message?: string;
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +32,7 @@ export function NotificationBell() {
     read: false,
   });
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = (notification: NotificationItem) => {
     if (!notification.read_at) {
       markAsRead(notification.id);
     }
@@ -84,7 +94,9 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="flex flex-col bg-white">
-              {notifications.map((notification: any) => (
+              {notifications.map((n) => {
+                const notification = n as unknown as NotificationItem;
+                return (
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
@@ -100,7 +112,7 @@ export function NotificationBell() {
                           {notification.title}
                         </span>
                         <span className="text-[11px] text-slate-400 whitespace-nowrap ml-2">
-                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(notification.created_at ?? 0), { addSuffix: true })}
                         </span>
                       </div>
                       <p className="text-[13px] text-slate-500 leading-snug line-clamp-2">
@@ -114,7 +126,8 @@ export function NotificationBell() {
                     )}
                   </div>
                 </DropdownMenuItem>
-              ))}
+              );
+              })}
             </div>
           )}
         </ScrollArea>

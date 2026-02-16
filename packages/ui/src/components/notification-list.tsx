@@ -2,6 +2,17 @@
 
 import { useNotifications } from "@cashsouk/config";
 import { format } from "date-fns";
+
+interface NotificationItem {
+  id: string;
+  read_at?: string | null;
+  link_path?: string | null;
+  priority?: string;
+  created_at?: string;
+  title?: string;
+  message?: string;
+  notification_type?: { category?: string } | null;
+}
 import { Bell, Lock, Settings, Megaphone, Info, ChevronLeft, ChevronRight, BadgeDollarSign } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
@@ -33,7 +44,7 @@ export function NotificationList() {
     }
   };
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = (notification: NotificationItem) => {
     if (!notification.read_at) {
       markAsRead(notification.id);
     }
@@ -84,7 +95,8 @@ export function NotificationList() {
         </Card>
       ) : (
         <div className="grid gap-3">
-            {notifications.map((notification: any) => {
+            {notifications.map((n) => {
+              const notification = n as unknown as NotificationItem;
               const isUnread = !notification.read_at;
               const isWarning = notification.priority === "WARNING";
               const isCritical = notification.priority === "CRITICAL";
@@ -99,7 +111,7 @@ export function NotificationList() {
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <CardContent className="flex items-start gap-4 p-4">
-                    <div className="mt-1">{getCategoryIcon(notification.notification_type.category)}</div>
+                    <div className="mt-1">{getCategoryIcon(notification.notification_type?.category ?? "")}</div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -109,7 +121,7 @@ export function NotificationList() {
                           )}
                         </div>
                         <span className="text-[10px] text-muted-foreground">
-                          {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                          {format(new Date(notification.created_at ?? 0), "MMM d, h:mm a")}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">{notification.message}</p>

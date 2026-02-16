@@ -59,7 +59,6 @@ export function ProgressIndicator({
   }
 
   function renderStepLabel(label: string) {
-    console.log(label)
     switch (label.toLowerCase()) {
       case "invoice details":
         return (

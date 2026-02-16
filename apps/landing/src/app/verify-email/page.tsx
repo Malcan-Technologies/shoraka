@@ -70,12 +70,13 @@ function VerifyEmailPageContent() {
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
 
-  // Auto-send code if email provided in URL
+  // Auto-send code if email provided in URL (run once on mount)
   React.useEffect(() => {
     if (emailParam && step === 2 && !isSubmitting && cooldownRemaining === 0) {
       handleSendCode(emailParam);
     }
-  }, []); // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally run only once on mount
+  }, []);
 
   const handleSendCode = async (emailValue: string) => {
     setIsSubmitting(true);

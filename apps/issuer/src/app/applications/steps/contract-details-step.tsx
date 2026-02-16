@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * CONTRACT DETAILS STEP
+ *
+ * Architecture:
+ * - Owns all state locally (form, files, validation)
+ * - Initializes ONCE when applicationId changes
+ * - Never reinitializes on parent rerender
+ * - Hydrates data from application hook on first load
+ * - Saves via saveFunction returned to parent
+ *
+ * Pattern matches SupportingDocumentsStep and InvoiceDetailsStep.
+ */
+
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,23 +43,6 @@ import { MoneyInput } from "@/app/applications/components/money-input";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-/**
- * CONTRACT DETAILS STEP
- *
- * This step collects information about the contract and the customer.
- * 1. Contract details: title, description, number, value, dates, document
- * 2. Customer details: name, entity type, SSM number, country, related party status, consent
- *
- * Props:
- * - applicationId: ID of the current application
- * - onDataChange: callback to pass form data to parent
- */
-
-interface ContractDetailsStepProps {
-  applicationId: string;
-  onDataChange?: (data: any) => void;
-}
-
 type YesNo = "yes" | "no";
 
 const ENTITY_TYPES = [
@@ -61,38 +57,34 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
-
+/* ================================================================
+   VALIDATION HELPERS
+   ================================================================ */
 
 function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
   return new Date(start).getTime() < new Date(end).getTime();
 }
 
-
 const MIN_CONTRACT_MONTHS = 6;
 
 function isEndDateTooSoon(endDate?: string, minMonths = MIN_CONTRACT_MONTHS) {
   if (!endDate) return false;
-
   const today = new Date();
   const minAllowedEndDate = new Date(today);
   minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
-
   return new Date(endDate) < minAllowedEndDate;
 }
 
+/* ================================================================
+   CUSTOM RADIO BUTTON
+   ================================================================ */
 
-/** Render blocks
- *
- * What: Canonical yes/no radio group for boolean fields.
- * Why: Match the same yes/no UI used in `business-details-step.tsx`.
- * Data: `value` is `"yes" | "no" | ""` so we can avoid pre-selecting.
- */
-/**
- * Radio labels (use canonical form label styles)
- */
 const radioSelectedLabel = formLabelClassName;
-const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
+const radioUnselectedLabel = formLabelClassName.replace(
+  "text-foreground",
+  "text-muted-foreground"
+);
 
 function CustomRadio({
   name,
@@ -124,10 +116,9 @@ function CustomRadio({
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked
-            ? "bg-primary"
-            : "border-2 border-muted-foreground/50 bg-muted/30"
-            }`}
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
+            checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
+          }`}
           aria-hidden
         >
           {checked && (
@@ -141,7 +132,9 @@ function CustomRadio({
           )}
         </span>
       </span>
-      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
+      <span className={checked ? selectedLabelClass : unselectedLabelClass}>
+        {label}
+      </span>
     </label>
   );
 }
@@ -149,16 +142,14 @@ function CustomRadio({
 function YesNoRadioGroup({
   value,
   onValueChange,
-  name,
 }: {
   value: YesNo | "";
-  onValueChange: (v: YesNo) => void;
-  name: string;
+  onValueChange: (value: YesNo) => void;
 }) {
   return (
     <div className="flex gap-6 items-center">
       <CustomRadio
-        name={name}
+        name="related"
         value="yes"
         checked={value === "yes"}
         onChange={() => onValueChange("yes")}
@@ -167,7 +158,7 @@ function YesNoRadioGroup({
         unselectedLabelClass={radioUnselectedLabel}
       />
       <CustomRadio
-        name={name}
+        name="related"
         value="no"
         checked={value === "no"}
         onChange={() => onValueChange("no")}
@@ -179,28 +170,183 @@ function YesNoRadioGroup({
   );
 }
 
-export function ContractDetailsStep({ applicationId, onDataChange }: ContractDetailsStepProps) {
-  const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-  const contractId = (application as any)?.contract?.id;
+/**
+ * FILE UPLOAD AREA
+ * ================================================================ */
 
+interface FileMetadata {
+  s3_key: string;
+  file_name: string;
+  file_size: number;
+}
+
+interface FileUploadAreaProps {
+  onFileSelect: (file: File) => void;
+  isUploading?: boolean;
+  uploadedFile?: FileMetadata | null;
+  pendingFile?: File;
+  onRemove?: () => void;
+}
+
+function FileUploadArea({
+  onFileSelect,
+  isUploading,
+  uploadedFile,
+  pendingFile,
+  onRemove,
+}: FileUploadAreaProps) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleClick = () => {
+    if (!uploadedFile && !pendingFile && !isUploading) {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        toast.error("Please select a PDF file");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large (max 5MB)");
+        return;
+      }
+      onFileSelect(file);
+    }
+  };
+
+  // Show uploaded or pending file
+  if (uploadedFile || pendingFile) {
+    const fileName = pendingFile?.name || uploadedFile?.file_name || "";
+    const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
+    const isPending = !!pendingFile;
+
+    return (
+      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div
+            className={cn(
+              "p-1 rounded-full shrink-0",
+              isPending ? "bg-yellow-500/10" : "bg-primary/10"
+            )}
+          >
+            <CheckCircle2
+              className={cn(
+                "h-4 w-4",
+                isPending ? "text-yellow-500" : "text-primary"
+              )}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium truncate">{fileName}</div>
+            <div className="text-xs text-muted-foreground">
+              {(fileSize / 1024 / 1024).toFixed(2)} MB
+              {isPending && " (uploading)"}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.();
+          }}
+          className="p-1 hover:bg-muted rounded-full transition-colors"
+        >
+          <X className="h-3 w-3 text-muted-foreground" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors bg-card/50"
+    >
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".pdf,application/pdf"
+        className="hidden"
+      />
+      <div className="p-2 rounded-full bg-background border shadow-sm">
+        <CloudUpload className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div className="text-center">
+        <span className="text-base font-semibold text-primary">
+          {isUploading ? "Uploading..." : "Click to upload"}
+        </span>
+        {!isUploading && (
+          <span className="text-base text-muted-foreground"> or drag and drop</span>
+        )}
+      </div>
+      <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
+    </div>
+  );
+}
+
+/* ================================================================
+   SKELETON
+   ================================================================ */
+
+function ContractDetailsSkeleton() {
+  return (
+    <div className="space-y-10">
+      <section className="space-y-4">
+        <div>
+          <Skeleton className="h-6 w-56" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i}>
+              <Skeleton className="h-[22px] w-40 mb-2" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ================================================================
+   MAIN COMPONENT
+   ================================================================ */
+
+interface ContractDetailsStepProps {
+  applicationId: string;
+  onDataChange?: (data: Record<string, unknown>) => void;
+}
+
+export function ContractDetailsStep({
+  applicationId,
+  onDataChange,
+}: ContractDetailsStepProps) {
+  const { getAccessToken } = useAuthToken();
+  const { data: application } = useApplication(applicationId);
+  const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
-  const { getAccessToken } = useAuthToken();
 
-  // Local state for form fields
+  /* ================================================================
+     LOCAL STATE (owned entirely by this component)
+     ================================================================ */
+
   const [formData, setFormData] = React.useState({
     contract: {
       title: "",
       description: "",
       number: "",
-      value: "" as string,
+      value: "",
       start_date: "",
       end_date: "",
-      approved_facility: 0 as number | string,
-      utilized_facility: 0 as number | string,
-      available_facility: 0 as number | string,
-      document: null as any,
+      document: null as FileMetadata | null,
     },
     customer: {
       name: "",
@@ -208,306 +354,235 @@ export function ContractDetailsStep({ applicationId, onDataChange }: ContractDet
       ssm_number: "",
       country: "MY",
       is_related_party: "" as YesNo | "",
-      document: null as any,
+      document: null as FileMetadata | null,
     },
   });
 
-  // Track if we've initialized the data
-  const [isInitialized, setIsInitialized] = React.useState(false);
-  const [initialData, setInitialData] = React.useState<any>(null);
-  const [hasSubmitted, setHasSubmitted] = React.useState(false);
-  const [isUploading] = React.useState<Record<string, boolean>>({});
-
-  // Track pending files (not uploaded to S3 yet)
   const [pendingFiles, setPendingFiles] = React.useState<{
     contract?: File;
     consent?: File;
   }>({});
 
-  // Track existing S3 keys for versioning
+  const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
+
   const [lastS3Keys, setLastS3Keys] = React.useState<{
     contract?: string;
     consent?: string;
   }>({});
 
-  const hasDateOrderError = React.useMemo(() => {
-    if (!hasSubmitted) return false;
-    return !isStartBeforeEnd(
-      formData.contract.start_date,
-      formData.contract.end_date
-    );
-  }, [formData.contract.start_date, formData.contract.end_date, hasSubmitted]);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
 
-  const isContractTooShort = React.useMemo(() => {
-    if (!hasSubmitted) return false;
-    return isEndDateTooSoon(formData.contract.end_date);
-  }, [formData.contract.end_date, hasSubmitted]);
+  /* ================================================================
+     INITIALIZATION (run only once per applicationId)
+     ================================================================ */
 
+  const isInitializedRef = React.useRef(false);
 
-
-  // Stable reference for onDataChange callback
-  const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
-    onDataChangeRef.current = onDataChange;
-  }, [onDataChange]);
+    // Only initialize once per applicationId
+    if (isInitializedRef.current) return;
+    if (!application) return;
+    if (isLoadingContract) return;
+    // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
+    // So we don't wait for contract loading here
 
-  /**
-   * CREATE CONTRACT IF IT DOESN'T EXIST
-   *
-   * FIX: Use ref guard to prevent duplicate contract creation due to React re-renders
-   * before contractId is populated from query invalidation.
-   */
-  // Contract creation will be performed by saveFunction when required.
-  // We avoid auto-creating here to keep control in the step save flow.
+    const contractDetails = contract 
+      ? ((contract as unknown) as { contract_details?: Record<string, unknown> })?.contract_details as Record<string, unknown>
+      : {};
+    const customerDetails = contract
+      ? ((contract as unknown) as { customer_details?: Record<string, unknown> })?.customer_details as Record<string, unknown>
+      : {};
 
-  /**
-   * LOAD SAVED DATA
-   */
-  React.useEffect(() => {
-    if (!contract || isInitialized) return;
+    const relatedPartyValue: YesNo | "" =
+      customerDetails.is_related_party === undefined ||
+      customerDetails.is_related_party === null
+        ? ""
+        : customerDetails.is_related_party
+          ? ("yes" as const)
+          : ("no" as const);
 
-    const contractDetails = (contract.contract_details as any) || {};
-    const customerDetails = (contract.customer_details as any) || {};
-
-    // Check if contract has any actual data
-    const hasContractData = contractDetails.title || contractDetails.number ||
-      contractDetails.value || contractDetails.start_date;
-    const hasCustomerData = customerDetails.name || customerDetails.ssm_number;
-
-    const financingStructure = (application as any)?.financing_structure;
-    const structureType = financingStructure?.structure_type;
-
-    // Only show empty form if structure is "new_contract" AND contract has no data yet
-    // This ensures navigating back doesn't clear a filled form
-    if (structureType === "new_contract" && !hasContractData && !hasCustomerData) {
-      const emptyForm = {
-        contract: {
-          title: "",
-          description: "",
-          number: "",
-          value: "",
-          start_date: "",
-          end_date: "",
-          approved_facility: 0,
-          utilized_facility: 0,
-          available_facility: 0,
-          document: null,
-        },
-        customer: {
-          name: "",
-          entity_type: "",
-          ssm_number: "",
-          country: "MY",
-          is_related_party: "" as YesNo | "",
-          document: null,
-        },
-      };
-      setFormData(emptyForm);
-      setInitialData(JSON.parse(JSON.stringify(emptyForm)));
-      setIsInitialized(true);
-      return;
-    }
-
-    const initial = {
+    const initialData = {
       contract: {
-        title: contractDetails.title || "",
-        description: contractDetails.description || "",
-        number: contractDetails.number || "",
-        value: contractDetails.value != null ? formatMoney(contractDetails.value) : "",
-        start_date: contractDetails.start_date || "",
-        end_date: contractDetails.end_date || "",
-        approved_facility: contractDetails.approved_facility || 0,
-        utilized_facility: contractDetails.utilized_facility || 0,
-        available_facility: contractDetails.available_facility || 0,
-        document: contractDetails.document || null,
+        title: (contractDetails.title as string) || "",
+        description: (contractDetails.description as string) || "",
+        number: (contractDetails.number as string) || "",
+        value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
+        start_date: (contractDetails.start_date as string) || "",
+        end_date: (contractDetails.end_date as string) || "",
+        document: (contractDetails.document as FileMetadata | null) || null,
       },
       customer: {
-        name: customerDetails.name || "",
-        entity_type: customerDetails.entity_type || "",
-        ssm_number: customerDetails.ssm_number || "",
-        country: customerDetails.country || "MY",
-        is_related_party: (customerDetails.is_related_party === undefined || customerDetails.is_related_party === null
-          ? ""
-          : customerDetails.is_related_party
-            ? "yes"
-            : "no") as YesNo | "",
-        document: customerDetails.document || null,
+        name: (customerDetails.name as string) || "",
+        entity_type: (customerDetails.entity_type as string) || "",
+        ssm_number: (customerDetails.ssm_number as string) || "",
+        country: (customerDetails.country as string) || "MY",
+        is_related_party: relatedPartyValue,
+        document: (customerDetails.document as FileMetadata | null) || null,
       },
     };
 
-    // Track existing S3 keys for versioning
-    const s3Keys: { contract?: string; consent?: string } = {};
-    if (contractDetails.document?.s3_key) {
-      s3Keys.contract = contractDetails.document.s3_key;
+    setFormData(initialData);
+
+    // Track S3 keys for versioning
+    const contractDoc = contractDetails.document as FileMetadata | undefined;
+    if (contractDoc?.s3_key) {
+      setLastS3Keys((prev) => ({ ...prev, contract: contractDoc.s3_key }));
     }
-    if (customerDetails.document?.s3_key) {
-      s3Keys.consent = customerDetails.document.s3_key;
+    const customerDoc = customerDetails.document as FileMetadata | undefined;
+    if (customerDoc?.s3_key) {
+      setLastS3Keys((prev) => ({ ...prev, consent: customerDoc.s3_key }));
     }
-    setLastS3Keys(s3Keys);
 
-    setFormData(initial);
-    setInitialData(JSON.parse(JSON.stringify(initial)));
-    setIsInitialized(true);
-  }, [contract, isInitialized, application]);
+    isInitializedRef.current = true;
+    console.warn("[CONTRACT] Hydrated");
+  }, [application, contract, isLoadingContract]);
 
-  /**
-   * SAVE FUNCTION
-   */
-  const handleSave = React.useCallback(async () => {
-setHasSubmitted(true);
+  /* ================================================================
+     SAVE FUNCTION
+     ================================================================ */
 
-// ❌ SSM validation
-if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
-  toast.error("SSM number must be exactly 12 digits");
-  throw new Error("VALIDATION_SSM");
-}
+  const saveFunction = React.useCallback(async () => {
+    console.warn("[CONTRACT] Save triggered");
+    setHasSubmitted(true);
 
-// ❌ Date order
-if (
-  !isStartBeforeEnd(
-    formData.contract.start_date,
-    formData.contract.end_date
-  )
-) {
-  toast.error("Contract end date must be after start date");
-  throw new Error("VALIDATION_DATE_ORDER");
-}
+    // ❌ Validation
+    if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_SSM_FORMAT");
+    }
 
-// ❌ Contract too short
-if (isEndDateTooSoon(formData.contract.end_date)) {
-  toast.error(
-    "Contract duration is too short. Please use invoice-only financing."
-  );
-  throw new Error("VALIDATION_CONTRACT_TOO_SHORT");
-}
+    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_DATE_ORDER");
+    }
 
+    if (isEndDateTooSoon(formData.contract.end_date)) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+    }
 
-    // Ensure a contract exists before proceeding. If missing, create it now.
+    // Create contract if needed
     let effectiveContractId = contractId;
     if (!effectiveContractId) {
       try {
         const created = await createContractMutation.mutateAsync(applicationId);
         effectiveContractId = created?.id as string;
         if (!effectiveContractId) {
-          toast.error("Failed to create contract. Please try again.");
-          throw new Error("Contract creation did not return an id");
+          console.warn("[CONTRACT] Contract creation did not return an id");
+          toast.error("Something went wrong. Please try again.");
+          throw new Error("CONTRACT_CREATION_NO_ID");
         }
       } catch (err) {
-        toast.error("Contract creation failed. Please try again.");
+        console.warn("[CONTRACT] Contract creation error:", err);
+        toast.error("Something went wrong. Please try again.");
         throw err;
       }
     }
 
-    // Upload pending files first
     const token = await getAccessToken();
     const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
-
     const updatedFormData = { ...formData };
 
-    // Upload contract document if pending
+    // Upload contract file if pending
     if (pendingFiles.contract) {
-      const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
+      try {
+        setIsUploading((prev) => ({ ...prev, contract: true }));
 
-      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
-        fileName: pendingFiles.contract.name,
-        contentType: pendingFiles.contract.type,
-        fileSize: pendingFiles.contract.size,
-        type: "contract",
-        existingS3Key: existingS3Key,
-      });
+        const existingS3Key = formData.contract.document?.s3_key || lastS3Keys.contract;
+        const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
+          fileName: pendingFiles.contract.name,
+          contentType: pendingFiles.contract.type,
+          fileSize: pendingFiles.contract.size,
+          type: "contract",
+          existingS3Key: existingS3Key,
+        });
 
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-
-      const { uploadUrl, s3Key } = response.data;
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: pendingFiles.contract,
-        headers: {
-          "Content-Type": pendingFiles.contract.type,
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload contract document to S3");
-      }
-
-      // Delete old file if S3 key changed
-      if (existingS3Key && existingS3Key !== s3Key) {
-        try {
-          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-        } catch (error) {
-          console.warn("Failed to delete old contract document:", error);
+        if (!response.success) {
+          throw new Error(response.error.message);
         }
+
+        const { uploadUrl, s3Key } = response.data;
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: pendingFiles.contract,
+          headers: { "Content-Type": pendingFiles.contract.type },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload contract document");
+        }
+
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
+          } catch (error) {
+            console.warn("Failed to delete old contract:", error);
+          }
+        }
+
+        updatedFormData.contract.document = {
+          s3_key: s3Key,
+          file_name: pendingFiles.contract.name,
+          file_size: pendingFiles.contract.size,
+        };
+        setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
+      } finally {
+        setIsUploading((prev) => ({ ...prev, contract: false }));
       }
-
-      updatedFormData.contract.document = {
-        s3_key: s3Key,
-        file_name: pendingFiles.contract.name,
-        file_size: pendingFiles.contract.size,
-      };
-
-      setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
     }
 
-    // Upload consent document if pending
+    // Upload consent file if pending
     if (pendingFiles.consent) {
-      const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
+      try {
+        setIsUploading((prev) => ({ ...prev, consent: true }));
 
-      const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
-        fileName: pendingFiles.consent.name,
-        contentType: pendingFiles.consent.type,
-        fileSize: pendingFiles.consent.size,
-        type: "consent",
-        existingS3Key: existingS3Key,
-      });
+        const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
+        const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
+          fileName: pendingFiles.consent.name,
+          contentType: pendingFiles.consent.type,
+          fileSize: pendingFiles.consent.size,
+          type: "consent",
+          existingS3Key: existingS3Key,
+        });
 
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-
-      const { uploadUrl, s3Key } = response.data;
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: pendingFiles.consent,
-        headers: {
-          "Content-Type": pendingFiles.consent.type,
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload consent document to S3");
-      }
-
-      // Delete old file if S3 key changed
-      if (existingS3Key && existingS3Key !== s3Key) {
-        try {
-          await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-        } catch (error) {
-          console.warn("Failed to delete old consent document:", error);
+        if (!response.success) {
+          throw new Error(response.error.message);
         }
+
+        const { uploadUrl, s3Key } = response.data;
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: pendingFiles.consent,
+          headers: { "Content-Type": pendingFiles.consent.type },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload consent document");
+        }
+
+        if (existingS3Key && existingS3Key !== s3Key) {
+          try {
+            await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
+          } catch (error) {
+            console.warn("Failed to delete old consent:", error);
+          }
+        }
+
+        updatedFormData.customer.document = {
+          s3_key: s3Key,
+          file_name: pendingFiles.consent.name,
+          file_size: pendingFiles.consent.size,
+        };
+        setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
+      } finally {
+        setIsUploading((prev) => ({ ...prev, consent: false }));
       }
-
-      updatedFormData.customer.document = {
-        s3_key: s3Key,
-        file_name: pendingFiles.consent.name,
-        file_size: pendingFiles.consent.size,
-      };
-
-      setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
     }
 
     // Convert values to numbers
     const valueNum = parseMoney(updatedFormData.contract.value);
-const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facility);
-
-
-    // For now, approved_facility is 0 until admin approves
-    // available_facility should be initialized to contract value (this is the single source of truth)
-    const approvedFacilityNum = 0;
+    const approvedFacilityNum = (contract as unknown as { contract_details?: { approved_facility?: number } })?.contract_details?.approved_facility || 0;
+    const utilizedFacilityNum = (contract as unknown as { contract_details?: { utilized_facility?: number } })?.contract_details?.utilized_facility || 0;
     const availableFacilityNum = valueNum;
 
     const updatedContractDetails = {
@@ -516,13 +591,16 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
       available_facility: availableFacilityNum,
+      document: updatedFormData.contract.document || undefined,
     };
 
     const updatedCustomerDetails = {
       ...updatedFormData.customer,
       is_related_party: updatedFormData.customer.is_related_party === "yes",
+      document: updatedFormData.customer.document || undefined,
     };
 
+    // Save to DB
     await updateContractMutation.mutateAsync({
       id: effectiveContractId,
       data: {
@@ -531,40 +609,37 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
       },
     });
 
-    // Clear pending files and update initial data
+    // Clear pending files
     setPendingFiles({});
-    // Reflect saved values in local form state so hasPendingChanges becomes false immediately
-    const newFormState = {
-      contract: {
-        ...updatedContractDetails,
-        value: formatMoney(updatedContractDetails.value),
-      },
-      customer: updatedFormData.customer,
-    };
-    setFormData(newFormState);
-    setInitialData(JSON.parse(JSON.stringify(newFormState)));
 
+    // Return persisted data
     return {
       contract_details: updatedContractDetails,
       customer_details: updatedCustomerDetails,
     };
-  }, [contractId, formData, pendingFiles, updateContractMutation, getAccessToken]);
+  }, [
+    formData,
+    pendingFiles,
+    contractId,
+    applicationId,
+    lastS3Keys,
+    getAccessToken,
+    createContractMutation,
+    updateContractMutation,
+  ]);
 
-  // Notify parent on data change
-  // FIX: Remove isInitialized gate to ensure saveFunction is always available
+  /* ================================================================
+     NOTIFY PARENT
+     ================================================================ */
+
   React.useEffect(() => {
-    if (!onDataChangeRef.current) return;
+    if (!onDataChange) return;
 
-    const hasFormChanges = JSON.stringify(formData) !== JSON.stringify(initialData);
-    const hasPendingFileUploads = Object.keys(pendingFiles).length > 0;
-    const hasPendingChanges = hasFormChanges || hasPendingFileUploads;
-
-    // Check if all fields are filled (including pending files)
+    const hasFormChanges = Object.keys(pendingFiles).length > 0;
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
-
-    const isCurrentStepValid =
+    const isValid =
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
@@ -578,24 +653,24 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
       !!formData.customer.country &&
       hasConsentDocument;
 
-
-
-
-
-    onDataChangeRef.current({
-      ...formData,
-      isValid: isCurrentStepValid, // ✅ single source of truth
-      saveFunction: handleSave,
-      hasPendingChanges,
-      isCreatingContract: createContractMutation.isPending,
+    onDataChange({
+      contract_details: formData.contract,
+      customer_details: formData.customer,
+      isValid,
+      hasPendingChanges: hasFormChanges,
+      saveFunction,
     });
+  }, [formData, pendingFiles, saveFunction, onDataChange]);
 
+  /* ================================================================
+     HANDLERS
+     ================================================================ */
 
-  }, [formData, initialData, handleSave, pendingFiles, contractId, createContractMutation.isPending]);
-
-
-
-  const handleInputChange = (section: "contract" | "customer", field: string, value: any) => {
+  const handleInputChange = (
+    section: "contract" | "customer",
+    field: string,
+    value: unknown
+  ) => {
     setFormData((prev) => ({
       ...prev,
       [section]: {
@@ -605,45 +680,22 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
     }));
   };
 
-  const handleFileUpload = async (type: "contract" | "consent", file: File) => {
-    // if (!contractId) return;
-
-    // Validate file
-    if (file.type !== "application/pdf") {
-      toast.error("Invalid file type", {
-        description: "Only PDF files are allowed",
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large", {
-        description: "File size must be less than 5MB",
-      });
-      return;
-    }
-
-    // Store file locally (will be uploaded when Save and Continue is clicked)
+  const handleFileUpload = (type: "contract" | "consent", file: File) => {
     setPendingFiles((prev) => ({ ...prev, [type]: file }));
-    toast.success("File added. Click 'Save and Continue' to upload.");
   };
 
-  /** Helpers
-   *
-   * What: Canonical form control styles shared across steps.
-   * Why: Ensure inputs/textareas/selects match the same border, radius, and focus behavior everywhere.
-   * Data: Imported from local shared module under `apps/issuer`.
-   */
-  const inputClassName = formInputClassName;
+  /* ================================================================
+     RENDER
+     ================================================================ */
+
+  if (!isInitializedRef.current) {
+    return <ContractDetailsSkeleton />;
+  }
+
   const labelClassName = cn(formLabelClassName, "font-normal");
+  const inputClassName = formInputClassName;
   const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
-
-  if (isLoadingApp || (contractId && isLoadingContract)) {
-    return (
-      <CompanyDetailsSkeleton />
-    );
-  }
 
   return (
     <div className="space-y-10 px-3">
@@ -666,7 +718,9 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
           <Label className={labelClassName}>Contract description</Label>
           <Textarea
             value={formData.contract.description}
-            onChange={(e) => handleInputChange("contract", "description", e.target.value)}
+            onChange={(e) =>
+              handleInputChange("contract", "description", e.target.value)
+            }
             placeholder="eg. Repair and maintenance for 12 mining rigs"
             className={cn(formTextareaClassName, "min-h-[100px]")}
           />
@@ -683,7 +737,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
           <div className="h-11 flex items-center">
             <MoneyInput
               value={formData.contract.value}
-              onValueChange={(v) => handleInputChange("contract", "value", v)}
+              onValueChange={(value) => handleInputChange("contract", "value", value)}
               placeholder={`eg. ${formatMoney(5000000)}`}
               prefix="RM"
               inputClassName={inputClassName}
@@ -696,10 +750,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
             onChange={(v) => handleInputChange("contract", "start_date", v)}
             className={inputClassName}
             placeholder="e.g. Apr 12, 2025"
-
           />
-
-
 
           <Label className={labelClassName}>Contract end date</Label>
           <div className="space-y-1">
@@ -708,26 +759,26 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
               onChange={(v) => handleInputChange("contract", "end_date", v)}
               className={cn(
                 inputClassName,
-                (hasDateOrderError || isContractTooShort) &&
-                "border-destructive focus-visible:ring-destructive"
+                (hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) ||
+                (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
               )}
               placeholder="e.g. Jun 12, 2025"
             />
 
-            {hasDateOrderError && (
+            {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
               <p className="text-xs text-destructive">
                 End date must be after start date
               </p>
             )}
 
-            {isContractTooShort && !hasDateOrderError && (
+            {hasSubmitted && isEndDateTooSoon(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) === false && (
               <p className="text-xs text-destructive">
-                Use Invoice-only financing.  Please return to the financing structure selection and choose invoice-only financing.
+                Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
               </p>
             )}
           </div>
-
-
 
           <Label className={labelClassName}>Upload contract</Label>
           <FileUploadArea
@@ -736,7 +787,7 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
             uploadedFile={formData.contract.document}
             pendingFile={pendingFiles.contract}
             onRemove={() => {
-              handleInputChange("contract", "document", null as any);
+              handleInputChange("contract", "document", null);
               setPendingFiles((prev) => ({ ...prev, contract: undefined }));
             }}
           />
@@ -783,13 +834,11 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
               onChange={(e) => {
                 const raw = e.target.value;
 
-                // allow empty while typing
                 if (raw === "") {
                   handleInputChange("customer", "ssm_number", "");
                   return;
                 }
 
-                // only digits, max 12
                 if (!/^\d{0,12}$/.test(raw)) return;
 
                 handleInputChange("customer", "ssm_number", raw);
@@ -803,9 +852,6 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
               </p>
             )}
           </div>
-
-
-
 
           <Label className={labelClassName}>Customer country</Label>
           <Select
@@ -830,10 +876,10 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
           <Label className={labelClassName}>is customer related to issuer?</Label>
           <div className="h-11 flex items-center">
             <YesNoRadioGroup
-              name="related"
               value={formData.customer.is_related_party}
               onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
-            /></div>
+            />
+          </div>
 
           <Label className={labelClassName}>Upload customer consent</Label>
           <FileUploadArea
@@ -842,220 +888,10 @@ const utilizedFacilityNum = parseMoney(updatedFormData.contract.utilized_facilit
             uploadedFile={formData.customer.document}
             pendingFile={pendingFiles.consent}
             onRemove={() => {
-              handleInputChange("customer", "document", null as any);
+              handleInputChange("customer", "document", null);
               setPendingFiles((prev) => ({ ...prev, consent: undefined }));
             }}
           />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/* FormField helper removed (unused) */
-
-/**
- * FILE UPLOAD AREA HELPER
- */
-interface FileUploadAreaProps {
-  onFileSelect: (file: File) => void;
-  isUploading?: boolean;
-  uploadedFile?: { s3_key: string; file_name: string; file_size: number } | null;
-  pendingFile?: File;
-  onRemove?: () => void;
-}
-
-function FileUploadArea({
-  onFileSelect,
-  isUploading,
-  uploadedFile,
-  pendingFile,
-  onRemove,
-}: FileUploadAreaProps) {
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const handleClick = () => {
-    if (!uploadedFile && !pendingFile && !isUploading) {
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== "application/pdf") {
-        toast.error("Invalid file type", { description: "Please upload a PDF file" });
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File too large", { description: "Maximum file size is 5MB" });
-        return;
-      }
-      onFileSelect(file);
-    }
-  };
-
-  // Show uploaded or pending file
-  if (uploadedFile || pendingFile) {
-    const fileName = pendingFile?.name || uploadedFile?.file_name || "";
-    const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
-    const isPending = !!pendingFile;
-
-    return (
-      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className={cn(
-            "p-1 rounded-full shrink-0",
-            isPending ? "bg-yellow-500/10" : "bg-primary/10"
-          )}>
-            <CheckCircle2 className={cn(
-              "h-4 w-4",
-              isPending ? "text-yellow-500" : "text-primary"
-            )} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium truncate">{fileName}</div>
-            <div className="text-xs text-muted-foreground">
-              {(fileSize / 1024 / 1024).toFixed(2)} MB
-              {isPending}
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.();
-          }}
-          className="p-1 hover:bg-muted rounded-full transition-colors"
-        >
-          <X className="h-3 w-3 text-muted-foreground" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      onClick={handleClick}
-      className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors bg-card/50"
-    >
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".pdf,application/pdf"
-        className="hidden"
-      />
-      <div className="p-2 rounded-full bg-background border shadow-sm">
-        <CloudUpload className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <div className="text-center">
-        <span className="text-base font-semibold text-primary">
-          {isUploading ? "Uploading..." : "Click to upload"}
-        </span>
-        {!isUploading && <span className="text-base text-muted-foreground"> or drag and drop</span>}
-      </div>
-      <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
-    </div>
-  );
-}
-
-function CompanyDetailsSkeleton() {
-  return (
-    <div className="mt-1 space-y-10">
-      {/* ================= Company Info ================= */}
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      {/* ================= Address ================= */}
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      {/* ================= Directors & Shareholders ================= */}
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          {[1, 2].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-[22px] w-full" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      {/* ================= Banking ================= */}
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      {/* ================= Contact Person ================= */}
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
     </div>

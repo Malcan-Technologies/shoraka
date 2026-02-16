@@ -92,5 +92,6 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
 export function getStepKeyFromStepId(stepId: string): ApplicationStepKey | null {
   if (!stepId || typeof stepId !== "string") return null;
   const key = stepId.replace(/_\d+$/, "");
+  console.log('key', key)
   return APPLICATION_STEP_KEYS.includes(key as ApplicationStepKey) ? (key as ApplicationStepKey) : null;
 }
