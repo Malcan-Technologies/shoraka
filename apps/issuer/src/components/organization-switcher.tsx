@@ -28,7 +28,7 @@ function getOrgDisplayName(org: Organization): string {
   if (org.firstName && org.lastName) {
     return `${org.firstName} ${org.lastName}`;
   }
-  
+
   // Fallback to company name or default
   return org.name || "Company Account";
 }
@@ -45,18 +45,18 @@ function getOrgIcon(org: Organization) {
   return <BuildingOffice2Icon className="h-4 w-4" />;
 }
 
-function OnboardingStatusBadge({ 
-  status, 
-  regtankStatus, 
-  size = "default" 
-}: { 
-  status: OnboardingStatus; 
+function OnboardingStatusBadge({
+  status,
+  regtankStatus,
+  size = "default"
+}: {
+  status: OnboardingStatus;
   regtankStatus?: string | null;
-  size?: "default" | "sm" 
+  size?: "default" | "sm"
 }) {
   const textSize = size === "sm" ? "text-[11px]" : "text-xs";
   const iconSize = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
-  
+
   // Determine badge based on regtank status or org status
   if (status === "COMPLETED") {
     return (
@@ -66,7 +66,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   if (status === "PENDING_AML") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
@@ -75,7 +75,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   if (status === "PENDING_FINAL_APPROVAL") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
@@ -84,7 +84,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   // Check regtank status for in-progress statuses
   const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
   if (regtankStatus && inProgressStatuses.includes(regtankStatus)) {
@@ -95,7 +95,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   // Check REJECTED and EXPIRED first (these take priority over PENDING_APPROVAL)
   if (regtankStatus === "REJECTED") {
     return (
@@ -105,7 +105,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   if (regtankStatus === "EXPIRED") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-orange-700`}>
@@ -114,7 +114,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-purple-700`}>
@@ -123,7 +123,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   if (status === "IN_PROGRESS") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
@@ -132,7 +132,7 @@ function OnboardingStatusBadge({
       </span>
     );
   }
-  
+
   // PENDING
   return (
     <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
@@ -156,15 +156,15 @@ export function OrganizationSwitcher() {
   } = useOrganization();
 
   const isOnboardingPage = pathname === "/onboarding-start";
-  
+
   // Sort organizations with personal account first
   const sortedOrganizations = sortOrganizations(organizations);
-  
+
   // Get onboarded organizations for showing in switcher (also sorted)
   const onboardedOrganizations = sortOrganizations(
     organizations.filter((org) => org.onboardingStatus === "COMPLETED")
   );
-  
+
   // Check if there are any onboarded organizations to go back to
   const hasOnboardedOrganizations = onboardedOrganizations.length > 0;
 
@@ -178,7 +178,7 @@ export function OrganizationSwitcher() {
       return isPending && org.regtankVerifyLink;
     })
   );
-  
+
   // Check if there are any pending organizations
   const hasPendingOrganizations = pendingOrganizations.length > 0;
 
@@ -190,7 +190,7 @@ export function OrganizationSwitcher() {
         (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
     })
   );
-  
+
   // Check if there are any admin-pending organizations
   const hasAdminPendingOrganizations = adminPendingOrganizations.length > 0;
 
@@ -205,18 +205,18 @@ export function OrganizationSwitcher() {
       window.open(org.regtankVerifyLink, "_blank");
       return;
     }
-    
+
     // If status is PENDING, open RegTank portal in new window
     if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
       window.open(org.regtankVerifyLink, "_blank");
       return;
     }
-    
+
     // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
     const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
     const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
       (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-    
+
     if (hasAdminHandledStatus) {
       switchOrganization(org.id);
       setTimeout(() => {
@@ -224,7 +224,7 @@ export function OrganizationSwitcher() {
       }, 50);
       return;
     }
-    
+
     // If status is REJECTED, redirect to dashboard (will show rejection message)
     if (org.onboardingStatus === "REJECTED" || org.regtankOnboardingStatus === "REJECTED") {
       switchOrganization(org.id);
@@ -233,7 +233,7 @@ export function OrganizationSwitcher() {
       }, 50);
       return;
     }
-    
+
     // Check if status is EXPIRED and auto-restart
     if (org.regtankOnboardingStatus === "EXPIRED") {
       try {
@@ -246,7 +246,7 @@ export function OrganizationSwitcher() {
           requestId: string;
           expiresIn: number;
         }>(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
-        
+
         if (result.success && result.data?.verifyLink) {
           window.open(result.data.verifyLink, "_blank");
           return;
@@ -255,11 +255,11 @@ export function OrganizationSwitcher() {
         console.error("[OrganizationSwitcher] Failed to restart expired onboarding:", error);
       }
     }
-    
+
     // If we're on onboarding page or current org is pending, and switching to a different org, cancel onboarding
     const currentOrgPending = activeOrganization?.onboardingStatus === "PENDING";
     const switchingToDifferentOrg = org.id !== activeOrganization?.id;
-    
+
     if ((isOnboardingPage || currentOrgPending) && switchingToDifferentOrg) {
       try {
         const apiClient = createApiClient(
@@ -278,7 +278,7 @@ export function OrganizationSwitcher() {
     }
 
     switchOrganization(org.id);
-    
+
     // Redirect to dashboard for COMPLETED status
     if (org.onboardingStatus === "COMPLETED") {
       setTimeout(() => {
@@ -353,10 +353,10 @@ export function OrganizationSwitcher() {
                         <div className="truncate text-sm font-medium text-foreground">
                           {getOrgDisplayName(org)}
                         </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
+                        <OnboardingStatusBadge
+                          status={org.onboardingStatus}
                           regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
+                          size="sm"
                         />
                       </div>
                     </DropdownMenuItem>
@@ -374,10 +374,10 @@ export function OrganizationSwitcher() {
                         <div className="truncate text-sm font-medium text-foreground">
                           {getOrgDisplayName(org)}
                         </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
+                        <OnboardingStatusBadge
+                          status={org.onboardingStatus}
                           regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
+                          size="sm"
                         />
                       </div>
                     </DropdownMenuItem>
@@ -396,7 +396,7 @@ export function OrganizationSwitcher() {
                     const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
                     const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
                       (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-                    
+
                     return (
                       <DropdownMenuItem
                         key={org.id}
@@ -409,7 +409,7 @@ export function OrganizationSwitcher() {
                             }, 50);
                             return;
                           }
-                          
+
                           if (org.regtankVerifyLink) {
                             window.open(org.regtankVerifyLink, "_blank");
                           }
@@ -423,10 +423,10 @@ export function OrganizationSwitcher() {
                         <div className="truncate text-sm font-medium text-foreground">
                           {getOrgDisplayName(org)}
                         </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
+                        <OnboardingStatusBadge
+                          status={org.onboardingStatus}
                           regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
+                          size="sm"
                         />
                       </div>
                     </DropdownMenuItem>
@@ -486,10 +486,10 @@ export function OrganizationSwitcher() {
                     : "Select Account"}
                 </span>
                 {activeOrganization && (
-                  <OnboardingStatusBadge 
-                    status={activeOrganization.onboardingStatus} 
+                  <OnboardingStatusBadge
+                    status={activeOrganization.onboardingStatus}
                     regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-                    size="sm" 
+                    size="sm"
                   />
                 )}
               </div>
@@ -518,10 +518,10 @@ export function OrganizationSwitcher() {
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OnboardingStatusBadge 
-                    status={org.onboardingStatus} 
+                  <OnboardingStatusBadge
+                    status={org.onboardingStatus}
                     regtankStatus={org.regtankOnboardingStatus || undefined}
-                    size="sm" 
+                    size="sm"
                   />
                 </div>
                 {activeOrganization?.id === org.id && (

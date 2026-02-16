@@ -995,6 +995,29 @@ export interface AdminSeedTypesResponse {
   added: number;
 }
 
+// Financing Applications Types
+export interface ApplicationListItem {
+  id: string;
+  issuerOrganizationName: string | null;
+  financingTypeLabel: string;
+  financingStructureLabel: string;
+  requestedAmount: number;
+  status: string;
+  submittedAt: string | null;
+  updatedAt: string;
+}
+
+export interface GetAdminApplicationsParams extends PaginationParams {
+  search?: string;
+  status?: string;
+  productId?: string;
+}
+
+export interface AdminApplicationsResponse {
+  applications: ApplicationListItem[];
+  pagination: PaginationResponse;
+}
+
 // Products
 export interface GetProductsParams {
   page: number;

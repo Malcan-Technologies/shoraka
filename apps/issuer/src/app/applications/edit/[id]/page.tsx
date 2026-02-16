@@ -453,7 +453,7 @@ export default function EditApplicationPage() {
 
   /**
    * FALLBACK STEP DETECTION
-   * 
+   *
    * If current step is beyond the workflow (user viewing completed step),
    * try to determine which step they're viewing based on application data.
    * This allows users to review completed steps even if workflow changed.
@@ -480,7 +480,7 @@ export default function EditApplicationPage() {
         "declarations",
         "review_and_submit",
       ];
-      
+
       // Map step number (1-based) to step key
       const stepIndex = stepFromUrl - 1;
       if (stepIndex < stepSequence.length) {
@@ -1043,7 +1043,7 @@ export default function EditApplicationPage() {
 
           setHasUnsavedChanges(false);
           toast.success("Application submitted successfully!");
-          
+
           // Use replace to prevent back navigation to the edit page
           router.replace("/");
           return;

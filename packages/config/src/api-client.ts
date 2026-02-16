@@ -33,6 +33,8 @@ import type {
   GetOnboardingApplicationsParams,
   OnboardingApplicationsResponse,
   OnboardingApplicationResponse,
+  GetAdminApplicationsParams,
+  AdminApplicationsResponse,
   GetSiteDocumentsParams,
   SiteDocumentsResponse,
   SiteDocumentResponse,
@@ -332,6 +334,31 @@ export class ApiClient {
     return this.get<{ application: OnboardingApplicationResponse }>(
       `/v1/admin/onboarding-applications/${onboardingId}`
     );
+  }
+
+  // Admin - Financing Applications
+  async getAdminApplications(
+    params: GetAdminApplicationsParams
+  ): Promise<ApiResponse<AdminApplicationsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.productId) queryParams.append("productId", params.productId);
+
+    return this.get<AdminApplicationsResponse>(`/v1/admin/applications?${queryParams.toString()}`);
+  }
+
+  async getAdminApplicationDetail(id: string): Promise<ApiResponse<any> | ApiError> {
+    return this.get<any>(`/v1/admin/applications/${id}`);
+  }
+
+  async updateAdminApplicationStatus(
+    id: string,
+    status: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
   }
 
   // Request redo onboarding for an application
@@ -1198,19 +1225,19 @@ export class ApiClient {
      */
     const { contractId, document, ...detailsRest } = details;
     const body: Record<string, unknown> = {};
-    
+
     if (Object.keys(detailsRest).length > 0) {
       body.details = detailsRest;
     }
-    
+
     if (document !== undefined) {
       body.document = document;
     }
-    
+
     if (contractId !== undefined) {
       body.contractId = contractId;
     }
-    
+
     return this.patch<Invoice>(`/v1/invoices/${id}`, body);
   }
 

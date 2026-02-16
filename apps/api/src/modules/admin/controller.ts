@@ -24,6 +24,8 @@ import {
   getOrganizationsQuerySchema,
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
+  getAdminApplicationsQuerySchema,
+  updateApplicationStatusSchema,
 } from "./schemas";
 
 const router = Router();
@@ -152,10 +154,10 @@ router.patch(
         error instanceof AppError
           ? error
           : new AppError(
-              400,
-              "VALIDATION_ERROR",
-              error instanceof Error ? error.message : "Failed to update user roles"
-            )
+            400,
+            "VALIDATION_ERROR",
+            error instanceof Error ? error.message : "Failed to update user roles"
+          )
       );
     }
   }
@@ -199,10 +201,10 @@ router.patch(
         error instanceof AppError
           ? error
           : new AppError(
-              400,
-              "VALIDATION_ERROR",
-              error instanceof Error ? error.message : "Failed to update onboarding status"
-            )
+            400,
+            "VALIDATION_ERROR",
+            error instanceof Error ? error.message : "Failed to update onboarding status"
+          )
       );
     }
   }
@@ -246,10 +248,10 @@ router.patch(
         error instanceof AppError
           ? error
           : new AppError(
-              400,
-              "VALIDATION_ERROR",
-              error instanceof Error ? error.message : "Failed to update user profile"
-            )
+            400,
+            "VALIDATION_ERROR",
+            error instanceof Error ? error.message : "Failed to update user profile"
+          )
       );
     }
   }
@@ -1058,14 +1060,14 @@ router.get(
             device_info: string | null;
             metadata: unknown;
           }) => [
-            log.created_at.toISOString(),
-            `${log.user.first_name} ${log.user.last_name}`,
-            log.user.email,
-            log.event_type,
-            log.ip_address || "",
-            log.device_info || "",
-            JSON.stringify(log.metadata || {}),
-          ]
+              log.created_at.toISOString(),
+              `${log.user.first_name} ${log.user.last_name}`,
+              log.user.email,
+              log.event_type,
+              log.ip_address || "",
+              log.device_info || "",
+              JSON.stringify(log.metadata || {}),
+            ]
         );
 
         const csvContent = [
@@ -1775,6 +1777,150 @@ router.post(
       });
     } catch (error) {
       next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/applications:
+ *   get:
+ *     summary: List financing applications with pagination and filters (admin only)
+ *     description: Optionally filter by productId to show only applications for a given product. Each application includes financingStructureLabel ("Contract Financing" when contract exists, "Invoice Financing" otherwise).
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by application ID or issuer organization name
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *         description: Filter by product ID (from financing_type). Omit to return all products.
+ *     responses:
+ *       200:
+ *         description: Applications list with pagination (applications include id, issuerOrganizationName, financingTypeLabel, financingStructureLabel, requestedAmount, status, submittedAt, updatedAt)
+ */
+router.get(
+  "/applications",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getAdminApplicationsQuerySchema.parse(req.query);
+      const result = await adminService.listApplications(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/applications/{id}:
+ *   get:
+ *     summary: Get financing application details by ID (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Application details
+ */
+router.get(
+  "/applications/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const result = await adminService.getApplicationDetail(id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/applications/{id}/status:
+ *   patch:
+ *     summary: Update financing application status (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *     responses:
+ *       200:
+ *         description: Application status updated
+ */
+router.patch(
+  "/applications/:id/status",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = updateApplicationStatusSchema.parse(req.body);
+      const result = await adminService.updateApplicationStatus(id, validated.status);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
 );

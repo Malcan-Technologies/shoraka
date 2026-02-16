@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole, AdminRole } from "@prisma/client";
+import { UserRole, AdminRole, ApplicationStatus } from "@prisma/client";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -241,3 +241,18 @@ export const getOnboardingApplicationsQuerySchema = z.object({
 });
 
 export type GetOnboardingApplicationsQuery = z.infer<typeof getOnboardingApplicationsQuerySchema>;
+
+// Admin Applications query schema
+export const getAdminApplicationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  status: z.nativeEnum(ApplicationStatus).optional(),
+  productId: z.string().optional(),
+});
+
+export const updateApplicationStatusSchema = z.object({
+  status: z.nativeEnum(ApplicationStatus),
+});
+
+export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;
