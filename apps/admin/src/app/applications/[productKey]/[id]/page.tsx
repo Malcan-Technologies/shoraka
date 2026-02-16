@@ -205,7 +205,7 @@ export default function DynamicApplicationDetailPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h2 className="text-xl font-bold">
-                            {app.financing_type?.product_name || "AR Financing"}
+                            {app.financing_type?.product_name || "Financing Product"}
                           </h2>
                           {getStatusBadge(app.status)}
                         </div>
@@ -283,7 +283,7 @@ export default function DynamicApplicationDetailPage() {
                         />
                         <DetailRow
                           label="Product"
-                          value={app.financing_type?.product_name || "AR Financing"}
+                          value={app.financing_type?.product_name || "Financing Product"}
                         />
                       </div>
                     </CardContent>
