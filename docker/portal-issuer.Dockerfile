@@ -41,7 +41,7 @@ ARG NEXT_PUBLIC_COGNITO_REGION
 ARG NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com
 ARG NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com
 
-RUN rm -rf apps/issuer/.next && \
+RUN rm -rf apps/issuer/.next apps/issuer/.turbo tsconfig.tsbuildinfo && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/issuer/.env.production && \
     echo "NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL}" >> apps/issuer/.env.production && \
     echo "NEXT_PUBLIC_INVESTOR_URL=${NEXT_PUBLIC_INVESTOR_URL}" >> apps/issuer/.env.production && \
