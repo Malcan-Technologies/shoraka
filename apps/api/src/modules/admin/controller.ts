@@ -1920,7 +1920,7 @@ router.patch(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+      next(error);
     }
   }
 );
