@@ -271,6 +271,11 @@ export default function EditApplicationPage() {
   }, [effectiveWorkflow, stepFromUrl]);
 
   const currentStepId = (currentStepConfig?.id as string) || "";
+  const isReviewAndSubmitStep =
+  typeof currentStepId === "string" &&
+  currentStepId.startsWith("review_and_submit");
+
+
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
     console.log(currentStepId, 'key', key)
@@ -337,7 +342,7 @@ export default function EditApplicationPage() {
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  
 
 
   /* ================================================================
@@ -347,6 +352,8 @@ export default function EditApplicationPage() {
   const updateStepMutation = useUpdateApplicationStep();
   const updateStatusMutation = useUpdateApplicationStatus();
   const archiveApplicationMutation = useArchiveApplication();
+
+
   /* ================================================================
      UNSAVED CHANGES TRACKING
      ================================================================ */
@@ -444,11 +451,12 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (!application) return;
-if (isSubmitting) return;
-
-
     console.log('application', application, application.status)
-    if (application.status === "SUBMITTED") return;
+      if (application.status === "SUBMITTED") return;
+    if (updateStepMutation.isPending || updateStatusMutation.isPending) return;
+
+
+
     if (isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
@@ -504,7 +512,9 @@ if (isSubmitting) return;
     applicationBlockReason,
     searchParams,
     wizardState,
-      isSubmitting
+      updateStepMutation.isPending,
+  updateStatusMutation.isPending
+
   ]);
 
   /* ================================================================
@@ -783,10 +793,9 @@ if (isSubmitting) return;
          FINAL SUBMISSION (review_and_submit)
          ============================================================ */
 
-if (currentStepKey === "review_and_submit") {
-  setIsSubmitting(true);
+  if (isReviewAndSubmitStep) {
 
-  try {
+
     await updateStepMutation.mutateAsync({
       id: applicationId,
       stepData: {
@@ -804,9 +813,6 @@ if (currentStepKey === "review_and_submit") {
     console.log('success')
     toast.success("Application submitted successfully");
     router.replace("/");
-  } finally {
-    setIsSubmitting(false);
-  }
 
   return;
 }
@@ -1003,7 +1009,6 @@ if (currentStepKey === "review_and_submit") {
             disabled={
               updateStepMutation.isPending ||
               updateStatusMutation.isPending ||
-              isSubmitting ||
               !isCurrentStepValid ||
               !isStepMapped
             }
@@ -1011,7 +1016,8 @@ if (currentStepKey === "review_and_submit") {
           >
             {updateStepMutation.isPending || updateStatusMutation.isPending
               ? "Saving..."
-              : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
+              : isReviewAndSubmitStep ? "Submit" : "Save and Continue"}
+
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
