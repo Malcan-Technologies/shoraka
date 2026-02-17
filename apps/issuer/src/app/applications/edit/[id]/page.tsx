@@ -287,11 +287,6 @@ export default function EditApplicationPage() {
   }, [effectiveWorkflow, stepFromUrl]);
 
   const currentStepId = (currentStepConfig?.id as string) || "";
-  const isReviewAndSubmitStep =
-  typeof currentStepId === "string" &&
-  currentStepId.startsWith("review_and_submit");
-
-
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
     console.log(currentStepId, 'key', key)
