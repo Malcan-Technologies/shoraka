@@ -31,7 +31,6 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useArchiveApplication,
-  useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -271,11 +270,6 @@ export default function EditApplicationPage() {
   }, [effectiveWorkflow, stepFromUrl]);
 
   const currentStepId = (currentStepConfig?.id as string) || "";
-  const isReviewAndSubmitStep =
-  typeof currentStepId === "string" &&
-  currentStepId.startsWith("review_and_submit");
-
-
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
     console.log(currentStepId, 'key', key)
@@ -342,18 +336,13 @@ export default function EditApplicationPage() {
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
-  
-
 
   /* ================================================================
      MUTATIONS
      ================================================================ */
 
   const updateStepMutation = useUpdateApplicationStep();
-  const updateStatusMutation = useUpdateApplicationStatus();
   const archiveApplicationMutation = useArchiveApplication();
-
-
   /* ================================================================
      UNSAVED CHANGES TRACKING
      ================================================================ */
@@ -427,21 +416,9 @@ export default function EditApplicationPage() {
     }
   }, [application, applicationId, router, searchParams, isLoadingApp, wizardState]);
 
-
-
-
   /* ================================================================
      NAVIGATION GATING & VALIDATION
      ================================================================ */
-
-  //  make edit page not accessible after submit
-  React.useEffect(() => {
-    if (application?.status === "SUBMITTED") {
-      router.replace("/");
-    }
-  }, [application, router]);
-
-
 
   /**
    * Single stable gating effect:
@@ -450,17 +427,9 @@ export default function EditApplicationPage() {
    * - Prevents "Please complete steps in order" loops
    */
   React.useEffect(() => {
-    if (!application) return;
-    console.log('application', application, application.status)
-      if (application.status === "SUBMITTED") return;
-    if (updateStepMutation.isPending || updateStatusMutation.isPending) return;
-
-
-
-    if (isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
+    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
-
 
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
@@ -512,9 +481,6 @@ export default function EditApplicationPage() {
     applicationBlockReason,
     searchParams,
     wizardState,
-      updateStepMutation.isPending,
-  updateStatusMutation.isPending
-
   ]);
 
   /* ================================================================
@@ -698,7 +664,7 @@ export default function EditApplicationPage() {
 
       /**
        * STEP-SPECIFIC SAVE FUNCTIONS (MUST RUN BEFORE REMOVING)
-       *
+       * 
        * Some steps (contract, invoice, supporting documents) have pending
        * file uploads that must happen BEFORE we delete saveFunction.
        * These functions return the fully persisted data.
@@ -738,26 +704,15 @@ export default function EditApplicationPage() {
       }
 
       // Remove frontend-only properties AFTER saveFunction completes
-      const stripUiFields = (data: Record<string, unknown>) => {
-        const {
-          isValid,
-          hasPendingChanges,
-          validationError,
-          autofillContract,
-          structureChanged,
-          isCreatingContract,
-          _uploadFiles,
-          isCurrentStepValid,
-          ...cleaned
-        } = data;
-
-        return cleaned;
-      };
-
       if (dataToSave) {
-        dataToSave = stripUiFields(dataToSave);
+        delete (dataToSave as Record<string, unknown>).isValid;
+        delete (dataToSave as Record<string, unknown>).hasPendingChanges;
+        delete (dataToSave as Record<string, unknown>).validationError;
+        delete (dataToSave as Record<string, unknown>).autofillContract;
+        delete (dataToSave as Record<string, unknown>).structureChanged;
+        delete (dataToSave as Record<string, unknown>).isCreatingContract;
+        delete (dataToSave as Record<string, unknown>)._uploadFiles;
       }
-
 
       // DECLARATIONS validation
       if (currentStepId === "declarations_1") {
@@ -793,31 +748,21 @@ export default function EditApplicationPage() {
          FINAL SUBMISSION (review_and_submit)
          ============================================================ */
 
-  if (isReviewAndSubmitStep) {
+      // FINAL SUBMISSION
+      if (currentStepKey === "review_and_submit") {
+        // 1. Update application status to SUBMITTED
+        // await updateStatusMutation.mutateAsync({
+        //   id: applicationId,
+        //   status: "SUBMITTED",
+        // });
 
+        toast.success("Application submitted successfully");
 
-    await updateStepMutation.mutateAsync({
-      id: applicationId,
-      stepData: {
-        stepId: currentStepId,
-        stepNumber: stepFromUrl,
-        data: dataToSave ?? {},
-      },
-    });
+        // 2. Redirect somewhere (dashboard / applications list)
+        router.replace("/");
 
-    await updateStatusMutation.mutateAsync({
-      id: applicationId,
-      status: "SUBMITTED",
-    });
-
-    console.log('success')
-    toast.success("Application submitted successfully");
-    router.replace("/");
-
-  return;
-}
-
-
+        return; // 🚨 STOP here — do NOT run normal step logic
+      }
 
 
       /* ============================================================
@@ -1008,16 +953,14 @@ export default function EditApplicationPage() {
             onClick={handleSaveAndContinue}
             disabled={
               updateStepMutation.isPending ||
-              updateStatusMutation.isPending ||
               !isCurrentStepValid ||
               !isStepMapped
             }
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending || updateStatusMutation.isPending
+            {updateStepMutation.isPending
               ? "Saving..."
-              : isReviewAndSubmitStep ? "Submit" : "Save and Continue"}
-
+              : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
