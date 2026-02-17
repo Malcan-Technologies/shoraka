@@ -31,6 +31,7 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useArchiveApplication,
+  useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -162,6 +163,22 @@ export default function EditApplicationPage() {
       `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
     );
   }, [application, wizardState]);
+
+  /* ================================================================
+   LOCK EDITING IF NOT DRAFT
+   ================================================================ */
+
+  React.useEffect(() => {
+    if (!application) return;
+
+    // Allow staying during active submit flow
+    if (isSubmittingRef.current) return;
+
+    if (application.status !== "DRAFT") {
+      router.replace("/");
+    }
+  }, [application, router]);
+
 
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
@@ -336,6 +353,7 @@ export default function EditApplicationPage() {
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
+  const isSubmittingRef = React.useRef<boolean>(false);
 
   /* ================================================================
      MUTATIONS
@@ -343,6 +361,9 @@ export default function EditApplicationPage() {
 
   const updateStepMutation = useUpdateApplicationStep();
   const archiveApplicationMutation = useArchiveApplication();
+  const updateStatusMutation = useUpdateApplicationStatus();
+
+
   /* ================================================================
      UNSAVED CHANGES TRACKING
      ================================================================ */
@@ -357,6 +378,7 @@ export default function EditApplicationPage() {
   }, [stepFromUrl]);
 
   React.useEffect(() => {
+    if (isSubmittingRef.current) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
         e.preventDefault();
@@ -383,6 +405,7 @@ export default function EditApplicationPage() {
   }, [hasUnsavedChanges]);
 
   React.useEffect(() => {
+    if (isSubmittingRef.current) return;
     if (!hasUnsavedChanges) return;
 
     const handleClick = (e: MouseEvent) => {
@@ -408,7 +431,9 @@ export default function EditApplicationPage() {
    * redirect to maxAllowedStep (last_completed_step + 1).
    */
   React.useEffect(() => {
+    if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
+
 
     if (!searchParams.get("step")) {
       const targetStep = wizardState.allowedMaxStep;
@@ -427,6 +452,7 @@ export default function EditApplicationPage() {
    * - Prevents "Please complete steps in order" loops
    */
   React.useEffect(() => {
+    if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
@@ -566,7 +592,31 @@ export default function EditApplicationPage() {
      EVENT HANDLERS
      ================================================================ */
 
+  const handleSubmitApplication = async () => {
+    try {
+      if (!applicationId) return;
+
+      isSubmittingRef.current = true; // 🔒 prevent gating effects
+
+      await updateStatusMutation.mutateAsync({
+        id: applicationId,
+        status: "SUBMITTED",
+      });
+
+      toast.success("Application submitted successfully");
+
+      router.replace("/"); // navigate home
+
+    } catch {
+      isSubmittingRef.current = false; // allow retry
+      toast.error("Failed to submit application");
+    }
+  };
+
+
   const handleConfirmLeave = () => {
+    if (isSubmittingRef.current) return;
+
     setHasUnsavedChanges(false);
     setIsUnsavedChangesModalOpen(false);
 
@@ -590,6 +640,8 @@ export default function EditApplicationPage() {
   };
 
   const handleBack = () => {
+    if (isSubmittingRef.current) return;
+
     if (hasUnsavedChanges) {
       setIsUnsavedChangesModalOpen(true);
       return;
@@ -647,6 +699,8 @@ export default function EditApplicationPage() {
    * 6. Navigate to next step
    */
   const handleSaveAndContinue = async () => {
+    if (isSubmittingRef.current) return;
+
     try {
       isSavingRef.current = true;
 
@@ -743,27 +797,6 @@ export default function EditApplicationPage() {
       console.log(
         `[SAVE] currentStep=${stepFromUrl}, nextStep=${nextStep}, structureChanged=${structureChanged}`
       );
-
-      /* ============================================================
-         FINAL SUBMISSION (review_and_submit)
-         ============================================================ */
-
-      // FINAL SUBMISSION
-      if (currentStepKey === "review_and_submit") {
-        // 1. Update application status to SUBMITTED
-        // await updateStatusMutation.mutateAsync({
-        //   id: applicationId,
-        //   status: "SUBMITTED",
-        // });
-
-        toast.success("Application submitted successfully");
-
-        // 2. Redirect somewhere (dashboard / applications list)
-        router.replace("/");
-
-        return; // 🚨 STOP here — do NOT run normal step logic
-      }
-
 
       /* ============================================================
          FINANCING STRUCTURE NO-CHANGE CASE
@@ -950,17 +983,28 @@ export default function EditApplicationPage() {
           </Button>
 
           <Button
-            onClick={handleSaveAndContinue}
+            onClick={
+              currentStepKey === "review_and_submit"
+                ? handleSubmitApplication
+                : handleSaveAndContinue
+            }
             disabled={
               updateStepMutation.isPending ||
+              updateStatusMutation.isPending ||
+              isSubmittingRef.current ||
               !isCurrentStepValid ||
               !isStepMapped
             }
+
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {updateStepMutation.isPending
-              ? "Saving..."
-              : currentStepKey === "review_and_submit" ? "Submit " : "Save and Continue"}
+            {currentStepKey === "review_and_submit"
+              ? updateStatusMutation.isPending
+                ? "Submitting..."
+                : "Submit"
+              : updateStepMutation.isPending
+                ? "Saving..."
+                : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
