@@ -133,6 +133,10 @@ const handleDay = (v: string) => {
   }
 
   setDay(v);
+  // Notify parent immediately of local state change
+  if (onLocalValueChange) {
+    onLocalValueChange(v, month, year);
+  }
 };
 
 
@@ -153,12 +157,20 @@ const handleMonth = (v: string) => {
   }
 
   setMonth(v);
+  // Notify parent immediately of local state change
+  if (onLocalValueChange) {
+    onLocalValueChange(day, v, year);
+  }
 };
 
 
 const handleYear = (v: string) => {
   if (!/^\d*$/.test(v) || v.length > 4) return;
   setYear(v);
+  // Notify parent immediately of local state change
+  if (onLocalValueChange) {
+    onLocalValueChange(day, month, v);
+  }
 };
 
 
@@ -246,6 +258,18 @@ const handleYear = (v: string) => {
             selected={value || undefined}
             defaultMonth={defaultCalendarMonth}
             onSelect={(iso) => {
+              // Parse the selected ISO date and update local state
+              const [y, m, d] = iso.split("-");
+              setDay(d);
+              setMonth(m);
+              setYear(y);
+              
+              // Notify parent of local state
+              if (onLocalValueChange) {
+                onLocalValueChange(d, m, y);
+              }
+              
+              // Emit the ISO value
               onChange(iso);
               setOpen(false);
             }}
