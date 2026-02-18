@@ -5,32 +5,56 @@ import { parse, isValid, format } from "date-fns";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CalendarPopover } from "./calendar-popover"; // adjust path if needed
+import { CalendarPopover } from "./calendar-popover";
+
+type DateInputSize = "default" | "compact";
+
+interface DateInputProps {
+  value: string; // yyyy-MM-dd
+  onChange: (v: string) => void;
+  className?: string;
+  isInvalid?: boolean;
+  defaultCalendarMonth?: Date;
+  size?: DateInputSize;
+}
+
+/** Size presets for responsive DateInput */
+const sizePresets: Record<DateInputSize, {
+  container: string;
+  text: string;
+  input: string;
+  icon: string;
+}> = {
+  default: {
+    container: "px-3 h-11 text-sm",
+    text: "px-1",
+    input: "text-base",
+    icon: "h-4 w-4",
+  },
+  compact: {
+    container: "px-2 h-8 text-xs",
+    text: "px-0.5",
+    input: "text-xs",
+    icon: "h-3 w-3",
+  },
+};
 
 export function DateInput({
   value,
   onChange,
   className,
+  isInvalid,
   defaultCalendarMonth,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  className?: string;
-  defaultCalendarMonth?: Date;
-}) {
-
+  size = "default",
+}: DateInputProps) {
   const [day, setDay] = React.useState("");
   const [month, setMonth] = React.useState("");
   const [year, setYear] = React.useState("");
   const [open, setOpen] = React.useState(false);
 
-  const dayRef = React.useRef<HTMLInputElement>(null);
-  const monthRef = React.useRef<HTMLInputElement>(null);
-  const yearRef = React.useRef<HTMLInputElement>(null);
+  const preset = sizePresets[size];
 
-  /* ============================================================
-     Sync ISO value → segmented fields
-     ============================================================ */
+  /** Load value from parent into inputs */
   React.useEffect(() => {
     if (!value) {
       setDay("");
@@ -45,95 +69,105 @@ export function DateInput({
     setYear(y || "");
   }, [value]);
 
-  /* ============================================================
-     Emit ISO when full valid date
-     ============================================================ */
-  const tryEmitDate = (d: string, m: string, y: string) => {
-    if (d.length === 2 && m.length === 2 && y.length === 4) {
-      const formatted = `${d}/${m}/${y}`;
-      const parsed = parse(formatted, "dd/MM/yyyy", new Date());
+  /** Validate date logic: parses and checks if it's a valid calendar date */
+  const isValidDate = (d: string, m: string, y: string): boolean => {
+    if (d.length !== 2 || m.length !== 2 || y.length !== 4) return false;
 
-      if (isValid(parsed) && format(parsed, "dd/MM/yyyy") === formatted) {
-        onChange(format(parsed, "yyyy-MM-dd"));
-      }
+    const formatted = `${d}/${m}/${y}`;
+    const parsed = parse(formatted, "dd/MM/yyyy", new Date());
+
+    // isValid checks if parsed date is a real date
+    // format check ensures no overflow (e.g., Feb 31 becomes Mar 3)
+    if (!isValid(parsed)) return false;
+    if (format(parsed, "dd/MM/yyyy") !== formatted) return false;
+
+    return true;
+  };
+
+  /** Emit ISO only when full valid date */
+  const tryEmitDate = (d: string, m: string, y: string) => {
+    if (isValidDate(d, m, y)) {
+      const parsed = parse(`${d}/${m}/${y}`, "dd/MM/yyyy", new Date());
+      onChange(format(parsed, "yyyy-MM-dd"));
     }
   };
 
-  /* ============================================================
-     Handlers
-     ============================================================ */
+  /** Pad single digits with 0 on blur */
+  const padIfSingleDigit = (v: string) =>
+    v.length === 1 ? `0${v}` : v;
+
+  const handleBlur = () => {
+    const paddedDay = padIfSingleDigit(day);
+    const paddedMonth = padIfSingleDigit(month);
+
+    setDay(paddedDay);
+    setMonth(paddedMonth);
+
+    tryEmitDate(paddedDay, paddedMonth, year);
+  };
+
+  /** Input handlers: only allow digits and enforce max length */
   const handleDay = (v: string) => {
     if (!/^\d*$/.test(v) || v.length > 2) return;
     setDay(v);
-    if (v.length === 2) monthRef.current?.focus();
-    tryEmitDate(v, month, year);
   };
 
   const handleMonth = (v: string) => {
     if (!/^\d*$/.test(v) || v.length > 2) return;
     setMonth(v);
-    if (v.length === 2) yearRef.current?.focus();
-    tryEmitDate(day, v, year);
   };
 
   const handleYear = (v: string) => {
     if (!/^\d*$/.test(v) || v.length > 4) return;
     setYear(v);
-    tryEmitDate(day, month, v);
   };
 
-  const handleBackspace =
-    (current: string, prevRef?: React.RefObject<HTMLInputElement | null>) =>
-      (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Backspace" && current.length === 0) {
-          prevRef?.current?.focus();
-        }
-      };
-
-  /* ============================================================
-     Render
-     ============================================================ */
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
-            "flex items-center px-3 h-9 rounded-md border border-input bg-background text-sm",
+            "flex items-center rounded-xl border bg-background transition-colors cursor-text",
+            isInvalid ? "border-destructive" : "border-input",
+            preset.container,
             className
           )}
         >
           <input
-            ref={dayRef}
             value={day}
             onChange={(e) => handleDay(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={handleBackspace(day)}
+            onBlur={handleBlur}
             placeholder="DD"
-            className="w-6 text-center bg-transparent outline-none"
+            className={cn(
+              "w-6 text-center bg-transparent outline-none",
+              preset.input
+            )}
           />
 
-          <span className="px-1 text-muted-foreground">/</span>
+          <span className={cn("text-muted-foreground", preset.text)}>/</span>
 
           <input
-            ref={monthRef}
             value={month}
             onChange={(e) => handleMonth(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={handleBackspace(month, dayRef)}
+            onBlur={handleBlur}
             placeholder="MM"
-            className="w-6 text-center bg-transparent outline-none"
+            className={cn(
+              "w-6 text-center bg-transparent outline-none",
+              preset.input
+            )}
           />
 
-          <span className="px-1 text-muted-foreground">/</span>
+          <span className={cn("text-muted-foreground", preset.text)}>/</span>
 
           <input
-            ref={yearRef}
             value={year}
             onChange={(e) => handleYear(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={handleBackspace(year, monthRef)}
+            onBlur={handleBlur}
             placeholder="YYYY"
-            className="w-10 text-center bg-transparent outline-none"
+            className={cn(
+              "w-10 text-center bg-transparent outline-none",
+              preset.input
+            )}
           />
 
           <button
@@ -142,9 +176,9 @@ export function DateInput({
               e.stopPropagation();
               setOpen(true);
             }}
-            className="ml-auto text-muted-foreground"
+            className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
           >
-            <CalendarIcon className="h-4 w-4" />
+            <CalendarIcon className={preset.icon} />
           </button>
         </div>
       </PopoverPrimitive.Trigger>
@@ -166,7 +200,6 @@ export function DateInput({
               setOpen(false);
             }}
           />
-
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

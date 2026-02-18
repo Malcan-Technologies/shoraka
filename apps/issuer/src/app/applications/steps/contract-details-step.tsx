@@ -40,6 +40,7 @@ import {
 } from "@/app/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
+import { format } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -683,6 +684,33 @@ export function ContractDetailsStep({
     setPendingFiles((prev) => ({ ...prev, [type]: file }));
   };
 
+  /** Validate date is a real calendar date (not Feb 31, etc) */
+  const isValidCalendarDate = (dateStr: string): boolean => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    return !Number.isNaN(date.getTime());
+  };
+
+  const isStartInvalid =
+    hasSubmitted &&
+    (
+      !formData.contract.start_date ||
+      !isValidCalendarDate(formData.contract.start_date)
+    );
+
+  const isEndInvalid =
+    hasSubmitted &&
+    (
+      !formData.contract.end_date ||
+      !isValidCalendarDate(formData.contract.end_date) ||
+      !isStartBeforeEnd(
+        formData.contract.start_date,
+        formData.contract.end_date
+      ) ||
+      isEndDateTooSoon(formData.contract.end_date)
+    );
+
+
   /* ================================================================
      RENDER
      ================================================================ */
@@ -744,48 +772,70 @@ export function ContractDetailsStep({
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>
-          <DateInput
-            value={formData.contract.start_date?.slice(0, 10) || ""}
-            onChange={(v) => handleInputChange("contract", "start_date", v)}
-            className={inputClassName}
-          />
+          <div className="space-y-1">
+            <DateInput
+              value={formData.contract.start_date?.slice(0, 10) || ""}
+              onChange={(v) => handleInputChange("contract", "start_date", v)}
+              isInvalid={isStartInvalid}
+              className={inputClassName}
+            />
+            {hasSubmitted && !formData.contract.start_date && (
+              <p className="text-xs text-destructive">
+                Start date is required
+              </p>
+            )}
+            {hasSubmitted && formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date) && (
+              <p className="text-xs text-destructive">
+                Invalid date (e.g., February 31 does not exist)
+              </p>
+            )}
+          </div>
+
+
 
           <Label className={labelClassName}>Contract end date</Label>
           <div className="space-y-1">
             <DateInput
               value={formData.contract.end_date?.slice(0, 10) || ""}
               onChange={(v) => handleInputChange("contract", "end_date", v)}
-              defaultCalendarMonth={
-                formData.contract.start_date
-                  ? (() => {
-                    const d = new Date(formData.contract.start_date);
-                    d.setMonth(d.getMonth() + MIN_CONTRACT_MONTHS);
-                    return d;
-                  })()
-                  : undefined
-              }
-              className={cn(
-                inputClassName,
-                (hasSubmitted &&
-                  !isStartBeforeEnd(
-                    formData.contract.start_date,
-                    formData.contract.end_date
-                  )) ||
-                  (hasSubmitted &&
-                    isEndDateTooSoon(formData.contract.end_date))
-                  ? "border-destructive focus-visible:ring-destructive"
-                  : ""
-              )}
+              isInvalid={isEndInvalid}
+              className={inputClassName}
             />
 
 
-            {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
+            {formData.contract.start_date && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Earliest end date:{" "}
+                {format(
+                  (() => {
+                    const d = new Date(formData.contract.start_date);
+                    d.setMonth(d.getMonth() + MIN_CONTRACT_MONTHS);
+                    return d;
+                  })(),
+                  "dd/MM/yyyy"
+                )}
+              </p>
+            )}
+
+            {hasSubmitted && !formData.contract.end_date && (
+              <p className="text-xs text-destructive">
+                End date is required
+              </p>
+            )}
+
+            {hasSubmitted && formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date) && (
+              <p className="text-xs text-destructive">
+                Invalid date (e.g., February 31 does not exist)
+              </p>
+            )}
+
+            {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
               <p className="text-xs text-destructive">
                 End date must be after start date
               </p>
             )}
 
-            {hasSubmitted && isEndDateTooSoon(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) === false && (
+            {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && isEndDateTooSoon(formData.contract.end_date) && (
               <p className="text-xs text-destructive">
                 Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
               </p>

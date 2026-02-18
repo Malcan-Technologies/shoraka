@@ -302,11 +302,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * Returns error message if validation fails, empty string if valid.
    *
    * Validation order:
-   * 1. Past maturity date
-   * 2. Product max maturity days
-   * 3. Contract date window (if contract exists)
-   * 4. Min invoice value
-   * 5. Max invoice value
+   * 1. Invalid date format
+   * 2. Past maturity date
+   * 3. Product max maturity days
+   * 4. Contract date window (if contract exists)
+   * 5. Min invoice value
+   * 6. Max invoice value
    */
   const validateInvoiceConstraints = (inv: LocalInvoice): string => {
     // Ignore empty rows
@@ -314,6 +315,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     // Parse maturity date
     const maturityDate = parseDateString(inv.maturity_date);
+    
+    // Check if date string exists but couldn't be parsed (invalid date like Feb 31)
+    if (inv.maturity_date && !maturityDate) {
+      return `Invoice ${inv.number}: Invalid date format.`;
+    }
+
     if (!maturityDate) return "";
 
     const today = new Date();
@@ -958,8 +965,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           <DateInput
                             value={inv.maturity_date?.slice(0, 10) || ""}
                             onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
-                            placeholder="Enter date"
                             className={!isEditable ? "opacity-60 pointer-events-none" : ""}
+                            size="compact"
                           />
                         </TableCell>
 
