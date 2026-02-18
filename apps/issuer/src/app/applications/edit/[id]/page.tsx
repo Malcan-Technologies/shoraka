@@ -598,6 +598,16 @@ export default function EditApplicationPage() {
 
       isSubmittingRef.current = true; // 🔒 prevent gating effects
 
+      const finalStepNumber = wizardState?.lastCompletedStep || stepFromUrl;
+      await updateStepMutation.mutateAsync({
+        id: applicationId,
+        stepData: {
+          stepId: currentStepId,
+          stepNumber: finalStepNumber,
+          data: {}, // no step data change
+        },
+      });
+
       await updateStatusMutation.mutateAsync({
         id: applicationId,
         status: "SUBMITTED",
@@ -605,7 +615,7 @@ export default function EditApplicationPage() {
 
       toast.success("Application submitted successfully");
 
-      router.replace("/"); // navigate home
+      router.replace("/");
 
     } catch {
       isSubmittingRef.current = false; // allow retry
