@@ -25,13 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CloudUpload, X, CheckCircle2 } from "lucide-react";
+import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   formInputClassName,
   formLabelClassName,
@@ -875,7 +876,19 @@ export function ContractDetailsStep({
 
 
 
-          <Label className={labelClassName}>Contract end date</Label>
+          <div className="flex items-center gap-1">
+            <Label className={labelClassName}>Contract end date</Label>
+            {formData.contract.start_date && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Minimum {MIN_CONTRACT_MONTHS} months from start date
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
           <div className="space-y-1">
             <DateInput
               value={formData.contract.end_date?.slice(0, 10) || ""}
@@ -892,20 +905,6 @@ export function ContractDetailsStep({
               }
             />
 
-
-            {formData.contract.start_date && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Earliest end date:{" "}
-                {format(
-                  (() => {
-                    const d = new Date(formData.contract.start_date);
-                    d.setMonth(d.getMonth() + MIN_CONTRACT_MONTHS);
-                    return d;
-                  })(),
-                  "dd/MM/yyyy"
-                )}
-              </p>
-            )}
 
             {hasSubmitted && !formData.contract.end_date && (
               <p className="text-xs text-destructive">
