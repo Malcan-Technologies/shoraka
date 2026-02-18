@@ -477,68 +477,49 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 )}
               </div>
             </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {steps.length > 0 && !isSaving && !saveTriggered && (() => {
+                const requiredErrors = getRequiredStepErrors(steps);
+                if (requiredErrors.length === 0) return null;
+
+                return (
+                  <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle
+                        className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
+                        aria-hidden
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                          {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
+                        </p>
+                        <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
+                          {requiredErrors.map((msg, i) => {
+                            const [label, rest] = msg.split(":");
+                            return (
+                              <li key={i} className="text-sm leading-6">
+                                <span className="font-medium text-amber-900 dark:text-amber-100">
+                                  {label}
+                                </span>
+                                <span className="text-amber-800/90 dark:text-amber-200/90">
+                                  : {rest}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 
         {!isEdit || product ? (
-          // <div className="shrink-0 flex flex-col gap-4 min-w-0">
-            // <div className="shrink-0 flex flex-col gap-0 min-w-0">
-              <div className="shrink-0 flex flex-col gap-4 min-w-0">
-
-
-            {steps.length > 0 && !isSaving && !saveTriggered && (() => {
-              const requiredErrors = getRequiredStepErrors(steps);
-              if (requiredErrors.length === 0) return null;
-
-    
-
-              return (
-                // <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
-                  // <div className="my-4 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
-                    <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
-
-
-
-                  <div className="flex items-start gap-2.5">
-                    {/* <AlertTriangle
-                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
-                      aria-hidden
-                    /> */}
-                    <AlertTriangle
-  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500 ml-1"
-  aria-hidden
-/>
-
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                        {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
-                      </p>
-
-                      <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
-                        {requiredErrors.map((msg, i) => {
-                          const [label, rest] = msg.split(":");
-
-                          return (
-                            <li key={i} className="text-sm leading-6">
-                              <span className="font-medium text-amber-900 dark:text-amber-100">
-                                {label}
-                              </span>
-                              <span className="text-amber-800/90 dark:text-amber-200/90">
-                                : {rest}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-
-
-
-                    </div>
-                  </div>
-                </div>
-
-              );
-            })()}
+          <div className="shrink-0 flex flex-col gap-4 min-w-0">
             <DialogFooter className="shrink-0 flex-wrap gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
