@@ -70,13 +70,25 @@ function isStartBeforeEnd(start?: string, end?: string) {
 
 const MIN_CONTRACT_MONTHS = 6;
 
-function isEndDateTooSoon(endDate?: string, minMonths = MIN_CONTRACT_MONTHS) {
+function isEndDateTooSoon(
+  startDate?: string,
+  endDate?: string,
+  minMonths = MIN_CONTRACT_MONTHS
+) {
   if (!endDate) return false;
+
   const today = new Date();
-  const minAllowedEndDate = new Date(today);
+  const start = startDate ? new Date(startDate) : today;
+
+  // Choose the later date
+  const baseDate = start > today ? start : today;
+
+  const minAllowedEndDate = new Date(baseDate);
   minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
+
   return new Date(endDate) < minAllowedEndDate;
 }
+
 
 /* ================================================================
    CUSTOM RADIO BUTTON
@@ -434,6 +446,26 @@ export function ContractDetailsStep({
 
     setFormData(initialData);
 
+    // Also initialize localDates from the loaded dates
+    if (initialData.contract.start_date) {
+      const [y, m, d] = initialData.contract.start_date.split("-");
+      setLocalDates((prev) => ({
+        ...prev,
+        start_date_day: d || "",
+        start_date_month: m || "",
+        start_date_year: y || "",
+      }));
+    }
+    if (initialData.contract.end_date) {
+      const [y, m, d] = initialData.contract.end_date.split("-");
+      setLocalDates((prev) => ({
+        ...prev,
+        end_date_day: d || "",
+        end_date_month: m || "",
+        end_date_year: y || "",
+      }));
+    }
+
     // Track S3 keys for versioning
     const contractDoc = contractDetails.document as FileMetadata | undefined;
     if (contractDoc?.s3_key) {
@@ -712,13 +744,17 @@ export function ContractDetailsStep({
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
+    // Check if date segments are complete (no empty segments allowed)
+    const hasValidStartDate = !!formData.contract.start_date && localDates.start_date_day && localDates.start_date_month && localDates.start_date_year;
+    const hasValidEndDate = !!formData.contract.end_date && localDates.end_date_day && localDates.end_date_month && localDates.end_date_year;
+
     const isValid =
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
       !!formData.contract.value &&
-      !!formData.contract.start_date &&
-      !!formData.contract.end_date &&
+      hasValidStartDate &&
+      hasValidEndDate &&
       hasContractDocument &&
       !!formData.customer.name &&
       !!formData.customer.entity_type &&
@@ -733,7 +769,7 @@ export function ContractDetailsStep({
       hasPendingChanges: hasFormChanges,
       saveFunction,
     });
-  }, [formData, pendingFiles, saveFunction, onDataChange]);
+  }, [formData, pendingFiles, saveFunction, onDataChange, localDates]);
 
   /* ================================================================
      HANDLERS
@@ -884,7 +920,7 @@ export function ContractDetailsStep({
                   <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  Minimum {MIN_CONTRACT_MONTHS} months from start date
+                  The contract must run for at least {MIN_CONTRACT_MONTHS} months from the later of today or the contract start date
                 </TooltipContent>
               </Tooltip>
             )}

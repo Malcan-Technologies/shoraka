@@ -73,6 +73,8 @@ export function DateInput({
 
   /** Validate date logic: parses and checks if it's a valid calendar date */
   const isValidDate = (d: string, m: string, y: string): boolean => {
+    // If any segment is empty, consider date as incomplete/empty
+    if (!d || !m || !y) return false;
     if (d.length !== 2 || m.length !== 2 || y.length !== 4) return false;
 
     const formatted = `${d}/${m}/${y}`;
@@ -181,12 +183,12 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="DD"
             className={cn(
-              "w-6 text-center bg-transparent outline-none",
+              "w-7 text-center bg-transparent outline-none shrink-0",
               preset.input
             )}
           />
 
-          <span className={cn("text-muted-foreground", preset.text)}>/</span>
+          <span className={cn("text-muted-foreground shrink-0", preset.text)}>/</span>
 
           <input
             value={month}
@@ -194,12 +196,12 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="MM"
             className={cn(
-              "w-6 text-center bg-transparent outline-none",
+              "w-7 text-center bg-transparent outline-none shrink-0",
               preset.input
             )}
           />
 
-          <span className={cn("text-muted-foreground", preset.text)}>/</span>
+          <span className={cn("text-muted-foreground shrink-0", preset.text)}>/</span>
 
           <input
             value={year}
@@ -207,7 +209,7 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="YYYY"
             className={cn(
-              "w-10 text-center bg-transparent outline-none",
+              "w-12 text-center bg-transparent outline-none shrink-0",
               preset.input
             )}
           />
