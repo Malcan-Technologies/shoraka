@@ -64,7 +64,10 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
-import { formLabelClassName } from "@/app/applications/components/form-control";
+import {
+  formLabelClassName,
+  withFieldError,
+} from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
@@ -318,7 +321,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     
     // Check if date string exists but couldn't be parsed (invalid date like Feb 31)
     if (inv.maturity_date && !maturityDate) {
-      return `Invoice ${inv.number}: Invalid date format.`;
+      return `Invoice ${inv.number}: Invalid date.`;
     }
 
     if (!maturityDate) return "";
@@ -953,7 +956,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             disabled={!isEditable}
                             onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                             placeholder="Enter invoice"
-                            className="h-9 text-xs rounded-lg border-input placeholder:text-muted-foreground"
+                            className={withFieldError(
+                              "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                              isRowPartial(inv)
+                            )}
                           />
                         </TableCell>
 
@@ -966,6 +972,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             value={inv.maturity_date?.slice(0, 10) || ""}
                             onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
                             className={!isEditable ? "opacity-60 pointer-events-none" : ""}
+                            isInvalid={isRowPartial(inv)}
                             size="compact"
                           />
                         </TableCell>
@@ -976,7 +983,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
                             placeholder="Enter value"
                             disabled={!isEditable}
-                            inputClassName="h-9 text-xs rounded-lg border-input placeholder:text-muted-foreground"
+                            inputClassName={withFieldError(
+                              "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                              isRowPartial(inv)
+                            )}
                           />
                         </TableCell>
 
@@ -1121,7 +1131,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         {/* ================= Validation ================= */}
         {validationError && (
-          <div className="mx-3 bg-primary/10 border border-primary text-primary px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+          <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
             <XMarkIcon className="h-5 w-5" />
             {validationError}
           </div>

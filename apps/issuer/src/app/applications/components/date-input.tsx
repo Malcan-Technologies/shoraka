@@ -181,7 +181,7 @@ const handleYear = (v: string) => {
           className={cn(
             "flex items-center rounded-xl border bg-background transition-colors cursor-text",
             preset.container,
-            // Error state always shows red border (overrides className prop)
+            // Error state always shows red border on focus
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
             // Normal state
             !isInvalid && "border-input focus-within:border-primary",
