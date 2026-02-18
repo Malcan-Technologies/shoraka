@@ -1,124 +1,169 @@
+"use client";
+
 import * as React from "react";
-import { format, parse, parseISO, isValid } from "date-fns";
+import { parse, isValid, format } from "date-fns";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CalendarPopover } from "./calendar-popover";
+import { CalendarPopover } from "./calendar-popover"; // adjust path if needed
 
 export function DateInput({
-  id,
   value,
   onChange,
-  placeholder,
   className,
 }: {
-  id?: string;
   value: string; // ISO yyyy-MM-dd
   onChange: (v: string) => void;
-  placeholder?: string;
   className?: string;
 }) {
+  const [day, setDay] = React.useState("");
+  const [month, setMonth] = React.useState("");
+  const [year, setYear] = React.useState("");
   const [open, setOpen] = React.useState(false);
-  const [inputValue, setInputValue] = React.useState("");
+
+  const dayRef = React.useRef<HTMLInputElement>(null);
+  const monthRef = React.useRef<HTMLInputElement>(null);
+  const yearRef = React.useRef<HTMLInputElement>(null);
 
   /* ============================================================
-     Sync ISO → d/M/yyyy
+     Sync ISO value → segmented fields
      ============================================================ */
   React.useEffect(() => {
     if (!value) {
-      setInputValue("");
+      setDay("");
+      setMonth("");
+      setYear("");
       return;
     }
 
-    try {
-      const d = parseISO(value);
-      if (isValid(d)) {
-        setInputValue(format(d, "dd/MM/yyyy"));
-
-      }
-    } catch {
-      setInputValue("");
-    }
+    const [y, m, d] = value.split("-");
+    setDay(d || "");
+    setMonth(m || "");
+    setYear(y || "");
   }, [value]);
 
   /* ============================================================
-     Manual typing
+     Emit ISO when full valid date
      ============================================================ */
+  const tryEmitDate = (d: string, m: string, y: string) => {
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      const formatted = `${d}/${m}/${y}`;
+      const parsed = parse(formatted, "dd/MM/yyyy", new Date());
 
-     function formatAsDateMask(raw: string) {
-  const digits = raw.replace(/\D/g, "").slice(0, 8);
-
-  const day = digits.slice(0, 2);
-  const month = digits.slice(2, 4);
-  const year = digits.slice(4, 8);
-
-  let result = day;
-
-  if (digits.length > 2) result += "/" + month;
-  if (digits.length > 4) result += "/" + year;
-
-  return result;
-}
-
-     const handleManualChange = (raw: string) => {
-  const masked = formatAsDateMask(raw);
-  setInputValue(masked);
-
-  if (masked.length === 10) {
-    const parsed = parse(masked, "dd/MM/yyyy", new Date());
-
-    if (isValid(parsed)) {
-      onChange(format(parsed, "yyyy-MM-dd"));
+      if (isValid(parsed) && format(parsed, "dd/MM/yyyy") === formatted) {
+        onChange(format(parsed, "yyyy-MM-dd"));
+      }
     }
-  }
-};
+  };
 
+  /* ============================================================
+     Handlers
+     ============================================================ */
+  const handleDay = (v: string) => {
+    if (!/^\d*$/.test(v) || v.length > 2) return;
+    setDay(v);
+    if (v.length === 2) monthRef.current?.focus();
+    tryEmitDate(v, month, year);
+  };
 
+  const handleMonth = (v: string) => {
+    if (!/^\d*$/.test(v) || v.length > 2) return;
+    setMonth(v);
+    if (v.length === 2) yearRef.current?.focus();
+    tryEmitDate(day, v, year);
+  };
+
+  const handleYear = (v: string) => {
+    if (!/^\d*$/.test(v) || v.length > 4) return;
+    setYear(v);
+    tryEmitDate(day, month, v);
+  };
+
+  const handleBackspace =
+  (current: string, prevRef?: React.RefObject<HTMLInputElement | null>) =>
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Backspace" && current.length === 0) {
+        prevRef?.current?.focus();
+      }
+    };
+
+  /* ============================================================
+     Render
+     ============================================================ */
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <div className="relative">
+        <div
+          className={cn(
+            "flex items-center px-3 h-9 rounded-md border border-input bg-background text-sm",
+            className
+          )}
+        >
           <input
-            id={id}
-            type="text"
-            value={inputValue}
-            placeholder={placeholder || "12/4/2025"}
-            onChange={(e) => handleManualChange(e.target.value)}
-            className={cn(
-              "w-full px-3 h-9 rounded-md border border-input text-sm pr-9 bg-background",
-              className
-            )}
+            ref={dayRef}
+            value={day}
+            onChange={(e) => handleDay(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleBackspace(day)}
+            placeholder="DD"
+            className="w-6 text-center bg-transparent outline-none"
           />
 
-          <CalendarIcon
+          <span className="px-1 text-muted-foreground">/</span>
+
+          <input
+            ref={monthRef}
+            value={month}
+            onChange={(e) => handleMonth(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleBackspace(month, dayRef)}
+            placeholder="MM"
+            className="w-6 text-center bg-transparent outline-none"
+          />
+
+          <span className="px-1 text-muted-foreground">/</span>
+
+          <input
+            ref={yearRef}
+            value={year}
+            onChange={(e) => handleYear(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleBackspace(year, monthRef)}
+            placeholder="YYYY"
+            className="w-10 text-center bg-transparent outline-none"
+          />
+
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setOpen(true);
             }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer"
-          />
+            className="ml-auto text-muted-foreground"
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
         </div>
       </PopoverPrimitive.Trigger>
 
-<PopoverPrimitive.Portal>
-  <PopoverPrimitive.Content
-    side="bottom"
-    align="start"
-    sideOffset={6}
-    collisionPadding={8}
-    className="z-50"
-    onOpenAutoFocus={(e) => e.preventDefault()}
-  >
-    <CalendarPopover
-      selected={value || undefined}
-      onSelect={(iso) => {
-        onChange(iso);
-        setOpen(false);
-      }}
-    />
-  </PopoverPrimitive.Content>
-</PopoverPrimitive.Portal>
-
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="z-50"
+        >
+          <CalendarPopover
+            selected={value || undefined}
+            onSelect={(iso) => {
+              onChange(iso);
+              setOpen(false);
+            }}
+          />
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
   );
 }

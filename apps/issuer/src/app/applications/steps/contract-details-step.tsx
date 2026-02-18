@@ -116,9 +116,8 @@ function CustomRadio({
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
-            checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
-          }`}
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
+            }`}
           aria-hidden
         >
           {checked && (
@@ -386,7 +385,7 @@ export function ContractDetailsStep({
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
-    const contractDetails = contract 
+    const contractDetails = contract
       ? ((contract as unknown) as { contract_details?: Record<string, unknown> })?.contract_details as Record<string, unknown>
       : {};
     const customerDetails = contract
@@ -395,7 +394,7 @@ export function ContractDetailsStep({
 
     const relatedPartyValue: YesNo | "" =
       customerDetails.is_related_party === undefined ||
-      customerDetails.is_related_party === null
+        customerDetails.is_related_party === null
         ? ""
         : customerDetails.is_related_party
           ? ("yes" as const)
@@ -749,7 +748,6 @@ export function ContractDetailsStep({
             value={formData.contract.start_date?.slice(0, 10) || ""}
             onChange={(v) => handleInputChange("contract", "start_date", v)}
             className={inputClassName}
-            placeholder="e.g. Apr 12, 2025"
           />
 
           <Label className={labelClassName}>Contract end date</Label>
@@ -760,11 +758,10 @@ export function ContractDetailsStep({
               className={cn(
                 inputClassName,
                 (hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) ||
-                (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
+                  (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
                   ? "border-destructive focus-visible:ring-destructive"
                   : ""
               )}
-              placeholder="e.g. Jun 12, 2025"
             />
 
             {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
