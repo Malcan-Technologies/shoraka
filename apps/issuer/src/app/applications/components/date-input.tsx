@@ -16,6 +16,7 @@ interface DateInputProps {
   isInvalid?: boolean;
   defaultCalendarMonth?: Date;
   size?: DateInputSize;
+  onLocalValueChange?: (day: string, month: string, year: string) => void;
 }
 
 /** Size presets for responsive DateInput */
@@ -46,6 +47,7 @@ export function DateInput({
   isInvalid,
   defaultCalendarMonth,
   size = "default",
+  onLocalValueChange,
 }: DateInputProps) {
   const [day, setDay] = React.useState("");
   const [month, setMonth] = React.useState("");
@@ -103,24 +105,60 @@ export function DateInput({
     setDay(paddedDay);
     setMonth(paddedMonth);
 
+    // Notify parent of current local state (even if invalid)
+    if (onLocalValueChange) {
+      onLocalValueChange(paddedDay, paddedMonth, year);
+    }
+
     tryEmitDate(paddedDay, paddedMonth, year);
   };
 
   /** Input handlers: only allow digits and enforce max length */
-  const handleDay = (v: string) => {
-    if (!/^\d*$/.test(v) || v.length > 2) return;
-    setDay(v);
-  };
+const handleDay = (v: string) => {
+  if (!/^\d*$/.test(v) || v.length > 2) return;
 
-  const handleMonth = (v: string) => {
-    if (!/^\d*$/.test(v) || v.length > 2) return;
-    setMonth(v);
-  };
+  if (v.length === 1) {
+    if (Number(v) > 3) return; // first digit max 3
+  }
 
-  const handleYear = (v: string) => {
-    if (!/^\d*$/.test(v) || v.length > 4) return;
-    setYear(v);
-  };
+  if (v.length === 2) {
+    const first = Number(v[0]);
+    const second = Number(v[1]);
+
+    if (first === 0 && second === 0) return; // block 00
+    if (first === 3 && second > 1) return;   // block 32–39
+    if (Number(v) > 31) return;
+  }
+
+  setDay(v);
+};
+
+
+const handleMonth = (v: string) => {
+  if (!/^\d*$/.test(v) || v.length > 2) return;
+
+  if (v.length === 1) {
+    if (Number(v) > 1) return; // first digit max 1
+  }
+
+  if (v.length === 2) {
+    const first = Number(v[0]);
+    const second = Number(v[1]);
+
+    if (first === 0 && second === 0) return; // block 00
+    if (first === 1 && second > 2) return;   // block 13–19
+    if (Number(v) > 12) return;
+  }
+
+  setMonth(v);
+};
+
+
+const handleYear = (v: string) => {
+  if (!/^\d*$/.test(v) || v.length > 4) return;
+  setYear(v);
+};
+
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>

@@ -40,7 +40,7 @@ import {
 } from "@/app/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
-import { format } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -358,6 +358,16 @@ export function ContractDetailsStep({
     },
   });
 
+  /** Track local date field values (even if invalid) for validation on save */
+  const [localDates, setLocalDates] = React.useState({
+    start_date_day: "",
+    start_date_month: "",
+    start_date_year: "",
+    end_date_day: "",
+    end_date_month: "",
+    end_date_year: "",
+  });
+
   const [pendingFiles, setPendingFiles] = React.useState<{
     contract?: File;
     consent?: File;
@@ -441,11 +451,52 @@ export function ContractDetailsStep({
      SAVE FUNCTION
      ================================================================ */
 
+  /** Helper to check if date fields form a valid calendar date */
+  const isCompleteValidDate = (day: string, month: string, year: string): boolean => {
+    if (day.length !== 2 || month.length !== 2 || year.length !== 4) return false;
+
+    const formatted = `${day}/${month}/${year}`;
+    const parsed = parse(formatted, "dd/MM/yyyy", new Date());
+
+    if (!isValid(parsed)) return false;
+    if (format(parsed, "dd/MM/yyyy") !== formatted) return false;
+
+    return true;
+  };
+
   const saveFunction = React.useCallback(async () => {
     console.warn("[CONTRACT] Save triggered");
     setHasSubmitted(true);
 
-    // ❌ Validation
+    /** Validate start date: check if all fields are filled and form valid date */
+    const startDateComplete = localDates.start_date_day && localDates.start_date_month && localDates.start_date_year;
+    if (startDateComplete) {
+      if (!isCompleteValidDate(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year)) {
+        toast.error("Please fix the highlighted fields");
+        throw new Error("VALIDATION_CONTRACT_INVALID_START_DATE");
+      }
+    }
+
+    /** Validate end date: check if all fields are filled and form valid date */
+    const endDateComplete = localDates.end_date_day && localDates.end_date_month && localDates.end_date_year;
+    if (endDateComplete) {
+      if (!isCompleteValidDate(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year)) {
+        toast.error("Please fix the highlighted fields");
+        throw new Error("VALIDATION_CONTRACT_INVALID_END_DATE");
+      }
+    }
+
+    // ❌ Validation: dates must be present
+    if (!formData.contract.start_date) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_START_DATE_REQUIRED");
+    }
+
+    if (!formData.contract.end_date) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_END_DATE_REQUIRED");
+    }
+
     if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_CONTRACT_SSM_FORMAT");
@@ -691,11 +742,21 @@ export function ContractDetailsStep({
     return !Number.isNaN(date.getTime());
   };
 
+  /** Check if locally-typed date is invalid (e.g., Feb 31) */
+  const isLocalDateInvalid = (day: string, month: string, year: string): boolean => {
+    // If all fields are filled
+    if (day && month && year) {
+      return !isCompleteValidDate(day, month, year);
+    }
+    return false;
+  };
+
   const isStartInvalid =
     hasSubmitted &&
     (
       !formData.contract.start_date ||
-      !isValidCalendarDate(formData.contract.start_date)
+      !isValidCalendarDate(formData.contract.start_date) ||
+      isLocalDateInvalid(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year)
     );
 
   const isEndInvalid =
@@ -703,6 +764,7 @@ export function ContractDetailsStep({
     (
       !formData.contract.end_date ||
       !isValidCalendarDate(formData.contract.end_date) ||
+      isLocalDateInvalid(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year) ||
       !isStartBeforeEnd(
         formData.contract.start_date,
         formData.contract.end_date
@@ -778,6 +840,14 @@ export function ContractDetailsStep({
               onChange={(v) => handleInputChange("contract", "start_date", v)}
               isInvalid={isStartInvalid}
               className={inputClassName}
+              onLocalValueChange={(day, month, year) =>
+                setLocalDates((prev) => ({
+                  ...prev,
+                  start_date_day: day,
+                  start_date_month: month,
+                  start_date_year: year,
+                }))
+              }
             />
             {hasSubmitted && !formData.contract.start_date && (
               <p className="text-xs text-destructive">
@@ -785,6 +855,11 @@ export function ContractDetailsStep({
               </p>
             )}
             {hasSubmitted && formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date) && (
+              <p className="text-xs text-destructive">
+                Invalid date (e.g., February 31 does not exist)
+              </p>
+            )}
+            {hasSubmitted && isLocalDateInvalid(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year) && (
               <p className="text-xs text-destructive">
                 Invalid date (e.g., February 31 does not exist)
               </p>
@@ -800,6 +875,14 @@ export function ContractDetailsStep({
               onChange={(v) => handleInputChange("contract", "end_date", v)}
               isInvalid={isEndInvalid}
               className={inputClassName}
+              onLocalValueChange={(day, month, year) =>
+                setLocalDates((prev) => ({
+                  ...prev,
+                  end_date_day: day,
+                  end_date_month: month,
+                  end_date_year: year,
+                }))
+              }
             />
 
 
@@ -824,6 +907,12 @@ export function ContractDetailsStep({
             )}
 
             {hasSubmitted && formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date) && (
+              <p className="text-xs text-destructive">
+                Invalid date (e.g., February 31 does not exist)
+              </p>
+            )}
+
+            {hasSubmitted && isLocalDateInvalid(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year) && (
               <p className="text-xs text-destructive">
                 Invalid date (e.g., February 31 does not exist)
               </p>
