@@ -14,25 +14,16 @@
  *    - Invoice maturity date must be today or a future date.
  *    - Overdue (past) invoices cannot be financed.
  *
- * 4. Product max maturity days
- *    - Each product defines the maximum number of days
- *      an invoice is allowed to mature from today.
- *    - Invoice maturity date must be within this limit.
- *
- * 5. Contract date window (only if a contract exists)
+ * 4. Contract date window (only if a contract exists)
  *    - Invoice maturity date must fall within the
  *      contract start and end dates.
  *    - Skipped for invoice-only flows (no contract).
  *
- * 6. Minimum invoice value
+ * 5. Minimum invoice value
  *    - Each product defines a minimum invoice value.
  *    - Invoice value must meet or exceed this amount.
  *
- * 7. Maximum invoice value
- *    - Each product defines a maximum invoice value.
- *    - Invoice value must not exceed this amount.
- *
- * 8. Financing ratio
+ * 6. Financing ratio
  *    - Only part of each invoice can be financed.
  *    - Financing ratio must be between 60% and 80%.
  *
@@ -83,12 +74,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  * Config must be provided by admin; no fallbacks.
  */
 interface InvoiceConfig {
-  min_invoice_value: number;
-  max_invoice_value: number;
-  max_invoice_maturity_days: number;
+  min_invoice_value?: number;
 }
 
-function getProductInvoiceConfig(application: any): InvoiceConfig {
+function getProductInvoiceConfig(application: any): InvoiceConfig | null {
   /** Extract invoice step config from product workflow */
   const workflow = application?.product?.workflow || [];
   const invoiceStep = workflow.find(
@@ -96,26 +85,12 @@ function getProductInvoiceConfig(application: any): InvoiceConfig {
   );
   const config = invoiceStep?.config || {};
 
-  if (!config.min_invoice_value || !config.max_invoice_value || !config.max_invoice_maturity_days) {
-    throw new Error("Product invoice configuration is missing. Admin must configure min_invoice_value, max_invoice_value, and max_invoice_maturity_days.");
-  }
+  // If admin hasn't provided the invoice config, return null (validation will be skipped for missing fields)
+  if (config == null || Object.keys(config).length === 0) return null;
 
   return {
     min_invoice_value: config.min_invoice_value,
-    max_invoice_value: config.max_invoice_value,
-    max_invoice_maturity_days: config.max_invoice_maturity_days,
   };
-}
-
-/**
- * Calculate days between two dates.
- *
- * What: Returns the difference in days (whole days only).
- * Why: Used to validate maturity date constraints.
- */
-function daysBetween(startDate: Date, endDate: Date): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay);
 }
 
 /**
@@ -310,10 +285,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * Validation order:
    * 1. Invalid date format
    * 2. Past maturity date
-   * 3. Product max maturity days
-   * 4. Contract date window (if contract exists)
-   * 5. Min invoice value
-   * 6. Max invoice value
+   * 3. Contract date window (if contract exists)
+   * 4. Min invoice value
    */
   const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig): string => {
     // Ignore empty rows
@@ -330,21 +303,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     if (!maturityDate) return "";
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    today.setHours(0, 0, 0, 0);
 
-    // 1. Maturity date must be TODAY or in the future
     if (maturityDate < today) {
       return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
     }
 
-    // 2. Maturity date must be within product max maturity days
-    const maxMaturityDays = productConfig.max_invoice_maturity_days;
-    const daysUntilMaturity = daysBetween(today, maturityDate);
-    if (daysUntilMaturity > maxMaturityDays) {
-      return `Invoice ${inv.number}: Maturity date exceeds maximum ${maxMaturityDays} days limit.`;
-    }
-
-    // 3. Contract date window validation (if contract exists)
     if (!isInvoiceOnly && application?.contract) {
 
       const contractStart = parseDateString(application.contract.contract_details?.start_date);
@@ -359,17 +323,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       }
     }
 
-    // 4. Invoice value must be >= product minimum
     const invoiceValue = parseMoney(inv.value);
     const minValue = productConfig.min_invoice_value;
-    if (invoiceValue < minValue) {
-      return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
-    }
-
-    // 5. Invoice value must be <= product maximum
-    const maxValue = productConfig.max_invoice_value;
-    if (invoiceValue > maxValue) {
-      return `Invoice ${inv.number}: Value cannot exceed ${formatMoney(maxValue)}.`;
+    if (typeof minValue === "number") {
+      if (invoiceValue < minValue) {
+        return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
+      }
     }
 
     return "";

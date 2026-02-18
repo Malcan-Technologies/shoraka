@@ -36,7 +36,6 @@ export type { ApplicationStepKey };
 /** Steps that don't show a config panel in the card (no expand / no form). */
 export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
   "financing_structure",
-  "contract_details",
   "company_details",
   "business_details",
   "review_and_submit",

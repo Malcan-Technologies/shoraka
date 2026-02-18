@@ -94,6 +94,23 @@ function isEndDateTooSoon(
   return new Date(endDate) < minAllowedEndDate;
 }
 
+/** Read product-level min_contract_months from product workflow (if present). */
+function getProductMinContractMonths(application: any): number | null {
+  try {
+    const workflow = application?.product?.workflow || [];
+    const contractStep = workflow.find(
+      (step: any) => step.id?.includes?.("contract_details") || step.name?.toLowerCase?.()?.includes?.("contract")
+    );
+    const config = contractStep?.config || {};
+    const val = config.min_contract_months ?? config.minContractMonths;
+    if (typeof val === "number") return val;
+    if (typeof val === "string" && /^\d+$/.test(val)) return parseInt(val, 10);
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 
 /* ================================================================
    CUSTOM RADIO BUTTON
@@ -568,7 +585,8 @@ export function ContractDetailsStep({
       throw new Error("VALIDATION_CONTRACT_DATE_ORDER");
     }
 
-    if (isEndDateTooSoon(formData.contract.end_date)) {
+    const productMinMonths = getProductMinContractMonths(application) ?? MIN_CONTRACT_MONTHS;
+    if (isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths)) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
     }
@@ -828,7 +846,11 @@ export function ContractDetailsStep({
         formData.contract.start_date,
         formData.contract.end_date
       ) ||
-      isEndDateTooSoon(formData.contract.end_date)
+      isEndDateTooSoon(
+        formData.contract.start_date,
+        formData.contract.end_date,
+        getProductMinContractMonths(application) ?? MIN_CONTRACT_MONTHS
+      )
     );
 
 
@@ -941,7 +963,7 @@ export function ContractDetailsStep({
                   <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  The contract must run for at least {MIN_CONTRACT_MONTHS} months from the later of today or the contract start date
+                  {`The contract must run for at least ${getProductMinContractMonths(application) ?? MIN_CONTRACT_MONTHS} months from the later of today or the contract start date`}
                 </TooltipContent>
               </Tooltip>
             )}

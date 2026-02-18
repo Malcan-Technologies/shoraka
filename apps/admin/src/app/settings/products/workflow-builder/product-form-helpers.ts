@@ -91,12 +91,10 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minValue = config.min_invoice_value;
-      const maxValue = config.max_invoice_value;
-      const maxMaturityDays = config.max_invoice_maturity_days;
-      const minContractMonths = config.min_contract_months;
       if (minValue == null) errors.push(`${stepLabel}: enter minimum invoice value`);
-      if (maxValue == null) errors.push(`${stepLabel}: enter maximum invoice value`);
-      if (maxMaturityDays == null) errors.push(`${stepLabel}: enter maximum invoice maturity days`);
+    }
+    if (stepKey === "contract_details") {
+      const minContractMonths = config.min_contract_months;
       if (minContractMonths == null) errors.push(`${stepLabel}: enter minimum contract months`);
     }
 
