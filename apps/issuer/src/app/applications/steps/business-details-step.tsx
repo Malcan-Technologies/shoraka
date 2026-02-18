@@ -55,6 +55,7 @@ interface WhyRaisingFunds {
   platformName: string;
   amountRaised: string;
   sameInvoiceUsed: YesNo | "";
+  accountingSoftware: string;
 }
 
 interface BusinessDetailsPayload {
@@ -80,6 +81,7 @@ interface BusinessDetailsSnake {
     platform_name?: string;
     amount_raised?: number;
     same_invoice_used?: boolean;
+    accounting_software?: string;
   };
   declaration_confirmed?: boolean;
 }
@@ -113,6 +115,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       platform_name: p.whyRaisingFunds.platformName ?? "",
       amount_raised: parseMoney(p.whyRaisingFunds.amountRaised ?? ""),
       same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
+      accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
     },
     declaration_confirmed: p.declarationConfirmed,
   };
@@ -138,6 +141,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       platformName: w?.platform_name ?? w?.platformName ?? "",
       amountRaised: w?.amount_raised != null || w?.amountRaised != null ? formatMoney(w?.amount_raised ?? w?.amountRaised) : "",
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
+      accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
   };
@@ -159,6 +163,7 @@ const defaultWhy: WhyRaisingFunds = {
   platformName: "",
   amountRaised: "",
   sameInvoiceUsed: "",
+  accountingSoftware: "",
 };
 
 interface BusinessDetailsStepProps {
@@ -363,6 +368,7 @@ export function BusinessDetailsStep({
       platformName,
       amountRaised,
       sameInvoiceUsed,
+      accountingSoftware,
     } = whyRaisingFunds;
 
     if (
@@ -375,6 +381,7 @@ export function BusinessDetailsStep({
       !risksDelayRepayment.trim() ||
       !backupPlan.trim() ||
       !raisingOnOtherP2P.trim() ||
+      !accountingSoftware.trim() ||
       !declarationConfirmed
     ) {
       return false;
@@ -615,55 +622,79 @@ export function BusinessDetailsStep({
             }
           />
 
-          <Label htmlFor="platform-name" className={labelClassName}>
-            Name of platform
-          </Label>
-          <Input
-            id="platform-name"
-            value={whyRaisingFunds.platformName}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                platformName: e.target.value,
-              }))
-            }
-            placeholder="e.g. CARPAY"
-            className={inputClassName}
-          />
+          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
+            <Label htmlFor="platform-name" className={labelClassName}>
+              Name of platform
+            </Label>
+            <Input
+              id="platform-name"
+              value={whyRaisingFunds.platformName}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  platformName: e.target.value,
+                }))
+              }
+              placeholder="e.g. CARPAY"
+              className={inputClassName}
+              disabled={whyRaisingFunds.raisingOnOtherP2P !== "yes"}
+            />
+          </div>
 
-          <Label htmlFor="amount-raised" className={labelClassName}>
-            Amount raised
-          </Label>
-          <div className="h-11 flex items-center">
-            <div className="relative w-full h-full flex items-center">
-              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                RM
+          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
+            <Label htmlFor="amount-raised" className={labelClassName}>
+              Amount raised
+            </Label>
+            <div className="h-11 flex items-center">
+              <div className="relative w-full h-full flex items-center">
+                <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+                  RM
+                </div>
+                <MoneyInput
+                  value={whyRaisingFunds.amountRaised}
+                  onValueChange={(v) =>
+                    setWhyRaisingFunds((prev) => ({
+                      ...prev,
+                      amountRaised: v,
+                    }))
+                  }
+                  placeholder="0.00"
+                  prefix="RM"
+                  inputClassName={inputClassName + " pl-12"}
+                  disabled={whyRaisingFunds.raisingOnOtherP2P !== "yes"}
+                />
+
               </div>
-              <MoneyInput
-                value={whyRaisingFunds.amountRaised}
-                onValueChange={(v) =>
-                  setWhyRaisingFunds((prev) => ({
-                    ...prev,
-                    amountRaised: v,
-                  }))
-                }
-                placeholder="0.00"
-                prefix="RM"
-                inputClassName={inputClassName + " pl-12"}
-              />
-
             </div>
           </div>
 
-          <Label className={labelClassName}>
-            Is the same invoice being used?
+          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
+            <Label className={labelClassName}>
+              Is the same invoice being used?
+            </Label>
+            <YesNoRadioGroup
+              name="sameInvoiceUsed"
+              value={whyRaisingFunds.sameInvoiceUsed}
+              onValueChange={(v) =>
+                setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+              }
+            />
+          </div>
+
+          <Label htmlFor="accounting-software" className={labelClassName}>
+            Which accounting software does the issuer use?
           </Label>
-          <YesNoRadioGroup
-            name="sameInvoiceUsed"
-            value={whyRaisingFunds.sameInvoiceUsed}
-            onValueChange={(v) =>
-              setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+          <Input
+            id="accounting-software"
+            value={whyRaisingFunds.accountingSoftware}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                accountingSoftware: e.target.value,
+              }))
             }
+            placeholder="e.g. QuickBooks, Xero, SAP"
+            className={inputClassName}
           />
         </div>
       </section>
@@ -770,6 +801,10 @@ function BusinessDetailsSkeleton() {
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
           </div>
+
+          {/* Accounting software */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
 

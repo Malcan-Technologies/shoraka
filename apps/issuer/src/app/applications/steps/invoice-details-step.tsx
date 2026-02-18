@@ -77,31 +77,34 @@ const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
- * VALIDATION CONSTANTS
+ * PRODUCT CONFIG EXTRACTION
  *
- * Product-level limits (will be configurable via Admin later).
- * These control invoice acceptance criteria.
+ * Reads invoice validation config from product workflow.
+ * Config must be provided by admin; no fallbacks.
  */
-const DEFAULT_MAX_INVOICE_MATURITY_DAYS = 180;
-const DEFAULT_MIN_INVOICE_VALUE = 0;
-const DEFAULT_MAX_INVOICE_VALUE = 500000;
-
-/**
- * VALIDATION HELPERS
- *
- * These helpers calculate validation properties.
- * Extracted for easy replacement when product config becomes dynamic.
- */
-function getMaxInvoiceMaturityDays(): number {
-  return DEFAULT_MAX_INVOICE_MATURITY_DAYS;
+interface InvoiceConfig {
+  min_invoice_value: number;
+  max_invoice_value: number;
+  max_invoice_maturity_days: number;
 }
 
-function getMinInvoiceValue(): number {
-  return DEFAULT_MIN_INVOICE_VALUE;
-}
+function getProductInvoiceConfig(application: any): InvoiceConfig {
+  /** Extract invoice step config from product workflow */
+  const workflow = application?.product?.workflow || [];
+  const invoiceStep = workflow.find(
+    (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
+  );
+  const config = invoiceStep?.config || {};
 
-function getMaxInvoiceValue(): number {
-  return DEFAULT_MAX_INVOICE_VALUE;
+  if (!config.min_invoice_value || !config.max_invoice_value || !config.max_invoice_maturity_days) {
+    throw new Error("Product invoice configuration is missing. Admin must configure min_invoice_value, max_invoice_value, and max_invoice_maturity_days.");
+  }
+
+  return {
+    min_invoice_value: config.min_invoice_value,
+    max_invoice_value: config.max_invoice_value,
+    max_invoice_maturity_days: config.max_invoice_maturity_days,
+  };
 }
 
 /**
@@ -312,7 +315,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * 5. Min invoice value
    * 6. Max invoice value
    */
-  const validateInvoiceConstraints = (inv: LocalInvoice): string => {
+  const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig): string => {
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
 
@@ -335,7 +338,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
 
     // 2. Maturity date must be within product max maturity days
-    const maxMaturityDays = getMaxInvoiceMaturityDays();
+    const maxMaturityDays = productConfig.max_invoice_maturity_days;
     const daysUntilMaturity = daysBetween(today, maturityDate);
     if (daysUntilMaturity > maxMaturityDays) {
       return `Invoice ${inv.number}: Maturity date exceeds maximum ${maxMaturityDays} days limit.`;
@@ -358,13 +361,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     // 4. Invoice value must be >= product minimum
     const invoiceValue = parseMoney(inv.value);
-    const minValue = getMinInvoiceValue();
+    const minValue = productConfig.min_invoice_value;
     if (invoiceValue < minValue) {
       return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
     }
 
     // 5. Invoice value must be <= product maximum
-    const maxValue = getMaxInvoiceValue();
+    const maxValue = productConfig.max_invoice_value;
     if (invoiceValue > maxValue) {
       return `Invoice ${inv.number}: Value cannot exceed ${formatMoney(maxValue)}.`;
     }
@@ -419,7 +422,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
-
+  let productConfig: InvoiceConfig | null = null;
+  try {
+    productConfig = getProductInvoiceConfig(application);
+  } catch (err) {
+    validationError = err instanceof Error ? err.message : "Product configuration error";
+  }
 
   if (hasPartialRows) {
     validationError = "Please complete all invoice details. Rows cannot have partial data.";
@@ -430,9 +438,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   }
 
   // Validate all invoice constraints (maturity date, value limits, contract window)
-  if (!validationError) {
+  if (!validationError && productConfig) {
     for (const inv of invoices) {
-      const constraintError = validateInvoiceConstraints(inv);
+      const constraintError = validateInvoiceConstraints(inv, productConfig);
       if (constraintError) {
         validationError = constraintError;
         break;

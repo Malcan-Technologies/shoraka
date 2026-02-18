@@ -89,6 +89,17 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       if (!hasImage) errors.push(`${stepLabel}: add an image`);
     }
 
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minValue = config.min_invoice_value;
+      const maxValue = config.max_invoice_value;
+      const maxMaturityDays = config.max_invoice_maturity_days;
+      const minContractMonths = config.min_contract_months;
+      if (minValue == null) errors.push(`${stepLabel}: enter minimum invoice value`);
+      if (maxValue == null) errors.push(`${stepLabel}: enter maximum invoice value`);
+      if (maxMaturityDays == null) errors.push(`${stepLabel}: enter maximum invoice maturity days`);
+      if (minContractMonths == null) errors.push(`${stepLabel}: enter minimum contract months`);
+    }
+
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
       const enabledCategories = Array.isArray(config.enabled_categories)
         ? (config.enabled_categories as string[]).filter((k) => SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number]))

@@ -52,6 +52,11 @@ const ENTITY_TYPES = [
   "Partnership",
   "Private Limited Company (Sdn Bhd)",
   "Public Limited Company (Bhd)",
+  "Federal government",
+  "State government",
+  "Federal government agency",
+  "State government agency",
+  "Unlisted public company",
 ];
 
 const COUNTRIES = [
@@ -359,6 +364,7 @@ export function ContractDetailsStep({
       value: "",
       start_date: "",
       end_date: "",
+      contract_financing: "",
       document: null as FileMetadata | null,
     },
     customer: {
@@ -432,6 +438,7 @@ export function ContractDetailsStep({
         value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
         start_date: (contractDetails.start_date as string) || "",
         end_date: (contractDetails.end_date as string) || "",
+        contract_financing: contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "",
         document: (contractDetails.document as FileMetadata | null) || null,
       },
       customer: {
@@ -686,6 +693,7 @@ export function ContractDetailsStep({
 
     // Convert values to numbers
     const valueNum = parseMoney(updatedFormData.contract.value);
+    const contractFinancingNum = parseMoney(updatedFormData.contract.contract_financing);
     const approvedFacilityNum = (contract as unknown as { contract_details?: { approved_facility?: number } })?.contract_details?.approved_facility || 0;
     const utilizedFacilityNum = (contract as unknown as { contract_details?: { utilized_facility?: number } })?.contract_details?.utilized_facility || 0;
     const availableFacilityNum = valueNum;
@@ -693,6 +701,7 @@ export function ContractDetailsStep({
     const updatedContractDetails = {
       ...updatedFormData.contract,
       value: valueNum,
+      contract_financing: contractFinancingNum,
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
       available_facility: availableFacilityNum,
@@ -753,6 +762,7 @@ export function ContractDetailsStep({
       !!formData.contract.description &&
       !!formData.contract.number &&
       !!formData.contract.value &&
+      !!formData.contract.contract_financing &&
       hasValidStartDate &&
       hasValidEndDate &&
       hasContractDocument &&
@@ -877,6 +887,17 @@ export function ContractDetailsStep({
               value={formData.contract.value}
               onValueChange={(value) => handleInputChange("contract", "value", value)}
               placeholder={`eg. ${formatMoney(5000000)}`}
+              prefix="RM"
+              inputClassName={inputClassName}
+            />
+          </div>
+
+          <Label className={labelClassName}>Contract financing</Label>
+          <div className="h-11 flex items-center">
+            <MoneyInput
+              value={formData.contract.contract_financing}
+              onValueChange={(value) => handleInputChange("contract", "contract_financing", value)}
+              placeholder={`eg. ${formatMoney(1000000)}`}
               prefix="RM"
               inputClassName={inputClassName}
             />
@@ -1060,7 +1081,17 @@ export function ContractDetailsStep({
             </SelectContent>
           </Select>
 
-          <Label className={labelClassName}>is customer related to issuer?</Label>
+          <div className="flex items-center gap-1">
+            <Label className={labelClassName}>Is the customer related to you?</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Related director/shareholder or having subsidiary/sister company/ or parent company relationship
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="h-11 flex items-center">
             <YesNoRadioGroup
               value={formData.customer.is_related_party}
