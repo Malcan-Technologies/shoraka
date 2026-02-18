@@ -33,7 +33,7 @@ const sizePresets: Record<DateInputSize, {
     icon: "h-4 w-4",
   },
   compact: {
-    container: "px-2 h-8 text-xs",
+    container: "px-3 h-9 text-xs",
     text: "px-0.5",
     input: "text-xs",
     icon: "h-3 w-3",
@@ -184,6 +184,7 @@ const handleYear = (v: string) => {
             placeholder="DD"
             className={cn(
               "w-7 text-center bg-transparent outline-none shrink-0",
+              size === "compact" && "w-6",
               preset.input
             )}
           />
@@ -197,6 +198,7 @@ const handleYear = (v: string) => {
             placeholder="MM"
             className={cn(
               "w-7 text-center bg-transparent outline-none shrink-0",
+              size === "compact" && "w-6",
               preset.input
             )}
           />
@@ -210,6 +212,7 @@ const handleYear = (v: string) => {
             placeholder="YYYY"
             className={cn(
               "w-12 text-center bg-transparent outline-none shrink-0",
+              size === "compact" && "w-9",
               preset.input
             )}
           />
@@ -220,7 +223,10 @@ const handleYear = (v: string) => {
               e.stopPropagation();
               setOpen(true);
             }}
-            className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+            className={cn(
+              "ml-auto text-muted-foreground hover:text-foreground transition-colors",
+              size === "compact" && "ml-1 p-1 -mr-1"
+            )}
           >
             <CalendarIcon className={preset.icon} />
           </button>
