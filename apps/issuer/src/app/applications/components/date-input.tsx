@@ -183,7 +183,7 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="DD"
             className={cn(
-              "w-7 text-center bg-transparent outline-none shrink-0",
+              "w-7 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
               size === "compact" && "w-6",
               preset.input
             )}
@@ -197,7 +197,7 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="MM"
             className={cn(
-              "w-7 text-center bg-transparent outline-none shrink-0",
+              "w-7 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
               size === "compact" && "w-6",
               preset.input
             )}
@@ -211,7 +211,7 @@ const handleYear = (v: string) => {
             onBlur={handleBlur}
             placeholder="YYYY"
             className={cn(
-              "w-12 text-center bg-transparent outline-none shrink-0",
+              "w-12 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
               size === "compact" && "w-9",
               preset.input
             )}

@@ -953,7 +953,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             disabled={!isEditable}
                             onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                             placeholder="Enter invoice"
-                            className="h-9 text-xs"
+                            className="h-9 text-xs rounded-lg border-input placeholder:text-muted-foreground"
                           />
                         </TableCell>
 
@@ -976,7 +976,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
                             placeholder="Enter value"
                             disabled={!isEditable}
-                            inputClassName="h-9 text-xs"
+                            inputClassName="h-9 text-xs rounded-lg border-input placeholder:text-muted-foreground"
                           />
                         </TableCell>
 
