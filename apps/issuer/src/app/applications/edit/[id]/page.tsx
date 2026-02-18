@@ -598,7 +598,8 @@ export default function EditApplicationPage() {
 
       isSubmittingRef.current = true; // 🔒 prevent gating effects
 
-      const finalStepNumber = wizardState?.lastCompletedStep || stepFromUrl;
+      const finalStepNumber = effectiveWorkflow.length;
+      console.log('wizard',finalStepNumber)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
