@@ -24,11 +24,18 @@ import {
 export function CalendarPopover({
   selected,
   onSelect,
+  defaultMonth,
 }: {
   selected?: string;
   onSelect: (iso: string) => void;
+  defaultMonth?: Date;
 }) {
-  const initialMonth = React.useMemo(() => (selected ? parseISO(selected) : new Date()), [selected]);
+  const initialMonth = React.useMemo(() => {
+  if (selected) return parseISO(selected);
+  if (defaultMonth) return defaultMonth;
+  return new Date();
+}, [selected, defaultMonth]);
+
   const [currentMonth, setCurrentMonth] = React.useState<Date>(initialMonth);
 
   React.useEffect(() => {
@@ -86,13 +93,12 @@ export function CalendarPopover({
                     key={iso}
                     type="button"
                     onClick={() => onSelect(iso)}
-                    className={`h-8 w-8 rounded text-sm font-medium ${
-                      isSelected
+                    className={`h-8 w-8 rounded text-sm font-medium ${isSelected
                         ? "bg-primary text-primary-foreground"
                         : isCurrentMonth
-                        ? "text-foreground hover:bg-muted/50"
-                        : "text-muted-foreground/40"
-                    }`}
+                          ? "text-foreground hover:bg-muted/50"
+                          : "text-muted-foreground/40"
+                      }`}
                   >
                     {format(day, "d")}
                   </button>

@@ -755,14 +755,29 @@ export function ContractDetailsStep({
             <DateInput
               value={formData.contract.end_date?.slice(0, 10) || ""}
               onChange={(v) => handleInputChange("contract", "end_date", v)}
+              defaultCalendarMonth={
+                formData.contract.start_date
+                  ? (() => {
+                    const d = new Date(formData.contract.start_date);
+                    d.setMonth(d.getMonth() + MIN_CONTRACT_MONTHS);
+                    return d;
+                  })()
+                  : undefined
+              }
               className={cn(
                 inputClassName,
-                (hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) ||
-                  (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
+                (hasSubmitted &&
+                  !isStartBeforeEnd(
+                    formData.contract.start_date,
+                    formData.contract.end_date
+                  )) ||
+                  (hasSubmitted &&
+                    isEndDateTooSoon(formData.contract.end_date))
                   ? "border-destructive focus-visible:ring-destructive"
                   : ""
               )}
             />
+
 
             {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
               <p className="text-xs text-destructive">

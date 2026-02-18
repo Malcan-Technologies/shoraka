@@ -11,11 +11,14 @@ export function DateInput({
   value,
   onChange,
   className,
+  defaultCalendarMonth,
 }: {
-  value: string; // ISO yyyy-MM-dd
+  value: string;
   onChange: (v: string) => void;
   className?: string;
+  defaultCalendarMonth?: Date;
 }) {
+
   const [day, setDay] = React.useState("");
   const [month, setMonth] = React.useState("");
   const [year, setYear] = React.useState("");
@@ -80,12 +83,12 @@ export function DateInput({
   };
 
   const handleBackspace =
-  (current: string, prevRef?: React.RefObject<HTMLInputElement | null>) =>
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Backspace" && current.length === 0) {
-        prevRef?.current?.focus();
-      }
-    };
+    (current: string, prevRef?: React.RefObject<HTMLInputElement | null>) =>
+      (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Backspace" && current.length === 0) {
+          prevRef?.current?.focus();
+        }
+      };
 
   /* ============================================================
      Render
@@ -157,11 +160,13 @@ export function DateInput({
         >
           <CalendarPopover
             selected={value || undefined}
+            defaultMonth={defaultCalendarMonth}
             onSelect={(iso) => {
               onChange(iso);
               setOpen(false);
             }}
           />
+
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
