@@ -166,9 +166,13 @@ const handleYear = (v: string) => {
         <div
           className={cn(
             "flex items-center rounded-xl border bg-background transition-colors cursor-text",
-            isInvalid ? "border-destructive" : "border-input",
             preset.container,
-            className
+            // Error state always shows red border (overrides className prop)
+            isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
+            // Normal state
+            !isInvalid && "border-input focus-within:border-primary",
+            // Allow className to add additional styles but not override borders
+            className && !className.includes("border") && className
           )}
         >
           <input

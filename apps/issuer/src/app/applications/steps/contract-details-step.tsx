@@ -464,6 +464,19 @@ export function ContractDetailsStep({
     return true;
   };
 
+  /** Check if locally-typed date is invalid (e.g., Feb 31, or 00/00/YYYY after padding) */
+  const isLocalDateInvalid = (day: string, month: string, year: string): boolean => {
+    // If all fields are filled
+    if (day && month && year) {
+      // Check for invalid padded values like 00/00/YYYY
+      if (day === "00" || month === "00") {
+        return true;
+      }
+      return !isCompleteValidDate(day, month, year);
+    }
+    return false;
+  };
+
   const saveFunction = React.useCallback(async () => {
     console.warn("[CONTRACT] Save triggered");
     setHasSubmitted(true);
@@ -471,6 +484,10 @@ export function ContractDetailsStep({
     /** Validate start date: check if all fields are filled and form valid date */
     const startDateComplete = localDates.start_date_day && localDates.start_date_month && localDates.start_date_year;
     if (startDateComplete) {
+      if (localDates.start_date_day === "00" || localDates.start_date_month === "00") {
+        toast.error("Please fix the highlighted fields");
+        throw new Error("VALIDATION_CONTRACT_INVALID_START_DATE_ZERO");
+      }
       if (!isCompleteValidDate(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year)) {
         toast.error("Please fix the highlighted fields");
         throw new Error("VALIDATION_CONTRACT_INVALID_START_DATE");
@@ -480,6 +497,10 @@ export function ContractDetailsStep({
     /** Validate end date: check if all fields are filled and form valid date */
     const endDateComplete = localDates.end_date_day && localDates.end_date_month && localDates.end_date_year;
     if (endDateComplete) {
+      if (localDates.end_date_day === "00" || localDates.end_date_month === "00") {
+        toast.error("Please fix the highlighted fields");
+        throw new Error("VALIDATION_CONTRACT_INVALID_END_DATE_ZERO");
+      }
       if (!isCompleteValidDate(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year)) {
         toast.error("Please fix the highlighted fields");
         throw new Error("VALIDATION_CONTRACT_INVALID_END_DATE");
@@ -742,15 +763,6 @@ export function ContractDetailsStep({
     return !Number.isNaN(date.getTime());
   };
 
-  /** Check if locally-typed date is invalid (e.g., Feb 31) */
-  const isLocalDateInvalid = (day: string, month: string, year: string): boolean => {
-    // If all fields are filled
-    if (day && month && year) {
-      return !isCompleteValidDate(day, month, year);
-    }
-    return false;
-  };
-
   const isStartInvalid =
     hasSubmitted &&
     (
@@ -854,14 +866,9 @@ export function ContractDetailsStep({
                 Start date is required
               </p>
             )}
-            {hasSubmitted && formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date) && (
+            {hasSubmitted && (formData.contract.start_date || localDates.start_date_day) && (isLocalDateInvalid(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year) || (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))) && (
               <p className="text-xs text-destructive">
-                Invalid date (e.g., February 31 does not exist)
-              </p>
-            )}
-            {hasSubmitted && isLocalDateInvalid(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year) && (
-              <p className="text-xs text-destructive">
-                Invalid date (e.g., February 31 does not exist)
+                Invalid date
               </p>
             )}
           </div>
@@ -906,15 +913,9 @@ export function ContractDetailsStep({
               </p>
             )}
 
-            {hasSubmitted && formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date) && (
+            {hasSubmitted && (formData.contract.end_date || localDates.end_date_day) && (isLocalDateInvalid(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year) || (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))) && (
               <p className="text-xs text-destructive">
-                Invalid date (e.g., February 31 does not exist)
-              </p>
-            )}
-
-            {hasSubmitted && isLocalDateInvalid(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year) && (
-              <p className="text-xs text-destructive">
-                Invalid date (e.g., February 31 does not exist)
+                Invalid date
               </p>
             )}
 
