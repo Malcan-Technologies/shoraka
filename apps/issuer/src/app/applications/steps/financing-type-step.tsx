@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useProducts } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
@@ -86,7 +86,7 @@ export function FinancingTypeStep({
   if (isLoadingProducts || debugSkeletonMode) {
     return (
       <>
-        <StepSkeleton rows={4} />
+        <FinancingTypeSkeleton />
         <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </>
     );

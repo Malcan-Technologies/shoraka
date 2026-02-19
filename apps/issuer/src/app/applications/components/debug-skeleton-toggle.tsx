@@ -5,6 +5,7 @@
  * What: Button to toggle skeleton preview mode on/off
  * Why: Easy visual testing of loading states across steps
  * Data: Boolean flag to show/hide skeleton
+ * Note: Only renders in development (NODE_ENV !== "production")
  */
 import { Button } from "@/components/ui/button";
 import React from "react";
@@ -15,6 +16,11 @@ interface DebugSkeletonToggleProps {
 }
 
 export function DebugSkeletonToggle({ isSkeletonMode, onToggle }: DebugSkeletonToggleProps) {
+  // Only show in development
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
       <Button

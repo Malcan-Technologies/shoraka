@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
+import { DebugSkeletonToggle } from "../components/debug-skeleton-toggle";
+import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
 
 /**
  * NEW APPLICATION PAGE
@@ -30,6 +32,9 @@ export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization } = useOrganization();
   const { setTitle } = useHeader();
+
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   React.useEffect(() => {
     setTitle("New Application");
@@ -209,7 +214,7 @@ export default function NewApplicationPage() {
   };
 
   // Show loading state while fetching products
-  if (isLoadingProducts) {
+  if (isLoadingProducts || debugSkeletonMode) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -222,7 +227,14 @@ export default function NewApplicationPage() {
           <div className="max-w-7xl mx-auto w-full px-4 py-8">
             <Skeleton className="h-9 w-64 mb-2" />
             <Skeleton className="h-5 w-96 mb-8" />
-            <Skeleton className="h-64 w-full" />
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-border w-full" />
+
+          {/* Product List Skeleton */}
+          <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+            <FinancingTypeSkeleton />
           </div>
         </main>
 
@@ -231,6 +243,8 @@ export default function NewApplicationPage() {
             <Skeleton className="h-12 w-40 rounded-xl" />
           </div>
         </footer>
+
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </div>
     );
   }
@@ -293,6 +307,8 @@ export default function NewApplicationPage() {
           </Button>
         </div>
       </footer>
+
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </div>
   );
 }
