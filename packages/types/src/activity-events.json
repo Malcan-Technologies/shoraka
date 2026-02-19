@@ -14,4 +14,7 @@
   "SOPHISTICATED_STATUS_UPDATED": { "label": "Sophisticated Updated", "dotColor": "bg-violet-500" },
   "KYC_APPROVED": { "label": "KYC Approved", "dotColor": "bg-yellow-500" },
   "KYB_APPROVED": { "label": "KYB Approved", "dotColor": "bg-yellow-500" }
+  ,
+  "APPLICATION_CREATED": { "label": "Application Created", "dotColor": "bg-cyan-500" },
+  "APPLICATION_SUBMITTED": { "label": "Application Submitted", "dotColor": "bg-indigo-500" }
 }

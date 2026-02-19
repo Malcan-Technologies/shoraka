@@ -8,6 +8,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
+import { createApplicationLog } from "./application-log";
 
 /**
  * Get authenticated user ID from request
@@ -28,6 +29,15 @@ async function createApplication(req: Request, res: Response, next: NextFunction
   try {
     const input = createApplicationSchema.parse(req.body);
     const application = await applicationService.createApplication(input);
+
+    // Audit log: APPLICATION_CREATED
+    try {
+      await createApplicationLog(req, "APPLICATION_CREATED", application, {
+        correlationId: res.locals.correlationId || null,
+      });
+    } catch {
+      // ignore
+    }
 
     res.status(201).json({
       success: true,
@@ -177,6 +187,17 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
     const userId = getUserId(req);
 
     const result = await applicationService.updateApplicationStatus(id, status, userId);
+
+    // If submitted, write application submitted audit log
+    if (status === "SUBMITTED") {
+      try {
+        await createApplicationLog(req, "APPLICATION_SUBMITTED", result, {
+          correlationId: res.locals.correlationId || null,
+        });
+      } catch {
+        // ignore
+      }
+    }
 
     res.json({
       success: true,
