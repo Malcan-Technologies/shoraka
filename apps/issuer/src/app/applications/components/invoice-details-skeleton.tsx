@@ -14,7 +14,7 @@ export function InvoiceDetailsSkeleton() {
         <div className="space-y-3 mt-4 px-3">
           <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
             <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-40" />
 
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-5 w-40" />
@@ -36,12 +36,19 @@ export function InvoiceDetailsSkeleton() {
 
       {/* Invoices Section */}
       <div className="space-y-4">
-        <div>
-          <Skeleton className="h-7 w-24" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <Skeleton className="h-7 w-40" />
+            <div className="mt-1">
+              <Skeleton className="h-4 w-[60%]" />
+            </div>
+          </div>
 
-        <Skeleton className="h-5 w-full" />
+          {/* Add Invoice Button Skeleton */}
+          <div className="shrink-0 ml-4">
+            <Skeleton className="h-10 w-[140px] rounded-lg" />
+          </div>
+        </div>
 
         <div className="border rounded-xl bg-card overflow-hidden">
           <div className="overflow-x-auto">

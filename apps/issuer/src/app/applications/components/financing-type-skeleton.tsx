@@ -22,10 +22,12 @@ function SkeletonProductCard() {
               </div>
             </div>
 
-            {/* Product text placeholder */}
+            {/* Product text placeholder - name and description */}
             <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-[20px] w-[62%] rounded" />
-              <Skeleton className="h-[16px] w-[78%] rounded" />
+              {/* Product name - matches text-[20px] */}
+              <Skeleton className="h-[24px] w-[65%] rounded" />
+              {/* Product description - matches text-[16px], single line */}
+              <Skeleton className="h-[18px] w-[80%] rounded" />
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ export function FinancingStructureSkeleton() {
         <div className="border border-border rounded-xl p-4 bg-card">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-start gap-3 flex-1">
-              <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" />
+              {/* <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" /> */}
               <div className="space-y-2 flex-1">
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-full" />
@@ -21,7 +21,7 @@ export function FinancingStructureSkeleton() {
         <div className="border border-border rounded-xl p-4 bg-card">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-start gap-3 flex-1">
-              <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" />
+              {/* <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" /> */}
               <div className="space-y-2 flex-1">
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-full" />
@@ -35,7 +35,7 @@ export function FinancingStructureSkeleton() {
         <div className="border border-border rounded-xl p-4 bg-card">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-start gap-3 flex-1">
-              <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" />
+              {/* <Skeleton className="h-5 w-5 rounded-full mt-1 shrink-0" /> */}
               <div className="space-y-2 flex-1">
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-full" />

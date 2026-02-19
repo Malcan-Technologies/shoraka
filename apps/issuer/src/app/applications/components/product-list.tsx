@@ -19,11 +19,10 @@ function ProductCardSkeleton() {
               </div>
             </div>
 
-            {/* Text */}
-            <div className="min-w-0 flex-1">
+            {/* Text - name and description */}
+            <div className="min-w-0 flex-1 space-y-2">
               <Skeleton className="h-6 w-[62%] rounded" />
-
-              <Skeleton className="mt-2 h-5 w-[78%] rounded" />
+              <Skeleton className="h-5 w-[78%] rounded" />
             </div>
           </div>
         </div>

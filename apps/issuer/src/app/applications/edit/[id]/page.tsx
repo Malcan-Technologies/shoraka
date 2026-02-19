@@ -60,7 +60,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DefaultSkeleton } from "../_components/default-skeleton";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -289,7 +288,6 @@ export default function EditApplicationPage() {
   const currentStepId = (currentStepConfig?.id as string) || "";
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
-    console.log(currentStepId, 'key', key)
     if (key) return key;
 
     // Fallback detection from application data
@@ -517,6 +515,7 @@ export default function EditApplicationPage() {
     const financingType = application?.financing_type as Record<string, unknown>;
     const savedProductId = (financingType?.product_id as string) || "";
 
+    console.log('hi', currentStepKey)
     if (currentStepKey === "financing_type") {
       return (
         <FinancingTypeStep
@@ -585,7 +584,8 @@ export default function EditApplicationPage() {
       );
     }
 
-    return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
+    // This shouldn't happen - each step has its own skeleton for loading
+    return null;
   };
 
   /* ================================================================
@@ -892,60 +892,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const isLoading = isLoadingApp || isLoadingProducts;
-  const showBlockingSkeleton = isLoading || !application || applicationBlockReason !== null;
-
-  if (showBlockingSkeleton) {
-    return (
-      <>
-        <DefaultSkeleton
-          steps={effectiveWorkflow
-            .slice(1)
-            .map(
-              (s: Record<string, unknown>) =>
-                (s.name as string | undefined) || ""
-            )}
-          currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
-        />
-
-        <Dialog open={applicationBlockReason !== null} onOpenChange={() => { }}>
-          <DialogContent className="[&>button]:hidden">
-            <DialogHeader>
-              <DialogTitle>
-                {applicationBlockReason === "PRODUCT_DELETED"
-                  ? "Product No Longer Available"
-                  : "Product Updated"}
-              </DialogTitle>
-              <DialogDescription>
-                {applicationBlockReason === "PRODUCT_DELETED" ? (
-                  <>
-                    The financing product used for this application has been removed and is no
-                    longer available. To continue, please start a new application with a different
-                    product.
-                  </>
-                ) : (
-                  <>
-                    This financing product has been updated with new requirements. To continue,
-                    you'll need to restart your application using the latest version.
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                onClick={handleRestartApplication}
-                className="w-full"
-                disabled={archiveApplicationMutation.isPending}
-              >
-                {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  const isProgressLoading = isLoadingProducts || !effectiveWorkflow.length;
+  const showBlockingDialog = applicationBlockReason !== null;
 
   return (
     <div className="flex flex-col h-full">
@@ -953,14 +900,16 @@ export default function EditApplicationPage() {
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {/* Page Title */}
-          <div className="mb-4 sm:mb-6">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-              {currentStepInfo.title}
-            </h1>
-            <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
-              {currentStepInfo.description}
-            </p>
-          </div>
+          {application ? (
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+                {currentStepInfo.title}
+              </h1>
+              <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                {currentStepInfo.description}
+              </p>
+            </div>
+          ) : null}
 
           {/* Progress Indicator */}
           <ProgressIndicator
@@ -968,40 +917,41 @@ export default function EditApplicationPage() {
               .slice(1)
               .map((s: Record<string, unknown>) => (s.name as string))}
             currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
-            isLoading={isProgressLoading}
+            isLoading={isLoading || !effectiveWorkflow.length}
           />
         </div>
 
         {/* Divider */}
         <div className="h-px bg-border w-full" />
 
-        {/* Step Content */}
+        {/* Step Content - Shows step's own skeleton when loading */}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
           {renderStepComponent()}
         </div>
       </main>
 
       {/* Bottom buttons */}
-      <footer className="sticky bottom-0 border-t bg-background">
-        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
-          >
-            <ArrowLeftIcon className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+      {application && !showBlockingDialog ? (
+        <footer className="sticky bottom-0 border-t bg-background">
+          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
+            >
+              <ArrowLeftIcon className="h-4 w-4 mr-2" />
+              Back
+            </Button>
 
-          <Button
-            onClick={
-              currentStepKey === "review_and_submit"
-                ? handleSubmitApplication
-                : handleSaveAndContinue
-            }
-            disabled={
-              updateStepMutation.isPending ||
-              updateStatusMutation.isPending ||
+            <Button
+              onClick={
+                currentStepKey === "review_and_submit"
+                  ? handleSubmitApplication
+                  : handleSaveAndContinue
+              }
+              disabled={
+                updateStepMutation.isPending ||
+                updateStatusMutation.isPending ||
               isSubmittingRef.current ||
               !isCurrentStepValid ||
               !isStepMapped
@@ -1020,6 +970,43 @@ export default function EditApplicationPage() {
           </Button>
         </div>
       </footer>
+      ) : null}
+
+      {/* Product Block Dialog */}
+      <Dialog open={showBlockingDialog} onOpenChange={() => { }}>
+        <DialogContent className="[&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>
+              {applicationBlockReason === "PRODUCT_DELETED"
+                ? "Product No Longer Available"
+                : "Product Updated"}
+            </DialogTitle>
+            <DialogDescription>
+              {applicationBlockReason === "PRODUCT_DELETED" ? (
+                <>
+                  The financing product used for this application has been removed and is no
+                  longer available. To continue, please start a new application with a different
+                  product.
+                </>
+              ) : (
+                <>
+                  This financing product has been updated with new requirements. To continue,
+                  you'll need to restart your application using the latest version.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={handleRestartApplication}
+              className="w-full"
+              disabled={archiveApplicationMutation.isPending}
+            >
+              {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Unsaved Changes Modal */}
       <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>

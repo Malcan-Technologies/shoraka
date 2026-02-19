@@ -3,9 +3,9 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 
 export function ReviewAndSubmitSkeleton() {
   return (
-    <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
+    <div className="space-y-10 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Financing Details Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-40" />
           <div className="mt-2 h-px bg-border" />
@@ -23,7 +23,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Contract Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-24" />
           <div className="mt-2 h-px bg-border" />
@@ -54,13 +54,11 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Invoices Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-24" />
           <div className="mt-2 h-px bg-border" />
         </div>
-
-        <Skeleton className="h-5 w-full" />
 
         <div className="border rounded-xl bg-card overflow-hidden">
           <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
@@ -186,7 +184,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Company Info Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-32" />
           <div className="mt-2 h-px bg-border" />
@@ -214,7 +212,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Directors & Shareholders Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-40" />
           <div className="mt-2 h-px bg-border" />
@@ -230,7 +228,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Banking Details Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-32" />
           <div className="mt-2 h-px bg-border" />
@@ -246,7 +244,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Address Section */}
-      <section className="space-y-6">
+      <section className="space-y-4">
         <div>
           <Skeleton className="h-7 w-20" />
           <div className="mt-2 h-px bg-border" />
@@ -284,7 +282,7 @@ export function ReviewAndSubmitSkeleton() {
       </section>
 
       {/* Legal Docs Section */}
-      <section className="space-y-6">
+      <section className="space-y-5">
         <div>
           <Skeleton className="h-7 w-24" />
           <div className="mt-2 h-px bg-border" />
