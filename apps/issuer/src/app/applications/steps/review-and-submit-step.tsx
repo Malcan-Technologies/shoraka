@@ -17,7 +17,7 @@ import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { ReviewAndSubmitSkeleton } from "@/app/applications/components/review-and-submit-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const INVOICE_TABLE_COLUMNS = {
@@ -268,7 +268,7 @@ export function ReviewAndSubmitStep({
   if (isLoading || debugSkeletonMode) {
     return (
       <>
-        <StepSkeleton showTable tableRows={5} />
+        <ReviewAndSubmitSkeleton />
         <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </>
     );

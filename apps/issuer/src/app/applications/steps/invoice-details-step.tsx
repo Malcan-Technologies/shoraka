@@ -62,7 +62,8 @@ import {
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { InvoiceDetailsSkeleton } from "@/app/applications/components/invoice-details-skeleton";
+import { InvoiceTableSkeleton } from "@/app/applications/components/invoice-table-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
@@ -743,7 +744,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       {/* ================= Contract ================= */}
       {isLoadingApplication || debugSkeletonMode ? (
         <>
-          <StepSkeleton rows={4} />
+          <InvoiceDetailsSkeleton />
           <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
         </>
       ) : (
@@ -835,7 +836,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         {/* ================= Table ================= */}
         <div className="mt-4 px-3">
           {isLoadingInvoices ? (
-            <StepSkeleton showTable tableRows={3} />
+            <InvoiceTableSkeleton rowCount={3} />
           ) : (
           <div className="border rounded-xl bg-card overflow-hidden">
             <div className="overflow-x-auto">

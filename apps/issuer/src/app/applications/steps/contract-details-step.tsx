@@ -28,7 +28,7 @@ import {
 import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { ContractDetailsSkeleton } from "@/app/applications/components/contract-details-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
@@ -328,10 +328,6 @@ function FileUploadArea({
 /* ================================================================
    SKELETON
    ================================================================ */
-
-function ContractDetailsSkeleton() {
-  return <StepSkeleton rows={8} />;
-}
 
 /* ================================================================
    MAIN COMPONENT

@@ -7,7 +7,7 @@ import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { SupportingDocumentsSkeleton } from "@/app/applications/components/supporting-documents-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -641,6 +641,4 @@ export function SupportingDocumentsStep({
 
 }
 
-function SupportingDocumentsSkeleton() {
-  return <StepSkeleton rows={6} />;
-}
+

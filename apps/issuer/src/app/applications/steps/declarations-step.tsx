@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useApplication } from "@/hooks/use-applications";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DeclarationsSkeleton } from "@/app/applications/components/declarations-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
@@ -192,7 +192,7 @@ export function DeclarationsStep({
   if (isLoadingApp || !stepConfig || debugSkeletonMode) {
     return (
       <>
-        <StepSkeleton rows={3} />
+        <DeclarationsSkeleton />
         <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </>
     );

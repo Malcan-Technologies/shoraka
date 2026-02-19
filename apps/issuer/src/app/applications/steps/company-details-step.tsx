@@ -47,7 +47,7 @@ import {
   formSelectTriggerClassName,
   withFieldError,
 } from "@/app/applications/components/form-control";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { CompanyDetailsSkeleton } from "@/app/applications/components/company-details-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 interface CompanyDetailsStepProps {
@@ -1102,9 +1102,5 @@ function EditAddressDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function CompanyDetailsSkeleton() {
-  return <StepSkeleton rows={6} />;
 }
 

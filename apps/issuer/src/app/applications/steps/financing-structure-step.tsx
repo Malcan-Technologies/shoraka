@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { FinancingStructureSkeleton } from "@/app/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
@@ -216,7 +216,7 @@ export function FinancingStructureStep({
   if (isLoadingApp || debugSkeletonMode) {
     return (
       <>
-        <StepSkeleton rows={3} />
+        <FinancingStructureSkeleton />
         <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </>
     );
