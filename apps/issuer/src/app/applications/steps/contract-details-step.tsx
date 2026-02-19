@@ -69,10 +69,20 @@ const COUNTRIES = [
    VALIDATION HELPERS
    ================================================================ */
 
-function isStartBeforeEnd(start?: string, end?: string) {
+   function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
-  return new Date(start).getTime() < new Date(end).getTime();
+
+  const parsedStart = parse(start, "d/M/yyyy", new Date());
+  const parsedEnd = parse(end, "d/M/yyyy", new Date());
+
+  if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+    return true; // format validation handled elsewhere
+  }
+
+  return parsedStart.getTime() < parsedEnd.getTime();
 }
+
+
 
 const MIN_CONTRACT_MONTHS = 6;
 
