@@ -44,6 +44,9 @@ export function FinancingStructureStep({
   applicationId,
   onDataChange,
 }: FinancingStructureStepProps) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   /** Local state
    *
    * What: Tracks user selection and initialization from DB.
@@ -209,8 +212,8 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp) {
-    return <StepSkeleton rows={3} />;
+  if (isLoadingApp || SHOW_SKELETON_DEBUG) {
+    return <StepSkeleton rows={3} showButton onSaveClick={() => console.log('Save clicked from financing-structure skeleton')} />;
   }
 
   /** Render blocks

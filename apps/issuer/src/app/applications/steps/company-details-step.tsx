@@ -500,7 +500,12 @@ export function CompanyDetailsStep({
      ================================================================ */
 
   if (isLoadingData || !hasHydratedRef.current) {
-    return <CompanyDetailsSkeleton />;
+    return (
+      <CompanyDetailsSkeleton 
+        showButton
+        onSaveClick={() => console.log('Save clicked from company skeleton')}
+      />
+    );
   }
 
   if (!organizationId) {
@@ -1095,7 +1100,7 @@ function EditAddressDialog({
   );
 }
 
-function CompanyDetailsSkeleton() {
-  return <StepSkeleton rows={6} />;
+function CompanyDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
+  return <StepSkeleton rows={6} showButton={showButton} onSaveClick={onSaveClick} />;
 }
 

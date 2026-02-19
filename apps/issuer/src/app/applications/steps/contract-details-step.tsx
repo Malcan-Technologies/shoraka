@@ -28,7 +28,7 @@ import {
 import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
@@ -328,25 +328,8 @@ function FileUploadArea({
    SKELETON
    ================================================================ */
 
-function ContractDetailsSkeleton() {
-  return (
-    <div className="space-y-10">
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i}>
-              <Skeleton className="h-[22px] w-40 mb-2" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+function ContractDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
+  return <StepSkeleton rows={8} showButton={showButton} onSaveClick={onSaveClick} />;
 }
 
 /* ================================================================
@@ -362,6 +345,9 @@ export function ContractDetailsStep({
   applicationId,
   onDataChange,
 }: ContractDetailsStepProps) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
@@ -871,8 +857,13 @@ export function ContractDetailsStep({
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current) {
-    return <ContractDetailsSkeleton />;
+  if (!isInitializedRef.current || SHOW_SKELETON_DEBUG) {
+    return (
+      <ContractDetailsSkeleton 
+        showButton={SHOW_SKELETON_DEBUG}
+        onSaveClick={() => console.log('Save clicked from contract skeleton')}
+      />
+    );
   }
 
   const labelClassName = cn(formLabelClassName, "font-normal");

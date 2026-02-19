@@ -20,6 +20,9 @@ export function SupportingDocumentsStep({
   stepConfig?: any;
   onDataChange?: (data: any) => void;
 }) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -462,8 +465,8 @@ export function SupportingDocumentsStep({
 
   return (
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig ? (
-        <SupportingDocumentsSkeleton />
+      {isLoadingApp || !stepConfig || SHOW_SKELETON_DEBUG ? (
+        <SupportingDocumentsSkeleton showButton={SHOW_SKELETON_DEBUG} onSaveClick={() => console.log('Save clicked from supporting-documents skeleton')} />
       ) : (categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
@@ -634,6 +637,6 @@ export function SupportingDocumentsStep({
 
 }
 
-function SupportingDocumentsSkeleton() {
-  return <StepSkeleton rows={6} />;
+function SupportingDocumentsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
+  return <StepSkeleton rows={6} showButton={showButton} onSaveClick={onSaveClick} />;
 }

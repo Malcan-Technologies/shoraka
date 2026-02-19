@@ -28,6 +28,9 @@ export function FinancingTypeStep({
   initialProductId,
   onDataChange,
 }: FinancingTypeStepProps) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   // Load all products
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
@@ -79,8 +82,8 @@ export function FinancingTypeStep({
   };
 
   // Show loading state
-  if (isLoadingProducts) {
-    return <StepSkeleton rows={4} />;
+  if (isLoadingProducts || SHOW_SKELETON_DEBUG) {
+    return <StepSkeleton rows={4} showButton onSaveClick={() => console.log('Save clicked from financing-type skeleton')} />;
   }
 
   // Show empty state

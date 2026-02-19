@@ -70,6 +70,9 @@ export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
 }: ReviewAndSubmitStepProps) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
   const contractId = (application as any)?.contract?.id || (application as any)?.contract_id;
@@ -261,8 +264,8 @@ export function ReviewAndSubmitStep({
     });
   }, [onDataChange]);
 
-  if (isLoading) {
-    return <StepSkeleton showTable tableRows={5} />;
+  if (isLoading || SHOW_SKELETON_DEBUG) {
+    return <StepSkeleton showTable tableRows={5} showButton onSaveClick={() => console.log('Save clicked from review skeleton')} />;
   }
 
   // Formatters

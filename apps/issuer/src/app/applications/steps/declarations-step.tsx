@@ -31,6 +31,9 @@ export function DeclarationsStep({
   stepConfig,
   onDataChange,
 }: DeclarationsStepProps) {
+  // DEBUG: Set to true to always show skeleton/preview mode
+  const FORCE_SKELETON_MODE = true;
+  
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
@@ -185,8 +188,8 @@ export function DeclarationsStep({
   /**
    * LOADING STATE
    */
-  if (isLoadingApp || !stepConfig) {
-    return <StepSkeleton rows={3} />;
+  if (isLoadingApp || !stepConfig || FORCE_SKELETON_MODE) {
+    return <StepSkeleton rows={3} showButton onSaveClick={() => console.log('Save clicked from declarations skeleton')} />;
   }
 
   /**

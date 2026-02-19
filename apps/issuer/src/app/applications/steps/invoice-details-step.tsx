@@ -125,6 +125,9 @@ interface InvoiceDetailsStepProps {
 }
 
 export default function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
+  // DEBUG: Force show skeleton
+  const SHOW_SKELETON_DEBUG = true;
+  
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<any>(null);
@@ -736,8 +739,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   return (
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
-      {isLoadingApplication ? (
-        <StepSkeleton rows={4} />
+      {isLoadingApplication || SHOW_SKELETON_DEBUG ? (
+        <StepSkeleton rows={4} showButton onSaveClick={() => console.log('Save clicked from invoice skeleton')} />
       ) : (
         application?.contract && (
           <div className="space-y-4">
