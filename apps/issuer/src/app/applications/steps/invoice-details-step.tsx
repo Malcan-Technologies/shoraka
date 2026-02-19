@@ -62,7 +62,7 @@ import {
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -737,28 +737,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
       {isLoadingApplication ? (
-        <div className="space-y-4">
-          <div>
-            <Skeleton className="h-7 w-32" />
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className="space-y-3 mt-4 px-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-            </div>
-          </div>
-        </div>
+        <StepSkeleton rows={4} />
       ) : (
         application?.contract && (
           <div className="space-y-4">
@@ -848,20 +827,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         {/* ================= Table ================= */}
         <div className="mt-4 px-3">
           {isLoadingInvoices ? (
-            <div className="border rounded-xl bg-card overflow-hidden p-4 space-y-4">
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-9 w-[140px]" />
-                <Skeleton className="h-9 w-[100px]" />
-                <Skeleton className="h-9 w-[150px]" />
-                <Skeleton className="h-9 w-[150px]" />
-                <Skeleton className="h-9 w-[130px]" />
-                <Skeleton className="h-9 w-[200px]" />
-                <Skeleton className="h-9 w-[160px]" />
-              </div>
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
+            <StepSkeleton showTable tableRows={3} />
           ) : (
           <div className="border rounded-xl bg-card overflow-hidden">
             <div className="overflow-x-auto">

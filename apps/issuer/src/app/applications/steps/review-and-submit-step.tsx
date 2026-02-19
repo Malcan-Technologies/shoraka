@@ -17,6 +17,7 @@ import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -62,7 +63,7 @@ interface ReviewAndSubmitStepProps {
 const labelClassName = formLabelClassName;
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const gridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
 
 export function ReviewAndSubmitStep({
@@ -261,13 +262,7 @@ export function ReviewAndSubmitStep({
   }, [onDataChange]);
 
   if (isLoading) {
-    return (
-      <div className="space-y-12">
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
+    return <StepSkeleton showTable tableRows={5} />;
   }
 
   // Formatters

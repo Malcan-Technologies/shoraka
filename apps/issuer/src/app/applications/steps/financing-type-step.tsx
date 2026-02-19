@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useProducts } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 
 /**
  * FINANCING TYPE STEP
@@ -80,18 +80,7 @@ export function FinancingTypeStep({
 
   // Show loading state
   if (isLoadingProducts) {
-    return (
-      <div className="space-y-10">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className="space-y-3 px-3">
-          <Skeleton className="h-[86px] w-full rounded-xl" />
-          <Skeleton className="h-[86px] w-full rounded-xl" />
-        </div>
-      </div>
-    );
+    return <StepSkeleton rows={4} />;
   }
 
   // Show empty state

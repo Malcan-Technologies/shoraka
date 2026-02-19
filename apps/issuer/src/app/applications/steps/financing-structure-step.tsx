@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 
 /**
@@ -210,13 +210,7 @@ export function FinancingStructureStep({
 
   // Loading state
   if (isLoadingApp) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
-        ))}
-      </div>
-    );
+    return <StepSkeleton rows={3} />;
   }
 
   /** Render blocks

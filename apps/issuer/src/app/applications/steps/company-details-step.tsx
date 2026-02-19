@@ -17,7 +17,6 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +47,7 @@ import {
   formSelectTriggerClassName,
   withFieldError,
 } from "@/app/applications/components/form-control";
+import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -1096,85 +1096,6 @@ function EditAddressDialog({
 }
 
 function CompanyDetailsSkeleton() {
-  return (
-    <div className="mt-1 space-y-10">
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          {[1, 2].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-[22px] w-full" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          {[1, 2, 3, 4].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+  return <StepSkeleton rows={6} />;
 }
+
