@@ -461,7 +461,7 @@ export function ContractDetailsStep({
         value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
         start_date: (contractDetails.start_date as string) || "",
         end_date: (contractDetails.end_date as string) || "",
-        financing: 
+        financing:
           (contractDetails.financing != null ? formatMoney(contractDetails.financing as string | number) : "") ||
           (contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "") ||
           "",
@@ -931,9 +931,9 @@ export function ContractDetailsStep({
           <div className="space-y-1">
             <div className="h-11 flex items-center">
               <MoneyInput
-              value={formData.contract.financing}
-              onValueChange={(value) => handleInputChange("contract", "financing", value)}
-                placeholder="0.00"
+                value={formData.contract.financing}
+                onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                placeholder={`eg. ${formatMoney(1000000)}`}
                 prefix="RM"
                 inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
               />
