@@ -18,6 +18,7 @@ interface DateInputProps {
   isInvalid?: boolean;
   defaultCalendarMonth?: Date;
   size?: DateInputSize;
+  placeholder?: string;
 }
 
 /** Size presets for responsive DateInput */
@@ -32,8 +33,8 @@ const sizePresets: Record<DateInputSize, {
     icon: "h-4 w-4",
   },
   compact: {
-    container: "px-3 h-9 text-xs",
-    input: "text-xs",
+    container: "px-3 h-9 text-sm",
+    input: "text-sm",
     icon: "h-3 w-3",
   },
 };
@@ -47,6 +48,7 @@ export function DateInput({
   isInvalid,
   defaultCalendarMonth,
   size = "default",
+  placeholder,
 }: DateInputProps) {
   const [open, setOpen] = React.useState(false);
   const preset = sizePresets[size];
@@ -88,7 +90,7 @@ export function DateInput({
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
-            "flex items-center rounded-xl border bg-background transition-colors cursor-text",
+            "relative flex items-center rounded-xl border bg-background transition-colors cursor-text",
             preset.container,
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
             !isInvalid && "border-input focus-within:border-primary",
@@ -99,11 +101,13 @@ export function DateInput({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onBlur={handleBlur}
-            placeholder="d/M/yyyy"
+            placeholder={placeholder ?? "Enter date"}
             maxLength={10}
             className={cn(
               "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
               preset.input,
+              // reserve space for right icon
+              size === "compact" ? "pr-8" : "pr-10",
               inputClassName
             )}
           />
@@ -114,7 +118,11 @@ export function DateInput({
               e.stopPropagation();
               setOpen(true);
             }}
-            className={cn("ml-2 text-muted-foreground hover:text-foreground transition-colors", size === "compact" && "ml-1 p-1 -mr-1")}
+            className={cn(
+              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
+              size === "compact" ? "p-1" : "p-2"
+            )}
+            aria-label="Open calendar"
           >
             <CalendarIcon className={preset.icon} />
           </button>

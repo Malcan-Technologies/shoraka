@@ -937,6 +937,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                             className={!isEditable ? "opacity-60 pointer-events-none" : ""}
                             isInvalid={isRowPartial(inv)}
                             size="compact"
+                            placeholder="Enter date"
                           />
                         </TableCell>
 
