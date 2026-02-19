@@ -18,7 +18,7 @@ function StatusDot({ status }: { status: string }) {
     <span
       className={cn(
         "inline-block h-2 w-2 rounded-full shrink-0",
-        isApproved ? "bg-emerald-500" : "bg-destructive"
+        isApproved ? "bg-primary" : "bg-destructive"
       )}
       aria-hidden
     />

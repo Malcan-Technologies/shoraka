@@ -3775,6 +3775,19 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
 
+    if (status === ApplicationStatus.APPROVED) {
+      const allApproved = this.allSectionsApproved(
+        (application.application_reviews ?? []) as { section: string; status: string }[]
+      );
+      if (!allApproved) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "All review sections (Financial, Justification, Documents) must be approved before final approval"
+        );
+      }
+    }
+
     const updatedApplication = await repository.updateApplicationStatus(id, status);
 
     logger.info(
@@ -3785,6 +3798,16 @@ export class AdminService {
     return updatedApplication;
   }
 
+  private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
+    ApplicationStatus.SUBMITTED,
+    ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.RESUBMITTED,
+  ];
+
+  private isReviewable(status: ApplicationStatus): boolean {
+    return AdminService.REVIEWABLE_STATUSES.includes(status);
+  }
+
   /**
    * Transition application to UNDER_REVIEW on first review action (when SUBMITTED or RESUBMITTED)
    */
@@ -3792,6 +3815,50 @@ export class AdminService {
     if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
       await repository.updateApplicationStatus(applicationId, ApplicationStatus.UNDER_REVIEW);
     }
+  }
+
+  /**
+   * Validate that an invoice item exists in the application
+   */
+  private validateInvoiceExists(application: { invoices: { id: string }[] }, itemId: string): void {
+    const exists = application.invoices?.some((inv) => inv.id === itemId);
+    if (!exists) {
+      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
+    }
+  }
+
+  /**
+   * Validate that a document item exists in the application (supporting_documents must exist)
+   */
+  private validateDocumentExists(application: { supporting_documents: unknown }): void {
+    const docs = application.supporting_documents;
+    if (!docs || typeof docs !== "object") {
+      throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
+    }
+  }
+
+  /**
+   * Validate that a review item exists in the application
+   */
+  private validateReviewItemExists(
+    application: { invoices?: { id: string }[]; supporting_documents?: unknown },
+    itemType: "INVOICE" | "DOCUMENT",
+    itemId: string
+  ): void {
+    if (itemType === "INVOICE") {
+      this.validateInvoiceExists(application as { invoices: { id: string }[] }, itemId);
+    } else {
+      this.validateDocumentExists(application as { supporting_documents: unknown });
+    }
+  }
+
+  /**
+   * Check if all review sections are approved (for final application approval)
+   */
+  private allSectionsApproved(reviews: { section: string; status: string }[]): boolean {
+    const sections = [ReviewSection.FINANCIAL, ReviewSection.JUSTIFICATION, ReviewSection.DOCUMENTS];
+    const approved = new Set(reviews?.filter((r) => r.status === "APPROVED").map((r) => r.section) ?? []);
+    return sections.every((s) => approved.has(s));
   }
 
   /**
@@ -3807,11 +3874,7 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
 
@@ -3857,11 +3920,7 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
 
@@ -3918,11 +3977,7 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
 
@@ -3979,13 +4034,11 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
+
+    this.validateReviewItemExists(application, itemType, itemId);
 
     await this.ensureUnderReview(repository, applicationId, application.status);
     const existing = application.application_review_items?.find(
@@ -4030,13 +4083,11 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
+
+    this.validateReviewItemExists(application, itemType, itemId);
 
     await this.ensureUnderReview(repository, applicationId, application.status);
     const existing = application.application_review_items?.find(
@@ -4089,13 +4140,11 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    if (
-      application.status !== ApplicationStatus.SUBMITTED &&
-      application.status !== ApplicationStatus.UNDER_REVIEW &&
-      application.status !== ApplicationStatus.RESUBMITTED
-    ) {
+    if (!this.isReviewable(application.status)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
+
+    this.validateReviewItemExists(application, itemType, itemId);
 
     await this.ensureUnderReview(repository, applicationId, application.status);
     const existing = application.application_review_items?.find(

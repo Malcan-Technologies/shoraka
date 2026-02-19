@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import type { ApiError } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -12,7 +13,7 @@ export function useApproveReviewSection() {
     mutationFn: async ({ applicationId, section }: { applicationId: string; section: string }) => {
       const response = await apiClient.approveReviewSection(applicationId, section);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to approve section");
+        throw new Error((response as ApiError).error?.message ?? "Failed to approve section");
       }
       return response.data;
     },
@@ -40,7 +41,7 @@ export function useRejectReviewSection() {
     }) => {
       const response = await apiClient.rejectReviewSection(applicationId, section, note);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to reject section");
+        throw new Error((response as ApiError).error?.message ?? "Failed to reject section");
       }
       return response.data;
     },
@@ -68,7 +69,7 @@ export function useRequestAmendmentReviewSection() {
     }) => {
       const response = await apiClient.requestAmendmentReviewSection(applicationId, section, note);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to request amendment");
+        throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
       }
       return response.data;
     },
@@ -96,7 +97,7 @@ export function useApproveReviewItem() {
     }) => {
       const response = await apiClient.approveReviewItem(applicationId, itemType, itemId);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to approve item");
+        throw new Error((response as ApiError).error?.message ?? "Failed to approve item");
       }
       return response.data;
     },
@@ -126,7 +127,7 @@ export function useRejectReviewItem() {
     }) => {
       const response = await apiClient.rejectReviewItem(applicationId, itemType, itemId, note);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to reject item");
+        throw new Error((response as ApiError).error?.message ?? "Failed to reject item");
       }
       return response.data;
     },
@@ -161,7 +162,7 @@ export function useRequestAmendmentReviewItem() {
         note
       );
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to request amendment");
+        throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
       }
       return response.data;
     },
