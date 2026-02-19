@@ -167,6 +167,7 @@ export interface ContractDetails {
   description?: string;
   number: string;
   value: number;
+  financing: number;
   start_date: string;
   end_date: string;
   approved_facility: number;

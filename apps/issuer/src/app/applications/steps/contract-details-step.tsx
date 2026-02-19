@@ -52,11 +52,11 @@ const ENTITY_TYPES = [
   "Partnership",
   "Private Limited Company (Sdn Bhd)",
   "Public Limited Company (Bhd)",
-  "Federal government",
-  "State government",
-  "Federal government agency",
-  "State government agency",
-  "Unlisted public company",
+  "Federal Government",
+  "State Government",
+  "Federal Government Agency",
+  "State Government Agency",
+  "Unlisted Public Company",
 ];
 
 const COUNTRIES = [
@@ -381,7 +381,7 @@ export function ContractDetailsStep({
       value: "",
       start_date: "",
       end_date: "",
-      contract_financing: "",
+      financing: "",
       document: null as FileMetadata | null,
     },
     customer: {
@@ -417,6 +417,12 @@ export function ContractDetailsStep({
   }>({});
 
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [financingError, setFinancingError] = React.useState<string | null>(null);
+
+  /* Clear financing error when user changes the value */
+  React.useEffect(() => {
+    setFinancingError(null);
+  }, [formData.contract.financing]);
 
   /* ================================================================
      INITIALIZATION (run only once per applicationId)
@@ -455,7 +461,10 @@ export function ContractDetailsStep({
         value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
         start_date: (contractDetails.start_date as string) || "",
         end_date: (contractDetails.end_date as string) || "",
-        contract_financing: contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "",
+        financing: 
+          (contractDetails.financing != null ? formatMoney(contractDetails.financing as string | number) : "") ||
+          (contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "") ||
+          "",
         document: (contractDetails.document as FileMetadata | null) || null,
       },
       customer: {
@@ -538,16 +547,18 @@ export function ContractDetailsStep({
     console.warn("[CONTRACT] Save triggered");
     setHasSubmitted(true);
 
+    // Collect validation errors so we can show all inline errors at once.
+    const validationErrors: string[] = [];
+    // Clear previous financing error before validating
+    setFinancingError(null);
+
     /** Validate start date: check if all fields are filled and form valid date */
     const startDateComplete = localDates.start_date_day && localDates.start_date_month && localDates.start_date_year;
     if (startDateComplete) {
       if (localDates.start_date_day === "00" || localDates.start_date_month === "00") {
-        toast.error("Please fix the highlighted fields");
-        throw new Error("VALIDATION_CONTRACT_INVALID_START_DATE_ZERO");
-      }
-      if (!isCompleteValidDate(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year)) {
-        toast.error("Please fix the highlighted fields");
-        throw new Error("VALIDATION_CONTRACT_INVALID_START_DATE");
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE_ZERO");
+      } else if (!isCompleteValidDate(localDates.start_date_day, localDates.start_date_month, localDates.start_date_year)) {
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
       }
     }
 
@@ -555,43 +566,43 @@ export function ContractDetailsStep({
     const endDateComplete = localDates.end_date_day && localDates.end_date_month && localDates.end_date_year;
     if (endDateComplete) {
       if (localDates.end_date_day === "00" || localDates.end_date_month === "00") {
-        toast.error("Please fix the highlighted fields");
-        throw new Error("VALIDATION_CONTRACT_INVALID_END_DATE_ZERO");
-      }
-      if (!isCompleteValidDate(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year)) {
-        toast.error("Please fix the highlighted fields");
-        throw new Error("VALIDATION_CONTRACT_INVALID_END_DATE");
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE_ZERO");
+      } else if (!isCompleteValidDate(localDates.end_date_day, localDates.end_date_month, localDates.end_date_year)) {
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
       }
     }
 
     // ❌ Validation: dates must be present
-    if (!formData.contract.start_date) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_START_DATE_REQUIRED");
-    }
+    if (!formData.contract.start_date) validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
+    if (!formData.contract.end_date) validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
 
-    if (!formData.contract.end_date) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_END_DATE_REQUIRED");
-    }
+    if (!/^\d{12}$/.test(formData.customer.ssm_number)) validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
 
-    if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_SSM_FORMAT");
-    }
-
-    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_DATE_ORDER");
-    }
+    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
 
     const productMinMonths = getProductMinContractMonths(application) ?? MIN_CONTRACT_MONTHS;
     if (isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+      validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
     }
 
-    // Create contract if needed
+    /* Validate financing amount only on Save (not during typing).
+       Follow CashSouk pattern: validation happens at save boundary. */
+    const contractValueNum = parseMoney(formData.contract.value);
+    const financingAmountNum = parseMoney(formData.contract.financing);
+
+    if (financingAmountNum <= 0) {
+      setFinancingError("Financing amount must be greater than 0");
+      validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
+    } else if (financingAmountNum > contractValueNum) {
+      setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
+      validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
+    }
+
+    // If any validation errors, show a single toast and abort save so UI shows all inline errors.
+    if (validationErrors.length > 0) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_ERRORS");
+    }
     let effectiveContractId = contractId;
     if (!effectiveContractId) {
       try {
@@ -711,20 +722,22 @@ export function ContractDetailsStep({
 
     // Convert values to numbers
     const valueNum = parseMoney(updatedFormData.contract.value);
-    const contractFinancingNum = parseMoney(updatedFormData.contract.contract_financing);
+    const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
     const approvedFacilityNum = (contract as unknown as { contract_details?: { approved_facility?: number } })?.contract_details?.approved_facility || 0;
     const utilizedFacilityNum = (contract as unknown as { contract_details?: { utilized_facility?: number } })?.contract_details?.utilized_facility || 0;
-    const availableFacilityNum = valueNum;
+    const availableFacilityNum = 0;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,
       value: valueNum,
-      contract_financing: contractFinancingNum,
+      financing: contractFinancingNum,
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
       available_facility: availableFacilityNum,
       document: updatedFormData.contract.document || undefined,
     };
+
+    console.warn("[CONTRACT] Payload being sent:", { financing: contractFinancingNum, updatedContractDetails });
 
     const updatedCustomerDetails = {
       ...updatedFormData.customer,
@@ -780,7 +793,7 @@ export function ContractDetailsStep({
       !!formData.contract.description &&
       !!formData.contract.number &&
       !!formData.contract.value &&
-      !!formData.contract.contract_financing &&
+      !!formData.contract.financing &&
       hasValidStartDate &&
       hasValidEndDate &&
       hasContractDocument &&
@@ -915,14 +928,21 @@ export function ContractDetailsStep({
           </div>
 
           <Label className={labelClassName}>Contract financing</Label>
-          <div className="h-11 flex items-center">
-            <MoneyInput
-              value={formData.contract.contract_financing}
-              onValueChange={(value) => handleInputChange("contract", "contract_financing", value)}
-              placeholder={`eg. ${formatMoney(1000000)}`}
-              prefix="RM"
-              inputClassName={inputClassName}
-            />
+          <div className="space-y-1">
+            <div className="h-11 flex items-center">
+              <MoneyInput
+              value={formData.contract.financing}
+              onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                placeholder="0.00"
+                prefix="RM"
+                inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
+              />
+            </div>
+            {financingError && (
+              <p className="text-xs text-destructive">
+                {financingError}
+              </p>
+            )}
           </div>
 
           <Label className={labelClassName}>Contract start date</Label>

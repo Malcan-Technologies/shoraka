@@ -79,6 +79,7 @@ export function useUpdateContract() {
         status?: string;
       };
     }) => {
+      console.log('whywhy', data)
       const response = await apiClient.updateContract(id, data);
       if (!response.success) {
         throw new Error(response.error.message);

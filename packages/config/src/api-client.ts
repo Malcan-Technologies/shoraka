@@ -1171,6 +1171,7 @@ export class ApiClient {
       status?: string;
     }
   ): Promise<ApiResponse<Contract> | ApiError> {
+    console.log('dataaaaaaa', data)
     return this.patch<Contract>(`/v1/contracts/${id}`, data);
   }
 

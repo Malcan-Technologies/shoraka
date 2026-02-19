@@ -112,21 +112,8 @@ export class ContractService {
   async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
     await this.verifyContractAccess(id, userId);
     
-    // If updating contract_details with a value, initialize available_facility if not set
-    if (data.contract_details && typeof data.contract_details === 'object') {
-      const contractDetails = data.contract_details as any;
-      
-      // If contract value is being set and available_facility is not provided, initialize it
-      if (contractDetails.value !== undefined) {
-        const contract = await this.repository.findById(id);
-        const existingDetails = (contract?.contract_details as any) || {};
-        
-        // If available_facility wasn't explicitly set and isn't in existing details, set it to contract value
-        if (contractDetails.available_facility === undefined && !existingDetails.available_facility) {
-          contractDetails.available_facility = contractDetails.value;
-        }
-      }
-    }
+    // NOTE: Do not auto-initialize available_facility when contract value changes.
+    // The frontend is responsible for setting available_facility when appropriate.
     
     return this.repository.update(id, {
       ...data,

@@ -99,7 +99,7 @@ function booleanToYesNo(v: boolean | string | undefined): YesNo | "" {
 }
 
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
-  return {
+  const basePayload: BusinessDetailsSnake = {
     about_your_business: {
       what_does_company_do: p.aboutYourBusiness.whatDoesCompanyDo ?? "",
       main_customers: p.aboutYourBusiness.mainCustomers ?? "",
@@ -112,13 +112,19 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
-      platform_name: p.whyRaisingFunds.platformName ?? "",
-      amount_raised: parseMoney(p.whyRaisingFunds.amountRaised ?? ""),
-      same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
       accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
     },
     declaration_confirmed: p.declarationConfirmed,
   };
+
+  /* If raisingOnOtherP2P === "yes", include the dependent fields. Otherwise omit them (don't save). */
+  if (p.whyRaisingFunds.raisingOnOtherP2P === "yes") {
+    basePayload.why_raising_funds!.platform_name = p.whyRaisingFunds.platformName ?? "";
+    basePayload.why_raising_funds!.amount_raised = parseMoney(p.whyRaisingFunds.amountRaised ?? "");
+    basePayload.why_raising_funds!.same_invoice_used = yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed);
+  }
+
+  return basePayload;
 }
 
 function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined): BusinessDetailsPayload {
@@ -414,6 +420,18 @@ export function BusinessDetailsStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
+  /* Reset P2P fields when user selects "no". */
+  React.useEffect(() => {
+    if (whyRaisingFunds.raisingOnOtherP2P === "no") {
+      setWhyRaisingFunds((prev) => ({
+        ...prev,
+        platformName: "",
+        amountRaised: "",
+        sameInvoiceUsed: "",
+      }));
+    }
+  }, [whyRaisingFunds.raisingOnOtherP2P]);
+
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
       aboutYourBusiness,
@@ -509,6 +527,22 @@ export function BusinessDetailsStep({
             onValueChange={(v) =>
               setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
             }
+          />
+
+          <Label htmlFor="accounting-software" className={labelClassName}>
+            Which accounting software does the issuer use?
+          </Label>
+          <Input
+            id="accounting-software"
+            value={whyRaisingFunds.accountingSoftware}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                accountingSoftware: e.target.value,
+              }))
+            }
+            placeholder="e.g. QuickBooks, Xero, SAP"
+            className={inputClassName}
           />
         </div>
       </section>
@@ -622,80 +656,59 @@ export function BusinessDetailsStep({
             }
           />
 
-          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
-            <Label htmlFor="platform-name" className={labelClassName}>
-              Name of platform
-            </Label>
-            <Input
-              id="platform-name"
-              value={whyRaisingFunds.platformName}
-              onChange={(e) =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  platformName: e.target.value,
-                }))
-              }
-              placeholder="e.g. CARPAY"
-              className={inputClassName}
-              disabled={whyRaisingFunds.raisingOnOtherP2P !== "yes"}
-            />
-          </div>
+          {whyRaisingFunds.raisingOnOtherP2P === "yes" && (
+            <>
+              <Label htmlFor="platform-name" className={labelClassName}>
+                Name of platform
+              </Label>
+              <Input
+                id="platform-name"
+                value={whyRaisingFunds.platformName}
+                onChange={(e) =>
+                  setWhyRaisingFunds((prev) => ({
+                    ...prev,
+                    platformName: e.target.value,
+                  }))
+                }
+                placeholder="e.g. CARPAY"
+                className={inputClassName}
+              />
 
-          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
-            <Label htmlFor="amount-raised" className={labelClassName}>
-              Amount raised
-            </Label>
-            <div className="h-11 flex items-center">
-              <div className="relative w-full h-full flex items-center">
-                <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                  RM
+              <Label htmlFor="amount-raised" className={labelClassName}>
+                Amount raised
+              </Label>
+              <div className="h-11 flex items-center">
+                <div className="relative w-full h-full flex items-center">
+                  <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+                    RM
+                  </div>
+                  <MoneyInput
+                    value={whyRaisingFunds.amountRaised}
+                    onValueChange={(v) =>
+                      setWhyRaisingFunds((prev) => ({
+                        ...prev,
+                        amountRaised: v,
+                      }))
+                    }
+                    placeholder="0.00"
+                    prefix="RM"
+                    inputClassName={inputClassName + " pl-12"}
+                  />
                 </div>
-                <MoneyInput
-                  value={whyRaisingFunds.amountRaised}
-                  onValueChange={(v) =>
-                    setWhyRaisingFunds((prev) => ({
-                      ...prev,
-                      amountRaised: v,
-                    }))
-                  }
-                  placeholder="0.00"
-                  prefix="RM"
-                  inputClassName={inputClassName + " pl-12"}
-                  disabled={whyRaisingFunds.raisingOnOtherP2P !== "yes"}
-                />
-
               </div>
-            </div>
-          </div>
 
-          <div className={whyRaisingFunds.raisingOnOtherP2P !== "yes" ? "opacity-60 pointer-events-none" : ""}>
-            <Label className={labelClassName}>
-              Is the same invoice being used?
-            </Label>
-            <YesNoRadioGroup
-              name="sameInvoiceUsed"
-              value={whyRaisingFunds.sameInvoiceUsed}
-              onValueChange={(v) =>
-                setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
-              }
-            />
-          </div>
-
-          <Label htmlFor="accounting-software" className={labelClassName}>
-            Which accounting software does the issuer use?
-          </Label>
-          <Input
-            id="accounting-software"
-            value={whyRaisingFunds.accountingSoftware}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                accountingSoftware: e.target.value,
-              }))
-            }
-            placeholder="e.g. QuickBooks, Xero, SAP"
-            className={inputClassName}
-          />
+              <Label className={labelClassName}>
+                Is the same invoice being used?
+              </Label>
+              <YesNoRadioGroup
+                name="sameInvoiceUsed"
+                value={whyRaisingFunds.sameInvoiceUsed}
+                onValueChange={(v) =>
+                  setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+                }
+              />
+            </>
+          )}
         </div>
       </section>
 
@@ -749,6 +762,10 @@ function BusinessDetailsSkeleton() {
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
           </div>
+
+          {/* Accounting software */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
 
@@ -801,10 +818,6 @@ function BusinessDetailsSkeleton() {
             <Skeleton className="h-5 w-[80px]" />
             <Skeleton className="h-5 w-[80px]" />
           </div>
-
-          {/* Accounting software */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
       </section>
 

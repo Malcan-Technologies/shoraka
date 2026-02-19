@@ -91,7 +91,11 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minValue = config.min_invoice_value;
-      if (minValue == null) errors.push(`${stepLabel}: enter minimum invoice value`);
+      if (minValue == null) {
+        errors.push(`${stepLabel}: enter minimum invoice value`);
+      } else if (typeof minValue !== 'number' || !Number.isInteger(minValue) || minValue < 0 || String(minValue).length > 12) {
+        errors.push(`${stepLabel}: minimum invoice value must be an integer between 0 and 999999999999`);
+      }
     }
     if (stepKey === "contract_details") {
       const minContractMonths = config.min_contract_months;

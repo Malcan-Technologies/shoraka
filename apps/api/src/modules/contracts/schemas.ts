@@ -16,6 +16,8 @@ export const contractDetailsSchema = z.object({
   approved_facility: z.number(),
   utilized_facility: z.number(),
   available_facility: z.number(),
+  // Financing amount requested by issuer (RM). Optional.
+  financing: z.number(),
   document: documentSchema.nullable().optional(),
 });
 

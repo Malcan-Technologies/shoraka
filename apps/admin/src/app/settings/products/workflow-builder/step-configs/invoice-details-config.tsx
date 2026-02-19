@@ -42,8 +42,18 @@ export function InvoiceDetailsConfig({
         <Input
           id="min-invoice-value"
           type="number"
+          inputMode="numeric"
+          min="0"
+          max="999999999999"
           value={current.min_invoice_value}
-          onChange={(e) => update({ min_invoice_value: parseInt(e.target.value, 10) || 0 })}
+          onChange={(e) => {
+            const val = e.target.value.trim();
+            if (val === '') return;
+            const parsed = parseInt(val, 10);
+            if (!Number.isNaN(parsed) && parsed >= 0 && String(parsed).length <= 12) {
+              update({ min_invoice_value: parsed });
+            }
+          }}
           placeholder="e.g. 0"
           className="text-sm leading-6"
         />
