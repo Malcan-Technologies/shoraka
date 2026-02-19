@@ -69,6 +69,8 @@ const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+import { parseISO, parse, isValid, format } from "date-fns";
+
 /**
  * PRODUCT CONFIG EXTRACTION
  *
@@ -103,8 +105,14 @@ function getProductInvoiceConfig(application: any): InvoiceConfig | null {
  */
 function parseDateString(dateStr: string): Date | null {
   if (!dateStr) return null;
-  const date = new Date(dateStr);
-  return Number.isNaN(date.getTime()) ? null : date;
+  // ISO yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = parseISO(dateStr);
+    return isValid(d) ? d : null;
+  }
+  // d/M/yyyy (user-facing)
+  const d = parse(dateStr, "d/M/yyyy", new Date());
+  return isValid(d) ? d : null;
 }
 
 /**
@@ -474,7 +482,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           details: {
             number: inv.number,
             value: parseMoney(inv.value),
-            maturity_date: inv.maturity_date,
+            maturity_date: (() => {
+              const pd = parseDateString(inv.maturity_date);
+              return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
+            })(),
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
         };
@@ -504,7 +515,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const updatePayload: any = {
           number: inv.number,
           value: parseMoney(inv.value),
-          maturity_date: inv.maturity_date,
+          maturity_date: (() => {
+            const pd = parseDateString(inv.maturity_date);
+            return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
+          })(),
           financing_ratio_percent: inv.financing_ratio_percent || 60,
         };
 
@@ -643,7 +657,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             number: d.number || "",
             status: it.status || "DRAFT",
             value: d.value != null ? formatMoney(d.value) : "",
-            maturity_date: d.maturity_date || "",
+            maturity_date: (() => {
+              if (!d.maturity_date) return "";
+              if (/^\d{4}-\d{2}-\d{2}$/.test(d.maturity_date)) {
+                const parsed = parseISO(d.maturity_date);
+                if (isValid(parsed)) return format(parsed, "d/M/yyyy");
+              }
+              return d.maturity_date || "";
+            })(),
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
               ? {
@@ -911,7 +932,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                         <TableCell className="p-2">
                           <DateInput
-                            value={inv.maturity_date?.slice(0, 10) || ""}
+                            value={inv.maturity_date || ""}
                             onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
                             className={!isEditable ? "opacity-60 pointer-events-none" : ""}
                             isInvalid={isRowPartial(inv)}

@@ -57,8 +57,8 @@ export function CalendarPopover({
   }
 
   return (
-    <div className="w-[280px] rounded-lg border bg-card shadow-lg z-50">
-      <div className="flex items-center justify-between px-3 py-2 border-b">
+    <div className="w-[200px] rounded-lg border bg-card shadow-lg z-50">
+      <div className="flex items-center justify-between px-1 py-1 border-b">
         <button
           type="button"
           className="p-1 rounded hover:bg-muted/50"
@@ -66,7 +66,7 @@ export function CalendarPopover({
         >
           ‹
         </button>
-        <div className="text-sm font-semibold">{format(currentMonth, "MMMM yyyy")}</div>
+        <div className="text-[11px] font-semibold">{format(currentMonth, "MMMM yyyy")}</div>
         <button
           type="button"
           className="p-1 rounded hover:bg-muted/50"
@@ -75,15 +75,15 @@ export function CalendarPopover({
           ›
         </button>
       </div>
-      <div className="p-3 space-y-2">
-        <div className="grid grid-cols-7 gap-1 text-xs font-medium text-muted-foreground pb-2 border-b">
+      <div className="p-1 space-y-1">
+        <div className="grid grid-cols-7 gap-0.5 text-[11px] font-medium text-muted-foreground pb-1 border-b">
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-            <div key={d} className="text-center h-6 flex items-center justify-center">{d}</div>
+            <div key={d} className="text-center h-5 flex items-center justify-center">{d}</div>
           ))}
         </div>
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 gap-1">
+            <div key={wi} className="grid grid-cols-7 gap-0.5">
               {week.map((day) => {
                 const iso = format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -93,7 +93,7 @@ export function CalendarPopover({
                     key={iso}
                     type="button"
                     onClick={() => onSelect(iso)}
-                    className={`h-8 w-8 rounded text-sm font-medium ${isSelected
+                    className={`h-6 w-6 rounded text-[11px] font-medium ${isSelected
                         ? "bg-primary text-primary-foreground"
                         : isCurrentMonth
                           ? "text-foreground hover:bg-muted/50"

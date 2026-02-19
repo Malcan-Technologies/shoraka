@@ -1,40 +1,38 @@
-"use client";
+ "use client";
 
 import * as React from "react";
-import { parse, isValid, format } from "date-fns";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CalendarPopover } from "./calendar-popover";
+import { parse, isValid, format, parseISO } from "date-fns";
 
 type DateInputSize = "default" | "compact";
 
 interface DateInputProps {
-  value: string; // yyyy-MM-dd
+  value: string; // raw user text (e.g., "1/2/2025" or "" or iso)
   onChange: (v: string) => void;
   className?: string;
+  inputClassName?: string;
+  popoverClassName?: string;
   isInvalid?: boolean;
   defaultCalendarMonth?: Date;
   size?: DateInputSize;
-  onLocalValueChange?: (day: string, month: string, year: string) => void;
 }
 
 /** Size presets for responsive DateInput */
 const sizePresets: Record<DateInputSize, {
   container: string;
-  text: string;
   input: string;
   icon: string;
 }> = {
   default: {
     container: "px-3 h-11 text-sm",
-    text: "px-1",
     input: "text-base",
     icon: "h-4 w-4",
   },
   compact: {
     container: "px-3 h-9 text-xs",
-    text: "px-0.5",
     input: "text-xs",
     icon: "h-3 w-3",
   },
@@ -44,135 +42,46 @@ export function DateInput({
   value,
   onChange,
   className,
+  inputClassName,
+  popoverClassName,
   isInvalid,
   defaultCalendarMonth,
   size = "default",
-  onLocalValueChange,
 }: DateInputProps) {
-  const [day, setDay] = React.useState("");
-  const [month, setMonth] = React.useState("");
-  const [year, setYear] = React.useState("");
   const [open, setOpen] = React.useState(false);
-
   const preset = sizePresets[size];
 
-  /** Load value from parent into inputs */
-  React.useEffect(() => {
-    if (!value) {
-      setDay("");
-      setMonth("");
-      setYear("");
-      return;
+  // If the provided value is ISO or a parseable d/M/yyyy, derive ISO for calendar selection only.
+  let isoSelected: string | undefined = undefined;
+  if (value) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      isoSelected = value;
+    } else {
+      try {
+        const parsed = parse(value, "d/M/yyyy", new Date());
+        if (isValid(parsed)) {
+          isoSelected = format(parsed, "yyyy-MM-dd");
+        }
+      } catch {
+        // ignore parse errors
+      }
     }
-
-    const [y, m, d] = value.split("-");
-    setDay(d || "");
-    setMonth(m || "");
-    setYear(y || "");
-  }, [value]);
-
-  /** Validate date logic: parses and checks if it's a valid calendar date */
-  const isValidDate = (d: string, m: string, y: string): boolean => {
-    // If any segment is empty, consider date as incomplete/empty
-    if (!d || !m || !y) return false;
-    if (d.length !== 2 || m.length !== 2 || y.length !== 4) return false;
-
-    const formatted = `${d}/${m}/${y}`;
-    const parsed = parse(formatted, "dd/MM/yyyy", new Date());
-
-    // isValid checks if parsed date is a real date
-    // format check ensures no overflow (e.g., Feb 31 becomes Mar 3)
-    if (!isValid(parsed)) return false;
-    if (format(parsed, "dd/MM/yyyy") !== formatted) return false;
-
-    return true;
-  };
-
-  /** Emit ISO only when full valid date */
-  const tryEmitDate = (d: string, m: string, y: string) => {
-    if (isValidDate(d, m, y)) {
-      const parsed = parse(`${d}/${m}/${y}`, "dd/MM/yyyy", new Date());
-      onChange(format(parsed, "yyyy-MM-dd"));
-    }
-  };
-
-  /** Pad single digits with 0 on blur */
-  const padIfSingleDigit = (v: string) =>
-    v.length === 1 ? `0${v}` : v;
+  }
 
   const handleBlur = () => {
-    const paddedDay = padIfSingleDigit(day);
-    const paddedMonth = padIfSingleDigit(month);
-
-    setDay(paddedDay);
-    setMonth(paddedMonth);
-
-    // Notify parent of current local state (even if invalid)
-    if (onLocalValueChange) {
-      onLocalValueChange(paddedDay, paddedMonth, year);
+    if (!value) return;
+    try {
+      const parsed = parse(value, "d/M/yyyy", new Date());
+      if (isValid(parsed)) {
+        const normalized = format(parsed, "dd/MM/yyyy");
+        if (normalized !== value) {
+          onChange(normalized);
+        }
+      }
+    } catch {
+      // do nothing on parse failure
     }
-
-    tryEmitDate(paddedDay, paddedMonth, year);
   };
-
-  /** Input handlers: only allow digits and enforce max length */
-const handleDay = (v: string) => {
-  if (!/^\d*$/.test(v) || v.length > 2) return;
-
-  if (v.length === 1) {
-    if (Number(v) > 3) return; // first digit max 3
-  }
-
-  if (v.length === 2) {
-    const first = Number(v[0]);
-    const second = Number(v[1]);
-
-    if (first === 0 && second === 0) return; // block 00
-    if (first === 3 && second > 1) return;   // block 32–39
-    if (Number(v) > 31) return;
-  }
-
-  setDay(v);
-  // Notify parent immediately of local state change
-  if (onLocalValueChange) {
-    onLocalValueChange(v, month, year);
-  }
-};
-
-
-const handleMonth = (v: string) => {
-  if (!/^\d*$/.test(v) || v.length > 2) return;
-
-  if (v.length === 1) {
-    if (Number(v) > 1) return; // first digit max 1
-  }
-
-  if (v.length === 2) {
-    const first = Number(v[0]);
-    const second = Number(v[1]);
-
-    if (first === 0 && second === 0) return; // block 00
-    if (first === 1 && second > 2) return;   // block 13–19
-    if (Number(v) > 12) return;
-  }
-
-  setMonth(v);
-  // Notify parent immediately of local state change
-  if (onLocalValueChange) {
-    onLocalValueChange(day, v, year);
-  }
-};
-
-
-const handleYear = (v: string) => {
-  if (!/^\d*$/.test(v) || v.length > 4) return;
-  setYear(v);
-  // Notify parent immediately of local state change
-  if (onLocalValueChange) {
-    onLocalValueChange(day, month, v);
-  }
-};
-
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -181,51 +90,21 @@ const handleYear = (v: string) => {
           className={cn(
             "flex items-center rounded-xl border bg-background transition-colors cursor-text",
             preset.container,
-            // Error state always shows red border on focus
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
-            // Normal state
             !isInvalid && "border-input focus-within:border-primary",
-            // Allow className to add additional styles but not override borders
             className && !className.includes("border") && className
           )}
         >
           <input
-            value={day}
-            onChange={(e) => handleDay(e.target.value)}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             onBlur={handleBlur}
-            placeholder="DD"
+            placeholder="d/M/yyyy"
+            maxLength={10}
             className={cn(
-              "w-7 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
-              size === "compact" && "w-6",
-              preset.input
-            )}
-          />
-
-          <span className={cn("text-muted-foreground shrink-0", preset.text)}>/</span>
-
-          <input
-            value={month}
-            onChange={(e) => handleMonth(e.target.value)}
-            onBlur={handleBlur}
-            placeholder="MM"
-            className={cn(
-              "w-7 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
-              size === "compact" && "w-6",
-              preset.input
-            )}
-          />
-
-          <span className={cn("text-muted-foreground shrink-0", preset.text)}>/</span>
-
-          <input
-            value={year}
-            onChange={(e) => handleYear(e.target.value)}
-            onBlur={handleBlur}
-            placeholder="YYYY"
-            className={cn(
-              "w-12 text-center bg-transparent outline-none shrink-0 placeholder:text-muted-foreground",
-              size === "compact" && "w-9",
-              preset.input
+              "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
+              preset.input,
+              inputClassName
             )}
           />
 
@@ -235,10 +114,7 @@ const handleYear = (v: string) => {
               e.stopPropagation();
               setOpen(true);
             }}
-            className={cn(
-              "ml-auto text-muted-foreground hover:text-foreground transition-colors",
-              size === "compact" && "ml-1 p-1 -mr-1"
-            )}
+            className={cn("ml-2 text-muted-foreground hover:text-foreground transition-colors", size === "compact" && "ml-1 p-1 -mr-1")}
           >
             <CalendarIcon className={preset.icon} />
           </button>
@@ -252,25 +128,23 @@ const handleYear = (v: string) => {
           sideOffset={6}
           collisionPadding={8}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="z-50"
+          className={cn("z-50", popoverClassName)}
         >
           <CalendarPopover
-            selected={value || undefined}
+            selected={isoSelected}
             defaultMonth={defaultCalendarMonth}
             onSelect={(iso) => {
-              // Parse the selected ISO date and update local state
-              const [y, m, d] = iso.split("-");
-              setDay(d);
-              setMonth(m);
-              setYear(y);
-              
-              // Notify parent of local state
-              if (onLocalValueChange) {
-                onLocalValueChange(d, m, y);
+              try {
+                const parsed = parseISO(iso);
+                if (isValid(parsed)) {
+                  const formatted = format(parsed, "dd/MM/yyyy");
+                  onChange(formatted);
+                } else {
+                  onChange(iso);
+                }
+              } catch {
+                onChange(iso);
               }
-              
-              // Emit the ISO value
-              onChange(iso);
               setOpen(false);
             }}
           />
