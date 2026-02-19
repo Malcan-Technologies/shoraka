@@ -11,28 +11,28 @@ export function ContractDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-24 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-32 w-full" />
         </div>
       </div>
@@ -45,22 +45,22 @@ export function ContractDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="h-10 w-full" />
-
-          <Skeleton className="h-5 w-36" />
-          <Skeleton className="h-10 w-full" />
-
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-10 w-full" />
-
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-10 w-full" />
+
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-10 w-full" />
+
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-10 w-full" />
+
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-32 w-full" />
         </div>
       </div>

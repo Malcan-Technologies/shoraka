@@ -11,19 +11,19 @@ export function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
         </div>
       </div>
@@ -36,10 +36,10 @@ export function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
         </div>
       </div>
@@ -52,10 +52,10 @@ export function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
         </div>
       </div>
@@ -68,7 +68,7 @@ export function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
           <Skeleton className="h-5 w-40" />
@@ -84,16 +84,16 @@ export function CompanyDetailsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
         </div>
       </div>

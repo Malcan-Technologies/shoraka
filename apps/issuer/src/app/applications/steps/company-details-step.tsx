@@ -530,6 +530,7 @@ export function CompanyDetailsStep({
   };
 
   return (
+    <>
     <div className="space-y-10 px-3">
       {/* Company Info Section */}
       <div className="space-y-4">
@@ -870,6 +871,8 @@ export function CompanyDetailsStep({
         onSave={handleSaveAddress}
       />
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 

@@ -70,7 +70,7 @@ export function SupportingDocumentsSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-32" />
           <div className="flex justify-end gap-3">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="w-px h-4 bg-border/60" />

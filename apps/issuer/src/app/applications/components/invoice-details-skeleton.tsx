@@ -16,7 +16,7 @@ export function InvoiceDetailsSkeleton() {
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-5 w-48" />
 
-            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-5 w-32" />
             <Skeleton className="h-5 w-40" />
 
             <Skeleton className="h-5 w-32" />

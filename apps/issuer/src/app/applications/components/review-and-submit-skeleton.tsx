@@ -30,25 +30,25 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
         </div>
       </section>
@@ -193,22 +193,22 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
         </div>
       </section>
@@ -221,10 +221,10 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
         </div>
       </section>
@@ -237,7 +237,7 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
           <Skeleton className="h-5 w-40" />
@@ -253,10 +253,10 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-full" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-full" />
         </div>
       </section>
@@ -269,16 +269,16 @@ export function ReviewAndSubmitSkeleton() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3">
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
 
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-40" />
         </div>
       </section>
@@ -292,7 +292,7 @@ export function ReviewAndSubmitSkeleton() {
 
         <div className="space-y-4 px-3">
           <div className="flex justify-between items-center py-2">
-            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-40" />
             <Skeleton className="h-6 w-32" />
           </div>
 
@@ -302,7 +302,7 @@ export function ReviewAndSubmitSkeleton() {
           </div>
 
           <div className="flex justify-between items-center py-2">
-            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-5 w-40" />
             <Skeleton className="h-6 w-32" />
           </div>
         </div>

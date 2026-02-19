@@ -465,6 +465,7 @@ export function SupportingDocumentsStep({
   }
 
   return (
+    <>
     <div className="space-y-10 px-3">
       {isLoadingApp || !stepConfig || debugSkeletonMode ? (
         <>
@@ -637,7 +638,9 @@ export function SupportingDocumentsStep({
         );
       }))}
     </div>
-  )
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
+  );
 
 }
 
