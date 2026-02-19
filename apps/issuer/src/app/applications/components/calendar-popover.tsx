@@ -66,7 +66,39 @@ export function CalendarPopover({
         >
           ‹
         </button>
-        <div className="text-[11px] font-semibold">{format(currentMonth, "MMMM yyyy")}</div>
+        <div className="flex items-center gap-2">
+          <select
+            value={currentMonth.getMonth()}
+            onChange={(e) => {
+              const m = Number(e.target.value);
+              setCurrentMonth(new Date(currentMonth.getFullYear(), m, 1));
+            }}
+            className="bg-transparent text-xs"
+          >
+            {Array.from({ length: 12 }).map((_, i) => (
+              <option key={i} value={i}>
+                {format(new Date(2000, i, 1), "LLLL")}
+              </option>
+            ))}
+          </select>
+          <select
+            value={currentMonth.getFullYear()}
+            onChange={(e) => {
+              const y = Number(e.target.value);
+              setCurrentMonth(new Date(y, currentMonth.getMonth(), 1));
+            }}
+            className="bg-transparent text-xs"
+          >
+            {Array.from({ length: 201 }).map((_, idx) => {
+              const y = 1900 + idx;
+              return (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              );
+            })}
+          </select>
+        </div>
         <button
           type="button"
           className="p-1 rounded hover:bg-muted/50"
@@ -83,7 +115,7 @@ export function CalendarPopover({
         </div>
         <div className="space-y-0.5">
           {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 gap-0.5">
+            <div key={wi} className="grid grid-cols-7 gap-0.5" style={{ gridAutoRows: "28px" }}>
               {week.map((day) => {
                 const iso = format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -93,7 +125,7 @@ export function CalendarPopover({
                     key={iso}
                     type="button"
                     onClick={() => onSelect(iso)}
-                    className={`h-6 w-6 rounded text-[11px] font-medium ${isSelected
+                    className={`h-7 w-7 rounded text-[11px] font-medium ${isSelected
                         ? "bg-primary text-primary-foreground"
                         : isCurrentMonth
                           ? "text-foreground hover:bg-muted/50"
