@@ -4,6 +4,7 @@ import * as React from "react";
 import { useProducts } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING TYPE STEP
@@ -28,8 +29,8 @@ export function FinancingTypeStep({
   initialProductId,
   onDataChange,
 }: FinancingTypeStepProps) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   // Load all products
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
@@ -82,8 +83,13 @@ export function FinancingTypeStep({
   };
 
   // Show loading state
-  if (isLoadingProducts || SHOW_SKELETON_DEBUG) {
-    return <StepSkeleton rows={4} showButton onSaveClick={() => console.log('Save clicked from financing-type skeleton')} />;
+  if (isLoadingProducts || debugSkeletonMode) {
+    return (
+      <>
+        <StepSkeleton rows={4} />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   // Show empty state
@@ -96,6 +102,7 @@ export function FinancingTypeStep({
   }
 
   return (
+    <>
     <div className="px-3">
       <ProductList
         products={products}
@@ -104,5 +111,7 @@ export function FinancingTypeStep({
           isLoading={isLoadingProducts}
       />
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }

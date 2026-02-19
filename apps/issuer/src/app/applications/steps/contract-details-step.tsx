@@ -42,6 +42,7 @@ import {
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { format, parse, isValid } from "date-fns";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -328,8 +329,8 @@ function FileUploadArea({
    SKELETON
    ================================================================ */
 
-function ContractDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
-  return <StepSkeleton rows={8} showButton={showButton} onSaveClick={onSaveClick} />;
+function ContractDetailsSkeleton() {
+  return <StepSkeleton rows={8} />;
 }
 
 /* ================================================================
@@ -345,11 +346,12 @@ export function ContractDetailsStep({
   applicationId,
   onDataChange,
 }: ContractDetailsStepProps) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
-  
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
+  
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
@@ -857,12 +859,12 @@ export function ContractDetailsStep({
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current || SHOW_SKELETON_DEBUG) {
+  if (!isInitializedRef.current || debugSkeletonMode) {
     return (
-      <ContractDetailsSkeleton 
-        showButton={SHOW_SKELETON_DEBUG}
-        onSaveClick={() => console.log('Save clicked from contract skeleton')}
-      />
+      <>
+        <ContractDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
@@ -872,9 +874,10 @@ export function ContractDetailsStep({
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
-    <div className="space-y-10 px-3">
-      {/* Contract Details Section */}
-      <section className="space-y-4">
+    <>
+      <div className="space-y-10 px-3">
+        {/* Contract Details Section */}
+        <section className="space-y-4">
         <div>
           <h3 className={sectionHeaderClassName}>Contract details</h3>
           <div className="mt-2 h-px bg-border" />
@@ -1145,6 +1148,9 @@ export function ContractDetailsStep({
           />
         </div>
       </section>
-    </div>
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
+
 }

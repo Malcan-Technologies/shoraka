@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -20,8 +21,8 @@ export function SupportingDocumentsStep({
   stepConfig?: any;
   onDataChange?: (data: any) => void;
 }) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
@@ -465,8 +466,11 @@ export function SupportingDocumentsStep({
 
   return (
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig || SHOW_SKELETON_DEBUG ? (
-        <SupportingDocumentsSkeleton showButton={SHOW_SKELETON_DEBUG} onSaveClick={() => console.log('Save clicked from supporting-documents skeleton')} />
+      {isLoadingApp || !stepConfig || debugSkeletonMode ? (
+        <>
+          <SupportingDocumentsSkeleton />
+          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+        </>
       ) : (categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
@@ -637,6 +641,6 @@ export function SupportingDocumentsStep({
 
 }
 
-function SupportingDocumentsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
-  return <StepSkeleton rows={6} showButton={showButton} onSaveClick={onSaveClick} />;
+function SupportingDocumentsSkeleton() {
+  return <StepSkeleton rows={6} />;
 }

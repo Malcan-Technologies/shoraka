@@ -7,7 +7,6 @@
  * Data: Configurable rows, table option for different section types.
  */
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import React from "react";
 
 /**
@@ -19,23 +18,17 @@ import React from "react";
  * - `rows`: number of form rows (default 3)
  * - `showTable`: if true, render a table skeleton instead of form rows
  * - `tableRows`: number of table rows (default 3)
- * - `showButton`: if true, show "Save and Continue" button (for dev/preview)
- * - `onSaveClick`: callback when button is clicked
  */
 interface StepSkeletonProps {
   rows?: number;
   showTable?: boolean;
   tableRows?: number;
-  showButton?: boolean;
-  onSaveClick?: () => void;
 }
 
 export function StepSkeleton({
   rows = 3,
   showTable = false,
   tableRows = 3,
-  showButton = false,
-  onSaveClick,
 }: StepSkeletonProps) {
   if (showTable) {
     return (
@@ -79,15 +72,6 @@ export function StepSkeleton({
             </tbody>
           </table>
         </div>
-
-        {showButton && (
-          <div className="flex justify-end gap-3 mt-6 px-3">
-            <Button variant="outline">Cancel</Button>
-            <Button onClick={onSaveClick} className="bg-primary text-primary-foreground">
-              Save and Continue
-            </Button>
-          </div>
-        )}
       </div>
     );
   }
@@ -114,15 +98,6 @@ export function StepSkeleton({
           </div>
         ))}
       </div>
-
-      {showButton && (
-        <div className="flex justify-end gap-3 mt-6 px-3">
-          <Button variant="outline">Cancel</Button>
-          <Button onClick={onSaveClick} className="bg-primary text-primary-foreground">
-            Save and Continue
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

@@ -63,6 +63,7 @@ import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -125,8 +126,8 @@ interface InvoiceDetailsStepProps {
 }
 
 export default function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -737,10 +738,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
   return (
+    <>
     <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
       {/* ================= Contract ================= */}
-      {isLoadingApplication || SHOW_SKELETON_DEBUG ? (
-        <StepSkeleton rows={4} showButton onSaveClick={() => console.log('Save clicked from invoice skeleton')} />
+      {isLoadingApplication || debugSkeletonMode ? (
+        <>
+          <StepSkeleton rows={4} />
+          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+        </>
       ) : (
         application?.contract && (
           <div className="space-y-4">
@@ -1074,6 +1079,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         )}
       </div>
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 

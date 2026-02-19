@@ -4,6 +4,7 @@ import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useApplication } from "@/hooks/use-applications";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * DECLARATIONS STEP
@@ -31,8 +32,8 @@ export function DeclarationsStep({
   stepConfig,
   onDataChange,
 }: DeclarationsStepProps) {
-  // DEBUG: Set to true to always show skeleton/preview mode
-  const FORCE_SKELETON_MODE = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -188,8 +189,13 @@ export function DeclarationsStep({
   /**
    * LOADING STATE
    */
-  if (isLoadingApp || !stepConfig || FORCE_SKELETON_MODE) {
-    return <StepSkeleton rows={3} showButton onSaveClick={() => console.log('Save clicked from declarations skeleton')} />;
+  if (isLoadingApp || !stepConfig || debugSkeletonMode) {
+    return (
+      <>
+        <StepSkeleton rows={3} />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   /**
@@ -215,6 +221,7 @@ export function DeclarationsStep({
    * When there are more declarations, both grow together proportionally.
    */
 return (
+  <>
   <div className="px-3">
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
@@ -267,6 +274,8 @@ return (
         </p>
       </div>
     </div>
-  </div>
+    </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+  </>
 );
 }

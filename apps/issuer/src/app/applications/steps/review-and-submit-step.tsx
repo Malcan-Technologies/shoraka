@@ -18,6 +18,7 @@ import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -70,8 +71,8 @@ export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
 }: ReviewAndSubmitStepProps) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
@@ -264,8 +265,13 @@ export function ReviewAndSubmitStep({
     });
   }, [onDataChange]);
 
-  if (isLoading || SHOW_SKELETON_DEBUG) {
-    return <StepSkeleton showTable tableRows={5} showButton onSaveClick={() => console.log('Save clicked from review skeleton')} />;
+  if (isLoading || debugSkeletonMode) {
+    return (
+      <>
+        <StepSkeleton showTable tableRows={5} />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   // Formatters
@@ -301,6 +307,7 @@ export function ReviewAndSubmitStep({
   const categories = supportingDocs?.categories || [];
 
   return (
+    <>
     <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
       {/* Financing details */}
       {showFinancingDetails && (
@@ -688,5 +695,7 @@ export function ReviewAndSubmitStep({
         </section>
       )}
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }

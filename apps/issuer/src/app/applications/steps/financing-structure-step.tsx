@@ -19,6 +19,7 @@ import {
 import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -44,8 +45,8 @@ export function FinancingStructureStep({
   applicationId,
   onDataChange,
 }: FinancingStructureStepProps) {
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   /** Local state
    *
@@ -212,8 +213,13 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp || SHOW_SKELETON_DEBUG) {
-    return <StepSkeleton rows={3} showButton onSaveClick={() => console.log('Save clicked from financing-structure skeleton')} />;
+  if (isLoadingApp || debugSkeletonMode) {
+    return (
+      <>
+        <StepSkeleton rows={3} />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   /** Render blocks
@@ -223,6 +229,7 @@ export function FinancingStructureStep({
    * Data: Selected value is kept in local state; parent receives validity + saveFunction via effect.
    */
   return (
+    <>
     <div className="px-3">
       <div className="space-y-4">
         {/* Option 1: Submit a new contract */}
@@ -283,6 +290,8 @@ export function FinancingStructureStep({
         />
       </div>
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 

@@ -48,6 +48,7 @@ import {
   withFieldError,
 } from "@/app/applications/components/form-control";
 import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -154,6 +155,9 @@ export function CompanyDetailsStep({
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
+  
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   const apiClient = React.useMemo(
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
@@ -499,12 +503,12 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current) {
+  if (isLoadingData || !hasHydratedRef.current || debugSkeletonMode) {
     return (
-      <CompanyDetailsSkeleton 
-        showButton
-        onSaveClick={() => console.log('Save clicked from company skeleton')}
-      />
+      <>
+        <CompanyDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
@@ -1100,7 +1104,7 @@ function EditAddressDialog({
   );
 }
 
-function CompanyDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
-  return <StepSkeleton rows={6} showButton={showButton} onSaveClick={onSaveClick} />;
+function CompanyDetailsSkeleton() {
+  return <StepSkeleton rows={6} />;
 }
 

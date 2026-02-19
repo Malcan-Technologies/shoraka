@@ -21,7 +21,7 @@ import {
 } from "@/app/applications/components/form-control";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/applications/components/money";
-import { StepSkeleton } from "@/app/applications/components/step-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * BUSINESS DETAILS STEP
@@ -350,9 +350,9 @@ export function BusinessDetailsStep({
   onDataChange,
 }: BusinessDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-  
-  // DEBUG: Force show skeleton
-  const SHOW_SKELETON_DEBUG = true;
+
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
@@ -470,19 +470,20 @@ export function BusinessDetailsStep({
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
-  if (isLoadingApp || !isInitialized || SHOW_SKELETON_DEBUG) {
+  if (isLoadingApp || !isInitialized || debugSkeletonMode) {
     return (
-      <BusinessDetailsSkeleton 
-        showButton={SHOW_SKELETON_DEBUG}
-        onSaveClick={() => console.log('Save clicked from skeleton')}
-      />
+      <>
+        <BusinessDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
   return (
-    <div className={formOuterClassName}>
-      {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
+    <>
+      <div className={formOuterClassName}>
+        {/* ===================== ABOUT YOUR BUSINESS ===================== */}
+        <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
           <h3 className={sectionHeaderClassName}>About your business</h3>
           <div className="mt-2 h-px bg-border" />
@@ -739,12 +740,14 @@ export function BusinessDetailsStep({
           </label>
         </div>
       </section>
-    </div>
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 
 }
 
-function BusinessDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boolean; onSaveClick?: () => void }) {
+function BusinessDetailsSkeleton() {
   return (
     <div className={`${formOuterClassName} mt-1`}>
       {/* ===================== ABOUT YOUR BUSINESS ===================== */}
@@ -754,7 +757,97 @@ function BusinessDetailsSkeleton({ showButton, onSaveClick }: { showButton?: boo
           <div className="mt-2 h-px bg-border" />
         </div>
 
-        <StepSkeleton rows={4} showButton={showButton} onSaveClick={onSaveClick} />
+        <div className={rowGridClassName}>
+          {/* What does your company do */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Main customers */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Single customer > 50% */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
+          </div>
+
+          {/* Accounting software */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+      </section>
+
+      {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <Skeleton className="h-6 w-[260px]" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className={rowGridClassName}>
+          {/* Financing for */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Funds usage */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Business plan */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[160px] w-full rounded-xl" />
+
+          {/* Risks */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Backup plan */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-[120px] w-full rounded-xl" />
+
+          {/* Other P2P */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
+          </div>
+
+          {/* Platform name */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          {/* Amount raised */}
+          <Skeleton className="h-5 w-[280px]" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+
+          {/* Same invoice */}
+          <Skeleton className="h-5 w-[280px]" />
+          <div className="flex gap-6 items-center">
+            <Skeleton className="h-5 w-[80px]" />
+            <Skeleton className="h-5 w-[80px]" />
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== DECLARATIONS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-4`}>
+        <div>
+          <Skeleton className="h-6 w-[160px]" />
+          <div className="mt-2 h-px bg-border" />
+        </div>
+
+        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <Skeleton className="h-4 w-4 rounded-sm mt-1" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[92%]" />
+              <Skeleton className="h-4 w-[85%]" />
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );
