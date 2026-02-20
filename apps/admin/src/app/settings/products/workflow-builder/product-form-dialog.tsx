@@ -369,8 +369,43 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         </DialogHeader>
 
         {isEdit && loading ? (
-          <div className="space-y-4 py-4 min-h-0 overflow-auto">
-            <Skeleton className="h-48 w-full" />
+          <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4 mt-2">
+
+            {/* Header Row (exact spacing preserved) */}
+            <div className="grid gap-3 shrink-0 min-w-0">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-3 w-64" />
+                </div>
+                <Skeleton className="h-9 w-full sm:w-[200px]" />
+              </div>
+
+              {/* Exact Workflow Container */}
+              <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
+                <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-border bg-background p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-4 w-4 rounded-sm" />
+                          <Skeleton className="h-4 w-40" />
+                        </div>
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                      </div>
+                    </div>
+                  ))}
+
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom spacing container (keeps layout identical) */}
+            <div className="flex-1 min-h-0 overflow-y-auto" />
+
           </div>
         ) : isEdit && (isError || !product) ? (
           <p className="text-destructive py-4 text-sm">
