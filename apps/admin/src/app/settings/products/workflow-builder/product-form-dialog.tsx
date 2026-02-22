@@ -45,6 +45,7 @@ import {
   FIRST_STEP_KEY,
   LAST_STEP_KEY,
   SUPPORTING_DOCS_STEP_KEY,
+  normalizeWorkflow,
 } from "./product-form-helpers";
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
@@ -146,7 +147,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         : getDefaultWorkflowSteps();
       const stepsToSet = enforceFirstAndLast(ensureFirstAndLastPresent(raw));
       setSteps(stepsToSet);
-      initialWorkflowRef.current = buildPayloadFromSteps(stepsToSet);
+      initialWorkflowRef.current = normalizeWorkflow(
+        buildPayloadFromSteps(stepsToSet)
+      );
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
@@ -306,11 +309,40 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     requestImageUrl.isPending ||
     requestTemplateUrl.isPending;
 
-  const hasChanges = !isEdit
-    ? true
-    : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
+    const normalizedCurrent = normalizeWorkflow(
+  buildPayloadFromSteps(steps)
+);
+
+const normalizedInitial = initialWorkflowRef.current;
+
+const isEqual = workflowDeepEqual(
+  normalizedCurrent,
+  normalizedInitial
+);
+
+// 🔎 FULL DEBUG
+console.log("========== WORKFLOW DEBUG ==========");
+console.log("INITIAL SNAPSHOT:", normalizedInitial);
+console.log("CURRENT PAYLOAD:", normalizedCurrent);
+console.log("EQUAL?", isEqual);
+
+// 🔎 INVOICE STEP DEBUG
+const currentInvoice = normalizedCurrent.find(
+  (s) => getStepKeyFromStepId(getStepId(s)) === "invoice_details"
+);
+const initialInvoice = normalizedInitial.find(
+  (s) => getStepKeyFromStepId(getStepId(s)) === "invoice_details"
+);
+
+console.log("INITIAL INVOICE CONFIG:", initialInvoice?.config);
+console.log("CURRENT INVOICE CONFIG:", currentInvoice?.config);
+console.log("====================================");
+
+const hasChanges = !isEdit
+  ? true
+  : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
     Object.keys(pendingSupportingDocTemplates).length > 0 ||
-    !workflowDeepEqual(buildPayloadFromSteps(steps), initialWorkflowRef.current);
+    !isEqual;
 
   /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
   const editedStepIds = useMemo(() => {

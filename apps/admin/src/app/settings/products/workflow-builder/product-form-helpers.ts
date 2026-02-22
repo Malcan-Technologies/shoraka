@@ -45,25 +45,54 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
     const stepKey = getStepKeyFromStepId(step.id ?? "");
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
-  const minRaw = config.min_invoice_value;
-  const maxRaw = config.max_invoice_value;
+      const minRaw = config.min_invoice_value;
+      const maxRaw = config.max_invoice_value;
 
-  config = {
-    ...config,
-    min_invoice_value:
-      typeof minRaw === "string" && minRaw.trim() !== ""
-        ? parseMoney(minRaw)
-        : null,
+      config = {
+        ...config,
+        min_invoice_value:
+          typeof minRaw === "number"
+            ? minRaw
+            : typeof minRaw === "string" && minRaw.trim() !== ""
+              ? parseMoney(minRaw)
+              : null,
 
-    max_invoice_value:
-      typeof maxRaw === "string" && maxRaw.trim() !== ""
-        ? parseMoney(maxRaw)
-        : null,
-  };
-}
+        max_invoice_value:
+          typeof maxRaw === "number"
+            ? maxRaw
+            : typeof maxRaw === "string" && maxRaw.trim() !== ""
+              ? parseMoney(maxRaw)
+              : null,
+      };
+    }
 
     const { _pendingImage: _, ...configForApi } = config;
     return { ...step, config: configForApi };
+  });
+}
+
+export function normalizeWorkflow(workflow: Step[]): Step[] {
+  return workflow.map((step) => {
+    const stepKey = getStepKeyFromStepId(step.id ?? "");
+    const config = { ...(step.config ?? {}) };
+
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minRaw = config.min_invoice_value;
+      const maxRaw = config.max_invoice_value;
+
+      return {
+        ...step,
+        config: {
+          ...config,
+          min_invoice_value:
+            minRaw == null || minRaw === "" ? null : parseMoney(minRaw),
+          max_invoice_value:
+            maxRaw == null || maxRaw === "" ? null : parseMoney(maxRaw),
+        },
+      };
+    }
+
+    return step;
   });
 }
 
