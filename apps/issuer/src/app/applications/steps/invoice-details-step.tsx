@@ -78,7 +78,8 @@ import { parseISO, parse, isValid, format } from "date-fns";
  * Config must be provided by admin; no fallbacks.
  */
 interface InvoiceConfig {
-  min_invoice_value?: number;
+  min_invoice_value?: number | null;
+  max_invoice_value?: number | null;
 }
 
 function getProductInvoiceConfig(application: any): InvoiceConfig | null {
@@ -93,7 +94,8 @@ function getProductInvoiceConfig(application: any): InvoiceConfig | null {
   if (config == null || Object.keys(config).length === 0) return null;
 
   return {
-    min_invoice_value: config.min_invoice_value,
+    min_invoice_value: config.min_invoice_value ?? null,
+    max_invoice_value: config.max_invoice_value ?? null,
   };
 }
 
@@ -337,9 +339,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     const financingAmount = invoiceValue * ratio;
 
     const minValue = productConfig.min_invoice_value;
+    const maxValue = productConfig.max_invoice_value;
+
     if (typeof minValue === "number") {
       if (financingAmount < minValue) {
         return `Invoice ${inv.number}: Financing amount must be at least ${formatMoney(minValue)}.`;
+      }
+    }
+
+    if (typeof maxValue === "number") {
+      if (financingAmount > maxValue) {
+        return `Invoice ${inv.number}: Financing amount cannot exceed ${formatMoney(maxValue)}.`;
       }
     }
 

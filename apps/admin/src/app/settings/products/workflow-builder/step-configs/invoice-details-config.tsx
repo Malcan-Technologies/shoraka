@@ -3,15 +3,34 @@
 import * as React from "react";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
+import { formatMoney } from "../../components/money";
+import { MoneyInput } from "../../components/money-input";
 
 export interface InvoiceDetailsConfigShape {
-  min_invoice_value?: number;
+  min_invoice_value?: string | null;
+  max_invoice_value?: string | null;
 }
 
-function getConfig(config: unknown): InvoiceDetailsConfigShape & { raw: Record<string, unknown> } {
+function getConfig(
+  config: unknown
+): InvoiceDetailsConfigShape & { raw: Record<string, unknown> } {
   const c = config as Record<string, unknown> | undefined;
+
   return {
-    min_invoice_value: (c?.min_invoice_value as number) ?? 0,
+    min_invoice_value:
+      typeof c?.min_invoice_value === "string"
+        ? c.min_invoice_value
+        : typeof c?.min_invoice_value === "number"
+          ? formatMoney(c.min_invoice_value)
+          : null,
+
+    max_invoice_value:
+      typeof c?.max_invoice_value === "string"
+        ? c.max_invoice_value
+        : typeof c?.max_invoice_value === "number"
+          ? formatMoney(c.max_invoice_value)
+          : null,
+
     raw: c ?? {},
   };
 }
@@ -34,29 +53,43 @@ export function InvoiceDetailsConfig({
   );
 
   return (
-    <div className="grid gap-4 pt-2 text-sm leading-6 min-w-0">
+    <div className="grid gap-6 pt-2 text-sm leading-6 min-w-0">
+      {/* MIN */}
       <div className="grid gap-2 min-w-0">
-        <Label htmlFor="min-invoice-value" className="text-sm font-medium">
-          Minimum invoice value (RM)
+        <Label className="text-sm font-medium">
+          Minimum financing amount (RM)
         </Label>
-        <Input
-          id="min-invoice-value"
-          type="number"
-          inputMode="numeric"
-          min="0"
-          max="999999999999"
-          value={current.min_invoice_value}
-          onChange={(e) => {
-            const val = e.target.value.trim();
-            if (val === '') return;
-            const parsed = parseInt(val, 10);
-            if (!Number.isNaN(parsed) && parsed >= 0 && String(parsed).length <= 12) {
-              update({ min_invoice_value: parsed });
-            }
-          }}
-          placeholder="e.g. 0"
-          className="text-sm leading-6"
+        <MoneyInput
+          value={current.min_invoice_value ?? ""}
+          onValueChange={(v) =>
+            update({ min_invoice_value: v || null })
+          }
+          placeholder="Leave blank for no minimum"
+          maxIntDigits={12}
+          allowEmpty
         />
+        <p className="text-xs text-muted-foreground">
+          Leave blank for no minimum limit.
+        </p>
+      </div>
+
+      {/* MAX */}
+      <div className="grid gap-2 min-w-0">
+        <Label className="text-sm font-medium">
+          Maximum financing amount (RM)
+        </Label>
+        <MoneyInput
+          value={current.max_invoice_value ?? ""}
+          onValueChange={(v) =>
+            update({ max_invoice_value: v || null })
+          }
+          placeholder="Leave blank for no maximum"
+          maxIntDigits={12}
+          allowEmpty
+        />
+        <p className="text-xs text-muted-foreground">
+          Leave blank for no maximum limit.
+        </p>
       </div>
     </div>
   );
