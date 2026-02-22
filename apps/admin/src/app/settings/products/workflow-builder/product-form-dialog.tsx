@@ -363,7 +363,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col w-[calc(100vw-1rem)] max-w-4xl max-h-[min(90vh,90dvh)] overflow-hidden rounded-xl border-border p-4 gap-3 sm:w-full sm:max-h-[90vh] sm:p-6 sm:gap-4 [&>div]:min-h-0">
+      <DialogContent className=" flex flex-col w-[calc(100vw-1rem)] sm:w-full max-w-4xl max-h-[90dvh] overflow-hidden rounded-xl border-border p-4 sm:p-6 gap-3 sm:gap-4 " >
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-base sm:text-lg">{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
@@ -403,8 +403,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               </div>
             </div>
 
-            {/* Bottom spacing container (keeps layout identical) */}
-            <div className="flex-1 min-h-0 overflow-y-auto" />
 
           </div>
         ) : isEdit && (isError || !product) ? (
@@ -412,143 +410,145 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4">
-            <div className="grid gap-2 shrink-0 min-w-0">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <Label className="text-sm font-medium">Workflow steps</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Drag to reorder. Expand to configure. Add steps below.
-                  </p>
-                </div>
-                {addableSteps.length > 0 && (
-                  <Select
-                    value={addStepValue}
-                    onValueChange={(id) => {
-                      const step = addableSteps.find((s) => s.id === id);
-                      if (step) handleAddStep(step);
-                    }}
-                  >
-                    <SelectTrigger className="w-full sm:w-[200px] h-9 shrink-0">
-                      <SelectValue placeholder="Add step" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {addableSteps.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
-                {steps.length === 0 ? (
-                  <div className="flex flex-1 items-center justify-center p-6 text-center">
-                    <p className="text-sm text-muted-foreground leading-6">
-                      No steps yet. Use &quot;Add step&quot; above to add steps here.
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex flex-col gap-3 sm:gap-4 pr-1">
+              <div className="grid gap-2 shrink-0 min-w-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <Label className="text-sm font-medium">Workflow steps</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Drag to reorder. Expand to configure. Add steps below.
                     </p>
                   </div>
-                ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={steps.map(getStepId)}
-                      strategy={verticalListSortingStrategy}
+                  {addableSteps.length > 0 && (
+                    <Select
+                      value={addStepValue}
+                      onValueChange={(id) => {
+                        const step = addableSteps.find((s) => s.id === id);
+                        if (step) handleAddStep(step);
+                      }}
                     >
-                      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
-                        {steps.map((step) => {
-                          const stepId = getStepId(step);
-                          const stepKey = getStepKeyFromStepId(stepId);
-                          const hasConfig = stepKey && !STEPS_WITHOUT_CONFIG.has(stepKey);
-                          return (
-                            <div key={stepId} className="relative">
-                              <WorkflowStepCard
-                                step={{
-                                  id: stepId,
-                                  name:
-                                    stepKey === FIRST_STEP_KEY
-                                      ? STEP_KEY_DISPLAY.financing_type.title
-                                      : stepDisplayName(step),
-                                }}
-                                isExpanded={expandedStepId === stepId}
-                                onOpenChange={
-                                  hasConfig ? (open) => setExpandedStepId(open ? stepId : null) : undefined
-                                }
-                                onDragHandlePointerDown={() => setExpandedStepId(null)}
-                                isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
-                                isJustAdded={stepId === justAddedStepId}
-                                isEdited={editedStepIds.has(stepId)}
-                                onDelete={
-                                  stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
-                                    ? () => handleDeleteStep(stepId)
-                                    : undefined
-                                }
-                              >
-                                {hasConfig && (
-                                  <StepConfigEditor
-                                    stepKey={stepKey}
-                                    config={(step as { config?: unknown }).config}
-                                    onChange={(config) => handleConfigChange(stepId, config)}
-                                    extraProps={
-                                      stepKey === FIRST_STEP_KEY
-                                        ? { onPendingImageChange: handlePendingImageChange }
-                                        : stepKey === SUPPORTING_DOCS_STEP_KEY
-                                          ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
-                                          : undefined
-                                    }
-                                  />
-                                )}
-                              </WorkflowStepCard>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {steps.length > 0 && !isSaving && !saveTriggered && (() => {
-                const requiredErrors = getRequiredStepErrors(steps);
-                if (requiredErrors.length === 0) return null;
-
-                return (
-                  <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
-                    <div className="flex items-start gap-2.5">
-                      <AlertTriangle
-                        className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
-                        aria-hidden
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                          {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
-                        </p>
-                        <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
-                          {requiredErrors.map((msg, i) => {
-                            const [label, rest] = msg.split(":");
+                      <SelectTrigger className="w-full sm:w-[200px] h-9 shrink-0">
+                        <SelectValue placeholder="Add step" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {addableSteps.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
+                  {steps.length === 0 ? (
+                    <div className="flex flex-1 items-center justify-center p-6 text-center">
+                      <p className="text-sm text-muted-foreground leading-6">
+                        No steps yet. Use &quot;Add step&quot; above to add steps here.
+                      </p>
+                    </div>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={steps.map(getStepId)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
+                          {steps.map((step) => {
+                            const stepId = getStepId(step);
+                            const stepKey = getStepKeyFromStepId(stepId);
+                            const hasConfig = stepKey && !STEPS_WITHOUT_CONFIG.has(stepKey);
                             return (
-                              <li key={i} className="text-sm leading-6">
-                                <span className="font-medium text-amber-900 dark:text-amber-100">
-                                  {label}
-                                </span>
-                                <span className="text-amber-800/90 dark:text-amber-200/90">
-                                  : {rest}
-                                </span>
-                              </li>
+                              <div key={stepId} className="relative">
+                                <WorkflowStepCard
+                                  step={{
+                                    id: stepId,
+                                    name:
+                                      stepKey === FIRST_STEP_KEY
+                                        ? STEP_KEY_DISPLAY.financing_type.title
+                                        : stepDisplayName(step),
+                                  }}
+                                  isExpanded={expandedStepId === stepId}
+                                  onOpenChange={
+                                    hasConfig ? (open) => setExpandedStepId(open ? stepId : null) : undefined
+                                  }
+                                  onDragHandlePointerDown={() => setExpandedStepId(null)}
+                                  isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
+                                  isJustAdded={stepId === justAddedStepId}
+                                  isEdited={editedStepIds.has(stepId)}
+                                  onDelete={
+                                    stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
+                                      ? () => handleDeleteStep(stepId)
+                                      : undefined
+                                  }
+                                >
+                                  {hasConfig && (
+                                    <StepConfigEditor
+                                      stepKey={stepKey}
+                                      config={(step as { config?: unknown }).config}
+                                      onChange={(config) => handleConfigChange(stepId, config)}
+                                      extraProps={
+                                        stepKey === FIRST_STEP_KEY
+                                          ? { onPendingImageChange: handlePendingImageChange }
+                                          : stepKey === SUPPORTING_DOCS_STEP_KEY
+                                            ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
+                                            : undefined
+                                      }
+                                    />
+                                  )}
+                                </WorkflowStepCard>
+                              </div>
                             );
                           })}
-                        </ul>
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {steps.length > 0 && !isSaving && !saveTriggered && (() => {
+                  const requiredErrors = getRequiredStepErrors(steps);
+                  if (requiredErrors.length === 0) return null;
+
+                  return (
+                    <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle
+                          className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
+                          aria-hidden
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                            {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
+                          </p>
+                          <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
+                            {requiredErrors.map((msg, i) => {
+                              const [label, rest] = msg.split(":");
+                              return (
+                                <li key={i} className="text-sm leading-6">
+                                  <span className="font-medium text-amber-900 dark:text-amber-100">
+                                    {label}
+                                  </span>
+                                  <span className="text-amber-800/90 dark:text-amber-200/90">
+                                    : {rest}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
+              </div>
             </div>
           </div>
         )}
