@@ -51,16 +51,11 @@ import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+// dialog components are used by modal components directly
 import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
+import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -357,58 +352,67 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
-  const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
-  const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
-
   React.useEffect(() => {
+    // reset unsaved state when changing steps
     setHasUnsavedChanges(false);
     stepDataRef.current = null;
   }, [stepFromUrl]);
 
-  React.useEffect(() => {
-    if (isSubmittingRef.current) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = "";
+  // Navigation guard integration
+  const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+
+  const onConfirmNavigation = React.useCallback(
+    (path: string) => {
+      // Parent must reset unsaved BEFORE navigating
+      setHasUnsavedChanges(false);
+
+      const pending = pendingNavRef.current;
+      // Handle back sentinel
+      if (path === "__BACK__") {
+        // Deterministic: always exit wizard to dashboard
+        pendingNavRef.current = null;
+        router.replace("/");
+        return;
       }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
 
-  React.useEffect(() => {
-    if (!hasUnsavedChanges) return;
-    window.history.replaceState({ preventNav: true }, "", window.location.href);
-
-    const handlePopState = () => {
-      if (hasUnsavedChanges) {
-        window.history.replaceState({ preventNav: true }, "", window.location.href);
-        setIsUnsavedChangesModalOpen(true);
+      if (pending?.leavingPage) {
+        pendingNavRef.current = null;
+        router.replace(path);
+      } else {
+        pendingNavRef.current = null;
+        router.push(path);
       }
-    };
+    },
+    [router]
+  );
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [hasUnsavedChanges]);
+  const { isModalOpen, requestNavigation, confirmLeave, cancelLeave } = useNavigationGuard(
+    hasUnsavedChanges,
+    onConfirmNavigation
+  );
 
-  React.useEffect(() => {
-    if (isSubmittingRef.current) return;
-    if (!hasUnsavedChanges) return;
+  // Centralized safe navigation that enforces version guard precedence
+  const safeNavigate = React.useCallback(
+    async (path: string, opts: { leavingPage: boolean } = { leavingPage: false }) => {
+      const mismatch = await checkNow();
+      if (mismatch) return;
 
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const anchor = target.closest("a");
-      if (anchor && anchor.href && !anchor.href.includes(window.location.pathname)) {
-        e.preventDefault();
-        setPendingNavigation(anchor.href);
-        setIsUnsavedChangesModalOpen(true);
+      if (!hasUnsavedChanges) {
+        // No unsaved changes -> navigate immediately
+        if (opts.leavingPage) {
+          router.replace(path);
+        } else {
+          router.push(path);
+        }
+        return;
       }
-    };
 
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
-  }, [hasUnsavedChanges]);
+      // Has unsaved changes -> store pending and ask guard to open modal
+      pendingNavRef.current = { path, leavingPage: opts.leavingPage };
+      requestNavigation(path);
+    },
+    [checkNow, hasUnsavedChanges, pendingNavRef, requestNavigation, router]
+  );
 
   /* ================================================================
      RESUME LOGIC
@@ -618,41 +622,18 @@ export default function EditApplicationPage() {
   };
 
 
-  const handleConfirmLeave = () => {
-    if (isSubmittingRef.current) return;
-
-    setHasUnsavedChanges(false);
-    setIsUnsavedChangesModalOpen(false);
-
-    setTimeout(() => {
-      (async () => {
-        const mismatch = await checkNow();
-        if (mismatch) return;
-
-        if (pendingNavigation) {
-          router.push(pendingNavigation);
-          setPendingNavigation(null);
-        } else if (stepFromUrl === 1) {
-          router.push("/");
-        } else if (stepFromUrl > 1) {
-          const prevStep = stepFromUrl - 1;
-          if (prevStep === 1) {
-            router.push("/");
-          } else {
-            router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
-          }
-        } else {
-          router.push("/");
-        }
-      })();
-    }, 0);
-  };
+ 
 
   const handleBack = () => {
     if (isSubmittingRef.current) return;
 
     if (hasUnsavedChanges) {
-      setIsUnsavedChangesModalOpen(true);
+      (async () => {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+        pendingNavRef.current = { path: "/", leavingPage: true };
+        requestNavigation("/");
+      })();
       return;
     }
 
@@ -662,9 +643,12 @@ export default function EditApplicationPage() {
 
       if (stepFromUrl > 1) {
         const prevStep = stepFromUrl - 1;
-        router.replace(`/applications/edit/${applicationId}?step=${prevStep}`);
+        // navigate to previous step (internal navigation)
+        pendingNavRef.current = { path: `/applications/edit/${applicationId}?step=${prevStep}`, leavingPage: false };
+        requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
       } else {
-        router.replace("/");
+        pendingNavRef.current = { path: "/", leavingPage: true };
+        requestNavigation("/");
       }
     })();
   };
@@ -802,7 +786,7 @@ export default function EditApplicationPage() {
       if (dataToSave === null) {
         toast.success("Step completed");
         setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        await safeNavigate(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`, { leavingPage: false });
         return;
       }
 
@@ -819,7 +803,7 @@ export default function EditApplicationPage() {
 
       if (currentStepKey === "financing_structure" && structureChanged === false) {
         setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${nextStep}`);
+        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
         return;
       }
 
@@ -861,7 +845,7 @@ export default function EditApplicationPage() {
       // Do NOT invalidate queries - this causes skeleton reload flicker
       // The next page will load fresh data on mount
       const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
-      router.replace(`/applications/edit/${applicationId}?step=${navigationStep}`);
+      await safeNavigate(`/applications/edit/${applicationId}?step=${navigationStep}`, { leavingPage: false });
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
@@ -974,29 +958,17 @@ export default function EditApplicationPage() {
         onOpenChange={() => {}}
       />
 
-      {/* Unsaved Changes Modal */}
-      <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Unsaved changes</DialogTitle>
-            <DialogDescription>
-              You have unsaved changes. Are you sure you want to leave? Your changes will be lost.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsUnsavedChangesModalOpen(false)}
-              className="h-11"
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmLeave} className="h-11">
-              Leave without saving
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Unsaved Changes Modal (centralized) */}
+      {isModalOpen && (
+        <UnsavedChangesModal
+          onConfirm={() => {
+            confirmLeave();
+          }}
+          onCancel={() => {
+            cancelLeave();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -10,6 +10,8 @@ import { useProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
+import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
@@ -55,6 +57,29 @@ export default function NewApplicationPage() {
 
   // Track which product user selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+
+  const onConfirmNavigation = React.useCallback(
+    (path: string) => {
+      // Reset unsaved then navigate
+      setHasUnsavedChanges(false);
+      if (path === "__BACK__") {
+        router.replace("/");
+        return;
+      }
+      const pending = pendingNavRef.current;
+      pendingNavRef.current = null;
+      if (pending?.leavingPage) router.replace(path);
+      else router.push(path);
+    },
+    [router]
+  );
+
+  const { isModalOpen, confirmLeave, cancelLeave } = useNavigationGuard(
+    hasUnsavedChanges,
+    onConfirmNavigation
+  );
 
   /**
    * ORGANIZATION VERIFICATION CHECK
@@ -138,6 +163,7 @@ export default function NewApplicationPage() {
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
+    setHasUnsavedChanges(true);
   };
 
   /**
@@ -170,7 +196,8 @@ export default function NewApplicationPage() {
 
       toast.success("Application created successfully");
 
-      // Go to step 2 (next step after selecting product)
+      // Clear unsaved and go to step 2 (next step after selecting product)
+      setHasUnsavedChanges(false);
       router.push(`/applications/edit/${application.id}?step=2`);
     } catch (error) {
       // Error already shown by mutation hook
@@ -213,6 +240,8 @@ export default function NewApplicationPage() {
     );
   }
 
+  // (unsaved modal will be rendered inside returned JSX)
+ 
   return (
     <div className="flex flex-col h-full">
       {/* Main content */}
@@ -273,6 +302,9 @@ export default function NewApplicationPage() {
       </footer>
 
       <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      {isModalOpen && (
+        <UnsavedChangesModal onConfirm={() => confirmLeave()} onCancel={() => cancelLeave()} />
+      )}
     </div>
   );
 }
