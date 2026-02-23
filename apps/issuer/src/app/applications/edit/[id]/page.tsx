@@ -568,7 +568,11 @@ export default function EditApplicationPage() {
 
     if (currentStepKey === "contract_details") {
       return (
-        <ContractDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <ContractDetailsStep
+  applicationId={applicationId}
+  workflow={effectiveWorkflow}
+  onDataChange={handleDataChange}
+/>
       );
     }
 
