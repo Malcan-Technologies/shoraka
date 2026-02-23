@@ -556,10 +556,10 @@ export default function EditApplicationPage() {
     if (currentStepKey === "contract_details") {
       return (
         <ContractDetailsStep
-  applicationId={applicationId}
-  workflow={effectiveWorkflow}
-  onDataChange={handleDataChange}
-/>
+          applicationId={applicationId}
+          workflow={effectiveWorkflow}
+          onDataChange={handleDataChange}
+        />
       );
     }
 
@@ -596,7 +596,7 @@ export default function EditApplicationPage() {
       }
 
       const finalStepNumber = effectiveWorkflow.length;
-      console.log('wizard',finalStepNumber)
+      console.log('wizard', finalStepNumber)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -622,7 +622,7 @@ export default function EditApplicationPage() {
   };
 
 
- 
+
 
   const handleBack = () => {
     if (isSubmittingRef.current) return;
@@ -765,7 +765,6 @@ export default function EditApplicationPage() {
         delete (dataToSave as Record<string, unknown>).structureChanged;
         delete (dataToSave as Record<string, unknown>).isCreatingContract;
         delete (dataToSave as Record<string, unknown>)._uploadFiles;
-        delete (dataToSave as Record<string, unknown>).hasBeenSavedBefore;
       }
 
       // DECLARATIONS validation
@@ -811,6 +810,10 @@ export default function EditApplicationPage() {
           return;
         }
         // First-time save: fall through to standard save flow
+      }
+
+      if (dataToSave) {
+        delete (dataToSave as Record<string, unknown>).hasBeenSavedBefore;
       }
 
       /* ============================================================
@@ -936,24 +939,24 @@ export default function EditApplicationPage() {
               disabled={
                 updateStepMutation.isPending ||
                 updateStatusMutation.isPending ||
-              isSubmittingRef.current ||
-              !isCurrentStepValid ||
-              !isStepMapped
-            }
+                isSubmittingRef.current ||
+                !isCurrentStepValid ||
+                !isStepMapped
+              }
 
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
-          >
-            {currentStepKey === "review_and_submit"
-              ? updateStatusMutation.isPending
-                ? "Submitting..."
-                : "Submit"
-              : updateStepMutation.isPending
-                ? "Saving..."
-                : "Save and Continue"}
-            <ArrowRightIcon className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
-      </footer>
+              className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
+            >
+              {currentStepKey === "review_and_submit"
+                ? updateStatusMutation.isPending
+                  ? "Submitting..."
+                  : "Submit"
+                : updateStepMutation.isPending
+                  ? "Saving..."
+                  : "Save and Continue"}
+              <ArrowRightIcon className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </footer>
       ) : null}
 
       {/* Product Block Dialog - using standalone modal */}
@@ -961,7 +964,7 @@ export default function EditApplicationPage() {
         open={showBlockingDialog}
         blockReason={blockReason}
         applicationId={applicationId}
-        onOpenChange={() => {}}
+        onOpenChange={() => { }}
       />
 
       {/* Unsaved Changes Modal (centralized) */}
