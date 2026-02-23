@@ -267,6 +267,8 @@ export function ReviewAndSubmitStep({
     (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
 
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
+  const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
+  const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
 
 
@@ -380,47 +382,46 @@ export function ReviewAndSubmitStep({
             <h3 className={sectionHeaderClassName}>Contract</h3>
             <div className="mt-2 h-px bg-border" />
           </div>
-          {contractLoading ? (
+          {contractLoading || debugSkeletonMode ? (
             <ReviewContractSkeleton />
           ) : (
             <div className={gridClassName}>
-            <div className={labelClassName}>Contract title</div>
-            <div className={valueClassName}>{contractDetails.title || "—"}</div>
+              <div className={labelClassName}>Contract title</div>
+              <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
-            <div className={labelClassName}>Contract status</div>
-            <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+              <div className={labelClassName}>Contract status</div>
+              <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
 
-            <div className={labelClassName}>Customer</div>
-            <div className={valueClassName}>{customerDetails.name || "—"}</div>
+              <div className={labelClassName}>Customer</div>
+              <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
-            <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>
-              {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
+              <div className={labelClassName}>Contract value</div>
+              <div className={valueClassName}>
+                {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
+              </div>
+
+              <div className={labelClassName}>Contract financing</div>
+              <div className={valueClassName}>
+                {contractDetails?.financing === null || contractDetails?.financing === undefined
+                  ? "—"
+                  : renderMoney(contractDetails?.financing)}
+              </div>
+
+              <div className={labelClassName}>Approved facility</div>
+              <div className={valueClassName}>
+                {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
+              </div>
+
+              <div className={labelClassName}>Utilised facility</div>
+              <div className={valueClassName}>
+                {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
+              </div>
+
+              <div className={labelClassName}>Available facility</div>
+              <div className={valueClassName}>
+                {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
+              </div>
             </div>
-
-            <div className={labelClassName}>Contract financing</div>
-            <div className={valueClassName}>
-              {contractDetails?.financing === null || contractDetails?.financing === undefined
-                ? "—"
-                : renderMoney(contractDetails?.financing)}
-            </div>
-
-
-            <div className={labelClassName}>Approved facility</div>
-            <div className={valueClassName}>
-              {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
-            </div>
-
-            <div className={labelClassName}>Utilised facility</div>
-            <div className={valueClassName}>
-              {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
-            </div>
-
-            <div className={labelClassName}>Available facility</div>
-            <div className={valueClassName}>
-              {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
-            </div>
-          </div>
           )}
         </section>
       )}
@@ -432,7 +433,7 @@ export function ReviewAndSubmitStep({
             <h3 className={sectionHeaderClassName}>Invoices</h3>
             <div className="mt-2 h-px bg-border" />
           </div>
-          {invoiceLoading ? (
+          {invoiceLoading || debugSkeletonMode ? (
             <ReviewInvoiceSkeleton />
           ) : (
             <>
@@ -569,25 +570,29 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Company info</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Company name</div>
-              <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
+            {companyLoading || debugSkeletonMode ? (
+              <ReviewCompanySkeleton />
+            ) : (
+              <div className={gridClassName}>
+                <div className={labelClassName}>Company name</div>
+                <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
-              <div className={labelClassName}>Type of entity</div>
-              <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
+                <div className={labelClassName}>Type of entity</div>
+                <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
 
-              <div className={labelClassName}>SSM no</div>
-              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
+                <div className={labelClassName}>SSM no</div>
+                <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
 
-              <div className={labelClassName}>Industry</div>
-              <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
+                <div className={labelClassName}>Industry</div>
+                <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
 
-              <div className={labelClassName}>Nature of business</div>
-              <div className={valueClassName}>Private</div>
+                <div className={labelClassName}>Nature of business</div>
+                <div className={valueClassName}>Private</div>
 
-              <div className={labelClassName}>Number of employees</div>
-              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
-            </div>
+                <div className={labelClassName}>Number of employees</div>
+                <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
+              </div>
+            )}
           </section>
 
           {/* Director & Shareholders */}
@@ -596,7 +601,9 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            {combinedList.length === 0 ? (
+            {companyLoading || debugSkeletonMode ? (
+              <ReviewBusinessSkeleton />
+            ) : combinedList.length === 0 ? (
               <div className="text-sm text-muted-foreground px-3">
                 No directors or shareholders found
               </div>
@@ -637,13 +644,17 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Banking details</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Bank name</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
+            {companyLoading || debugSkeletonMode ? (
+              <ReviewBusinessSkeleton />
+            ) : (
+              <div className={gridClassName}>
+                <div className={labelClassName}>Bank name</div>
+                <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
-              <div className={labelClassName}>Bank account number</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
-            </div>
+                <div className={labelClassName}>Bank account number</div>
+                <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
+              </div>
+            )}
           </section>
 
           {/* Address */}
@@ -652,13 +663,17 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Address</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Business address</div>
-              <div className={valueClassName}>{formatAddress(businessAddress)}</div>
+            {companyLoading || debugSkeletonMode ? (
+              <ReviewBusinessSkeleton />
+            ) : (
+              <div className={gridClassName}>
+                <div className={labelClassName}>Business address</div>
+                <div className={valueClassName}>{formatAddress(businessAddress)}</div>
 
-              <div className={labelClassName}>Registered address</div>
-              <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
-            </div>
+                <div className={labelClassName}>Registered address</div>
+                <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
+              </div>
+            )}
           </section>
 
           {/* Contact Person */}
@@ -667,19 +682,23 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Contact Person</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Applicant name</div>
-              <div className={valueClassName}>{contactPerson.name || "—"}</div>
+            {companyLoading || debugSkeletonMode ? (
+              <ReviewBusinessSkeleton />
+            ) : (
+              <div className={gridClassName}>
+                <div className={labelClassName}>Applicant name</div>
+                <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
-              <div className={labelClassName}>Applicant position</div>
-              <div className={valueClassName}>{contactPerson.position || "—"}</div>
+                <div className={labelClassName}>Applicant position</div>
+                <div className={valueClassName}>{contactPerson.position || "—"}</div>
 
-              <div className={labelClassName}>Applicant IC no</div>
-              <div className={valueClassName}>{contactPerson.ic || "—"}</div>
+                <div className={labelClassName}>Applicant IC no</div>
+                <div className={valueClassName}>{contactPerson.ic || "—"}</div>
 
-              <div className={labelClassName}>Applicant contact</div>
-              <div className={valueClassName}>{contactPerson.contact || "—"}</div>
-            </div>
+                <div className={labelClassName}>Applicant contact</div>
+                <div className={valueClassName}>{contactPerson.contact || "—"}</div>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -691,23 +710,27 @@ export function ReviewAndSubmitStep({
             <h3 className={sectionHeaderClassName}>Legal docs</h3>
             <div className="mt-2 h-px bg-border" />
           </div>
-          <div className="space-y-4 px-3">
-            {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-              <div key={i} className="flex justify-between items-center py-2">
-                <span className={labelClassName}>{doc.title}</span>
-                {doc.file ? (
-                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+          {supportingLoading || debugSkeletonMode ? (
+            <ReviewSupportingDocsSkeleton />
+          ) : (
+            <div className="space-y-4 px-3">
+              {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
+                <div key={i} className="flex justify-between items-center py-2">
+                  <span className={labelClassName}>{doc.title}</span>
+                  {doc.file ? (
+                    <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                      </div>
+                      <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
                     </div>
-                    <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
-                  </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground italic">Not provided</span>
-                )}
-              </div>
-            ))}
-          </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">Not provided</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
     </div>
