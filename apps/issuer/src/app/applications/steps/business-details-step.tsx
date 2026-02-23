@@ -678,7 +678,7 @@ export function BusinessDetailsStep({
                     platformName: e.target.value,
                   }))
                 }
-                placeholder="e.g. CARPAY"
+                placeholder="e.g. CAPBAY"
                 className={inputClassName}
               />
 
