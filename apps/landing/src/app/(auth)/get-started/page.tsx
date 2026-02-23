@@ -226,7 +226,7 @@ function GetStartedPageContent() {
           </div>
 
           <AlertDialogFooter className="pt-4 border-t border-border/50">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full gap-3 sm:justify-end">
               <AlertDialogCancel className="w-full sm:w-auto px-4 py-2">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="w-full sm:w-auto px-6 py-2"
