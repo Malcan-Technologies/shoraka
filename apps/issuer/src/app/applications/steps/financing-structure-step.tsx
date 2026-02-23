@@ -68,8 +68,8 @@ export function FinancingStructureStep({
    * Why: Drives selected card styling and validation.
    * Data: `FinancingStructureType | null`.
    */
-  const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType | null>(
-    null
+  const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType>(
+    "new_contract"
   );
 
   /** Local state
@@ -107,12 +107,11 @@ export function FinancingStructureStep({
 
     const savedData = application.financing_structure as any;
 
-    if (savedData?.structure_type) {
-      setSelectedStructure(savedData.structure_type);
-      if (savedData.existing_contract_id) {
-        setSelectedContractId(savedData.existing_contract_id);
-      }
-    }
+    const initialType = savedData?.structure_type ?? "new_contract";
+    const initialContractId = savedData?.existing_contract_id ?? "";
+
+    setSelectedStructure(initialType);
+    setSelectedContractId(initialContractId);
 
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -143,27 +142,18 @@ export function FinancingStructureStep({
       }
     }
 
-    // Check if selection is valid to proceed
+    // isValid: only invalid when existing_contract selected but no contract chosen
     const isValid =
-      selectedStructure !== null &&
-      (selectedStructure !== "existing_contract" || selectedContractId !== "");
+      selectedStructure !== "existing_contract" || selectedContractId !== "";
 
     const savedStructure = application?.financing_structure as any;
-    const previousStructureType = savedStructure?.structure_type;
 
-    // Check if user made changes from what's in DB
     const structureChanged =
-      !savedStructure ||  // No saved data yet (first time) → need to save
-      savedStructure.structure_type !== selectedStructure ||  // Structure type changed
-      (
-        selectedStructure === "existing_contract" &&
-        savedStructure.existing_contract_id !== selectedContractId  // Contract ID changed
-      );
+      savedStructure?.structure_type !== selectedStructure ||
+      (selectedStructure === "existing_contract" &&
+        savedStructure?.existing_contract_id !== selectedContractId);
 
-    const hasPendingChanges = structureChanged;
-
-
-
+    const hasPendingChanges = Boolean(structureChanged);
 
     onDataChangeRef.current({
       ...dataToSave,
@@ -171,7 +161,6 @@ export function FinancingStructureStep({
       isValid,
       hasPendingChanges,
       structureChanged,
-      previousStructureType,
     });
 
   }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
