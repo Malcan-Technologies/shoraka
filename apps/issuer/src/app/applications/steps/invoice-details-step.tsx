@@ -847,150 +847,151 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         )}
 
         {/* ================= Invoice Details ================= */}
-        <div className="space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">
-                Invoice details
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Add invoices below. Rows are local until you Save and Continue.
-              </p>
+        {isLoadingApplication || debugSkeletonMode ? null : (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                  Invoice details
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add invoices below. Rows are local until you Save and Continue.
+                </p>
+              </div>
+
+              <Button onClick={addInvoice} className="bg-primary text-primary-foreground">
+                Add invoice
+              </Button>
             </div>
 
-            <Button onClick={addInvoice} className="bg-primary text-primary-foreground">
-              Add invoice
-            </Button>
-          </div>
+            <div className="mt-2 h-px bg-border" />
 
-          <div className="mt-2 h-px bg-border" />
+            {/* ================= Table ================= */}
+            <div className="mt-4 px-3">
+              {isLoadingInvoices ? (
+                <InvoiceTableSkeleton rowCount={3} />
+              ) : (
+                <div className="border rounded-xl bg-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <Table className="table-fixed w-full">
+                      <TableHeader className="bg-muted/20">
+                        <TableRow>
+                          <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
+                            Invoice
+                          </TableHead>
 
-          {/* ================= Table ================= */}
-          <div className="mt-4 px-3">
-            {isLoadingInvoices ? (
-              <InvoiceTableSkeleton rowCount={3} />
-            ) : (
-              <div className="border rounded-xl bg-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <Table className="table-fixed w-full">
-                    <TableHeader className="bg-muted/20">
-                      <TableRow>
-                        <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
-                          Invoice
-                        </TableHead>
+                          <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
+                            Status
+                          </TableHead>
 
-                        <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
-                          Status
-                        </TableHead>
+                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                            Maturity date
+                          </TableHead>
 
-                        <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                          Maturity date
-                        </TableHead>
+                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                            Invoice value (RM)
+                          </TableHead>
 
-                        <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                          Invoice value (RM)
-                        </TableHead>
+                          <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
+                            Financing ratio
+                          </TableHead>
 
-                        <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                          Financing ratio
-                        </TableHead>
+                          <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
+                            Maximum financing amount (RM)
+                          </TableHead>
 
-                        <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                          Maximum financing amount (RM)
-                        </TableHead>
+                          <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
+                            Documents
+                          </TableHead>
 
-                        <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
-                          Documents
-                        </TableHead>
+                          <TableHead className="w-[50px]" />
+                        </TableRow>
+                      </TableHeader>
 
-                        <TableHead className="w-[50px]" />
-                      </TableRow>
-                    </TableHeader>
+                      <TableBody>
+                        {/* APPLICATION INVOICES */}
+                        {invoices.map((inv) => {
+                          const ratio = inv.financing_ratio_percent || 60;
+                          const value = parseMoney(inv.value);
+                          const financingAmount = value * (ratio / 100);
+                          const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
+                          const isEditable = inv.status === "DRAFT" || !inv.status;
 
-                    <TableBody>
-                      {/* APPLICATION INVOICES */}
-                      {invoices.map((inv) => {
-                        const ratio = inv.financing_ratio_percent || 60;
-                        const value = parseMoney(inv.value);
-                        const financingAmount = value * (ratio / 100);
-                        const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
-                        const isEditable = inv.status === "DRAFT" || !inv.status;
+                          return (
+                            <TableRow
+                              key={inv.id}
+                              className={cn(
+                                "hover:bg-muted/40 transition-colors",
+                                isLocked && "opacity-60 grayscale pointer-events-none"
+                              )}
+                            >
+                              <TableCell className="p-2">
+                                <Input
+                                  value={inv.number}
+                                  disabled={!isEditable}
+                                  onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
+                                  placeholder="Enter invoice"
+                                  className={withFieldError(
+                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                    isRowPartial(inv)
+                                  )}
+                                />
+                              </TableCell>
 
-                        return (
-                          <TableRow
-                            key={inv.id}
-                            className={cn(
-                              "hover:bg-muted/40 transition-colors",
-                              isLocked && "opacity-60 grayscale pointer-events-none"
-                            )}
-                          >
-                            <TableCell className="p-2">
-                              <Input
-                                value={inv.number}
-                                disabled={!isEditable}
-                                onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                                placeholder="Enter invoice"
-                                className={withFieldError(
-                                  "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                  isRowPartial(inv)
-                                )}
-                              />
-                            </TableCell>
+                              <TableCell className="p-2">
+                                <StatusBadge status={inv.status} />
+                              </TableCell>
 
-                            <TableCell className="p-2">
-                              <StatusBadge status={inv.status} />
-                            </TableCell>
+                              <TableCell className="p-2">
+                                <DateInput
+                                  value={inv.maturity_date || ""}
+                                  onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
+                                  className={!isEditable ? "opacity-60 pointer-events-none" : ""}
+                                  isInvalid={isRowPartial(inv)}
+                                  size="compact"
+                                  placeholder="Enter date"
+                                />
+                              </TableCell>
 
-                            <TableCell className="p-2">
-                              <DateInput
-                                value={inv.maturity_date || ""}
-                                onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
-                                className={!isEditable ? "opacity-60 pointer-events-none" : ""}
-                                isInvalid={isRowPartial(inv)}
-                                size="compact"
-                                placeholder="Enter date"
-                              />
-                            </TableCell>
+                              <TableCell className="p-2">
+                                <MoneyInput
+                                  value={inv.value}
+                                  onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
+                                  placeholder="Enter value"
+                                  disabled={!isEditable}
+                                  inputClassName={withFieldError(
+                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                    isRowPartial(inv)
+                                  )}
+                                />
+                              </TableCell>
 
-                            <TableCell className="p-2">
-                              <MoneyInput
-                                value={inv.value}
-                                onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
-                                placeholder="Enter value"
-                                disabled={!isEditable}
-                                inputClassName={withFieldError(
-                                  "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                  isRowPartial(inv)
-                                )}
-                              />
-                            </TableCell>
-
-                            <TableCell className="p-2">
-                              <div className="space-y-1">
-                                <div
-                                  className="relative text-[10px] font-medium text-muted-foreground"
-                                  style={{
-                                    left: `${((ratio - 60) / 20) * 100}%`,
-                                    transform: "translateX(-50%)",
-                                    width: "fit-content",
-                                  }}
-                                >
-                                  <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
-                                    {ratio}%
+                              <TableCell className="p-2">
+                                <div className="space-y-1">
+                                  <div
+                                    className="relative text-[10px] font-medium text-muted-foreground"
+                                    style={{
+                                      left: `${((ratio - 60) / 20) * 100}%`,
+                                      transform: "translateX(-50%)",
+                                      width: "fit-content",
+                                    }}
+                                  >
+                                    <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
+                                      {ratio}%
+                                    </div>
                                   </div>
-                                </div>
 
-                                <div className="max-w-[110px] mx-auto">
-                                  <Slider
-                                    min={60}
-                                    max={80}
-                                    step={1}
-                                    value={[ratio]}
-                                    disabled={!isEditable}
-                                    onValueChange={(value) =>
-                                      updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
-                                    }
-                                    className="
+                                  <div className="max-w-[110px] mx-auto">
+                                    <Slider
+                                      min={60}
+                                      max={80}
+                                      step={1}
+                                      value={[ratio]}
+                                      disabled={!isEditable}
+                                      onValueChange={(value) =>
+                                        updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+                                      }
+                                      className="
                                 relative
                                 [&_[data-orientation=horizontal]]:h-1.5
                                 [&_[data-orientation=horizontal]]:bg-muted
@@ -1002,116 +1003,117 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 [&_[role=slider]]:bg-background
                                 [&_[role=slider]]:shadow-none
                               "
-                                  />
-                                </div>
-
-                                <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                                  <span>60%</span>
-                                  <span>80%</span>
-                                </div>
-                              </div>
-                            </TableCell>
-
-                            <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                              {formatMoney(financingAmount)}
-                            </TableCell>
-
-                            <TableCell className="p-2">
-                              {inv.document ? (
-                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8">
-                                  <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                    <CheckIconSolid className="h-2 w-2 text-background" />
+                                    />
                                   </div>
-                                  <span className="text-xs font-medium truncate flex-1">
-                                    {inv.document.file_name}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (inv.document?.s3_key) {
-                                        setLastS3Keys((prev) => ({
-                                          ...prev,
-                                          [inv.id]: inv.document!.s3_key!,
-                                        }));
-                                      }
-                                      updateInvoiceField(inv.id, "document", null);
-                                      setSelectedFiles((prev) => {
-                                        const copy = { ...prev };
-                                        delete copy[inv.id];
-                                        return copy;
-                                      });
-                                    }}
-                                    className={cn(
-                                      "shrink-0",
-                                      isEditable
-                                        ? "text-muted-foreground hover:text-foreground cursor-pointer"
-                                        : "opacity-40 cursor-not-allowed"
-                                    )}
-                                  >
-                                    <XMarkIcon className="h-3 w-3" />
-                                  </button>
+
+                                  <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                                    <span>60%</span>
+                                    <span>80%</span>
+                                  </div>
                                 </div>
-                              ) : (
-                                <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
-                                  <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="truncate">Upload</span>
-                                  <Input
-                                    type="file"
-                                    accept="application/pdf"
-                                    className="hidden"
-                                    disabled={!isEditable}
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0];
-                                      if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
-                                    }}
-                                  />
-                                </label>
-                              )}
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell className="p-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={isLocked}
-                                onClick={() => deleteInvoice(inv)}
-                                className={cn(
-                                  isLocked
-                                    ? "text-muted-foreground cursor-not-allowed"
-                                    : "hover:text-destructive"
+                              <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                                {formatMoney(financingAmount)}
+                              </TableCell>
+
+                              <TableCell className="p-2">
+                                {inv.document ? (
+                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8">
+                                    <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                      <CheckIconSolid className="h-2 w-2 text-background" />
+                                    </div>
+                                    <span className="text-xs font-medium truncate flex-1">
+                                      {inv.document.file_name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (inv.document?.s3_key) {
+                                          setLastS3Keys((prev) => ({
+                                            ...prev,
+                                            [inv.id]: inv.document!.s3_key!,
+                                          }));
+                                        }
+                                        updateInvoiceField(inv.id, "document", null);
+                                        setSelectedFiles((prev) => {
+                                          const copy = { ...prev };
+                                          delete copy[inv.id];
+                                          return copy;
+                                        });
+                                      }}
+                                      className={cn(
+                                        "shrink-0",
+                                        isEditable
+                                          ? "text-muted-foreground hover:text-foreground cursor-pointer"
+                                          : "opacity-40 cursor-not-allowed"
+                                      )}
+                                    >
+                                      <XMarkIcon className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate">Upload</span>
+                                    <Input
+                                      type="file"
+                                      accept="application/pdf"
+                                      className="hidden"
+                                      disabled={!isEditable}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
+                                      }}
+                                    />
+                                  </label>
                                 )}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                              </TableCell>
 
-                      {/* TOTAL */}
-                      <TableRow className="bg-muted/10">
-                        <TableCell colSpan={5} />
-                        <TableCell className="p-2 font-semibold text-xs">
-                          {formatMoney(totalFinancingAmount)}
-                          <div className="text-xs text-muted-foreground font-normal">Total</div>
-                        </TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                              <TableCell className="p-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isLocked}
+                                  onClick={() => deleteInvoice(inv)}
+                                  className={cn(
+                                    isLocked
+                                      ? "text-muted-foreground cursor-not-allowed"
+                                      : "hover:text-destructive"
+                                  )}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+
+                        {/* TOTAL */}
+                        <TableRow className="bg-muted/10">
+                          <TableCell colSpan={5} />
+                          <TableCell className="p-2 font-semibold text-xs">
+                            {formatMoney(totalFinancingAmount)}
+                            <div className="text-xs text-muted-foreground font-normal">Total</div>
+                          </TableCell>
+                          <TableCell colSpan={2} />
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* ================= Validation ================= */}
+            {validationError && (
+              <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+                <XMarkIcon className="h-5 w-5" />
+                {validationError}
               </div>
             )}
           </div>
-
-          {/* ================= Validation ================= */}
-          {validationError && (
-            <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
-              <XMarkIcon className="h-5 w-5" />
-              {validationError}
-            </div>
-          )}
-        </div>
+        )}
       </div>
       <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
