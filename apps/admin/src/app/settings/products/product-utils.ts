@@ -13,48 +13,91 @@ export type WorkflowStepShape = {
   reviewSection?: ReviewSectionId;
 };
 
-/** Default mapping from step key to review section. Used when step has no explicit reviewSection. */
-const STEP_KEY_TO_SECTION: Partial<Record<string, ReviewSectionId>> = {
-  financing_type: "FINANCIAL",
-  financing_structure: "FINANCIAL",
-  contract_details: "FINANCIAL",
-  invoice_details: "FINANCIAL",
-  company_details: "FINANCIAL",
-  business_details: "JUSTIFICATION",
-  supporting_documents: "DOCUMENTS",
-  declarations: "DOCUMENTS",
-  review_and_submit: "FINANCIAL",
+/** Descriptor for an admin review tab. Used for dynamic tab rendering. */
+export type ReviewTabDescriptor = {
+  id: string;
+  label: string;
+  /** Backend section for status mapping. FINANCIAL | JUSTIFICATION | DOCUMENTS for special tabs; others use PENDING. */
+  reviewSection: ReviewSectionId | "PENDING";
+  kind: "financial" | "business_details" | "supporting_documents" | "step";
+  /** Step key when kind is "step" (e.g. financing_type, contract_details). */
+  stepKey?: string;
+  /** Step id when kind is "step" (e.g. financing_type_1). */
+  stepId?: string;
 };
 
-/** Infer review section from step id (e.g. "business_details_1" -> JUSTIFICATION). */
-export function inferReviewSectionFromStepId(stepId: string): ReviewSectionId {
-  const key = getStepKeyFromStepId(stepId);
-  if (key) return STEP_KEY_TO_SECTION[key] ?? "FINANCIAL";
-  return "FINANCIAL";
+/**
+ * Step keys that get an admin review tab when present in the workflow.
+ * Add a key here when adding a new step that has a section component (StepSummarySection or dedicated).
+ * See docs/guides/add-a-product-workflow-step.md.
+ */
+const REVIEW_TAB_STEP_KEYS = new Set([
+  "business_details",
+  "supporting_documents",
+  "contract_details",
+  "invoice_details",
+  "company_details",
+]);
+
+/** Review-only tab labels. Edit this map to change labels shown on admin application review tabs. */
+const REVIEW_TAB_LABELS: Record<string, string> = {
+  FINANCIAL: "Financial",
+  business_details: "Business",
+  supporting_documents: "Documents",
+  contract_details: "Contract",
+  invoice_details: "Invoice",
+  company_details: "Company",
+};
+
+/** Order of step keys on review tabs. Financial is always first; this controls the rest. Add new step keys here when adding workflow steps. */
+const REVIEW_TAB_ORDER = [
+  "company_details",
+  "business_details",
+  "supporting_documents",
+  "contract_details",
+  "invoice_details",
+] as const;
+
+function getReviewTabLabel(stepKey: string): string {
+  return REVIEW_TAB_LABELS[stepKey] ?? stepKey.replace(/_/g, " ");
 }
 
-/** Resolve review section for a step: explicit reviewSection first, else inferred. */
-export function getReviewSectionForStep(step: WorkflowStepShape): ReviewSectionId {
-  if (step.reviewSection && ["FINANCIAL", "JUSTIFICATION", "DOCUMENTS"].includes(step.reviewSection)) {
-    return step.reviewSection;
-  }
-  return inferReviewSectionFromStepId(step.id);
-}
+/** Build ordered review tab descriptors from product workflow. Financial tab is always first; step tabs follow REVIEW_TAB_ORDER. */
+export function getReviewTabDescriptorsFromWorkflow(workflow: unknown[] | null | undefined): ReviewTabDescriptor[] {
+  const result: ReviewTabDescriptor[] = [];
 
-/** Derive unique review section ids from product workflow, in registry order. */
-export function getVisibleSectionIdsFromWorkflow(workflow: unknown[] | null | undefined): ReviewSectionId[] {
+  result.push({
+    id: "FINANCIAL",
+    label: getReviewTabLabel("FINANCIAL"),
+    reviewSection: "FINANCIAL",
+    kind: "financial",
+  });
+
   const steps = normalizeWorkflowSteps(workflow);
-  const sectionOrder: ReviewSectionId[] = ["FINANCIAL", "JUSTIFICATION", "DOCUMENTS"];
-  const seen = new Set<ReviewSectionId>();
-  const result: ReviewSectionId[] = [];
-  for (const sectionId of sectionOrder) {
-    const hasStep = steps.some((s) => getReviewSectionForStep(s) === sectionId);
-    if (hasStep && !seen.has(sectionId)) {
-      seen.add(sectionId);
-      result.push(sectionId);
+  const stepTabs: ReviewTabDescriptor[] = [];
+  for (const step of steps) {
+    const stepKey = getStepKeyFromStepId(step.id);
+    if (!stepKey || !REVIEW_TAB_STEP_KEYS.has(stepKey)) continue;
+    const label = getReviewTabLabel(stepKey);
+
+    let tab: ReviewTabDescriptor;
+    if (stepKey === "business_details") {
+      tab = { id: step.id, label, reviewSection: "JUSTIFICATION", kind: "business_details", stepKey, stepId: step.id };
+    } else if (stepKey === "supporting_documents") {
+      tab = { id: step.id, label, reviewSection: "DOCUMENTS", kind: "supporting_documents", stepKey, stepId: step.id };
+    } else {
+      tab = { id: step.id, label, reviewSection: "PENDING", kind: "step", stepKey, stepId: step.id };
     }
+    stepTabs.push(tab);
   }
-  if (result.length === 0) return sectionOrder;
+
+  const orderIndex = (key: string) => {
+    const i = REVIEW_TAB_ORDER.indexOf(key as (typeof REVIEW_TAB_ORDER)[number]);
+    return i === -1 ? REVIEW_TAB_ORDER.length : i;
+  };
+  stepTabs.sort((a, b) => orderIndex(a.stepKey!) - orderIndex(b.stepKey!));
+
+  result.push(...stepTabs);
   return result;
 }
 

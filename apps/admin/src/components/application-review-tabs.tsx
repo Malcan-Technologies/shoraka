@@ -3,10 +3,9 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
-import { getSectionsInOrder } from "@/components/application-review/section-registry";
-import type { ReviewSectionId } from "@/components/application-review/section-types";
+import type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
 
-export type { ReviewSectionId } from "@/components/application-review/section-types";
+export type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
 
 function StatusDot({ status }: { status: string }) {
   const dotClass =
@@ -26,18 +25,19 @@ function StatusDot({ status }: { status: string }) {
 }
 
 export interface ApplicationReviewTabsProps {
+  /** Backend review section statuses for status dots. Key: FINANCIAL | JUSTIFICATION | DOCUMENTS. */
   sections: { section: string; status: string }[];
+  /** Tab descriptors from getReviewTabDescriptorsFromWorkflow (Financial + included steps). */
+  tabDescriptors: ReviewTabDescriptor[];
   children: React.ReactNode;
-  defaultSection?: ReviewSectionId;
-  /** Optional: only show these section ids. If omitted, uses all from registry. */
-  visibleSectionIds?: ReviewSectionId[];
+  defaultTabId?: string;
 }
 
 export function ApplicationReviewTabs({
   sections,
+  tabDescriptors,
   children,
-  defaultSection = "FINANCIAL",
-  visibleSectionIds,
+  defaultTabId,
 }: ApplicationReviewTabsProps) {
   const sectionMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -47,22 +47,21 @@ export function ApplicationReviewTabs({
     return m;
   }, [sections]);
 
-  const tabSections = React.useMemo(
-    () => getSectionsInOrder(visibleSectionIds),
-    [visibleSectionIds]
-  );
+  const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "FINANCIAL";
 
   return (
-    <Tabs defaultValue={defaultSection} className="w-full">
+    <Tabs defaultValue={defaultValue} className="w-full">
       <TabsList className="inline-flex h-11 w-full rounded-xl bg-muted p-1 gap-1">
-        {tabSections.map(({ id, label }) => (
+        {tabDescriptors.map((tab) => (
           <TabsTrigger
-            key={id}
-            value={id}
+            key={tab.id}
+            value={tab.id}
             className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
           >
-            <StatusDot status={sectionMap.get(id) ?? "PENDING"} />
-            {label}
+            <StatusDot
+              status={tab.reviewSection === "PENDING" ? "PENDING" : sectionMap.get(tab.reviewSection) ?? "PENDING"}
+            />
+            {tab.label}
           </TabsTrigger>
         ))}
       </TabsList>
@@ -75,7 +74,7 @@ export function ApplicationReviewTabContent({
   value,
   children,
 }: {
-  value: ReviewSectionId;
+  value: string;
   children: React.ReactNode;
 }) {
   return (

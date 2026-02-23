@@ -3766,13 +3766,25 @@ export class AdminService {
   }
 
   /**
-   * Update AR financing application status
+   * Update AR financing application status.
+   * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
    */
   async updateApplicationStatus(id: string, status: ApplicationStatus) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const currentStatus = application.status as ApplicationStatus;
+    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+      if (!this.isReviewable(currentStatus)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Application is already in a terminal state; cannot change status"
+        );
+      }
     }
 
     if (status === ApplicationStatus.APPROVED) {
@@ -3831,13 +3843,70 @@ export class AdminService {
   }
 
   /**
-   * Validate that a document item exists in the application (supporting_documents must exist)
+   * Validate that a document item exists in the application.
+   * Ensures supporting_documents exists and itemId format is valid (doc:...).
+   * Full key resolution matches frontend buildCategoryGroups logic.
    */
-  private validateDocumentExists(application: { supporting_documents: unknown }): void {
+  private validateDocumentExists(
+    application: { supporting_documents?: unknown },
+    itemId: string
+  ): void {
     const docs = application.supporting_documents;
     if (!docs || typeof docs !== "object") {
       throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
     }
+    if (!itemId.startsWith("doc:")) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid document item ID: ${itemId}`);
+    }
+    const docKeys = this.collectDocumentKeys(docs);
+    if (!docKeys.has(itemId)) {
+      throw new AppError(400, "INVALID_ITEM", `Document ${itemId} not found in this application`);
+    }
+  }
+
+  /** Collect document keys from supporting_documents structure (matches frontend key generation). */
+  private collectDocumentKeys(docs: unknown): Set<string> {
+    const keys = new Set<string>();
+    const raw = (docs as Record<string, unknown>)?.supporting_documents ?? docs;
+    if (Array.isArray(raw)) {
+      raw.forEach((d: Record<string, unknown>, i: number) => {
+        keys.add(`doc:${i}:${String(d?.name ?? d?.title ?? "document")}`);
+      });
+      return keys;
+    }
+    if (typeof raw !== "object" || raw === null) return keys;
+    const obj = raw as Record<string, unknown>;
+    const categoryKeys = ["financial_docs", "legal_docs", "compliance_docs", "others"];
+    for (const catKey of categoryKeys) {
+      const val = obj[catKey];
+      if (val == null) continue;
+      const arr = Array.isArray(val) ? val : [val];
+      arr.forEach((d: Record<string, unknown>, i: number) => {
+        keys.add(`doc:${catKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`);
+      });
+    }
+    const cats = obj.categories;
+    const labelToKey: Record<string, string> = {
+      "Financial Docs": "financial_docs",
+      "Legal Docs": "legal_docs",
+      "Compliance Docs": "compliance_docs",
+      Others: "others",
+    };
+    if (Array.isArray(cats)) {
+      cats.forEach((cat: Record<string, unknown>, catIndex: number) => {
+        const categoryLabel = String(cat?.name ?? `Category ${catIndex + 1}`);
+        const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
+        const docList = Array.isArray(cat?.documents) ? cat.documents : [];
+        docList.forEach((d: Record<string, unknown>, docIndex: number) => {
+          const file = d?.file as { file_name?: string } | undefined;
+          const label =
+            String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
+          const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+          keys.add(`doc:${categoryKey}:${docIndex}:${slug}`);
+        });
+      });
+    }
+    return keys;
   }
 
   /**
@@ -3851,8 +3920,26 @@ export class AdminService {
     if (itemType === "INVOICE") {
       this.validateInvoiceExists(application as { invoices: { id: string }[] }, itemId);
     } else {
-      this.validateDocumentExists(application as { supporting_documents: unknown });
+      this.validateDocumentExists(application as { supporting_documents?: unknown }, itemId);
     }
+  }
+
+  /**
+   * Load application and validate it is in a reviewable state. Shared by all review actions.
+   */
+  private async prepareForReviewAction(applicationId: string): Promise<{
+    repository: AdminRepository;
+    application: NonNullable<Awaited<ReturnType<AdminRepository["getApplicationById"]>>>;
+  }> {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (!this.isReviewable(application.status as ApplicationStatus)) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+    return { repository, application };
   }
 
   /**
@@ -3873,16 +3960,8 @@ export class AdminService {
     reviewerUserId: string,
     remark?: string | null
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     await repository.ensureApplicationReviewSections(applicationId);
 
     const existing = application.application_reviews?.find(
@@ -3930,16 +4009,8 @@ export class AdminService {
     remark: string,
     reviewerUserId: string
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     await repository.ensureApplicationReviewSections(applicationId);
 
     const existing = application.application_reviews?.find(
@@ -3987,16 +4058,8 @@ export class AdminService {
     remark: string,
     reviewerUserId: string
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     await repository.ensureApplicationReviewSections(applicationId);
 
     const existing = application.application_reviews?.find(
@@ -4045,18 +4108,9 @@ export class AdminService {
     reviewerUserId: string,
     remark?: string | null
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -4105,18 +4159,9 @@ export class AdminService {
     remark: string,
     reviewerUserId: string
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -4162,18 +4207,9 @@ export class AdminService {
     remark: string,
     reviewerUserId: string
   ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    if (!this.isReviewable(application.status)) {
-      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
-    }
-
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-
-    await this.ensureUnderReview(repository, applicationId, application.status);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId

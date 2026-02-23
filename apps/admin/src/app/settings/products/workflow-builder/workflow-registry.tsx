@@ -45,7 +45,9 @@ export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
 type ConfigComponentProps = { config: unknown; onChange: (config: unknown) => void };
 
 /** Step key → component that renders that step's config form. */
-export const STEP_CONFIG_MAP: Partial<Record<ApplicationStepKey, React.ComponentType<ConfigComponentProps>>> = {
+export const STEP_CONFIG_MAP: Partial<
+  Record<ApplicationStepKey, React.ComponentType<ConfigComponentProps>>
+> = {
   financing_type: FinancingTypeConfig,
   financing_structure: FinancingStructureConfig,
   contract_details: ContractDetailsConfig,

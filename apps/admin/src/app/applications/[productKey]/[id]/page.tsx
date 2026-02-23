@@ -28,11 +28,10 @@ import {
   SectionContent,
   ReviewSummaryCard,
   RecentActivityCard,
-  getSectionsInOrder,
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
-import { productName, getVisibleSectionIdsFromWorkflow } from "@/app/settings/products/product-utils";
+import { productName, getReviewTabDescriptorsFromWorkflow } from "@/app/settings/products/product-utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -136,24 +135,22 @@ export default function DynamicApplicationDetailPage() {
     [getAccessToken]
   );
 
-  const visibleSectionIds = React.useMemo(
-    () => getVisibleSectionIdsFromWorkflow(currentProduct?.workflow),
+  const tabDescriptors = React.useMemo(
+    () => getReviewTabDescriptorsFromWorkflow(currentProduct?.workflow),
     [currentProduct?.workflow]
   );
 
   const reviewSections = React.useMemo(() => {
-    if (!app?.application_reviews?.length) {
-      return [
-        { section: "FINANCIAL", status: "PENDING" },
-        { section: "JUSTIFICATION", status: "PENDING" },
-        { section: "DOCUMENTS", status: "PENDING" },
-      ];
+    if (app?.application_reviews?.length) {
+      return (app.application_reviews as { section: string; status: string }[]).map((r) => ({
+        section: r.section,
+        status: r.status,
+      }));
     }
-    return (app.application_reviews as { section: string; status: string }[]).map((r) => ({
-      section: r.section,
-      status: r.status,
-    }));
-  }, [app?.application_reviews]);
+    return tabDescriptors
+      .filter((d) => d.reviewSection !== "PENDING")
+      .map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+  }, [app?.application_reviews, tabDescriptors]);
 
   const allSectionsApproved = React.useMemo(
     () =>
@@ -458,13 +455,13 @@ export default function DynamicApplicationDetailPage() {
 
                 <ApplicationReviewTabs
                   sections={reviewSections}
-                  defaultSection={visibleSectionIds[0] ?? "FINANCIAL"}
-                  visibleSectionIds={visibleSectionIds.length > 0 ? visibleSectionIds : undefined}
+                  tabDescriptors={tabDescriptors}
+                  defaultTabId={tabDescriptors[0]?.id}
                 >
-                  {getSectionsInOrder(visibleSectionIds.length > 0 ? visibleSectionIds : undefined).map(({ id }) => (
-                    <ApplicationReviewTabContent key={id} value={id}>
+                  {tabDescriptors.map((descriptor) => (
+                    <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                       <SectionContent
-                        sectionId={id}
+                        descriptor={descriptor}
                         app={app}
                         isReviewable={!!isReviewable}
                         approveSectionPending={approveSection.isPending}

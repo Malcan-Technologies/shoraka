@@ -8,37 +8,36 @@ import {
 
 describe("Admin Review Schemas", () => {
   describe("reviewSectionRejectSchema", () => {
-    it("accepts valid note", () => {
-      const result = reviewSectionRejectSchema.safeParse({ note: "Invalid financials" });
+    it("accepts valid remark", () => {
+      const result = reviewSectionRejectSchema.safeParse({ remark: "Invalid financials" });
       expect(result.success).toBe(true);
     });
 
-    it("rejects empty note", () => {
-      const result = reviewSectionRejectSchema.safeParse({ note: "" });
+    it("rejects empty remark", () => {
+      const result = reviewSectionRejectSchema.safeParse({ remark: "" });
       expect(result.success).toBe(false);
     });
 
-    it("rejects missing note", () => {
+    it("rejects missing remark", () => {
       const result = reviewSectionRejectSchema.safeParse({});
       expect(result.success).toBe(false);
     });
-
   });
 
   describe("reviewSectionRequestAmendmentSchema", () => {
-    it("accepts valid note", () => {
+    it("accepts valid remark", () => {
       const result = reviewSectionRequestAmendmentSchema.safeParse({
-        note: "Please resubmit with updated figures",
+        remark: "Please resubmit with updated figures",
       });
       expect(result.success).toBe(true);
     });
 
-    it("rejects empty note", () => {
-      const result = reviewSectionRequestAmendmentSchema.safeParse({ note: "" });
+    it("rejects empty remark", () => {
+      const result = reviewSectionRequestAmendmentSchema.safeParse({ remark: "" });
       expect(result.success).toBe(false);
     });
 
-    it("rejects missing note", () => {
+    it("rejects missing remark", () => {
       const result = reviewSectionRequestAmendmentSchema.safeParse({});
       expect(result.success).toBe(false);
     });
@@ -71,25 +70,25 @@ describe("Admin Review Schemas", () => {
   });
 
   describe("reviewItemRejectSchema", () => {
-    it("accepts valid note with itemType and itemId", () => {
+    it("accepts valid remark with itemType and itemId", () => {
       const result = reviewItemRejectSchema.safeParse({
         itemType: "INVOICE",
         itemId: "inv_123",
-        note: "Invoice does not match supporting documents",
+        remark: "Invoice does not match supporting documents",
       });
       expect(result.success).toBe(true);
     });
 
-    it("rejects empty note", () => {
+    it("rejects empty remark", () => {
       const result = reviewItemRejectSchema.safeParse({
         itemType: "INVOICE",
         itemId: "inv_123",
-        note: "",
+        remark: "",
       });
       expect(result.success).toBe(false);
     });
 
-    it("rejects missing note", () => {
+    it("rejects missing remark", () => {
       const result = reviewItemRejectSchema.safeParse({
         itemType: "INVOICE",
         itemId: "inv_123",
@@ -99,20 +98,20 @@ describe("Admin Review Schemas", () => {
   });
 
   describe("reviewItemRequestAmendmentSchema", () => {
-    it("accepts valid note with itemType and itemId", () => {
+    it("accepts valid remark with itemType and itemId", () => {
       const result = reviewItemRequestAmendmentSchema.safeParse({
         itemType: "DOCUMENT",
         itemId: "doc:0",
-        note: "Please upload a clearer scan",
+        remark: "Please upload a clearer scan",
       });
       expect(result.success).toBe(true);
     });
 
-    it("rejects empty note", () => {
+    it("rejects empty remark", () => {
       const result = reviewItemRequestAmendmentSchema.safeParse({
         itemType: "DOCUMENT",
         itemId: "doc:0",
-        note: "",
+        remark: "",
       });
       expect(result.success).toBe(false);
     });

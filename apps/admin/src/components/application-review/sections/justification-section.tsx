@@ -256,6 +256,10 @@ export function JustificationSection({
         ) : (
           <p className="text-sm text-muted-foreground">No justification details submitted.</p>
         )}
+        <div>
+          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
+          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+        </div>
       </CardContent>
     </Card>
   );
