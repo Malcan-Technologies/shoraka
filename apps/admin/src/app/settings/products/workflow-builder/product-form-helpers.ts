@@ -66,6 +66,18 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
       };
     }
 
+    if (stepKey === "contract_details") {
+      const raw = config.min_contract_months;
+
+      config = {
+        ...config,
+        min_contract_months:
+          typeof raw === "string" && raw.trim() !== ""
+            ? Number(raw)
+            : null,
+      };
+    }
+
     const { _pendingImage: _, ...configForApi } = config;
     return { ...step, config: configForApi };
   });
@@ -74,7 +86,10 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
 export function normalizeWorkflow(workflow: Step[]): Step[] {
   return workflow.map((step) => {
     const stepKey = getStepKeyFromStepId(step.id ?? "");
-    const config = { ...(step.config ?? {}) };
+    const config = ((step as Step).config ?? {}) as {
+      min_invoice_value?: string | number | null;
+      max_invoice_value?: string | number | null;
+    } & Record<string, unknown>;
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
@@ -144,17 +159,20 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
 
-      const minValue =
-        typeof minRaw === "string" && minRaw !== ""
-          ? parseMoney(minRaw)
-          : null;
+      let minValue: number | null = null;
+      let maxValue: number | null = null;
 
-      const maxValue =
-        typeof maxRaw === "string" && maxRaw !== ""
-          ? parseMoney(maxRaw)
-          : null;
+      if (typeof minRaw === "number") {
+        minValue = minRaw;
+      } else if (typeof minRaw === "string" && minRaw.trim() !== "") {
+        minValue = parseMoney(minRaw);
+      }
 
-      // Optional fields — only validate if provided
+      if (typeof maxRaw === "number") {
+        maxValue = maxRaw;
+      } else if (typeof maxRaw === "string" && maxRaw.trim() !== "") {
+        maxValue = parseMoney(maxRaw);
+      }
 
       if (minValue != null && minValue < 0) {
         errors.push(`${stepLabel}: minimum financing amount cannot be negative`);
@@ -174,8 +192,21 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
     }
 
     if (stepKey === "contract_details") {
-      const minContractMonths = config.min_contract_months;
-      if (minContractMonths == null) errors.push(`${stepLabel}: enter minimum contract months`);
+      const raw = config.min_contract_months;
+      const value =
+        typeof raw === "string" && raw.trim() !== ""
+          ? Number(raw)
+          : typeof raw === "number"
+            ? raw
+            : null;
+
+      if (value == null || value < 1) {
+        errors.push(`${stepLabel}: minimum contract months must be at least 1`);
+      }
+
+      if (value != null && value > 120) {
+        errors.push(`${stepLabel}: minimum contract months cannot exceed 120`);
+      }
     }
 
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {
