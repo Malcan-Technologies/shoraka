@@ -3,14 +3,10 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import { getSectionsInOrder } from "@/components/application-review/section-registry";
+import type { ReviewSectionId } from "@/components/application-review/section-types";
 
-const SECTIONS = [
-  { id: "FINANCIAL", label: "Financial" },
-  { id: "JUSTIFICATION", label: "Justification" },
-  { id: "DOCUMENTS", label: "Document" },
-] as const;
-
-export type ReviewSectionId = (typeof SECTIONS)[number]["id"];
+export type { ReviewSectionId } from "@/components/application-review/section-types";
 
 function StatusDot({ status }: { status: string }) {
   const dotClass =
@@ -29,16 +25,19 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-interface ApplicationReviewTabsProps {
+export interface ApplicationReviewTabsProps {
   sections: { section: string; status: string }[];
   children: React.ReactNode;
   defaultSection?: ReviewSectionId;
+  /** Optional: only show these section ids. If omitted, uses all from registry. */
+  visibleSectionIds?: ReviewSectionId[];
 }
 
 export function ApplicationReviewTabs({
   sections,
   children,
   defaultSection = "FINANCIAL",
+  visibleSectionIds,
 }: ApplicationReviewTabsProps) {
   const sectionMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -48,10 +47,15 @@ export function ApplicationReviewTabs({
     return m;
   }, [sections]);
 
+  const tabSections = React.useMemo(
+    () => getSectionsInOrder(visibleSectionIds),
+    [visibleSectionIds]
+  );
+
   return (
     <Tabs defaultValue={defaultSection} className="w-full">
       <TabsList className="inline-flex h-11 w-full rounded-xl bg-muted p-1 gap-1">
-        {SECTIONS.map(({ id, label }) => (
+        {tabSections.map(({ id, label }) => (
           <TabsTrigger
             key={id}
             value={id}
