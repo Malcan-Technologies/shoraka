@@ -40,7 +40,7 @@ export function VersionMismatchModal({
   const handleRestart = async () => {
     try {
       await archiveMutation.mutateAsync(applicationId);
-      router.push("/applications/new");
+      router.replace("/applications/new");
     } catch {
       toast.error("Unable to restart. Please try again.");
     }

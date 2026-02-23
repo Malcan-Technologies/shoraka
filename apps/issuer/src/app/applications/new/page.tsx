@@ -44,7 +44,6 @@ export default function NewApplicationPage() {
   const {
     data: productsData,
     isLoading: isLoadingProducts,
-    refetch: refetchProducts,
   } = useProducts({
     page: 1,
     pageSize: 100,

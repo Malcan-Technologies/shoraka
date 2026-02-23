@@ -448,10 +448,10 @@ export default function EditApplicationPage() {
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
 
-    // SCENARIO 1: Step 1 only available on /new page
-    if (stepFromUrl === 1) {
-      toast.error("Financing type can only be selected when creating a new application");
-      router.replace(`/applications/edit/${applicationId}?step=2`);
+    // SCENARIO 1: Invalid step (< 1)
+    if (stepFromUrl < 1) {
+      toast.error("Invalid step number");
+      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
       return;
     }
 
@@ -469,13 +469,6 @@ export default function EditApplicationPage() {
     // SCENARIO 3: Step beyond max allowed (skip ahead attempt)
     if (stepFromUrl > maxAllowed) {
       toast.error("Please complete steps in order");
-      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
-      return;
-    }
-
-    // SCENARIO 4: Invalid step (< 1)
-    if (stepFromUrl < 1) {
-      toast.error("Invalid step number");
       router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
       return;
     }
@@ -667,13 +660,11 @@ export default function EditApplicationPage() {
       const mismatch = await checkNow();
       if (mismatch) return;
 
-      if (stepFromUrl === 1 || stepFromUrl === 2) {
-        router.push("/");
-      } else if (stepFromUrl > 2) {
+      if (stepFromUrl > 1) {
         const prevStep = stepFromUrl - 1;
-        router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
+        router.replace(`/applications/edit/${applicationId}?step=${prevStep}`);
       } else {
-        router.push("/");
+        router.replace("/");
       }
     })();
   };
@@ -918,9 +909,8 @@ export default function EditApplicationPage() {
           {/* Progress Indicator */}
           <ProgressIndicator
             steps={effectiveWorkflow
-              .slice(1)
               .map((s: Record<string, unknown>) => (s.name as string))}
-            currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
+            currentStep={stepFromUrl}
             isLoading={isLoading || !effectiveWorkflow.length}
           />
         </div>
