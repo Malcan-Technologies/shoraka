@@ -30,7 +30,6 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import {
   useApplication,
   useUpdateApplicationStep,
-  useArchiveApplication,
   useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
@@ -60,6 +59,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
+import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -78,7 +79,7 @@ import {
  *   return { field1: value1, ... };
  */
 
-type ApplicationBlockReason = "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null;
+// ApplicationBlockReason removed - use guard.blockReason instead
 
 /**
  * ============================================================
@@ -261,20 +262,10 @@ export default function EditApplicationPage() {
      BLOCK REASONS (PRODUCT DELETED/VERSION CHANGED)
      ================================================================ */
 
-  const applicationBlockReason = React.useMemo<ApplicationBlockReason>(() => {
-    if (!application || !productsData) return null;
-
-    const productId = (application.financing_type as Record<string, unknown>)
-      ?.product_id as string | undefined;
-    if (!productId) return null;
-
-    const product = ((productsData?.products as unknown) as Array<{ id: string; version: number }>)?.find((p: { id: string; version: number }) => p.id === productId);
-    if (!product) return "PRODUCT_DELETED";
-    if (application.product_version !== product.version)
-      return "PRODUCT_VERSION_CHANGED";
-
-    return null;
-  }, [application, productsData]);
+  /* ================================================================
+     PRODUCT VERSION GUARD (centralized)
+     ================================================================ */
+  const { isMismatch, blockReason, checkNow } = useProductVersionGuard(applicationId);
 
   /* ================================================================
      CURRENT STEP RESOLUTION
@@ -358,7 +349,6 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const updateStepMutation = useUpdateApplicationStep();
-  const archiveApplicationMutation = useArchiveApplication();
   const updateStatusMutation = useUpdateApplicationStatus();
 
 
@@ -451,7 +441,7 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
-    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
+    if (!application || isLoadingApp || isLoadingProducts || isMismatch) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
@@ -502,7 +492,7 @@ export default function EditApplicationPage() {
     isLoadingApp,
     isLoadingProducts,
     effectiveWorkflow,
-    applicationBlockReason,
+    isMismatch,
     searchParams,
     wizardState,
   ]);
@@ -602,6 +592,12 @@ export default function EditApplicationPage() {
 
       isSubmittingRef.current = true; // 🔒 prevent gating effects
 
+      // Live guard: ensure product version is current before final submit
+      {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+      }
+
       const finalStepNumber = effectiveWorkflow.length;
       console.log('wizard',finalStepNumber)
       await updateStepMutation.mutateAsync({
@@ -636,21 +632,26 @@ export default function EditApplicationPage() {
     setIsUnsavedChangesModalOpen(false);
 
     setTimeout(() => {
-      if (pendingNavigation) {
-        router.push(pendingNavigation);
-        setPendingNavigation(null);
-      } else if (stepFromUrl === 1) {
-        router.push("/");
-      } else if (stepFromUrl > 1) {
-        const prevStep = stepFromUrl - 1;
-        if (prevStep === 1) {
+      (async () => {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+
+        if (pendingNavigation) {
+          router.push(pendingNavigation);
+          setPendingNavigation(null);
+        } else if (stepFromUrl === 1) {
           router.push("/");
+        } else if (stepFromUrl > 1) {
+          const prevStep = stepFromUrl - 1;
+          if (prevStep === 1) {
+            router.push("/");
+          } else {
+            router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
+          }
         } else {
-          router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
+          router.push("/");
         }
-      } else {
-        router.push("/");
-      }
+      })();
     }, 0);
   };
 
@@ -662,14 +663,19 @@ export default function EditApplicationPage() {
       return;
     }
 
-    if (stepFromUrl === 1 || stepFromUrl === 2) {
-      router.push("/");
-    } else if (stepFromUrl > 2) {
-      const prevStep = stepFromUrl - 1;
-      router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
-    } else {
-      router.push("/");
-    }
+    (async () => {
+      const mismatch = await checkNow();
+      if (mismatch) return;
+
+      if (stepFromUrl === 1 || stepFromUrl === 2) {
+        router.push("/");
+      } else if (stepFromUrl > 2) {
+        const prevStep = stepFromUrl - 1;
+        router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
+      } else {
+        router.push("/");
+      }
+    })();
   };
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
@@ -719,8 +725,11 @@ export default function EditApplicationPage() {
     try {
       isSavingRef.current = true;
 
-      // Hard safety guard: version mismatch
-      if (applicationBlockReason !== null) return;
+      // Live version guard: perform an up-to-date check before saving/navigation
+      {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+      }
 
       const rawData = stepDataRef.current;
       let dataToSave: Record<string, unknown> | null = rawData
@@ -876,15 +885,6 @@ export default function EditApplicationPage() {
      RESTART APPLICATION
      ================================================================ */
 
-  const handleRestartApplication = async () => {
-    try {
-      await archiveApplicationMutation.mutateAsync(applicationId);
-      router.push("/applications/new");
-    } catch {
-      toast.error("Unable to restart. Please try again.");
-    }
-  };
-
   /* ================================================================
      STEP VALIDATION STATE
      ================================================================ */
@@ -896,7 +896,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const isLoading = isLoadingApp || isLoadingProducts;
-  const showBlockingDialog = applicationBlockReason !== null;
+  const showBlockingDialog = Boolean(blockReason);
 
   return (
     <div className="flex flex-col h-full">
@@ -976,41 +976,13 @@ export default function EditApplicationPage() {
       </footer>
       ) : null}
 
-      {/* Product Block Dialog */}
-      <Dialog open={showBlockingDialog} onOpenChange={() => { }}>
-        <DialogContent className="[&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle>
-              {applicationBlockReason === "PRODUCT_DELETED"
-                ? "Product No Longer Available"
-                : "Product Updated"}
-            </DialogTitle>
-            <DialogDescription>
-              {applicationBlockReason === "PRODUCT_DELETED" ? (
-                <>
-                  The financing product used for this application has been removed and is no
-                  longer available. To continue, please start a new application with a different
-                  product.
-                </>
-              ) : (
-                <>
-                  This financing product has been updated with new requirements. To continue,
-                  you'll need to restart your application using the latest version.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              onClick={handleRestartApplication}
-              className="w-full"
-              disabled={archiveApplicationMutation.isPending}
-            >
-              {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Product Block Dialog - using standalone modal */}
+      <VersionMismatchModal
+        open={showBlockingDialog}
+        blockReason={blockReason}
+        applicationId={applicationId}
+        onOpenChange={() => {}}
+      />
 
       {/* Unsaved Changes Modal */}
       <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
