@@ -374,22 +374,22 @@ export class ApiClient {
   async rejectReviewSection(
     applicationId: string,
     section: string,
-    note: string
+    remark: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reject`,
-      { note }
+      { remark }
     );
   }
 
   async requestAmendmentReviewSection(
     applicationId: string,
     section: string,
-    note: string
+    remark: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/request-amendment`,
-      { note }
+      { remark }
     );
   }
 
@@ -408,11 +408,11 @@ export class ApiClient {
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
     itemId: string,
-    note: string
+    remark: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/items/reject`,
-      { itemType, itemId, note }
+      { itemType, itemId, remark }
     );
   }
 
@@ -420,11 +420,11 @@ export class ApiClient {
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
     itemId: string,
-    note: string
+    remark: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/items/request-amendment`,
-      { itemType, itemId, note }
+      { itemType, itemId, remark }
     );
   }
 

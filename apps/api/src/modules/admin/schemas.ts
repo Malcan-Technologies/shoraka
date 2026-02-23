@@ -260,10 +260,10 @@ export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuery
 export const reviewSectionSchema = z.nativeEnum(ReviewSection);
 
 export const reviewSectionRejectSchema = z.object({
-  note: z.string().min(1, "Remark is required for rejection"),
+  remark: z.string().min(1, "Remark is required for rejection"),
 });
 export const reviewSectionRequestAmendmentSchema = z.object({
-  note: z.string().min(1, "Remark is required for amendment request"),
+  remark: z.string().min(1, "Remark is required for amendment request"),
 });
 
 export const reviewItemActionSchema = z.object({
@@ -272,8 +272,8 @@ export const reviewItemActionSchema = z.object({
 });
 export const reviewItemApproveSchema = reviewItemActionSchema;
 export const reviewItemRejectSchema = reviewItemActionSchema.extend({
-  note: z.string().min(1, "Remark is required for rejection"),
+  remark: z.string().min(1, "Remark is required for rejection"),
 });
 export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
-  note: z.string().min(1, "Remark is required for amendment request"),
+  remark: z.string().min(1, "Remark is required for amendment request"),
 });

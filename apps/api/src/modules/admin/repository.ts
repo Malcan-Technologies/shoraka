@@ -2328,14 +2328,14 @@ export class AdminRepository {
   }
 
   /**
-   * Create review note
+   * Create review remark
    */
   async createReviewNote(
     applicationId: string,
     scope: string,
     scopeKey: string,
     actionType: string,
-    note: string,
+    remark: string,
     authorUserId: string
   ) {
     return prisma.applicationReviewNote.create({
@@ -2344,7 +2344,7 @@ export class AdminRepository {
         scope,
         scope_key: scopeKey,
         action_type: actionType,
-        note,
+        remark,
         author_user_id: authorUserId,
       },
     });
@@ -2359,7 +2359,7 @@ export class AdminRepository {
     oldStatus: string | null,
     newStatus: string,
     reviewerUserId: string | null,
-    note: string | null,
+    remark: string | null,
     scope?: string,
     scopeKey?: string
   ) {
@@ -2370,7 +2370,7 @@ export class AdminRepository {
         old_status: oldStatus,
         new_status: newStatus,
         reviewer_user_id: reviewerUserId,
-        note,
+        remark,
         scope,
         scope_key: scopeKey,
       },

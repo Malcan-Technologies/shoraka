@@ -33,13 +33,13 @@ export function useRejectReviewSection() {
     mutationFn: async ({
       applicationId,
       section,
-      note,
+      remark,
     }: {
       applicationId: string;
       section: string;
-      note: string;
+      remark: string;
     }) => {
-      const response = await apiClient.rejectReviewSection(applicationId, section, note);
+      const response = await apiClient.rejectReviewSection(applicationId, section, remark);
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to reject section");
       }
@@ -61,13 +61,13 @@ export function useRequestAmendmentReviewSection() {
     mutationFn: async ({
       applicationId,
       section,
-      note,
+      remark,
     }: {
       applicationId: string;
       section: string;
-      note: string;
+      remark: string;
     }) => {
-      const response = await apiClient.requestAmendmentReviewSection(applicationId, section, note);
+      const response = await apiClient.requestAmendmentReviewSection(applicationId, section, remark);
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
       }
@@ -118,14 +118,14 @@ export function useRejectReviewItem() {
       applicationId,
       itemType,
       itemId,
-      note,
+      remark,
     }: {
       applicationId: string;
       itemType: "INVOICE" | "DOCUMENT";
       itemId: string;
-      note: string;
+      remark: string;
     }) => {
-      const response = await apiClient.rejectReviewItem(applicationId, itemType, itemId, note);
+      const response = await apiClient.rejectReviewItem(applicationId, itemType, itemId, remark);
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to reject item");
       }
@@ -148,18 +148,18 @@ export function useRequestAmendmentReviewItem() {
       applicationId,
       itemType,
       itemId,
-      note,
+      remark,
     }: {
       applicationId: string;
       itemType: "INVOICE" | "DOCUMENT";
       itemId: string;
-      note: string;
+      remark: string;
     }) => {
       const response = await apiClient.requestAmendmentReviewItem(
         applicationId,
         itemType,
         itemId,
-        note
+        remark
       );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");

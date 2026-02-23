@@ -393,7 +393,7 @@ model ApplicationReviewNote {
   scope            String     // section | item
   scope_key        String     // FINANCIAL | JUSTIFICATION | DOCUMENTS | invoice:{id} | document:{key}
   action_type      String     // APPROVE | REJECT | REQUEST_AMENDMENT
-  note             String
+  remark           String
   author_user_id   String
   created_at       DateTime   @default(now())
   application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
@@ -412,7 +412,7 @@ model ApplicationReviewEvent {
   old_status        String?
   new_status        String
   reviewer_user_id   String?
-  note              String?
+  remark            String?
   created_at        DateTime    @default(now())
   application       Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 

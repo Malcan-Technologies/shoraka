@@ -10,10 +10,10 @@ export interface RecentActivityCardProps {
     event_type: string;
     scope_key: string | null;
     new_status: string;
-    note: string | null;
+    remark: string | null;
     created_at: string;
   }[];
-  notes: { scope_key: string; action_type: string; note: string; created_at: string }[];
+  notes: { scope_key: string; action_type: string; remark: string; created_at: string }[];
 }
 
 export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
@@ -22,7 +22,7 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
       type: string;
       key: string;
       status?: string;
-      note?: string;
+      remark?: string;
       created_at: string;
     }[] = [];
     for (const e of events.slice(0, 10)) {
@@ -30,7 +30,7 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
         type: e.event_type,
         key: e.scope_key ?? "—",
         status: e.new_status,
-        note: e.note ?? undefined,
+        remark: e.remark ?? undefined,
         created_at: e.created_at,
       });
     }
@@ -38,7 +38,7 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
       combined.push({
         type: `NOTE:${n.action_type}`,
         key: n.scope_key,
-        note: n.note,
+        remark: n.remark,
         created_at: n.created_at,
       });
     }
@@ -72,8 +72,8 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
                     {a.status}
                   </span>
                 )}
-                {a.note && (
-                  <p className="mt-1 text-muted-foreground line-clamp-2">{a.note}</p>
+                {a.remark && (
+                  <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
                 )}
                 <div className="mt-1 text-[10px] text-muted-foreground">
                   {format(new Date(a.created_at), "dd MMM HH:mm")}

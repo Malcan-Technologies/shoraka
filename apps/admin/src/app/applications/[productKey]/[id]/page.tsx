@@ -168,7 +168,7 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const handleRejectItem = async (note: string) => {
+  const handleRejectItem = async (remark: string) => {
     const d = noteDialog;
     if (!d || !("itemType" in d)) return;
     try {
@@ -176,7 +176,7 @@ export default function DynamicApplicationDetailPage() {
         applicationId,
         itemType: d.itemType,
         itemId: d.itemId,
-        note,
+        remark,
       });
       toast.success("Item rejected");
     } catch (err) {
@@ -185,7 +185,7 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const handleRequestAmendmentItem = async (note: string) => {
+  const handleRequestAmendmentItem = async (remark: string) => {
     const d = noteDialog;
     if (!d || !("itemType" in d)) return;
     try {
@@ -193,7 +193,7 @@ export default function DynamicApplicationDetailPage() {
         applicationId,
         itemType: d.itemType,
         itemId: d.itemId,
-        note,
+        remark,
       });
       toast.success("Amendment requested");
     } catch (err) {
@@ -202,24 +202,24 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const handleNoteDialogConfirm = async (note: string) => {
+  const handleNoteDialogConfirm = async (remark: string) => {
     const d = noteDialog;
     if (!d) return;
     if ("section" in d) {
       if (d.action === "reject") {
-        await rejectSection.mutateAsync({ applicationId, section: d.section, note });
+        await rejectSection.mutateAsync({ applicationId, section: d.section, remark });
         toast.success("Section rejected");
       } else {
         await requestAmendment.mutateAsync({
           applicationId,
           section: d.section,
-          note,
+          remark,
         });
         toast.success("Amendment requested");
       }
     } else {
-      if (d.action === "reject") await handleRejectItem(note);
-      else await handleRequestAmendmentItem(note);
+      if (d.action === "reject") await handleRejectItem(remark);
+      else await handleRequestAmendmentItem(remark);
     }
   };
 
@@ -495,8 +495,8 @@ export default function DynamicApplicationDetailPage() {
                 />
 
                 <RecentActivityCard
-                  events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; note: string | null; created_at: string }[]) ?? []}
-                  notes={(app.application_review_notes as { scope_key: string; action_type: string; note: string; created_at: string }[]) ?? []}
+                  events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; remark: string | null; created_at: string }[]) ?? []}
+                  notes={(app.application_review_notes as { scope_key: string; action_type: string; remark: string; created_at: string }[]) ?? []}
                 />
               </div>
             </div>

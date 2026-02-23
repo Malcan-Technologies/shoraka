@@ -1961,7 +1961,7 @@ router.post(
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
       const validated = reviewSectionRejectSchema.parse(req.body);
-      const result = await adminService.rejectReviewSection(id, validatedSection, validated.note, req.user.user_id);
+      const result = await adminService.rejectReviewSection(id, validatedSection, validated.remark, req.user.user_id);
 
       res.json({
         success: true,
@@ -1986,7 +1986,7 @@ router.post(
       const result = await adminService.requestAmendmentReviewSection(
         id,
         validatedSection,
-        validated.note,
+        validated.remark,
         req.user.user_id
       );
 
@@ -2039,7 +2039,7 @@ router.post(
         id,
         validated.itemType,
         validated.itemId,
-        validated.note,
+        validated.remark,
         req.user.user_id
       );
 
@@ -2066,7 +2066,7 @@ router.post(
         id,
         validated.itemType,
         validated.itemId,
-        validated.note,
+        validated.remark,
         req.user.user_id
       );
 

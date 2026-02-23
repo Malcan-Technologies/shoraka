@@ -1047,7 +1047,7 @@ export interface ApplicationReviewNote {
   scope: string;
   scope_key: string;
   action_type: string;
-  note: string;
+  remark: string;
   author_user_id: string;
   created_at: string;
 }
@@ -1061,7 +1061,7 @@ export interface ApplicationReviewEvent {
   old_status: string | null;
   new_status: string;
   reviewer_user_id: string | null;
-  note: string | null;
+  remark: string | null;
   created_at: string;
 }
 
@@ -1071,11 +1071,11 @@ export interface ReviewItemActionPayload {
 }
 
 export interface ReviewItemRejectPayload extends ReviewItemActionPayload {
-  note: string;
+  remark: string;
 }
 
 export interface ReviewItemRequestAmendmentPayload extends ReviewItemActionPayload {
-  note: string;
+  remark: string;
 }
 
 // Products

@@ -3915,7 +3915,7 @@ export class AdminService {
   async rejectReviewSection(
     applicationId: string,
     section: ReviewSection,
-    note: string,
+    remark: string,
     reviewerUserId: string
   ) {
     const repository = new AdminRepository();
@@ -3946,7 +3946,7 @@ export class AdminService {
       "section",
       section,
       "REJECT",
-      note,
+      remark,
       reviewerUserId
     );
     await repository.createReviewEvent(
@@ -3955,7 +3955,7 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      note,
+      remark,
       "section",
       section
     );
@@ -3972,7 +3972,7 @@ export class AdminService {
   async requestAmendmentReviewSection(
     applicationId: string,
     section: ReviewSection,
-    note: string,
+    remark: string,
     reviewerUserId: string
   ) {
     const repository = new AdminRepository();
@@ -4003,7 +4003,7 @@ export class AdminService {
       "section",
       section,
       "REQUEST_AMENDMENT",
-      note,
+      remark,
       reviewerUserId
     );
     await repository.createReviewEvent(
@@ -4012,7 +4012,7 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      note,
+      remark,
       "section",
       section
     );
@@ -4078,7 +4078,7 @@ export class AdminService {
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
     itemId: string,
-    note: string,
+    remark: string,
     reviewerUserId: string
   ) {
     const repository = new AdminRepository();
@@ -4111,7 +4111,7 @@ export class AdminService {
       "item",
       `${itemType}:${itemId}`,
       "REJECT",
-      note,
+      remark,
       reviewerUserId
     );
     await repository.createReviewEvent(
@@ -4120,7 +4120,7 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      note,
+      remark,
       itemType,
       itemId
     );
@@ -4135,7 +4135,7 @@ export class AdminService {
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
     itemId: string,
-    note: string,
+    remark: string,
     reviewerUserId: string
   ) {
     const repository = new AdminRepository();
@@ -4168,7 +4168,7 @@ export class AdminService {
       "item",
       `${itemType}:${itemId}`,
       "REQUEST_AMENDMENT",
-      note,
+      remark,
       reviewerUserId
     );
     await repository.createReviewEvent(
@@ -4177,7 +4177,7 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      note,
+      remark,
       itemType,
       itemId
     );
