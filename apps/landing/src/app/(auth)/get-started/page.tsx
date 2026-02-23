@@ -149,7 +149,7 @@ function GetStartedPageContent() {
           if (!open) setCanContinue(false);
         }}
       >
-        <AlertDialogContent className="w-full max-w-[92vw] sm:max-w-[640px] md:max-w-[820px] lg:max-w-[940px] px-4 sm:px-6 py-4 sm:py-6 rounded-[18px] shadow-[0_25px_60px_rgba(0,0,0,0.25)] bg-card">
+        <AlertDialogContent className="w-[95vw] sm:w-auto max-w-[95vw] sm:max-w-[720px] md:max-w-[860px] lg:max-w-[900px] px-4 sm:px-6 py-4 sm:py-6 rounded-[18px] shadow-[0_25px_60px_rgba(0,0,0,0.25)] bg-card flex flex-col max-h-[90vh] overflow-hidden">
           <AlertDialogHeader>
             <div className="w-full flex items-start justify-between gap-4">
               <div>
@@ -162,7 +162,7 @@ function GetStartedPageContent() {
           </AlertDialogHeader>
 
           <ScrollArea
-            className="rounded-md border p-4 sm:p-6 h-[300px] sm:h-[420px] md:h-[520px] lg:h-[640px]"
+            className="flex-1 rounded-md border p-4 sm:p-6 overflow-hidden"
             onScroll={(e) => {
               const el = e.currentTarget;
               const tolerance = 8;
@@ -171,18 +171,18 @@ function GetStartedPageContent() {
               }
             }}
           >
-            <div className="h-full overflow-auto pr-4 text-sm sm:text-[17px] leading-7 text-foreground">
-              <div className="space-y-6 sm:space-y-5">
-                <p className="mb-0">CashSouk operates as a fully Shariah-compliant financing platform.</p>
+            <div className="h-full w-full overflow-y-auto pr-3 text-base sm:text-[17px] leading-8 text-foreground">
+              <div className="space-y-6 sm:space-y-6">
+                <p className="m-0">CashSouk operates as a fully Shariah-compliant financing platform.</p>
 
-                <p className="mb-0">
+                <p className="m-0">
                   Before proceeding to sign-up, please note that all issuer applications are
                   subject to a mandatory Shariah screening and financial ratio assessment as part of
                   our onboarding and approval process.
                 </p>
 
                 <div>
-                  <p className="mb-2">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
+                  <p className="mt-2 mb-2">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
                   <ul className="list-disc pl-5 mt-2 space-y-2">
                     <li>Conventional banking or interest-based lending;</li>
                     <li>Conventional insurance;</li>
@@ -197,10 +197,10 @@ function GetStartedPageContent() {
                   </ul>
                 </div>
 
-                <p className="mb-0">These businesses may not qualify for listing on the platform.</p>
+                <p className="m-0">These businesses may not qualify for listing on the platform.</p>
 
                 <div>
-                  <p className="mb-2">In addition, businesses with significant exposure to:</p>
+                  <p className="mt-2 mb-2">In addition, businesses with significant exposure to:</p>
                   <ul className="list-disc pl-5 mt-2 space-y-2">
                     <li>Revenue derived from non-compliant activities,</li>
                     <li>Cash placed in conventional interest-bearing accounts, or</li>
@@ -208,14 +208,14 @@ function GetStartedPageContent() {
                   </ul>
                 </div>
 
-                <p className="mb-0">Such businesses may not meet our Shariah screening benchmarks.</p>
+                <p className="m-0">Such businesses may not meet our Shariah screening benchmarks.</p>
 
-                <p className="mb-0">
+                <p className="m-0">
                   If your business may fall within any of the above categories, you are advised not
                   to proceed with registration.
                 </p>
 
-                <p className="mb-0">
+                <p className="m-0">
                   By continuing to the sign-up page, you acknowledge that your application will undergo
                   Shariah screening and that approval is subject to meeting our compliance requirements.
                 </p>
@@ -224,10 +224,10 @@ function GetStartedPageContent() {
           </ScrollArea>
 
           <AlertDialogFooter className="pt-4 border-t border-border/50">
-            <div className="flex items-center justify-end w-full gap-4">
-              <AlertDialogCancel className="px-4 py-2">Cancel</AlertDialogCancel>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full gap-3">
+              <AlertDialogCancel className="w-full sm:w-auto px-4 py-2">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                className="px-6 py-2"
+                className="w-full sm:w-auto px-6 py-2"
                 disabled={!canContinue}
                 onClick={() => {
                   setShowShariah(false);
