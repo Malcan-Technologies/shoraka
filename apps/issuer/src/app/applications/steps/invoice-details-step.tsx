@@ -402,6 +402,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
   let validationError = "";
+  const shouldRunValidation =
+    isInitialized &&
+    !isLoadingInvoices &&
+    !isLoadingApplication;
+
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
@@ -412,41 +417,43 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     validationError = err instanceof Error ? err.message : "Product configuration error";
   }
 
-  if (hasPartialRows) {
-    validationError = "Please complete all invoice details. Rows cannot have partial data.";
-  }
+  if (shouldRunValidation) {
+    if (hasPartialRows) {
+      validationError = "Please complete all invoice details. Rows cannot have partial data.";
+    }
 
-  if (!validationError && hasDuplicateInvoiceNumbers()) {
-    validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
-  }
+    if (!validationError && hasDuplicateInvoiceNumbers()) {
+      validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
+    }
 
-  // Validate all invoice constraints (maturity date, value limits, contract window)
-  if (!validationError && productConfig) {
-    for (const inv of invoices) {
-      const constraintError = validateInvoiceConstraints(inv, productConfig);
-      if (constraintError) {
-        validationError = constraintError;
-        break;
+    // Validate all invoice constraints (maturity date, value limits, contract window)
+    if (!validationError && productConfig) {
+      for (const inv of invoices) {
+        const constraintError = validateInvoiceConstraints(inv, productConfig);
+        if (constraintError) {
+          validationError = constraintError;
+          break;
+        }
       }
     }
-  }
 
-  if (!validationError && (isInvoiceOnly || isExistingContract)) {
-    const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
-    if (!hasAtLeastOneValidInvoice) {
-      validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+    if (!validationError && (isInvoiceOnly || isExistingContract)) {
+      const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
+      if (!hasAtLeastOneValidInvoice) {
+        validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+      }
     }
-  }
 
-  if (!isInvoiceOnly && !validationError) {
-    const invalidRatioInvoice = invoices.find(
-      (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
-    );
-    if (invalidRatioInvoice) {
-      validationError = "Financing ratio must be between 60% and 80%.";
-    }
-    if (!validationError && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
+    if (!isInvoiceOnly && !validationError) {
+      const invalidRatioInvoice = invoices.find(
+        (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
+      );
+      if (invalidRatioInvoice) {
+        validationError = "Financing ratio must be between 60% and 80%.";
+      }
+      if (!validationError && totalFinancingAmount > facilityLimit) {
+        validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
+      }
     }
   }
 
@@ -632,7 +639,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     Object.keys(deletedInvoices).length > 0;
 
   React.useEffect(() => {
-    let isValid = !hasPartialRows && !validationError;
+    let isValid = shouldRunValidation ? !hasPartialRows && !validationError : true;
     onDataChange?.({
       invoices,
       totalFinancingAmount,
@@ -769,81 +776,89 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isNewContract =
     application?.financing_structure?.structure_type === "new_contract";
 
+  if (isLoadingApplication || debugSkeletonMode) {
+    return (
+      <>
+        <InvoiceDetailsSkeleton
+          showContractSection={!isInvoiceOnly}
+          showInvoiceTable={true}
+        />
+
+        <DebugSkeletonToggle
+          isSkeletonMode={debugSkeletonMode}
+          onToggle={setDebugSkeletonMode}
+        />
+      </>
+    );
+  }
 
   return (
     <>
       <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
         {/* ================= Contract ================= */}
-        {isLoadingApplication || debugSkeletonMode ? (
-          <>
-            <InvoiceDetailsSkeleton />
-            <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-          </>
-        ) : (
-          application?.contract && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
-                <div className="mt-2 h-px bg-border" />
-              </div>
+        {!isInvoiceOnly && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
 
-              <div className="space-y-3 mt-4 px-3">
-                <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-                  <div className={formLabelClassName}>Contract title</div>
-                  <div className={valueClassName}>{application.contract.contract_details?.title || "-"}</div>
+            <div className="space-y-3 mt-4 px-3">
+              <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
+                <div className={formLabelClassName}>Contract title</div>
+                <div className={valueClassName}>{application?.contract?.contract_details?.title || "—"}</div>
 
-                  <div className={formLabelClassName}>Customer</div>
-                  <div className={valueClassName}>{application.contract.customer_details?.name || "-"}</div>
+                <div className={formLabelClassName}>Customer</div>
+                <div className={valueClassName}>{application?.contract?.customer_details?.name || "—"}</div>
 
-                  <div className={formLabelClassName}>Contract value</div>
-                  <div className={valueClassName}>
-                    RM {application.contract.contract_details?.value != null
-                      ? formatMoney(application.contract.contract_details.value)
-                      : "—"}
-                  </div>
-
-
-                  <div className={formLabelClassName}>Approved facility</div>
-                  <div className={valueClassName}>
-                    {isNewContract ? "—" : (
-                      application.contract.contract_details?.approved_facility != null
-                        ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
-                        : "—"
-                    )}
-                  </div>
-
-
-
-
-
-
-                  <div className={formLabelClassName}>Utilised facility</div>
-                  <div className={valueClassName}>
-                    {isNewContract ? "—" : (
-                      application.contract.contract_details?.utilized_facility != null
-                        ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
-                        : "—"
-                    )}
-                  </div>
-
-
-                  <div className={formLabelClassName}>Available facility</div>
-                  <div
-                    className={cn(
-                      "text-sm md:text-base leading-6 font-medium",
-                      !isNewContract && liveAvailableFacility < 0 && "text-destructive"
-                    )}
-                  >
-                    {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
-                  </div>
-
-
-
-
+                <div className={formLabelClassName}>Contract value</div>
+                <div className={valueClassName}>
+                  RM {application?.contract?.contract_details?.value != null
+                    ? formatMoney(application?.contract?.contract_details?.value)
+                    : "—"}
                 </div>
+
+
+                <div className={formLabelClassName}>Approved facility</div>
+                <div className={valueClassName}>
+                  {isNewContract ? "—" : (
+                    application?.contract?.contract_details?.approved_facility != null
+                      ? `RM ${formatMoney(application?.contract?.contract_details?.approved_facility)}`
+                      : "—"
+                  )}
+                </div>
+
+
+
+
+
+
+                <div className={formLabelClassName}>Utilised facility</div>
+                <div className={valueClassName}>
+                  {isNewContract ? "—" : (
+                    application?.contract?.contract_details?.utilized_facility != null
+                      ? `RM ${formatMoney(application?.contract?.contract_details?.utilized_facility)}`
+                      : "—"
+                  )}
+                </div>
+
+
+                <div className={formLabelClassName}>Available facility</div>
+                <div
+                  className={cn(
+                    "text-sm md:text-base leading-6 font-medium",
+                    !isNewContract && liveAvailableFacility < 0 && "text-destructive"
+                  )}
+                >
+                  {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
+                </div>
+
+
+
+
               </div>
             </div>
-          )
+          </div>
         )}
 
         {/* ================= Invoice Details ================= */}
@@ -868,9 +883,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
             {/* ================= Table ================= */}
             <div className="mt-4 px-3">
-              {isLoadingInvoices ? (
-                <InvoiceTableSkeleton rowCount={3} />
-              ) : (
+              {!isLoadingInvoices && (
                 <div className="border rounded-xl bg-card overflow-hidden">
                   <div className="overflow-x-auto">
                     <Table className="table-fixed w-full">
