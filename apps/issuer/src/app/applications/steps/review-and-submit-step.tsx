@@ -17,8 +17,14 @@ import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
-import { ReviewAndSubmitSkeleton } from "@/app/applications/components/review-and-submit-skeleton";
+import { ReviewContractSkeleton } from "../components/review-contract-skeleton";
+import { ReviewInvoiceSkeleton } from "../components/review-invoice-skeleton";
+import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
+import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
+import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
+import { ReviewDeclarationsSkeleton } from "../components/review-declarations-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { formatMoney } from "../components/money";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -252,6 +258,16 @@ export function ReviewAndSubmitStep({
     (showContractSection && contractId && isLoadingContract) ||
     (showInvoiceSection && isLoadingInvoices);
 
+  const isInvoiceOnly = structureType === "invoice_only";
+
+  // Section-level loading flags
+  const contractLoading =
+    showContractSection &&
+    !isInvoiceOnly &&
+    (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
+
+  const invoiceLoading = showInvoiceSection && isLoadingInvoices;
+
 
 
 
@@ -265,19 +281,23 @@ export function ReviewAndSubmitStep({
     });
   }, [onDataChange]);
 
-  if (isLoading || debugSkeletonMode) {
-    return (
-      <>
-        <ReviewAndSubmitSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
-  }
+  // Debug: log raw financing value
+  console.log("contract.financing", (application as any)?.contract?.contract_details?.financing);
+
+  // Note: we no longer short-circuit to a full-page skeleton.
+  // Each section will render its own skeleton when its data is loading.
+  console.log("contractSkeletonActive", contractLoading);
+  console.log("invoiceSkeletonActive", invoiceLoading);
 
   // Formatters
-  const formatCurrency = (value: any) => {
-    const num = typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
-    return `RM ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const renderMoney = (value: any) => {
+    if (value === null || value === undefined) return "—";
+    // formatMoney returns a formatted number string like "1,234.56"
+    try {
+      return `RM ${formatMoney(value)}`;
+    } catch (e) {
+      return "—";
+    }
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
@@ -354,13 +374,16 @@ export function ReviewAndSubmitStep({
       )}
 
       {/* Contract */}
-      {showContractSection && contractId && (
+      {showContractSection && !isInvoiceOnly && (
         <section className={sectionSpacingClassName}>
           <div>
             <h3 className={sectionHeaderClassName}>Contract</h3>
             <div className="mt-2 h-px bg-border" />
           </div>
-          <div className={gridClassName}>
+          {contractLoading ? (
+            <ReviewContractSkeleton />
+          ) : (
+            <div className={gridClassName}>
             <div className={labelClassName}>Contract title</div>
             <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
@@ -372,38 +395,33 @@ export function ReviewAndSubmitStep({
 
             <div className={labelClassName}>Contract value</div>
             <div className={valueClassName}>
-              {isValidNumber(contractValue)
-                ? formatCurrency(contractValue)
-                : "—"}
+              {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
+            </div>
+
+            <div className={labelClassName}>Contract financing</div>
+            <div className={valueClassName}>
+              {contractDetails?.financing === null || contractDetails?.financing === undefined
+                ? "—"
+                : renderMoney(contractDetails?.financing)}
             </div>
 
 
             <div className={labelClassName}>Approved facility</div>
             <div className={valueClassName}>
-              {isValidNumber(approvedFacility) && approvedFacility > 0
-                ? formatCurrency(approvedFacility)
-                : "—"}
-
+              {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
             </div>
 
             <div className={labelClassName}>Utilised facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract" &&
-                isValidNumber(totalFinancingAmount)
-                ? formatCurrency(totalFinancingAmount)
-                : "—"}
-
+              {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
             </div>
 
             <div className={labelClassName}>Available facility</div>
             <div className={valueClassName}>
-              {structureType === "existing_contract" &&
-                isValidNumber(calculatedAvailableFacility)
-                ? formatCurrency(calculatedAvailableFacility)
-                : "—"}
-
+              {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
             </div>
           </div>
+          )}
         </section>
       )}
 
@@ -414,134 +432,132 @@ export function ReviewAndSubmitStep({
             <h3 className={sectionHeaderClassName}>Invoices</h3>
             <div className="mt-2 h-px bg-border" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
-          </p>
+          {invoiceLoading ? (
+            <ReviewInvoiceSkeleton />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+              </p>
 
-          <div className="border rounded-xl bg-card overflow-hidden">
-            {invoices.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground italic">
-                No invoices added
-              </div>
-            ) : (
-              <>
-                {/* Table */}
-                <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
-                  <Table className="table-fixed w-full">
-                    <TableHeader className="bg-muted/20">
-                      <TableRow>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
-                          Invoice
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
-                          Status
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
-                          Maturity date
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
-                          Invoice value (RM)
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
-                          Financing ratio
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
-                          Maximum financing amount (RM)
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
-                          Documents
-                        </TableHead>
-                        <TableHead className={INVOICE_TABLE_COLUMNS.action} />
-                      </TableRow>
-                    </TableHeader>
-
-
-                    <TableBody>
-                      {invoices.map((invoice: any) => {
-                        const d = invoice.details || {};
-                        const value = Number(d.value || 0);
-                        const ratio = d.financing_ratio_percent ?? 60;
-                        const financingAmount = value * (ratio / 100);
-
-                        return (
-                          <TableRow key={invoice.id} className="hover:bg-muted/40">
-                            {/* Invoice */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {d.number || "—"}
-                            </TableCell>
-
-                            {/* Status */}
-                            <TableCell className="p-2">
-                              <StatusBadge status={invoice.status} />
-                            </TableCell>
-
-                            {/* Maturity */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {formatDate(d.maturity_date)}
-                            </TableCell>
-
-                            {/* Value */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
-                              {isValidNumber(value)
-                                ? formatCurrency(value)
-                                : "—"}
-
-                            </TableCell>
-
-                            {/* Ratio */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {ratio}%
-                            </TableCell>
-
-                            {/* Amount */}
-                            <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                              {isValidNumber(financingAmount)
-                                ? formatCurrency(financingAmount)
-                                : "—"}
-
-                            </TableCell>
-
-                            {/* Document */}
-                            <TableCell className="p-2">
-                              {d.document?.file_name ? (
-                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                                  <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                    <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                  </div>
-                                  <span className="text-xs font-medium truncate max-w-[120px]">
-                                    {d.document.file_name}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </TableCell>
-
-                            {/* Empty action column (keeps width alignment) */}
-                            <TableCell />
+              <div className="border rounded-xl bg-card overflow-hidden">
+                {invoices.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground italic">
+                    No invoices added
+                  </div>
+                ) : (
+                  <>
+                    {/* Table */}
+                    <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
+                      <Table className="table-fixed w-full">
+                        <TableHeader className="bg-muted/20">
+                          <TableRow>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                              Invoice
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                              Status
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
+                              Maturity date
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
+                              Invoice value (RM)
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
+                              Financing ratio
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
+                              Maximum financing amount (RM)
+                            </TableHead>
+                            <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                              Documents
+                            </TableHead>
+                            <TableHead className={INVOICE_TABLE_COLUMNS.action} />
                           </TableRow>
-                        );
-                      })}
+                        </TableHeader>
 
-                      {/* TOTAL — identical to Invoice Details */}
-                      <TableRow className="bg-muted/10">
-                        <TableCell colSpan={5} />
-                        <TableCell className="p-2 font-semibold text-xs">
-                          {isValidNumber(totalFinancingAmount)
-                            ? formatCurrency(totalFinancingAmount)
-                            : "—"}
 
-                          <div className="text-xs text-muted-foreground font-normal">Total</div>
-                        </TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
-                    </TableBody>
+                        <TableBody>
+                          {invoices.map((invoice: any) => {
+                            const d = invoice.details || {};
+                            const value = Number(d.value || 0);
+                            const ratio = d.financing_ratio_percent ?? 60;
+                            const financingAmount = value * (ratio / 100);
 
-                  </Table>
-                </div>
-              </>
-            )}
-          </div>
+                            return (
+                              <TableRow key={invoice.id} className="hover:bg-muted/40">
+                                {/* Invoice */}
+                                <TableCell className="p-2 text-xs whitespace-nowrap">
+                                  {d.number || "—"}
+                                </TableCell>
+
+                                {/* Status */}
+                                <TableCell className="p-2">
+                                  <StatusBadge status={invoice.status} />
+                                </TableCell>
+
+                                {/* Maturity */}
+                                <TableCell className="p-2 text-xs whitespace-nowrap">
+                                  {formatDate(d.maturity_date)}
+                                </TableCell>
+
+                                {/* Value */}
+                                <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
+                                  {isValidNumber(value) ? renderMoney(value) : "—"}
+                                </TableCell>
+
+                                {/* Ratio */}
+                                <TableCell className="p-2 text-xs whitespace-nowrap">
+                                  {ratio}%
+                                </TableCell>
+
+                                {/* Amount */}
+                                <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                                  {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
+                                </TableCell>
+
+                                {/* Document */}
+                                <TableCell className="p-2">
+                                  {d.document?.file_name ? (
+                                    <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                      </div>
+                                      <span className="text-xs font-medium truncate max-w-[120px]">
+                                        {d.document.file_name}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </TableCell>
+
+                                {/* Empty action column (keeps width alignment) */}
+                                <TableCell />
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* TOTAL — identical to Invoice Details */}
+                          <TableRow className="bg-muted/10">
+                            <TableCell colSpan={5} />
+                            <TableCell className="p-2 font-semibold text-xs">
+                              {isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
+
+                              <div className="text-xs text-muted-foreground font-normal">Total</div>
+                            </TableCell>
+                            <TableCell colSpan={2} />
+                          </TableRow>
+                        </TableBody>
+
+                      </Table>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </section>
       )}
 
