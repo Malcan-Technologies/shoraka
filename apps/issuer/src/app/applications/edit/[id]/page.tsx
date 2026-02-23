@@ -627,24 +627,18 @@ export default function EditApplicationPage() {
   const handleBack = () => {
     if (isSubmittingRef.current) return;
 
-    if (hasUnsavedChanges) {
-      (async () => {
-        const mismatch = await checkNow();
-        if (mismatch) return;
-        pendingNavRef.current = { path: "/", leavingPage: true };
-        requestNavigation("/");
-      })();
-      return;
-    }
-
     (async () => {
       const mismatch = await checkNow();
       if (mismatch) return;
 
       if (stepFromUrl > 1) {
         const prevStep = stepFromUrl - 1;
-        // navigate to previous step (internal navigation)
-        pendingNavRef.current = { path: `/applications/edit/${applicationId}?step=${prevStep}`, leavingPage: false };
+
+        pendingNavRef.current = {
+          path: `/applications/edit/${applicationId}?step=${prevStep}`,
+          leavingPage: false,
+        };
+
         requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
       } else {
         pendingNavRef.current = { path: "/", leavingPage: true };
