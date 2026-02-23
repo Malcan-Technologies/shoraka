@@ -13,13 +13,17 @@ const SECTIONS = [
 export type ReviewSectionId = (typeof SECTIONS)[number]["id"];
 
 function StatusDot({ status }: { status: string }) {
-  const isApproved = status === "APPROVED";
+  const dotClass =
+    status === "APPROVED"
+      ? "bg-green-500"
+      : status === "AMENDMENT_REQUESTED"
+        ? "bg-yellow-500"
+        : status === "REJECTED"
+          ? "bg-destructive"
+          : "bg-muted-foreground";
   return (
     <span
-      className={cn(
-        "inline-block h-2 w-2 rounded-full shrink-0",
-        isApproved ? "bg-primary" : "bg-destructive"
-      )}
+      className={cn("inline-block h-2 w-2 rounded-full shrink-0", dotClass)}
       aria-hidden
     />
   );
@@ -71,7 +75,7 @@ export function ApplicationReviewTabContent({
   children: React.ReactNode;
 }) {
   return (
-    <TabsContent value={value} className="mt-6 focus-visible:outline-none">
+    <TabsContent value={value} className="mt-6 focus-visible:outline-none focus-visible:ring-0">
       {children}
     </TabsContent>
   );

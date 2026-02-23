@@ -99,7 +99,7 @@ export function WorkflowStepCard({
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="flex flex-1 min-w-0 items-center gap-2 cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:rounded"
+                  className="flex flex-1 min-w-0 items-center gap-2 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-muted/50"
                   aria-label={isExpanded ? "Collapse config" : "Expand config"}
                 >
                   <span className="flex-1 min-w-0 text-sm font-medium truncate">{step.name}</span>
@@ -125,7 +125,7 @@ export function WorkflowStepCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 shrink-0 focus-visible:ring-inset"
+                  className="h-8 w-8 p-0 shrink-0 focus-visible:outline-none focus-visible:ring-0"
                   aria-label={isExpanded ? "Collapse config" : "Expand config"}
                 >
                   {isExpanded ? (

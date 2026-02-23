@@ -3802,6 +3802,9 @@ export class AdminService {
     ApplicationStatus.SUBMITTED,
     ApplicationStatus.UNDER_REVIEW,
     ApplicationStatus.RESUBMITTED,
+    ApplicationStatus.AMENDMENT_REQUESTED,
+    ApplicationStatus.REJECTED,
+    ApplicationStatus.APPROVED,
   ];
 
   private isReviewable(status: ApplicationStatus): boolean {

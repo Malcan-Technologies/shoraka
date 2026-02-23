@@ -55,37 +55,20 @@ import {
   ArrowLeftIcon,
   ClipboardDocumentCheckIcon,
   XCircleIcon,
-  ShieldCheckIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
+  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
-import { formatCurrency } from "@cashsouk/config";
-
-function DetailRow({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  if (value === null || value === undefined || value === "") return null;
-
-  return (
-    <div className="flex items-start gap-3 py-2">
-      {Icon && (
-        <div className="flex h-5 w-5 items-center justify-center text-muted-foreground shrink-0 mt-0.5">
-          <Icon className="h-4 w-4" />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-sm font-medium break-words">{value}</div>
-      </div>
-    </div>
-  );
-}
+import { formatCurrency, useAuthToken } from "@cashsouk/config";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SUPPORTING_DOC_CATEGORY_KEYS,
+  SUPPORTING_DOC_CATEGORY_LABELS,
+} from "@/app/settings/products/workflow-builder/product-form-helpers";
 
 function PageSkeleton() {
   return (
@@ -134,8 +117,38 @@ export default function DynamicApplicationDetailPage() {
     | { open: boolean; action: "reject" | "amend"; itemType: "INVOICE" | "DOCUMENT"; itemId: string }
   >({ open: false, action: "reject", section: "FINANCIAL" });
 
-  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"];
+  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
   const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
+  const { getAccessToken } = useAuthToken();
+  const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+
+  const handleViewDocument = React.useCallback(
+    async (s3Key: string) => {
+      try {
+        setViewDocumentPending(true);
+        const token = await getAccessToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify({ s3Key }),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error?.message || "Failed to get view URL");
+        const viewUrl = result.data?.viewUrl;
+        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
+        else toast.error("Failed to open document");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to open document");
+      } finally {
+        setViewDocumentPending(false);
+      }
+    },
+    [getAccessToken]
+  );
 
   const reviewSections = React.useMemo(() => {
     if (!app?.application_reviews?.length) {
@@ -397,83 +410,63 @@ export default function DynamicApplicationDetailPage() {
           )}
 
           {app && (
-            <>
-              {/* Header Card */}
-              <Card className="rounded-2xl">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                        <BanknotesIcon className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-xl font-bold">
-                            {app.financing_type?.product_name || "Financing Product"}
-                          </h2>
-                          {getStatusBadge(app.status)}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+              <div className="min-w-0 space-y-6">
+                <Card className="rounded-2xl">
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                            Requested Facility
+                          </div>
+                          <div className="text-2xl font-bold text-primary">
+                            {formatCurrency(requestedAmount)}
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Submitted by {app.issuer_organization.name}
-                        </p>
+                        {getStatusBadge(app.status)}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                        Requested Facility
-                      </div>
-                      <div className="text-2xl font-bold text-primary">
-                        {formatCurrency(requestedAmount)}
-                      </div>
-                    </div>
-                  </div>
 
-                  <Separator />
+                    <Separator />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
-                      <div className="text-sm font-medium">{app.id}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Submitted At</div>
-                      <div className="text-sm font-medium">
-                        {app.submitted_at ? format(new Date(app.submitted_at), "PPP p") : "Not submitted"}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Organization</div>
+                        <div className="text-sm font-medium">{app.issuer_organization.name}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Owner</div>
+                        <div className="text-sm font-medium">
+                          {app.issuer_organization.owner.first_name} {app.issuer_organization.owner.last_name}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Email</div>
+                        <div className="text-sm font-medium">{app.issuer_organization.owner.email}</div>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Updated</div>
-                      <div className="text-sm font-medium">{format(new Date(app.updated_at), "PPP p")}</div>
-                    </div>
-                  </div>
 
-                  {isReviewable && (
-                    <div className="flex items-center gap-3 pt-2">
-                      {allSectionsApproved && (
-                        <Button
-                          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-                          onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                        >
-                          <CheckCircleIcon className="h-4 w-4" />
-                          Approve Application
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 border-destructive/30"
-                        onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
-                      >
-                        <XCircleIcon className="h-4 w-4" />
-                        Reject Application
-                      </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
+                        <div className="text-sm font-medium">{app.id}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Submitted At</div>
+                        <div className="text-sm font-medium">
+                          {app.submitted_at ? format(new Date(app.submitted_at), "PPP p") : "Not submitted"}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Updated</div>
+                        <div className="text-sm font-medium">{format(new Date(app.updated_at), "PPP p")}</div>
+                      </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-                <div className="min-w-0 space-y-6">
-                  <ApplicationReviewTabs sections={reviewSections} defaultSection="FINANCIAL">
+                <ApplicationReviewTabs sections={reviewSections} defaultSection="FINANCIAL">
                     <ApplicationReviewTabContent value="FINANCIAL">
                       <Card className="rounded-2xl">
                         <CardHeader className="pb-3">
@@ -544,6 +537,7 @@ export default function DynamicApplicationDetailPage() {
                                 (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []
                               }
                               isReviewable={!!isReviewable}
+                              onViewDocument={handleViewDocument}
                               onApproveItem={async (itemId) => {
                                 await approveItem.mutateAsync({
                                   applicationId,
@@ -569,6 +563,7 @@ export default function DynamicApplicationDetailPage() {
                                 })
                               }
                               isItemActionPending={approveItem.isPending}
+                              isViewDocumentPending={viewDocumentPending}
                             />
                           ) : (
                             <p className="text-sm text-muted-foreground">No supporting documents submitted.</p>
@@ -580,44 +575,42 @@ export default function DynamicApplicationDetailPage() {
                         </CardContent>
                       </Card>
                     </ApplicationReviewTabContent>
-                  </ApplicationReviewTabs>
-                </div>
-
-                <div className="space-y-6">
-                  <ReviewSummaryCard
-                    sections={reviewSections}
-                    reviewItems={(app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []}
-                    events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; note: string | null; created_at: string }[]) ?? []}
-                    notes={(app.application_review_notes as { scope_key: string; action_type: string; note: string; created_at: string }[]) ?? []}
-                  />
-
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheckIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Compliance & Audit</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <DetailRow label="Internal Status" value={app.status} />
-                      <DetailRow label="Product Version" value={`v${app.product_version}`} />
-                      <DetailRow label="Last Completed Step" value={String(app.last_completed_step)} />
-                      <DetailRow label="Organization" value={app.issuer_organization.name} />
-                      <DetailRow
-                        label="Owner"
-                        value={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}
-                      />
-                      <DetailRow label="Email" value={app.issuer_organization.owner.email} />
-                      <Separator />
-                      <div className="text-[10px] text-muted-foreground leading-relaxed">
-                        By approving sections, you confirm review of the submitted information. Remarks are required for
-                        reject and amendment requests.
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                </ApplicationReviewTabs>
               </div>
-            </>
+
+              <div className="space-y-6">
+                {isReviewable && (
+                  <div className="flex items-center justify-end gap-3">
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+                      disabled={!allSectionsApproved}
+                      onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
+                    >
+                      <CheckCircleIcon className="h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 border-destructive/30"
+                      onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                    >
+                      <XCircleIcon className="h-4 w-4" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
+
+                <ReviewSummaryCard
+                  sections={reviewSections}
+                  reviewItems={(app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []}
+                />
+
+                <RecentActivityCard
+                  events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; note: string | null; created_at: string }[]) ?? []}
+                  notes={(app.application_review_notes as { scope_key: string; action_type: string; note: string; created_at: string }[]) ?? []}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -671,13 +664,9 @@ export default function DynamicApplicationDetailPage() {
 function ReviewSummaryCard({
   sections,
   reviewItems,
-  events,
-  notes,
 }: {
   sections: { section: string; status: string }[];
   reviewItems: { item_type: string; item_id: string; status: string }[];
-  events: { event_type: string; scope_key: string | null; new_status: string; note: string | null; created_at: string }[];
-  notes: { scope_key: string; action_type: string; note: string; created_at: string }[];
 }) {
   const itemCountByStatus = React.useMemo(() => {
     const m: Record<string, number> = { PENDING: 0, APPROVED: 0, REJECTED: 0, AMENDMENT_REQUESTED: 0 };
@@ -686,31 +675,6 @@ function ReviewSummaryCard({
     }
     return m;
   }, [reviewItems]);
-
-  const recentActivity = React.useMemo(() => {
-    const combined: { type: string; key: string; status?: string; note?: string; created_at: string }[] = [];
-    for (const e of events.slice(0, 10)) {
-      combined.push({
-        type: e.event_type,
-        key: e.scope_key ?? "—",
-        status: e.new_status,
-        note: e.note ?? undefined,
-        created_at: e.created_at,
-      });
-    }
-    for (const n of notes.slice(0, 5)) {
-      combined.push({
-        type: `NOTE:${n.action_type}`,
-        key: n.scope_key,
-        note: n.note,
-        created_at: n.created_at,
-      });
-    }
-    combined.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-    return combined.slice(0, 8);
-  }, [events, notes]);
 
   return (
     <Card className="rounded-2xl">
@@ -761,158 +725,283 @@ function ReviewSummaryCard({
             </div>
           </div>
         )}
-        <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Recent Activity
-          </h4>
-          {recentActivity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No review activity yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {recentActivity.map((a, i) => (
-                <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                  <div className="font-medium">{a.type}</div>
-                  <div className="text-muted-foreground truncate" title={a.key}>
-                    {a.key}
-                  </div>
-                  {a.status && (
-                    <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
-                      {a.status}
-                    </span>
-                  )}
-                  {a.note && (
-                    <p className="mt-1 text-muted-foreground line-clamp-2">{a.note}</p>
-                  )}
-                  <div className="mt-1 text-[10px] text-muted-foreground">
-                    {format(new Date(a.created_at), "dd MMM HH:mm")}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
 }
 
+function RecentActivityCard({
+  events,
+  notes,
+}: {
+  events: { event_type: string; scope_key: string | null; new_status: string; note: string | null; created_at: string }[];
+  notes: { scope_key: string; action_type: string; note: string; created_at: string }[];
+}) {
+  const recentActivity = React.useMemo(() => {
+    const combined: { type: string; key: string; status?: string; note?: string; created_at: string }[] = [];
+    for (const e of events.slice(0, 10)) {
+      combined.push({
+        type: e.event_type,
+        key: e.scope_key ?? "—",
+        status: e.new_status,
+        note: e.note ?? undefined,
+        created_at: e.created_at,
+      });
+    }
+    for (const n of notes.slice(0, 5)) {
+      combined.push({
+        type: `NOTE:${n.action_type}`,
+        key: n.scope_key,
+        note: n.note,
+        created_at: n.created_at,
+      });
+    }
+    combined.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    return combined.slice(0, 8);
+  }, [events, notes]);
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <ClipboardDocumentCheckIcon className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {recentActivity.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No review activity yet.</p>
+        ) : (
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {recentActivity.map((a, i) => (
+              <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                <div className="font-medium">{a.type}</div>
+                <div className="text-muted-foreground truncate" title={a.key}>
+                  {a.key}
+                </div>
+                {a.status && (
+                  <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
+                    {a.status}
+                  </span>
+                )}
+                {a.note && (
+                  <p className="mt-1 text-muted-foreground line-clamp-2">{a.note}</p>
+                )}
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  {format(new Date(a.created_at), "dd MMM HH:mm")}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type DocItem = { key: string; label: string; s3Key?: string };
+type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
+
 function DocumentList({
   documents,
   reviewItems,
   isReviewable,
+  onViewDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
   isItemActionPending,
+  isViewDocumentPending,
 }: {
   documents: unknown;
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
+  onViewDocument?: (s3Key: string) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
   isItemActionPending: boolean;
+  isViewDocumentPending?: boolean;
 }) {
-  const items = React.useMemo(() => {
-    const out: { key: string; label: string }[] = [];
-    if (typeof documents !== "object") return out;
+  const categoryGroups = React.useMemo((): CategoryGroup[] => {
+    if (typeof documents !== "object") return [];
     const raw = (documents as Record<string, unknown>)?.supporting_documents ?? documents;
     if (Array.isArray(raw)) {
-      raw.forEach((d: Record<string, unknown>, i: number) => {
-        out.push({
+      const items: DocItem[] = raw.map((d: Record<string, unknown>, i: number) => {
+        const file = d?.file as { s3_key?: string } | undefined;
+        return {
           key: `doc:${i}:${String(d?.name ?? d?.title ?? "document")}`,
           label: String(d?.name ?? d?.title ?? `Document ${i + 1}`),
-        });
+          s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        };
       });
-    } else if (typeof raw === "object" && raw !== null) {
-      Object.entries(raw).forEach(([k, v]) => {
-        const arr = Array.isArray(v) ? v : [v];
-        arr.forEach((d: Record<string, unknown>, i: number) => {
-          out.push({
-            key: `doc:${k}:${i}:${String(d?.name ?? d?.title ?? "doc")}`,
-            label: String(d?.name ?? d?.title ?? `${k} ${i + 1}`),
-          });
-        });
-      });
+      return items.length > 0 ? [{ categoryKey: "others", categoryLabel: "Others", items }] : [];
     }
-    return out;
+    if (typeof raw !== "object" || raw === null) return [];
+
+    const cats = (raw as Record<string, unknown>).categories;
+    if (Array.isArray(cats)) {
+      const labelToKey: Record<string, string> = {};
+      SUPPORTING_DOC_CATEGORY_KEYS.forEach((k) => {
+        labelToKey[SUPPORTING_DOC_CATEGORY_LABELS[k]] = k;
+      });
+      const groups: CategoryGroup[] = [];
+      cats.forEach((cat: Record<string, unknown>, catIndex: number) => {
+        const categoryLabel = String(cat?.name ?? `Category ${catIndex + 1}`);
+        const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
+        const docList = Array.isArray(cat?.documents) ? cat.documents : [];
+        const items: DocItem[] = docList.map((d: Record<string, unknown>, docIndex: number) => {
+          const file = d?.file as { file_name?: string; s3_key?: string } | undefined;
+          const label =
+            String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() ||
+            `Document ${docIndex + 1}`;
+          const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+          return {
+            key: `doc:${categoryKey}:${docIndex}:${slug}`,
+            label,
+            s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+          };
+        });
+        if (items.length > 0) {
+          groups.push({ categoryKey, categoryLabel, items });
+        }
+      });
+      if (groups.length > 0) return groups;
+    }
+
+    const groups: CategoryGroup[] = [];
+    for (const categoryKey of SUPPORTING_DOC_CATEGORY_KEYS) {
+      const val = (raw as Record<string, unknown>)[categoryKey];
+      if (val == null) continue;
+      const arr = Array.isArray(val) ? val : [val];
+      const items: DocItem[] = arr.map((d: Record<string, unknown>, i: number) => {
+        const file = d?.file as { s3_key?: string } | undefined;
+        return {
+          key: `doc:${categoryKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`,
+          label: String(d?.name ?? d?.title ?? `${categoryKey} ${i + 1}`),
+          s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        };
+      });
+      if (items.length > 0) {
+        groups.push({
+          categoryKey,
+          categoryLabel: SUPPORTING_DOC_CATEGORY_LABELS[categoryKey] ?? categoryKey,
+          items,
+        });
+      }
+    }
+    return groups;
   }, [documents]);
 
   const getItemStatus = (key: string) =>
     reviewItems.find((r) => r.item_type === "DOCUMENT" && r.item_id === key)?.status ?? "PENDING";
 
-  if (items.length === 0) {
+  const totalItems = categoryGroups.reduce((acc, g) => acc + g.items.length, 0);
+  if (totalItems === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No document entries in supporting_documents.
+        No document entries in supporting documents.
       </p>
     );
   }
 
   return (
-    <div className="divide-y">
-      {items.map(({ key, label }) => {
-        const status = getItemStatus(key);
-        return (
-          <div
-            key={key}
-            className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-          >
-            <div className="flex items-center gap-3">
-              <DocumentArrowDownIcon className="h-5 w-5 text-muted-foreground shrink-0" />
-              <span className="text-sm font-medium">{label}</span>
-              {status !== "PENDING" && (
-                <Badge
-                  variant={status === "APPROVED" ? "default" : "secondary"}
-                  className={status === "APPROVED" ? "bg-primary text-primary-foreground" : ""}
-                >
-                  {status}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isReviewable && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg h-9 gap-1"
-                      disabled={isItemActionPending}
+    <div className="space-y-2">
+      {categoryGroups.map(({ categoryKey, categoryLabel, items }) => (
+        <Collapsible key={categoryKey} defaultOpen>
+          <div className="rounded-xl border">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="group flex w-full items-center gap-2 px-4 py-3 text-left text-base font-semibold hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-muted/50 transition-colors rounded-t-xl [&[data-state=open]]:rounded-b-none"
+              >
+                <ChevronDownIcon className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]:rotate-[-90deg]" />
+                <DocumentArrowDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                {categoryLabel}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="border-t pl-16 pr-4 py-3 space-y-3">
+                {items.map(({ key, label, s3Key }) => {
+                  const status = getItemStatus(key);
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between"
                     >
-                      Action
-                      <ChevronDownIcon className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="rounded-xl">
-                    <DropdownMenuItem
-                      className="rounded-lg"
-                      onClick={() => onApproveItem(key)}
-                    >
-                      <CheckCircleIcon className="h-4 w-4 mr-2" />
-                      Approve
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="rounded-lg text-destructive focus:text-destructive"
-                      onClick={() => onRejectItem(key)}
-                    >
-                      <XCircleIcon className="h-4 w-4 mr-2" />
-                      Reject (leave remark)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="rounded-lg"
-                      onClick={() => onRequestAmendmentItem(key)}
-                    >
-                      <DocumentTextIcon className="h-4 w-4 mr-2" />
-                      Request Amendment
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-foreground">{label}</span>
+                        {status !== "PENDING" && (
+                          <Badge
+                            variant={status === "APPROVED" ? "default" : "secondary"}
+                            className={status === "APPROVED" ? "bg-primary text-primary-foreground" : ""}
+                          >
+                            {status}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {s3Key && onViewDocument && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg h-9 gap-1 border-0"
+                            onClick={() => onViewDocument(s3Key)}
+                            disabled={isViewDocumentPending}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                            View
+                          </Button>
+                        )}
+                        {isReviewable && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-9 gap-1"
+                                disabled={isItemActionPending}
+                              >
+                                Action
+                                <ChevronDownIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl">
+                              <DropdownMenuItem
+                                className="rounded-lg"
+                                onClick={() => onApproveItem(key)}
+                              >
+                                <CheckCircleIcon className="h-4 w-4 mr-2" />
+                                Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="rounded-lg text-destructive focus:text-destructive"
+                                onClick={() => onRejectItem(key)}
+                              >
+                                <XCircleIcon className="h-4 w-4 mr-2" />
+                                Reject (leave remark)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="rounded-lg"
+                                onClick={() => onRequestAmendmentItem(key)}
+                              >
+                                <DocumentTextIcon className="h-4 w-4 mr-2" />
+                                Request Amendment
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
           </div>
-        );
-      })}
+        </Collapsible>
+      ))}
     </div>
   );
 }
