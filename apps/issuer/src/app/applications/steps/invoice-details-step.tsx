@@ -799,63 +799,72 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         {!isInvoiceOnly && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                Contract
+              </h3>
               <div className="mt-2 h-px bg-border" />
             </div>
 
             <div className="space-y-3 mt-4 px-3">
               <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
+
+                {/* ================= Contract Title ================= */}
                 <div className={formLabelClassName}>Contract title</div>
-                <div className={valueClassName}>{application?.contract?.contract_details?.title || "—"}</div>
+                <div className={valueClassName}>
+                  {application?.contract?.contract_details?.title ?? "—"}
+                </div>
 
+                {/* ================= Customer ================= */}
                 <div className={formLabelClassName}>Customer</div>
-                <div className={valueClassName}>{application?.contract?.customer_details?.name || "—"}</div>
+                <div className={valueClassName}>
+                  {application?.contract?.customer_details?.name ?? "—"}
+                </div>
 
+                {/* ================= Contract Value ================= */}
                 <div className={formLabelClassName}>Contract value</div>
                 <div className={valueClassName}>
-                  RM {application?.contract?.contract_details?.value != null
-                    ? formatMoney(application?.contract?.contract_details?.value)
+                  {application?.contract?.contract_details?.value != null
+                    ? `RM ${formatMoney(application.contract.contract_details.value)}`
                     : "—"}
                 </div>
 
-
+                {/* ================= Approved Facility ================= */}
                 <div className={formLabelClassName}>Approved facility</div>
                 <div className={valueClassName}>
-                  {isNewContract ? "—" : (
-                    application?.contract?.contract_details?.approved_facility != null
-                      ? `RM ${formatMoney(application?.contract?.contract_details?.approved_facility)}`
-                      : "—"
-                  )}
+                  {isNewContract
+                    ? "—"
+                    : application?.contract?.contract_details?.approved_facility != null
+                      ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
+                      : "—"}
                 </div>
 
-
-
-
-
-
+                {/* ================= Utilised Facility ================= */}
                 <div className={formLabelClassName}>Utilised facility</div>
                 <div className={valueClassName}>
-                  {isNewContract ? "—" : (
-                    application?.contract?.contract_details?.utilized_facility != null
-                      ? `RM ${formatMoney(application?.contract?.contract_details?.utilized_facility)}`
-                      : "—"
-                  )}
+                  {isNewContract
+                    ? "—"
+                    : application?.contract?.contract_details?.utilized_facility != null
+                      ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
+                      : "—"}
                 </div>
 
-
+                {/* ================= Available Facility ================= */}
                 <div className={formLabelClassName}>Available facility</div>
                 <div
                   className={cn(
                     "text-sm md:text-base leading-6 font-medium",
-                    !isNewContract && liveAvailableFacility < 0 && "text-destructive"
+                    !isNewContract &&
+                    liveAvailableFacility != null &&
+                    liveAvailableFacility < 0 &&
+                    "text-destructive"
                   )}
                 >
-                  {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
+                  {isNewContract
+                    ? "—"
+                    : liveAvailableFacility != null
+                      ? `RM ${formatMoney(liveAvailableFacility)}`
+                      : "—"}
                 </div>
-
-
-
-
               </div>
             </div>
           </div>
