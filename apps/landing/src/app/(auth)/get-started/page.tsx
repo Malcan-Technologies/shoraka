@@ -21,7 +21,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@cashsouk/ui";
-import { ScrollArea } from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -30,8 +29,20 @@ function GetStartedPageContent() {
   const [showSignInModal, setShowSignInModal] = React.useState(false);
   const [showShariah, setShowShariah] = React.useState(false);
   const [canContinue, setCanContinue] = React.useState(false);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const error = searchParams.get("error");
   const errorMessage = searchParams.get("message");
+
+  /** Handle scroll detection for Shariah compliance modal */
+  const handleScroll = React.useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const tolerance = 8;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= tolerance;
+    if (isAtBottom) {
+      setCanContinue(true);
+    }
+  }, []);
 
   const handleRoleSelect = (role: "INVESTOR" | "ISSUER") => {
     window.location.href = `${API_URL}/api/auth/login?role=${role}&signup=true`;
@@ -161,67 +172,58 @@ function GetStartedPageContent() {
             </div>
           </AlertDialogHeader>
 
-          <ScrollArea
-            className="flex-1 rounded-md border p-4 sm:p-6 overflow-hidden"
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              const tolerance = 8;
-              if (el.scrollHeight - el.scrollTop - el.clientHeight <= tolerance) {
-                setCanContinue(true);
-              }
-            }}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 rounded-md border p-4 sm:p-6 overflow-y-auto"
           >
-            <div className="h-full w-full overflow-y-auto pr-3 text-base sm:text-[17px] leading-8 text-foreground">
+            <div className="w-full text-base sm:text-[17px] leading-8 text-foreground">
               <div className="space-y-6 sm:space-y-6">
-                <p className="m-0">CashSouk operates as a fully Shariah-compliant financing platform.</p>
+                <p className="mb-4">CashSouk operates as a fully Shariah-compliant financing platform.</p>
 
-                <p className="m-0">
-                  Before proceeding to sign-up, please note that all issuer applications are
-                  subject to a mandatory Shariah screening and financial ratio assessment as part of
-                  our onboarding and approval process.
-                </p>
+                <p className="mb-4">Before proceeding to sign-up, please note that all issuer applications are subject to a mandatory Shariah screening and financial ratio assessment as part of our onboarding and approval process.</p>
 
-                <div>
-                  <p className="mt-2 mb-2">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
-                  <ul className="list-disc pl-5 mt-2 space-y-2">
-                    <li>Conventional banking or interest-based lending;</li>
-                    <li>Conventional insurance;</li>
-                    <li>Gambling;</li>
-                    <li>Liquor or liquor-related activities;</li>
-                    <li>Pork or pork-related activities;</li>
-                    <li>Non-halal food and beverages;</li>
-                    <li>Tobacco or tobacco-related activities;</li>
-                    <li>Shariah non-compliant entertainment;</li>
-                    <li>Interest (riba)-based income or investments; or</li>
-                    <li>Any other activities deemed non-compliant by the relevant Shariah authorities</li>
-                  </ul>
-                </div>
+                <p className="mb-4">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
 
-                <p className="m-0">These businesses may not qualify for listing on the platform.</p>
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Conventional banking or interest-based lending;</li>
+                  <li>Conventional insurance;</li>
+                  <li>Gambling;</li>
+                  <li>Liquor or liquor-related activities;</li>
+                  <li>Pork or pork-related activities;</li>
+                  <li>Non-halal food and beverages;</li>
+                  <li>Tobacco or tobacco-related activities;</li>
+                  <li>Shariah non-compliant entertainment;</li>
+                  <li>Interest (riba)-based income or investments; or</li>
+                  <li>Any other activities deemed non-compliant by the relevant Shariah authorities</li>
+                </ul>
 
-                <div>
-                  <p className="mt-2 mb-2">In addition, businesses with significant exposure to:</p>
-                  <ul className="list-disc pl-5 mt-2 space-y-2">
-                    <li>Revenue derived from non-compliant activities,</li>
-                    <li>Cash placed in conventional interest-bearing accounts, or</li>
-                    <li>Interest-bearing debt,</li>
-                  </ul>
-                </div>
+                <p className="mb-4">may not qualify for listing on the platform.</p>
 
-                <p className="m-0">Such businesses may not meet our Shariah screening benchmarks.</p>
+                <p className="mb-4">In addition, businesses with significant exposure to:</p>
 
-                <p className="m-0">
-                  If your business may fall within any of the above categories, you are advised not
-                  to proceed with registration.
-                </p>
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Revenue derived from non-compliant activities,</li>
+                  <li>Cash placed in conventional interest-bearing accounts, or</li>
+                  <li>Interest-bearing debt,</li>
+                </ul>
 
-                <p className="m-0">
-                  By continuing to the sign-up page, you acknowledge that your application will undergo
-                  Shariah screening and that approval is subject to meeting our compliance requirements.
-                </p>
+                <p className="mb-4">may not meet our Shariah screening benchmarks.</p>
+
+                <p className="mb-4">Please be aware that:</p>
+
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Passing the Shariah screening assessment is a prerequisite for approval.</li>
+                  <li>Submission of an application does not guarantee eligibility or approval.</li>
+                  <li>CashSouk reserves the right to decline any application that does not meet its Shariah compliance standards.</li>
+                </ul>
+
+                <p className="mb-4">If your business may fall within any of the above categories, you are advised not to proceed with registration.</p>
+
+                <p className="mb-4">By continuing to the sign-up page, you acknowledge that your application will undergo Shariah screening and that approval is subject to meeting our compliance requirements.</p>
               </div>
             </div>
-          </ScrollArea>
+          </div>
 
           <AlertDialogFooter className="pt-4 border-t border-border/50">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full gap-3">

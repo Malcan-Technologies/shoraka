@@ -8,13 +8,9 @@ const ScrollArea = React.forwardRef<
     onScroll?: React.UIEventHandler<HTMLDivElement>;
   }
 >(({ className, children, onScroll, ...props }, ref) => (
-  <ScrollAreaPrimitive.Root
-    ref={ref}
-    className={cn("relative overflow-hidden", className)}
-    {...props}
-  >
+  <ScrollAreaPrimitive.Root ref={ref} className={cn("relative", className)} {...props}>
     <ScrollAreaPrimitive.Viewport
-      className="h-full w-full rounded-[inherit]"
+      className="h-full w-full rounded-[inherit] overflow-auto"
       onScroll={onScroll as React.UIEventHandler<HTMLDivElement>}
     >
       {children}
