@@ -23,6 +23,7 @@ import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
 import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
 import { ReviewDeclarationsSkeleton } from "../components/review-declarations-skeleton";
+import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 import { formatMoney } from "../components/money";
 
@@ -271,6 +272,7 @@ export function ReviewAndSubmitStep({
     (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
 
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
+  const financingLoading = showFinancingDetails && (isLoadingProducts || isLoadingProductImage);
   const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
   const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
@@ -344,33 +346,37 @@ export function ReviewAndSubmitStep({
           </div>
 
           {financingTypeConfig ? (
-            <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
-              <SelectionCard
-                title={financingTypeConfig.name}
-                description={financingTypeConfig.description}
-                isSelected={false}
-                onClick={() => { }}
-                leading={
-                  <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
-                    {isLoadingProductImage ? (
-                      <Skeleton className="h-full w-full rounded-md" />
-                    ) : productImageUrl ? (
-                      <img
-                        src={productImageUrl}
-                        alt={financingTypeConfig.name || "Product"}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                        Image
-                        <br />
-                        512x512
-                      </div>
-                    )}
-                  </div>
-                }
-              />
-            </div>
+            financingLoading || debugSkeletonMode ? (
+              <ReviewFinancingSkeleton />
+            ) : (
+              <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
+                <SelectionCard
+                  title={financingTypeConfig.name}
+                  description={financingTypeConfig.description}
+                  isSelected={false}
+                  onClick={() => { }}
+                  leading={
+                    <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                      {isLoadingProductImage ? (
+                        <Skeleton className="h-full w-full rounded-md" />
+                      ) : productImageUrl ? (
+                        <img
+                          src={productImageUrl}
+                          alt={financingTypeConfig.name || "Product"}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+                          Image
+                          <br />
+                          512x512
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
+              </div>
+            )
           ) : (
             <div className="text-sm text-muted-foreground italic">
               Financing type not selected
@@ -612,19 +618,19 @@ export function ReviewAndSubmitStep({
                 No directors or shareholders found
               </div>
             ) : (
-              <div className={sectionGridClassName}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
                 {combinedList.map((item: any) => (
                   <React.Fragment key={item.key}>
                     <div className={labelClassName}>{item.roleLabel}</div>
-                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
                       <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
                         {item.name}
                       </div>
-                      <div className="h-4 w-px bg-border" />
+                      <div className="hidden sm:block h-4 w-px bg-border" />
                       <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
                         {item.ownership}
                       </div>
-                      <div className="h-4 w-px bg-border" />
+                      <div className="hidden sm:block h-4 w-px bg-border" />
                       {item.statusVerified ? (
                         <div className="flex items-center gap-1.5 whitespace-nowrap">
                           <CheckCircleIcon className="h-4 w-4 text-green-600" />

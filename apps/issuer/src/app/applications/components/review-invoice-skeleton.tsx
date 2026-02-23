@@ -6,18 +6,7 @@ export function ReviewInvoiceSkeleton() {
   return (
     <div className="px-3">
       <div className="space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <Skeleton className="h-7 w-40" />
-            <div className="mt-1">
-              <Skeleton className="h-4 w-[60%]" />
-            </div>
-          </div>
-
-          <div className="shrink-0 ml-4">
-            <Skeleton className="h-10 w-[140px] rounded-lg" />
-          </div>
-        </div>
+        {/* Keep only the table skeleton for Review page to reduce extra controls */}
 
         <div className="border rounded-xl bg-card overflow-hidden">
           <div className="overflow-x-auto">
