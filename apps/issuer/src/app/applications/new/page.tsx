@@ -10,9 +10,13 @@ import { useProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
+import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
+import { DebugSkeletonToggle } from "../components/debug-skeleton-toggle";
+import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
 
 /**
  * NEW APPLICATION PAGE
@@ -31,6 +35,9 @@ export default function NewApplicationPage() {
   const { activeOrganization } = useOrganization();
   const { setTitle } = useHeader();
 
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+
   React.useEffect(() => {
     setTitle("New Application");
   }, [setTitle]);
@@ -39,7 +46,6 @@ export default function NewApplicationPage() {
   const {
     data: productsData,
     isLoading: isLoadingProducts,
-    refetch: refetchProducts,
   } = useProducts({
     page: 1,
     pageSize: 100,
@@ -51,6 +57,29 @@ export default function NewApplicationPage() {
 
   // Track which product user selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+
+  const onConfirmNavigation = React.useCallback(
+    (path: string) => {
+      // Reset unsaved then navigate
+      setHasUnsavedChanges(false);
+      if (path === "__BACK__") {
+        router.replace("/");
+        return;
+      }
+      const pending = pendingNavRef.current;
+      pendingNavRef.current = null;
+      if (pending?.leavingPage) router.replace(path);
+      else router.push(path);
+    },
+    [router]
+  );
+
+  const { isModalOpen, confirmLeave, cancelLeave } = useNavigationGuard(
+    hasUnsavedChanges,
+    onConfirmNavigation
+  );
 
   /**
    * ORGANIZATION VERIFICATION CHECK
@@ -134,6 +163,7 @@ export default function NewApplicationPage() {
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
+    setHasUnsavedChanges(true);
   };
 
   /**
@@ -146,41 +176,6 @@ export default function NewApplicationPage() {
    * Backend creates record with status=DRAFT and last_completed_step=1
    */
   const handleContinue = async () => {
-    // ===============================
-    // VERSION CHECK BEFORE CREATE
-    // ===============================
-    const { data: latestProductsData } = await refetchProducts();
-
-    const latestProducts = latestProductsData?.products || [];
-
-    const latestProduct = latestProducts.find(
-      (p: any) => p.id === selectedProductId
-    );
-
-    if (!latestProduct) {
-      toast.error("Selected product is no longer available.");
-      return;
-    }
-
-    // Compare against what the user is currently seeing on this page
-    const currentProduct = productsData?.products?.find(
-      (p: any) => p.id === selectedProductId
-    );
-
-    if (!currentProduct) {
-      toast.error("Unable to validate product version.");
-      return;
-    }
-
-    if (latestProduct.version !== currentProduct.version) {
-      toast.error(
-        "This financing product was updated. Please review it again before continuing."
-      );
-      return;
-    }
-
-
-
     // Validate we have what we need
     if (!selectedProductId) {
       toast.error("Please select a financing type");
@@ -201,7 +196,8 @@ export default function NewApplicationPage() {
 
       toast.success("Application created successfully");
 
-      // Go to step 2 (next step after selecting product)
+      // Clear unsaved and go to step 2 (next step after selecting product)
+      setHasUnsavedChanges(false);
       router.push(`/applications/edit/${application.id}?step=2`);
     } catch (error) {
       // Error already shown by mutation hook
@@ -209,7 +205,7 @@ export default function NewApplicationPage() {
   };
 
   // Show loading state while fetching products
-  if (isLoadingProducts) {
+  if (isLoadingProducts || debugSkeletonMode) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -222,7 +218,14 @@ export default function NewApplicationPage() {
           <div className="max-w-7xl mx-auto w-full px-4 py-8">
             <Skeleton className="h-9 w-64 mb-2" />
             <Skeleton className="h-5 w-96 mb-8" />
-            <Skeleton className="h-64 w-full" />
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-border w-full" />
+
+          {/* Product List Skeleton */}
+          <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+            <FinancingTypeSkeleton />
           </div>
         </main>
 
@@ -231,10 +234,14 @@ export default function NewApplicationPage() {
             <Skeleton className="h-12 w-40 rounded-xl" />
           </div>
         </footer>
+
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </div>
     );
   }
 
+  // (unsaved modal will be rendered inside returned JSX)
+ 
   return (
     <div className="flex flex-col h-full">
       {/* Main content */}
@@ -293,6 +300,11 @@ export default function NewApplicationPage() {
           </Button>
         </div>
       </footer>
+
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      {isModalOpen && (
+        <UnsavedChangesModal onConfirm={() => confirmLeave()} onCancel={() => cancelLeave()} />
+      )}
     </div>
   );
 }

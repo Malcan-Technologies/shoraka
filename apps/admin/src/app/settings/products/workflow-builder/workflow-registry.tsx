@@ -28,6 +28,7 @@ import { BusinessDetailsConfig } from "./step-configs/business-details-config";
 import { SupportingDocumentsConfig } from "./step-configs/supporting-documents-config";
 import { DeclarationsConfig } from "./step-configs/declarations-config";
 import { ReviewAndSubmitConfig } from "./step-configs/review-and-submit-config";
+import { InvoiceDetailsConfig } from "./step-configs/invoice-details-config";
 
 export { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY, getStepKeyFromStepId };
 export type { ApplicationStepKey };
@@ -35,8 +36,6 @@ export type { ApplicationStepKey };
 /** Steps that don't show a config panel in the card (no expand / no form). */
 export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
   "financing_structure",
-  "contract_details",
-  "invoice_details",
   "company_details",
   "business_details",
   "review_and_submit",
@@ -54,4 +53,5 @@ export const STEP_CONFIG_MAP: Partial<Record<ApplicationStepKey, React.Component
   supporting_documents: SupportingDocumentsConfig,
   declarations: DeclarationsConfig,
   review_and_submit: ReviewAndSubmitConfig,
+  invoice_details: InvoiceDetailsConfig,
 };

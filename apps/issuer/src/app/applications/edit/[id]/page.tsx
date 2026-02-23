@@ -30,7 +30,6 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import {
   useApplication,
   useUpdateApplicationStep,
-  useArchiveApplication,
   useUpdateApplicationStatus,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
@@ -52,15 +51,11 @@ import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { DefaultSkeleton } from "../_components/default-skeleton";
+// dialog components are used by modal components directly
+import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
+import { VersionMismatchModal } from "@/components/VersionMismatchModal";
+import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -79,7 +74,7 @@ import { DefaultSkeleton } from "../_components/default-skeleton";
  *   return { field1: value1, ... };
  */
 
-type ApplicationBlockReason = "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null;
+// ApplicationBlockReason removed - use guard.blockReason instead
 
 /**
  * ============================================================
@@ -262,20 +257,10 @@ export default function EditApplicationPage() {
      BLOCK REASONS (PRODUCT DELETED/VERSION CHANGED)
      ================================================================ */
 
-  const applicationBlockReason = React.useMemo<ApplicationBlockReason>(() => {
-    if (!application || !productsData) return null;
-
-    const productId = (application.financing_type as Record<string, unknown>)
-      ?.product_id as string | undefined;
-    if (!productId) return null;
-
-    const product = ((productsData?.products as unknown) as Array<{ id: string; version: number }>)?.find((p: { id: string; version: number }) => p.id === productId);
-    if (!product) return "PRODUCT_DELETED";
-    if (application.product_version !== product.version)
-      return "PRODUCT_VERSION_CHANGED";
-
-    return null;
-  }, [application, productsData]);
+  /* ================================================================
+     PRODUCT VERSION GUARD (centralized)
+     ================================================================ */
+  const { isMismatch, blockReason, checkNow } = useProductVersionGuard(applicationId);
 
   /* ================================================================
      CURRENT STEP RESOLUTION
@@ -289,7 +274,6 @@ export default function EditApplicationPage() {
   const currentStepId = (currentStepConfig?.id as string) || "";
   const currentStepKey = React.useMemo(() => {
     const key = getStepKeyFromStepId(currentStepId);
-    console.log(currentStepId, 'key', key)
     if (key) return key;
 
     // Fallback detection from application data
@@ -360,7 +344,6 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const updateStepMutation = useUpdateApplicationStep();
-  const archiveApplicationMutation = useArchiveApplication();
   const updateStatusMutation = useUpdateApplicationStatus();
 
 
@@ -369,58 +352,67 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
-  const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = React.useState(false);
-  const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
-
   React.useEffect(() => {
+    // reset unsaved state when changing steps
     setHasUnsavedChanges(false);
     stepDataRef.current = null;
   }, [stepFromUrl]);
 
-  React.useEffect(() => {
-    if (isSubmittingRef.current) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = "";
+  // Navigation guard integration
+  const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+
+  const onConfirmNavigation = React.useCallback(
+    (path: string) => {
+      // Parent must reset unsaved BEFORE navigating
+      setHasUnsavedChanges(false);
+
+      const pending = pendingNavRef.current;
+      // Handle back sentinel
+      if (path === "__BACK__") {
+        // Deterministic: always exit wizard to dashboard
+        pendingNavRef.current = null;
+        router.replace("/");
+        return;
       }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
 
-  React.useEffect(() => {
-    if (!hasUnsavedChanges) return;
-    window.history.replaceState({ preventNav: true }, "", window.location.href);
-
-    const handlePopState = () => {
-      if (hasUnsavedChanges) {
-        window.history.replaceState({ preventNav: true }, "", window.location.href);
-        setIsUnsavedChangesModalOpen(true);
+      if (pending?.leavingPage) {
+        pendingNavRef.current = null;
+        router.replace(path);
+      } else {
+        pendingNavRef.current = null;
+        router.push(path);
       }
-    };
+    },
+    [router]
+  );
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [hasUnsavedChanges]);
+  const { isModalOpen, requestNavigation, confirmLeave, cancelLeave } = useNavigationGuard(
+    hasUnsavedChanges,
+    onConfirmNavigation
+  );
 
-  React.useEffect(() => {
-    if (isSubmittingRef.current) return;
-    if (!hasUnsavedChanges) return;
+  // Centralized safe navigation that enforces version guard precedence
+  const safeNavigate = React.useCallback(
+    async (path: string, opts: { leavingPage: boolean } = { leavingPage: false }) => {
+      const mismatch = await checkNow();
+      if (mismatch) return;
 
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const anchor = target.closest("a");
-      if (anchor && anchor.href && !anchor.href.includes(window.location.pathname)) {
-        e.preventDefault();
-        setPendingNavigation(anchor.href);
-        setIsUnsavedChangesModalOpen(true);
+      if (!hasUnsavedChanges) {
+        // No unsaved changes -> navigate immediately
+        if (opts.leavingPage) {
+          router.replace(path);
+        } else {
+          router.push(path);
+        }
+        return;
       }
-    };
 
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
-  }, [hasUnsavedChanges]);
+      // Has unsaved changes -> store pending and ask guard to open modal
+      pendingNavRef.current = { path, leavingPage: opts.leavingPage };
+      requestNavigation(path);
+    },
+    [checkNow, hasUnsavedChanges, pendingNavRef, requestNavigation, router]
+  );
 
   /* ================================================================
      RESUME LOGIC
@@ -453,17 +445,17 @@ export default function EditApplicationPage() {
    */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
-    if (!application || isLoadingApp || isLoadingProducts || applicationBlockReason !== null) return;
+    if (!application || isLoadingApp || isLoadingProducts || isMismatch) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
 
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
 
-    // SCENARIO 1: Step 1 only available on /new page
-    if (stepFromUrl === 1) {
-      toast.error("Financing type can only be selected when creating a new application");
-      router.replace(`/applications/edit/${applicationId}?step=2`);
+    // SCENARIO 1: Invalid step (< 1)
+    if (stepFromUrl < 1) {
+      toast.error("Invalid step number");
+      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
       return;
     }
 
@@ -485,13 +477,6 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // SCENARIO 4: Invalid step (< 1)
-    if (stepFromUrl < 1) {
-      toast.error("Invalid step number");
-      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
-      return;
-    }
-
     // eslint-disable-next-line no-console
     console.log(
       `[WIZARD] Gate check: stepFromUrl=${stepFromUrl}, allowed=${maxAllowed}, workflow=${maxStepInWorkflow}`
@@ -504,7 +489,7 @@ export default function EditApplicationPage() {
     isLoadingApp,
     isLoadingProducts,
     effectiveWorkflow,
-    applicationBlockReason,
+    isMismatch,
     searchParams,
     wizardState,
   ]);
@@ -517,6 +502,7 @@ export default function EditApplicationPage() {
     const financingType = application?.financing_type as Record<string, unknown>;
     const savedProductId = (financingType?.product_id as string) || "";
 
+    console.log('hi', currentStepKey)
     if (currentStepKey === "financing_type") {
       return (
         <FinancingTypeStep
@@ -569,7 +555,11 @@ export default function EditApplicationPage() {
 
     if (currentStepKey === "contract_details") {
       return (
-        <ContractDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <ContractDetailsStep
+          applicationId={applicationId}
+          workflow={effectiveWorkflow}
+          onDataChange={handleDataChange}
+        />
       );
     }
 
@@ -585,7 +575,8 @@ export default function EditApplicationPage() {
       );
     }
 
-    return <div className="text-center py-12 text-muted-foreground">Coming soon...</div>;
+    // This shouldn't happen - each step has its own skeleton for loading
+    return null;
   };
 
   /* ================================================================
@@ -598,8 +589,14 @@ export default function EditApplicationPage() {
 
       isSubmittingRef.current = true; // 🔒 prevent gating effects
 
+      // Live guard: ensure product version is current before final submit
+      {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+      }
+
       const finalStepNumber = effectiveWorkflow.length;
-      console.log('wizard',finalStepNumber)
+      console.log('wizard', finalStepNumber)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -625,47 +622,29 @@ export default function EditApplicationPage() {
   };
 
 
-  const handleConfirmLeave = () => {
-    if (isSubmittingRef.current) return;
 
-    setHasUnsavedChanges(false);
-    setIsUnsavedChangesModalOpen(false);
-
-    setTimeout(() => {
-      if (pendingNavigation) {
-        router.push(pendingNavigation);
-        setPendingNavigation(null);
-      } else if (stepFromUrl === 1) {
-        router.push("/");
-      } else if (stepFromUrl > 1) {
-        const prevStep = stepFromUrl - 1;
-        if (prevStep === 1) {
-          router.push("/");
-        } else {
-          router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
-        }
-      } else {
-        router.push("/");
-      }
-    }, 0);
-  };
 
   const handleBack = () => {
     if (isSubmittingRef.current) return;
 
-    if (hasUnsavedChanges) {
-      setIsUnsavedChangesModalOpen(true);
-      return;
-    }
+    (async () => {
+      const mismatch = await checkNow();
+      if (mismatch) return;
 
-    if (stepFromUrl === 1 || stepFromUrl === 2) {
-      router.push("/");
-    } else if (stepFromUrl > 2) {
-      const prevStep = stepFromUrl - 1;
-      router.push(`/applications/edit/${applicationId}?step=${prevStep}`);
-    } else {
-      router.push("/");
-    }
+      if (stepFromUrl > 1) {
+        const prevStep = stepFromUrl - 1;
+
+        pendingNavRef.current = {
+          path: `/applications/edit/${applicationId}?step=${prevStep}`,
+          leavingPage: false,
+        };
+
+        requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
+      } else {
+        pendingNavRef.current = { path: "/", leavingPage: true };
+        requestNavigation("/");
+      }
+    })();
   };
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
@@ -715,8 +694,11 @@ export default function EditApplicationPage() {
     try {
       isSavingRef.current = true;
 
-      // Hard safety guard: version mismatch
-      if (applicationBlockReason !== null) return;
+      // Live version guard: perform an up-to-date check before saving/navigation
+      {
+        const mismatch = await checkNow();
+        if (mismatch) return;
+      }
 
       const rawData = stepDataRef.current;
       let dataToSave: Record<string, unknown> | null = rawData
@@ -798,7 +780,7 @@ export default function EditApplicationPage() {
       if (dataToSave === null) {
         toast.success("Step completed");
         setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`);
+        await safeNavigate(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`, { leavingPage: false });
         return;
       }
 
@@ -814,9 +796,18 @@ export default function EditApplicationPage() {
          ============================================================ */
 
       if (currentStepKey === "financing_structure" && structureChanged === false) {
-        setHasUnsavedChanges(false);
-        router.replace(`/applications/edit/${applicationId}?step=${nextStep}`);
-        return;
+        // If step has been saved before, skip the save
+        const hasBeenSavedBefore = (dataToSave as Record<string, unknown>)?.hasBeenSavedBefore as boolean | undefined;
+        if (hasBeenSavedBefore) {
+          setHasUnsavedChanges(false);
+          await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
+          return;
+        }
+        // First-time save: fall through to standard save flow
+      }
+
+      if (dataToSave) {
+        delete (dataToSave as Record<string, unknown>).hasBeenSavedBefore;
       }
 
       /* ============================================================
@@ -857,7 +848,7 @@ export default function EditApplicationPage() {
       // Do NOT invalidate queries - this causes skeleton reload flicker
       // The next page will load fresh data on mount
       const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
-      router.replace(`/applications/edit/${applicationId}?step=${navigationStep}`);
+      await safeNavigate(`/applications/edit/${applicationId}?step=${navigationStep}`, { leavingPage: false });
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
@@ -872,15 +863,6 @@ export default function EditApplicationPage() {
      RESTART APPLICATION
      ================================================================ */
 
-  const handleRestartApplication = async () => {
-    try {
-      await archiveApplicationMutation.mutateAsync(applicationId);
-      router.push("/applications/new");
-    } catch {
-      toast.error("Unable to restart. Please try again.");
-    }
-  };
-
   /* ================================================================
      STEP VALIDATION STATE
      ================================================================ */
@@ -892,60 +874,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const isLoading = isLoadingApp || isLoadingProducts;
-  const showBlockingSkeleton = isLoading || !application || applicationBlockReason !== null;
-
-  if (showBlockingSkeleton) {
-    return (
-      <>
-        <DefaultSkeleton
-          steps={effectiveWorkflow
-            .slice(1)
-            .map(
-              (s: Record<string, unknown>) =>
-                (s.name as string | undefined) || ""
-            )}
-          currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
-        />
-
-        <Dialog open={applicationBlockReason !== null} onOpenChange={() => { }}>
-          <DialogContent className="[&>button]:hidden">
-            <DialogHeader>
-              <DialogTitle>
-                {applicationBlockReason === "PRODUCT_DELETED"
-                  ? "Product No Longer Available"
-                  : "Product Updated"}
-              </DialogTitle>
-              <DialogDescription>
-                {applicationBlockReason === "PRODUCT_DELETED" ? (
-                  <>
-                    The financing product used for this application has been removed and is no
-                    longer available. To continue, please start a new application with a different
-                    product.
-                  </>
-                ) : (
-                  <>
-                    This financing product has been updated with new requirements. To continue,
-                    you'll need to restart your application using the latest version.
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                onClick={handleRestartApplication}
-                className="w-full"
-                disabled={archiveApplicationMutation.isPending}
-              >
-                {archiveApplicationMutation.isPending ? "Restarting..." : "Start New Application"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  const isProgressLoading = isLoadingProducts || !effectiveWorkflow.length;
+  const showBlockingDialog = Boolean(blockReason);
 
   return (
     <div className="flex flex-col h-full">
@@ -953,97 +882,96 @@ export default function EditApplicationPage() {
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {/* Page Title */}
-          <div className="mb-4 sm:mb-6">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-              {currentStepInfo.title}
-            </h1>
-            <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
-              {currentStepInfo.description}
-            </p>
-          </div>
+          {application ? (
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+                {currentStepInfo.title}
+              </h1>
+              <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                {currentStepInfo.description}
+              </p>
+            </div>
+          ) : null}
 
           {/* Progress Indicator */}
           <ProgressIndicator
             steps={effectiveWorkflow
-              .slice(1)
               .map((s: Record<string, unknown>) => (s.name as string))}
-            currentStep={stepFromUrl > 1 ? stepFromUrl - 1 : 1}
-            isLoading={isProgressLoading}
+            currentStep={stepFromUrl}
+            isLoading={isLoading || !effectiveWorkflow.length}
           />
         </div>
 
         {/* Divider */}
         <div className="h-px bg-border w-full" />
 
-        {/* Step Content */}
+        {/* Step Content - Shows step's own skeleton when loading */}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
           {renderStepComponent()}
         </div>
       </main>
 
       {/* Bottom buttons */}
-      <footer className="sticky bottom-0 border-t bg-background">
-        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
-          >
-            <ArrowLeftIcon className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-
-          <Button
-            onClick={
-              currentStepKey === "review_and_submit"
-                ? handleSubmitApplication
-                : handleSaveAndContinue
-            }
-            disabled={
-              updateStepMutation.isPending ||
-              updateStatusMutation.isPending ||
-              isSubmittingRef.current ||
-              !isCurrentStepValid ||
-              !isStepMapped
-            }
-
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
-          >
-            {currentStepKey === "review_and_submit"
-              ? updateStatusMutation.isPending
-                ? "Submitting..."
-                : "Submit"
-              : updateStepMutation.isPending
-                ? "Saving..."
-                : "Save and Continue"}
-            <ArrowRightIcon className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
-      </footer>
-
-      {/* Unsaved Changes Modal */}
-      <Dialog open={isUnsavedChangesModalOpen} onOpenChange={setIsUnsavedChangesModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Unsaved changes</DialogTitle>
-            <DialogDescription>
-              You have unsaved changes. Are you sure you want to leave? Your changes will be lost.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+      {application && !showBlockingDialog ? (
+        <footer className="sticky bottom-0 border-t bg-background">
+          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
             <Button
               variant="outline"
-              onClick={() => setIsUnsavedChangesModalOpen(false)}
-              className="h-11"
+              onClick={handleBack}
+              className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
-              Cancel
+              <ArrowLeftIcon className="h-4 w-4 mr-2" />
+              Back
             </Button>
-            <Button variant="destructive" onClick={handleConfirmLeave} className="h-11">
-              Leave without saving
+
+            <Button
+              onClick={
+                currentStepKey === "review_and_submit"
+                  ? handleSubmitApplication
+                  : handleSaveAndContinue
+              }
+              disabled={
+                updateStepMutation.isPending ||
+                updateStatusMutation.isPending ||
+                isSubmittingRef.current ||
+                !isCurrentStepValid ||
+                !isStepMapped
+              }
+
+              className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
+            >
+              {currentStepKey === "review_and_submit"
+                ? updateStatusMutation.isPending
+                  ? "Submitting..."
+                  : "Submit"
+                : updateStepMutation.isPending
+                  ? "Saving..."
+                  : "Save and Continue"}
+              <ArrowRightIcon className="h-4 w-4 ml-2" />
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </footer>
+      ) : null}
+
+      {/* Product Block Dialog - using standalone modal */}
+      <VersionMismatchModal
+        open={showBlockingDialog}
+        blockReason={blockReason}
+        applicationId={applicationId}
+        onOpenChange={() => { }}
+      />
+
+      {/* Unsaved Changes Modal (centralized) */}
+      {isModalOpen && (
+        <UnsavedChangesModal
+          onConfirm={() => {
+            confirmLeave();
+          }}
+          onCancel={() => {
+            cancelLeave();
+          }}
+        />
+      )}
     </div>
   );
 }

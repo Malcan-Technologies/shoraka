@@ -17,7 +17,6 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +47,8 @@ import {
   formSelectTriggerClassName,
   withFieldError,
 } from "@/app/applications/components/form-control";
+import { CompanyDetailsSkeleton } from "@/app/applications/components/company-details-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -154,6 +155,9 @@ export function CompanyDetailsStep({
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
+  
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   const apiClient = React.useMemo(
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
@@ -499,8 +503,13 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current) {
-    return <CompanyDetailsSkeleton />;
+  if (isLoadingData || !hasHydratedRef.current || debugSkeletonMode) {
+    return (
+      <>
+        <CompanyDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   if (!organizationId) {
@@ -521,6 +530,7 @@ export function CompanyDetailsStep({
   };
 
   return (
+    <>
     <div className="space-y-10 px-3">
       {/* Company Info Section */}
       <div className="space-y-4">
@@ -861,6 +871,8 @@ export function CompanyDetailsStep({
         onSave={handleSaveAddress}
       />
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 
@@ -1095,86 +1107,3 @@ function EditAddressDialog({
   );
 }
 
-function CompanyDetailsSkeleton() {
-  return (
-    <div className="mt-1 space-y-10">
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          {[1, 2].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-[22px] w-full" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          <Skeleton className="h-[22px] w-40" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 pl-3">
-          {[1, 2, 3, 4].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-[22px] w-40" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}

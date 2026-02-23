@@ -5,6 +5,7 @@
  */
 
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
+import { parseMoney } from "../components/money";
 
 // Step keys we use in validation and payload
 export const FIRST_STEP_KEY = "financing_type";
@@ -40,8 +41,73 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
     // if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent == null)) {
     //   config = { ...config, max_financing_rate_percent: 80 };
     // }
+
+    const stepKey = getStepKeyFromStepId(step.id ?? "");
+
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minRaw = config.min_invoice_value;
+      const maxRaw = config.max_invoice_value;
+
+      config = {
+        ...config,
+        min_invoice_value:
+          typeof minRaw === "number"
+            ? minRaw
+            : typeof minRaw === "string" && minRaw.trim() !== ""
+              ? parseMoney(minRaw)
+              : null,
+
+        max_invoice_value:
+          typeof maxRaw === "number"
+            ? maxRaw
+            : typeof maxRaw === "string" && maxRaw.trim() !== ""
+              ? parseMoney(maxRaw)
+              : null,
+      };
+    }
+
+    if (stepKey === "contract_details") {
+      const raw = config.min_contract_months;
+
+      config = {
+        ...config,
+        min_contract_months:
+          typeof raw === "string" && raw.trim() !== ""
+            ? Number(raw)
+            : null,
+      };
+    }
+
     const { _pendingImage: _, ...configForApi } = config;
     return { ...step, config: configForApi };
+  });
+}
+
+export function normalizeWorkflow(workflow: Step[]): Step[] {
+  return workflow.map((step) => {
+    const stepKey = getStepKeyFromStepId(step.id ?? "");
+    const config = ((step as Step).config ?? {}) as {
+      min_invoice_value?: string | number | null;
+      max_invoice_value?: string | number | null;
+    } & Record<string, unknown>;
+
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minRaw = config.min_invoice_value;
+      const maxRaw = config.max_invoice_value;
+
+      return {
+        ...step,
+        config: {
+          ...config,
+          min_invoice_value:
+            minRaw == null || minRaw === "" ? null : parseMoney(minRaw),
+          max_invoice_value:
+            maxRaw == null || maxRaw === "" ? null : parseMoney(maxRaw),
+        },
+      };
+    }
+
+    return step;
   });
 }
 
@@ -87,6 +153,60 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       if (!category) errors.push(`${stepLabel}: enter category`);
       if (!description) errors.push(`${stepLabel}: enter description`);
       if (!hasImage) errors.push(`${stepLabel}: add an image`);
+    }
+
+    if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minRaw = config.min_invoice_value;
+      const maxRaw = config.max_invoice_value;
+
+      let minValue: number | null = null;
+      let maxValue: number | null = null;
+
+      if (typeof minRaw === "number") {
+        minValue = minRaw;
+      } else if (typeof minRaw === "string" && minRaw.trim() !== "") {
+        minValue = parseMoney(minRaw);
+      }
+
+      if (typeof maxRaw === "number") {
+        maxValue = maxRaw;
+      } else if (typeof maxRaw === "string" && maxRaw.trim() !== "") {
+        maxValue = parseMoney(maxRaw);
+      }
+
+      if (minValue != null && minValue < 0) {
+        errors.push(`${stepLabel}: minimum financing amount cannot be negative`);
+      }
+
+      if (maxValue != null && maxValue < 0) {
+        errors.push(`${stepLabel}: maximum financing amount cannot be negative`);
+      }
+
+      if (
+        minValue != null &&
+        maxValue != null &&
+        minValue > maxValue
+      ) {
+        errors.push(`${stepLabel}: minimum cannot exceed maximum`);
+      }
+    }
+
+    if (stepKey === "contract_details") {
+      const raw = config.min_contract_months;
+      const value =
+        typeof raw === "string" && raw.trim() !== ""
+          ? Number(raw)
+          : typeof raw === "number"
+            ? raw
+            : null;
+
+      if (value == null || value < 1) {
+        errors.push(`${stepLabel}: minimum contract months must be at least 1`);
+      }
+
+      if (value != null && value > 120) {
+        errors.push(`${stepLabel}: minimum contract months cannot exceed 120`);
+      }
     }
 
     if (stepKey === SUPPORTING_DOCS_STEP_KEY) {

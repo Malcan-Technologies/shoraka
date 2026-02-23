@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
+import { SupportingDocumentsSkeleton } from "@/app/applications/components/supporting-documents-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -20,6 +21,9 @@ export function SupportingDocumentsStep({
   stepConfig?: any;
   onDataChange?: (data: any) => void;
 }) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -461,9 +465,13 @@ export function SupportingDocumentsStep({
   }
 
   return (
+    <>
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig ? (
-        <SupportingDocumentsSkeleton />
+      {isLoadingApp || !stepConfig || debugSkeletonMode ? (
+        <>
+          <SupportingDocumentsSkeleton />
+          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+        </>
       ) : (categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
@@ -630,60 +638,10 @@ export function SupportingDocumentsStep({
         );
       }))}
     </div>
-  )
-
-}
-
-function SupportingDocumentsSkeleton() {
-  return (
-    <div className="mt-1 space-y-10">
-      {[1, 2].map((category) => (
-        <section key={category} className="space-y-4">
-          {/* ===== Section header (matches real header) ===== */}
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="w-full flex items-center justify-between">
-                {/* Left: chevron + title */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <Skeleton className="h-4 w-4" />
-                  <Skeleton className="h-6 w-48" />
-                </div>
-
-                {/* Right: file counter */}
-                <Skeleton className="h-6 w-36" />
-              </div>
-            </div>
-
-            <div className="mt-2 h-px bg-border" />
-          </div>
-
-          {/* ===== Section content ===== */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-            {[1, 2, 3].map((row) => (
-              <React.Fragment key={row}>
-                {/* Document title */}
-                <Skeleton className="h-[22px] w-[260px]" />
-
-                {/* Action column (exact alignment) */}
-                <div className="flex justify-end">
-                  <div className="flex justify-end items-start">
-                    <div className="flex items-center gap-3">
-                      {/* Download template */}
-                      <Skeleton className="h-[20px] w-[120px]" />
-
-                      {/* Separator */}
-                      <div className="w-px h-4 bg-border/60" />
-
-                      {/* Fixed upload slot */}
-                      <Skeleton className="h-6 w-[160px] rounded-sm" />
-                    </div>
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
+
 }
+
+

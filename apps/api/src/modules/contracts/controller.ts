@@ -54,7 +54,9 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
     const { id } = contractIdParamSchema.parse(req.params);
     const input = updateContractSchema.parse(req.body);
     const userId = getUserId(req);
+    console.log('byeeeeeeee', input)
     const contract = await contractService.updateContract(id, input, userId);
+    console.log('hihih', contract)
 
     res.json({
       success: true,
@@ -150,6 +152,7 @@ async function unlinkContract(req: Request, res: Response, next: NextFunction) {
 export function createContractRouter(): Router {
   const router = Router();
 
+  console.log('byeeee')
   router.post("/", requireAuth, createContract);
   router.get("/approved", requireAuth, getApprovedContracts);
   router.get("/:id", requireAuth, getContract);

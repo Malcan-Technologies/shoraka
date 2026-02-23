@@ -17,8 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FinancingStructureSkeleton } from "@/app/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/applications/components/selection-card";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -44,6 +45,9 @@ export function FinancingStructureStep({
   applicationId,
   onDataChange,
 }: FinancingStructureStepProps) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  
   /** Local state
    *
    * What: Tracks user selection and initialization from DB.
@@ -64,8 +68,8 @@ export function FinancingStructureStep({
    * Why: Drives selected card styling and validation.
    * Data: `FinancingStructureType | null`.
    */
-  const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType | null>(
-    null
+  const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType>(
+    "new_contract"
   );
 
   /** Local state
@@ -103,12 +107,11 @@ export function FinancingStructureStep({
 
     const savedData = application.financing_structure as any;
 
-    if (savedData?.structure_type) {
-      setSelectedStructure(savedData.structure_type);
-      if (savedData.existing_contract_id) {
-        setSelectedContractId(savedData.existing_contract_id);
-      }
-    }
+    const initialType = savedData?.structure_type ?? "new_contract";
+    const initialContractId = savedData?.existing_contract_id ?? "";
+
+    setSelectedStructure(initialType);
+    setSelectedContractId(initialContractId);
 
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -139,27 +142,27 @@ export function FinancingStructureStep({
       }
     }
 
-    // Check if selection is valid to proceed
+    // isValid: only invalid when existing_contract selected but no contract chosen
     const isValid =
-      selectedStructure !== null &&
-      (selectedStructure !== "existing_contract" || selectedContractId !== "");
+      selectedStructure !== "existing_contract" || selectedContractId !== "";
 
+    // Normalize missing DB values to the UI defaults so initial-load
+    // equality checks are correct and we don't mark the step as dirty
+    // when the DB has no financing_structure record yet.
     const savedStructure = application?.financing_structure as any;
-    const previousStructureType = savedStructure?.structure_type;
+    const savedType = savedStructure?.structure_type ?? "new_contract";
+    const savedContractId = savedStructure?.existing_contract_id ?? "";
 
-    // Check if user made changes from what's in DB
     const structureChanged =
-      !savedStructure ||  // No saved data yet (first time) → need to save
-      savedStructure.structure_type !== selectedStructure ||  // Structure type changed
-      (
-        selectedStructure === "existing_contract" &&
-        savedStructure.existing_contract_id !== selectedContractId  // Contract ID changed
-      );
+      savedType !== selectedStructure ||
+      (selectedStructure === "existing_contract" &&
+        savedContractId !== selectedContractId);
 
-    const hasPendingChanges = structureChanged;
-
-
-
+    const hasPendingChanges = Boolean(structureChanged);
+    
+    // First-time saves must go through even if structureChanged=false,
+    // so the step gets marked as completed in the DB.
+    const hasBeenSavedBefore = Boolean(savedStructure);
 
     onDataChangeRef.current({
       ...dataToSave,
@@ -167,7 +170,7 @@ export function FinancingStructureStep({
       isValid,
       hasPendingChanges,
       structureChanged,
-      previousStructureType,
+      hasBeenSavedBefore,
     });
 
   }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
@@ -209,13 +212,12 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp) {
+  if (isLoadingApp || debugSkeletonMode) {
     return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
-        ))}
-      </div>
+      <>
+        <FinancingStructureSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
@@ -226,6 +228,7 @@ export function FinancingStructureStep({
    * Data: Selected value is kept in local state; parent receives validity + saveFunction via effect.
    */
   return (
+    <>
     <div className="px-3">
       <div className="space-y-4">
         {/* Option 1: Submit a new contract */}
@@ -286,6 +289,8 @@ export function FinancingStructureStep({
         />
       </div>
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 

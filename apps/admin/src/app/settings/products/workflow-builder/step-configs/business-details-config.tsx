@@ -1,7 +1,6 @@
 "use client";
 
-import { BaseStepConfig } from "./base-step-config";
-
 export function BusinessDetailsConfig({ config, onChange }: { config: unknown; onChange: (config: unknown) => void }) {
-  return <BaseStepConfig config={config} onChange={onChange} stepTitle="Business Details" />;
+  // Default config removed — no extra admin controls for this step.
+  return null;
 }
