@@ -99,6 +99,8 @@ export default function DynamicApplicationDetailPage() {
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
     | { open: boolean; action: "reject" | "amend"; itemType: "INVOICE" | "DOCUMENT"; itemId: string }
+    | { open: boolean; action: "approve"; section: ReviewSectionId }
+    | { open: boolean; action: "approve"; itemType: "INVOICE" | "DOCUMENT"; itemId: string }
   >({ open: false, action: "reject", section: "FINANCIAL" });
 
   const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
@@ -159,13 +161,8 @@ export default function DynamicApplicationDetailPage() {
     [reviewSections]
   );
 
-  const handleApproveSection = async (section: string) => {
-    try {
-      await approveSection.mutateAsync({ applicationId, section });
-      toast.success("Section approved");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve");
-    }
+  const handleApproveSection = (section: string) => {
+    setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
   };
 
   const handleRejectItem = async (remark: string) => {
@@ -206,7 +203,19 @@ export default function DynamicApplicationDetailPage() {
     const d = noteDialog;
     if (!d) return;
     if ("section" in d) {
-      if (d.action === "reject") {
+      if (d.action === "approve") {
+        try {
+          await approveSection.mutateAsync({
+            applicationId,
+            section: d.section,
+            remark: remark || undefined,
+          });
+          toast.success("Section approved");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to approve");
+          throw err;
+        }
+      } else if (d.action === "reject") {
         await rejectSection.mutateAsync({ applicationId, section: d.section, remark });
         toast.success("Section rejected");
       } else {
@@ -217,28 +226,56 @@ export default function DynamicApplicationDetailPage() {
         });
         toast.success("Amendment requested");
       }
-    } else {
-      if (d.action === "reject") await handleRejectItem(remark);
-      else await handleRequestAmendmentItem(remark);
+    } else if ("itemType" in d) {
+      if (d.action === "approve") {
+        try {
+          await approveItem.mutateAsync({
+            applicationId,
+            itemType: d.itemType,
+            itemId: d.itemId,
+            remark: remark || undefined,
+          });
+          toast.success("Item approved");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to approve");
+          throw err;
+        }
+      } else if (d.action === "reject") {
+        await handleRejectItem(remark);
+      } else {
+        await handleRequestAmendmentItem(remark);
+      }
     }
   };
 
   const noteDialogIsSection = noteDialog && "section" in noteDialog;
-  const noteDialogTitle = noteDialogIsSection
-    ? noteDialog.action === "reject"
-      ? `Reject ${noteDialog.section}?`
-      : `Request Amendment for ${noteDialog.section}?`
+  const noteDialogIsApprove = noteDialog?.action === "approve";
+  const noteDialogTitle = noteDialogIsApprove
+    ? noteDialogIsSection
+      ? `Approve ${noteDialog.section}?`
+      : "Approve item?"
+    : noteDialogIsSection
+      ? noteDialog.action === "reject"
+        ? `Reject ${noteDialog.section}?`
+        : `Request Amendment for ${noteDialog.section}?`
+      : noteDialog?.action === "reject"
+        ? "Reject item?"
+        : "Request amendment?";
+  const noteDialogDescription = noteDialogIsApprove
+    ? "Add an optional remark to record your review decision."
+    : noteDialogIsSection
+      ? noteDialog.action === "reject"
+        ? "This will reject the section. A remark is required."
+        : "Request changes from the issuer. A remark is required."
+      : "A remark is required for this action.";
+  const noteDialogSubmitLabel = noteDialogIsApprove
+    ? "Approve"
     : noteDialog?.action === "reject"
-      ? "Reject item?"
-      : "Request amendment?";
-  const noteDialogDescription = noteDialogIsSection
-    ? noteDialog.action === "reject"
-      ? "This will reject the section. A remark is required."
-      : "Request changes from the issuer. A remark is required."
-    : "A remark is required for this action.";
-  const noteDialogSubmitLabel =
-    noteDialog?.action === "reject" ? "Reject" : "Send Amendment Request";
+      ? "Reject"
+      : "Send Amendment Request";
   const noteDialogPending =
+    approveSection.isPending ||
+    approveItem.isPending ||
     rejectSection.isPending ||
     requestAmendment.isPending ||
     rejectItem.isPending ||
@@ -438,12 +475,12 @@ export default function DynamicApplicationDetailPage() {
                         onRequestAmendmentSection={(s) => setNoteDialog({ open: true, action: "amend", section: s })}
                         onViewDocument={handleViewDocument}
                         onApproveItem={async (itemId) => {
-                          await approveItem.mutateAsync({
-                            applicationId,
+                          setNoteDialog({
+                            open: true,
+                            action: "approve",
                             itemType: "DOCUMENT",
                             itemId,
                           });
-                          toast.success("Document approved");
                         }}
                         onRejectItem={(itemId) =>
                           setNoteDialog({
@@ -496,7 +533,7 @@ export default function DynamicApplicationDetailPage() {
 
                 <RecentActivityCard
                   events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; remark: string | null; created_at: string }[]) ?? []}
-                  notes={(app.application_review_notes as { scope_key: string; action_type: string; remark: string; created_at: string }[]) ?? []}
+                  remarks={(app.application_review_remarks as { scope_key: string; action_type: string; remark: string; created_at: string }[]) ?? []}
                 />
               </div>
             </div>
@@ -515,6 +552,7 @@ export default function DynamicApplicationDetailPage() {
         description={noteDialogDescription}
         submitLabel={noteDialogSubmitLabel}
         variant={noteDialog?.action === "reject" ? "destructive" : "default"}
+        optional={noteDialog?.action === "approve"}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
       />

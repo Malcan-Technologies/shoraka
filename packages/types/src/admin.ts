@@ -1041,7 +1041,7 @@ export interface ApplicationReviewItem {
   updated_at: string;
 }
 
-export interface ApplicationReviewNote {
+export interface ApplicationReviewRemark {
   id: string;
   application_id: string;
   scope: string;

@@ -10,15 +10,7 @@ export interface ReviewSummaryCardProps {
   reviewItems: { item_type: string; item_id: string; status: string }[];
 }
 
-export function ReviewSummaryCard({ sections, reviewItems }: ReviewSummaryCardProps) {
-  const itemCountByStatus = React.useMemo(() => {
-    const m: Record<string, number> = { PENDING: 0, APPROVED: 0, REJECTED: 0, AMENDMENT_REQUESTED: 0 };
-    for (const r of reviewItems) {
-      m[r.status] = (m[r.status] ?? 0) + 1;
-    }
-    return m;
-  }, [reviewItems]);
-
+export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">

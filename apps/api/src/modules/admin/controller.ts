@@ -27,6 +27,7 @@ import {
   getAdminApplicationsQuerySchema,
   updateApplicationStatusSchema,
   reviewSectionSchema,
+  reviewSectionApproveSchema,
   reviewSectionRejectSchema,
   reviewSectionRequestAmendmentSchema,
   reviewItemApproveSchema,
@@ -1939,7 +1940,13 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
-      const result = await adminService.approveReviewSection(id, validatedSection, req.user.user_id);
+      const validated = reviewSectionApproveSchema.parse(req.body ?? {});
+      const result = await adminService.approveReviewSection(
+        id,
+        validatedSection,
+        req.user.user_id,
+        validated.remark
+      );
 
       res.json({
         success: true,
@@ -2013,7 +2020,8 @@ router.post(
         id,
         validated.itemType,
         validated.itemId,
-        req.user.user_id
+        req.user.user_id,
+        validated.remark
       );
 
       res.json({

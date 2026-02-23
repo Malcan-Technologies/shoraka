@@ -334,7 +334,7 @@ model Application {
   invoices                 Invoice[]
   application_reviews      ApplicationReview[]
   application_review_items  ApplicationReviewItem[]
-  application_review_notes  ApplicationReviewNote[]
+  application_review_remarks ApplicationReviewRemark[]
   application_review_events ApplicationReviewEvent[]
 
   @@map("applications")
@@ -387,7 +387,7 @@ model ApplicationReviewItem {
   @@map("application_review_items")
 }
 
-model ApplicationReviewNote {
+model ApplicationReviewRemark {
   id               String     @id @default(cuid())
   application_id   String
   scope            String     // section | item
@@ -400,7 +400,7 @@ model ApplicationReviewNote {
 
   @@index([application_id])
   @@index([application_id, scope_key])
-  @@map("application_review_notes")
+  @@map("application_review_remarks")
 }
 
 model ApplicationReviewEvent {

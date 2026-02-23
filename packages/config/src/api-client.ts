@@ -363,11 +363,12 @@ export class ApiClient {
 
   async approveReviewSection(
     applicationId: string,
-    section: string
+    section: string,
+    remark?: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/approve`,
-      {}
+      remark ? { remark } : {}
     );
   }
 
@@ -396,11 +397,12 @@ export class ApiClient {
   async approveReviewItem(
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
-    itemId: string
+    itemId: string,
+    remark?: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/items/approve`,
-      { itemType, itemId }
+      remark ? { itemType, itemId, remark } : { itemType, itemId }
     );
   }
 

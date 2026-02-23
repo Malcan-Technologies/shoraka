@@ -3870,7 +3870,8 @@ export class AdminService {
   async approveReviewSection(
     applicationId: string,
     section: ReviewSection,
-    reviewerUserId: string
+    reviewerUserId: string,
+    remark?: string | null
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(applicationId);
@@ -3895,13 +3896,24 @@ export class AdminService {
       ReviewStepStatus.APPROVED,
       reviewerUserId
     );
+    const remarkValue = remark?.trim() || null;
+    if (remarkValue) {
+      await repository.createReviewRemark(
+        applicationId,
+        "section",
+        section,
+        "APPROVE",
+        remarkValue,
+        reviewerUserId
+      );
+    }
     await repository.createReviewEvent(
       applicationId,
       "SECTION_REVIEWED",
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      null,
+      remarkValue,
       "section",
       section
     );
@@ -3941,7 +3953,7 @@ export class AdminService {
       ReviewStepStatus.REJECTED,
       reviewerUserId
     );
-    await repository.createReviewNote(
+    await repository.createReviewRemark(
       applicationId,
       "section",
       section,
@@ -3998,7 +4010,7 @@ export class AdminService {
       ReviewStepStatus.AMENDMENT_REQUESTED,
       reviewerUserId
     );
-    await repository.createReviewNote(
+    await repository.createReviewRemark(
       applicationId,
       "section",
       section,
@@ -4030,7 +4042,8 @@ export class AdminService {
     applicationId: string,
     itemType: "INVOICE" | "DOCUMENT",
     itemId: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    remark?: string | null
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(applicationId);
@@ -4057,13 +4070,24 @@ export class AdminService {
       ReviewStepStatus.APPROVED,
       reviewerUserId
     );
+    const remarkValue = remark?.trim() || null;
+    if (remarkValue) {
+      await repository.createReviewRemark(
+        applicationId,
+        "item",
+        `${itemType}:${itemId}`,
+        "APPROVE",
+        remarkValue,
+        reviewerUserId
+      );
+    }
     await repository.createReviewEvent(
       applicationId,
       "ITEM_REVIEWED",
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      null,
+      remarkValue,
       itemType,
       itemId
     );
@@ -4106,7 +4130,7 @@ export class AdminService {
       ReviewStepStatus.REJECTED,
       reviewerUserId
     );
-    await repository.createReviewNote(
+    await repository.createReviewRemark(
       applicationId,
       "item",
       `${itemType}:${itemId}`,
@@ -4163,7 +4187,7 @@ export class AdminService {
       ReviewStepStatus.AMENDMENT_REQUESTED,
       reviewerUserId
     );
-    await repository.createReviewNote(
+    await repository.createReviewRemark(
       applicationId,
       "item",
       `${itemType}:${itemId}`,

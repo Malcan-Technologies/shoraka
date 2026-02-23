@@ -22,6 +22,8 @@ interface ApplicationReviewRemarkDialogProps {
   remarkPlaceholder?: string;
   submitLabel: string;
   variant?: "destructive" | "default";
+  /** When true, remark is optional and user can submit without entering text */
+  optional?: boolean;
   onConfirm: (remark: string) => void | Promise<void>;
   isPending?: boolean;
 }
@@ -31,10 +33,11 @@ export function ApplicationReviewRemarkDialog({
   onOpenChange,
   title,
   description,
-  remarkLabel = "Remark (required)",
+  remarkLabel,
   remarkPlaceholder = "Enter your remark or requested changes...",
   submitLabel,
   variant = "destructive",
+  optional = false,
   onConfirm,
   isPending,
 }: ApplicationReviewRemarkDialogProps) {
@@ -43,7 +46,7 @@ export function ApplicationReviewRemarkDialog({
 
   const handleConfirm = async () => {
     const trimmed = remark.trim();
-    if (!trimmed) {
+    if (!optional && !trimmed) {
       setError("Remark is required");
       return;
     }
@@ -74,7 +77,9 @@ export function ApplicationReviewRemarkDialog({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="review-remark">{remarkLabel}</Label>
+            <Label htmlFor="review-remark">
+              {remarkLabel ?? (optional ? "Remark (optional)" : "Remark (required)")}
+            </Label>
             <Textarea
               id="review-remark"
               placeholder={remarkPlaceholder}
@@ -101,7 +106,7 @@ export function ApplicationReviewRemarkDialog({
           <Button
             className={`rounded-xl ${variant === "destructive" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}`}
             onClick={handleConfirm}
-            disabled={isPending || !remark.trim()}
+            disabled={isPending || (!optional && !remark.trim())}
           >
             {isPending ? "Submitting..." : submitLabel}
           </Button>

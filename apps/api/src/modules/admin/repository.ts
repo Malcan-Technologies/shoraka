@@ -2243,7 +2243,7 @@ export class AdminRepository {
         contract: true,
         application_reviews: true,
         application_review_items: true,
-        application_review_notes: { orderBy: { created_at: "desc" } },
+        application_review_remarks: { orderBy: { created_at: "desc" } },
         application_review_events: { orderBy: { created_at: "desc" }, take: 50 },
       },
     });
@@ -2330,7 +2330,7 @@ export class AdminRepository {
   /**
    * Create review remark
    */
-  async createReviewNote(
+  async createReviewRemark(
     applicationId: string,
     scope: string,
     scopeKey: string,
@@ -2338,7 +2338,7 @@ export class AdminRepository {
     remark: string,
     authorUserId: string
   ) {
-    return prisma.applicationReviewNote.create({
+    return prisma.applicationReviewRemark.create({
       data: {
         application_id: applicationId,
         scope,

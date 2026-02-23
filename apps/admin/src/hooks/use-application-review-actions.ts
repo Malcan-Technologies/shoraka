@@ -10,8 +10,16 @@ export function useApproveReviewSection() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async ({ applicationId, section }: { applicationId: string; section: string }) => {
-      const response = await apiClient.approveReviewSection(applicationId, section);
+    mutationFn: async ({
+      applicationId,
+      section,
+      remark,
+    }: {
+      applicationId: string;
+      section: string;
+      remark?: string;
+    }) => {
+      const response = await apiClient.approveReviewSection(applicationId, section, remark);
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to approve section");
       }
@@ -90,12 +98,19 @@ export function useApproveReviewItem() {
       applicationId,
       itemType,
       itemId,
+      remark,
     }: {
       applicationId: string;
       itemType: "INVOICE" | "DOCUMENT";
       itemId: string;
+      remark?: string;
     }) => {
-      const response = await apiClient.approveReviewItem(applicationId, itemType, itemId);
+      const response = await apiClient.approveReviewItem(
+        applicationId,
+        itemType,
+        itemId,
+        remark
+      );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to approve item");
       }

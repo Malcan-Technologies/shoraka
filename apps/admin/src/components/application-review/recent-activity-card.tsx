@@ -13,10 +13,10 @@ export interface RecentActivityCardProps {
     remark: string | null;
     created_at: string;
   }[];
-  notes: { scope_key: string; action_type: string; remark: string; created_at: string }[];
+  remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
 }
 
-export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
+export function RecentActivityCard({ events, remarks }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -34,9 +34,9 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
         created_at: e.created_at,
       });
     }
-    for (const n of notes.slice(0, 5)) {
+    for (const n of remarks.slice(0, 5)) {
       combined.push({
-        type: `NOTE:${n.action_type}`,
+        type: `REMARK:${n.action_type}`,
         key: n.scope_key,
         remark: n.remark,
         created_at: n.created_at,
@@ -46,7 +46,7 @@ export function RecentActivityCard({ events, notes }: RecentActivityCardProps) {
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     return combined.slice(0, 8);
-  }, [events, notes]);
+  }, [events, remarks]);
 
   return (
     <Card className="rounded-2xl">
