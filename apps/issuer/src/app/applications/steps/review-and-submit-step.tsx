@@ -577,7 +577,7 @@ export function ReviewAndSubmitStep({
           <>
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Company info</h3>
+                <h3 className={sectionHeaderClassName}>Company Info</h3>
                 <div className="mt-2 h-px bg-border" />
               </div>
               {companyLoading || debugSkeletonMode ? (
@@ -660,7 +660,7 @@ export function ReviewAndSubmitStep({
             {/* Banking details */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Banking details</h3>
+                <h3 className={sectionHeaderClassName}>Banking Details</h3>
                 <div className="mt-2 h-px bg-border" />
               </div>
               {companyLoading || debugSkeletonMode ? (
@@ -726,7 +726,7 @@ export function ReviewAndSubmitStep({
         {showSupportingDocsSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Legal docs</h3>
+              <h3 className={sectionHeaderClassName}>Legal Docs</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
             {supportingLoading || debugSkeletonMode ? (
