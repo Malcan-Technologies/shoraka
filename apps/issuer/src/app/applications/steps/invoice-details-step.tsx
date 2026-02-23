@@ -63,7 +63,6 @@ import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/applications/components/invoice-details-skeleton";
-import { InvoiceTableSkeleton } from "@/app/applications/components/invoice-table-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 

@@ -18,7 +18,7 @@ export function useProductVersionGuard(applicationId: string) {
   );
 
   const {
-    data: product,
+    data: _product,
     refetch: refetchProduct,
     isFetching: isFetchingProduct,
   } = useProduct(productId || "");
