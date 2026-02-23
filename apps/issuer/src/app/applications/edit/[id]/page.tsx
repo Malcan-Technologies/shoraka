@@ -765,6 +765,7 @@ export default function EditApplicationPage() {
         delete (dataToSave as Record<string, unknown>).structureChanged;
         delete (dataToSave as Record<string, unknown>).isCreatingContract;
         delete (dataToSave as Record<string, unknown>)._uploadFiles;
+        delete (dataToSave as Record<string, unknown>).hasBeenSavedBefore;
       }
 
       // DECLARATIONS validation
@@ -802,9 +803,14 @@ export default function EditApplicationPage() {
          ============================================================ */
 
       if (currentStepKey === "financing_structure" && structureChanged === false) {
-        setHasUnsavedChanges(false);
-        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
-        return;
+        // If step has been saved before, skip the save
+        const hasBeenSavedBefore = (dataToSave as Record<string, unknown>)?.hasBeenSavedBefore as boolean | undefined;
+        if (hasBeenSavedBefore) {
+          setHasUnsavedChanges(false);
+          await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
+          return;
+        }
+        // First-time save: fall through to standard save flow
       }
 
       /* ============================================================

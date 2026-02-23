@@ -146,14 +146,23 @@ export function FinancingStructureStep({
     const isValid =
       selectedStructure !== "existing_contract" || selectedContractId !== "";
 
+    // Normalize missing DB values to the UI defaults so initial-load
+    // equality checks are correct and we don't mark the step as dirty
+    // when the DB has no financing_structure record yet.
     const savedStructure = application?.financing_structure as any;
+    const savedType = savedStructure?.structure_type ?? "new_contract";
+    const savedContractId = savedStructure?.existing_contract_id ?? "";
 
     const structureChanged =
-      savedStructure?.structure_type !== selectedStructure ||
+      savedType !== selectedStructure ||
       (selectedStructure === "existing_contract" &&
-        savedStructure?.existing_contract_id !== selectedContractId);
+        savedContractId !== selectedContractId);
 
     const hasPendingChanges = Boolean(structureChanged);
+    
+    // First-time saves must go through even if structureChanged=false,
+    // so the step gets marked as completed in the DB.
+    const hasBeenSavedBefore = Boolean(savedStructure);
 
     onDataChangeRef.current({
       ...dataToSave,
@@ -161,6 +170,7 @@ export function FinancingStructureStep({
       isValid,
       hasPendingChanges,
       structureChanged,
+      hasBeenSavedBefore,
     });
 
   }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
