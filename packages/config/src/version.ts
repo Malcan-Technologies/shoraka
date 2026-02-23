@@ -2,7 +2,7 @@
  * Application version
  * Update this constant when releasing new versions
  */
-export const APP_VERSION = "v0.1.2-alpha";
+export const APP_VERSION = "v0.1.3-alpha";
 
 /**
  * Get formatted version string
