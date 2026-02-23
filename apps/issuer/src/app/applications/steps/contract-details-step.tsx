@@ -65,8 +65,9 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
-const tooltipClassName =
-  "max-w-sm whitespace-normal break-words text-sm leading-relaxed";
+
+  const tooltipClassName =
+  "max-w-[240px] whitespace-normal break-words text-xs leading-snug";
 
 /* ================================================================
    VALIDATION HELPERS
