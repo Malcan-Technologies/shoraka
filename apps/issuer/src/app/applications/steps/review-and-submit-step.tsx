@@ -67,11 +67,15 @@ interface ReviewAndSubmitStepProps {
  * REUSED STYLES FROM STEPS
  * Matching: business-details-step, contract-details-step patterns
  */
-const labelClassName = formLabelClassName;
+// Centralized layout/class tokens (aligned with Branding.mdc)
+const pageWrapperClassName = "mx-auto max-w-7xl px-6 py-10 md:py-12";
+const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
-const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionHeaderClassName = "text-xl md:text-2xl font-semibold";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
+const cardClassName = "border rounded-2xl bg-card p-6 md:p-8";
+const tableWrapperClassName = "border rounded-xl bg-card overflow-hidden";
 
 export function ReviewAndSubmitStep({
   applicationId,
@@ -330,7 +334,7 @@ export function ReviewAndSubmitStep({
 
   return (
     <>
-    <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
+    <div className={`${pageWrapperClassName} space-y-12 pb-20`}>
       {/* Financing details */}
       {showFinancingDetails && (
         <section className={sectionSpacingClassName}>
@@ -385,7 +389,7 @@ export function ReviewAndSubmitStep({
           {contractLoading || debugSkeletonMode ? (
             <ReviewContractSkeleton />
           ) : (
-            <div className={gridClassName}>
+            <div className={sectionGridClassName}>
               <div className={labelClassName}>Contract title</div>
               <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
@@ -573,7 +577,7 @@ export function ReviewAndSubmitStep({
             {companyLoading || debugSkeletonMode ? (
               <ReviewCompanySkeleton />
             ) : (
-              <div className={gridClassName}>
+              <div className={sectionGridClassName}>
                 <div className={labelClassName}>Company name</div>
                 <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
@@ -608,7 +612,7 @@ export function ReviewAndSubmitStep({
                 No directors or shareholders found
               </div>
             ) : (
-              <div className={gridClassName}>
+              <div className={sectionGridClassName}>
                 {combinedList.map((item: any) => (
                   <React.Fragment key={item.key}>
                     <div className={labelClassName}>{item.roleLabel}</div>
@@ -647,7 +651,7 @@ export function ReviewAndSubmitStep({
             {companyLoading || debugSkeletonMode ? (
               <ReviewBusinessSkeleton />
             ) : (
-              <div className={gridClassName}>
+              <div className={sectionGridClassName}>
                 <div className={labelClassName}>Bank name</div>
                 <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
@@ -666,7 +670,7 @@ export function ReviewAndSubmitStep({
             {companyLoading || debugSkeletonMode ? (
               <ReviewBusinessSkeleton />
             ) : (
-              <div className={gridClassName}>
+              <div className={sectionGridClassName}>
                 <div className={labelClassName}>Business address</div>
                 <div className={valueClassName}>{formatAddress(businessAddress)}</div>
 
@@ -685,7 +689,7 @@ export function ReviewAndSubmitStep({
             {companyLoading || debugSkeletonMode ? (
               <ReviewBusinessSkeleton />
             ) : (
-              <div className={gridClassName}>
+              <div className={sectionGridClassName}>
                 <div className={labelClassName}>Applicant name</div>
                 <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
