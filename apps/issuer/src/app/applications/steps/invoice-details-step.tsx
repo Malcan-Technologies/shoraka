@@ -101,7 +101,7 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
       (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
     );
     const config = invoiceStep?.config || {};
-  // debug removed
+    // debug removed
     if (config == null || Object.keys(config).length === 0) return null;
     return {
       min_invoice_value: config.min_invoice_value ?? null,
@@ -316,7 +316,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * 4. Min invoice value
    */
   const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig | null): string => {
-  // debug removed
+    // debug removed
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
 
@@ -338,7 +338,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
 
     // contract window must be on the start date
-    if ( true) {
+    if (true) {
       // Debug logs: show raw and parsed dates and comparison result
       // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
       // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
@@ -435,7 +435,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   let productConfig: InvoiceConfig | null = null;
   try {
     productConfig = getProductInvoiceConfig(application, productsData?.products || []);
-    } catch (err) {
+  } catch (err) {
     validationError = err instanceof Error ? err.message : "Product configuration error";
   }
 
@@ -450,7 +450,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     // Validate all invoice constraints (maturity date, value limits, contract window)
     // debug removed
-    if (!validationError && productConfig) {
+    if (!validationError) {
       for (const inv of invoices) {
         const constraintError = validateInvoiceConstraints(inv, productConfig);
         if (constraintError) {
@@ -486,6 +486,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      *
      * If there are validation errors, show toast and prevent save.
      */
+    if (!productConfig) {
+      toast.error("Product configuration is missing. Please contact administrator.");
+      throw new Error("VALIDATION_PRODUCT_CONFIG");
+    }
+
     if (validationError) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_INVOICES");
