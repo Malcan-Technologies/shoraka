@@ -789,7 +789,16 @@ export default function ProfilePage() {
                 <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-            {false && null}
+              {process.env.NODE_ENV === "development" && (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setDevViewAsMember((prev) => !prev)}
+      className="h-9 rounded-xl"
+    >
+      {devViewAsMember ? "Exit Member View" : "View as Member"}
+    </Button>
+  )}
             </div>
           </div>
 
@@ -1597,19 +1606,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Dev-only bottom-right toggles */}
-      {process.env.NODE_ENV === "development" && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 items-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDevViewAsMember((v) => !v)}
-            className="h-9 rounded-xl"
-          >
-            {devViewAsMember ? "Exit member view" : "View as Member"}
-          </Button>
-        </div>
-      )}
+
 
       {/* Confirmation Dialogs */}
       {confirmDialog.type === "remove" && confirmDialog.memberId && (
