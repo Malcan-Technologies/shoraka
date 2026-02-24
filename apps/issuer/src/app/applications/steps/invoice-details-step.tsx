@@ -162,7 +162,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   const { getAccessToken } = useAuthToken();
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
   React.useEffect(() => {
     let mounted = true;
