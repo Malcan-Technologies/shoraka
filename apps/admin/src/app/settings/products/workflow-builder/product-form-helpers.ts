@@ -72,9 +72,11 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
       config = {
         ...config,
         min_contract_months:
-          typeof raw === "string" && raw.trim() !== ""
-            ? Number(raw)
-            : null,
+          typeof raw === "number"
+            ? raw
+            : typeof raw === "string" && raw.trim() !== ""
+              ? Number(raw)
+              : null,
       };
     }
 
