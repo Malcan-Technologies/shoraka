@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
@@ -155,7 +155,7 @@ export function CompanyDetailsStep({
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
-  
+
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
@@ -163,6 +163,29 @@ export function CompanyDetailsStep({
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
     [getAccessToken]
   );
+
+  // Dev-only "View as Member" toggle
+  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
+
+  // Fetch current user to derive organization edit permission
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const canEditOrganization = React.useMemo(() => {
+    if (!activeOrganization || !currentUser) return false;
+    if (activeOrganization.isOwner) return true;
+    const currentUserMember = activeOrganization.members?.find((m: any) => m.id === currentUser.userId);
+    return currentUserMember?.role === "ORGANIZATION_ADMIN";
+  }, [activeOrganization, currentUser]);
+
+  const effectiveCanEdit = devViewAsMember ? false : canEditOrganization;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -325,7 +348,6 @@ export function CompanyDetailsStep({
       throw new Error("VALIDATION_COMPANY_REQUIRED_FIELDS");
     }
 
-    // Persist to DB
     if (!organizationId) throw new Error("Organization ID required");
 
     try {
@@ -333,38 +355,66 @@ export function CompanyDetailsStep({
 
       if (formState.industry) updates.industry = formState.industry;
       if (formState.numberOfEmployees) {
-        updates.numberOfEmployees = Number.parseInt(formState.numberOfEmployees, 10);
+        updates.numberOfEmployees = Number.parseInt(
+          formState.numberOfEmployees,
+          10
+        );
       }
+
       updates.businessAddress = formState.businessAddress;
       updates.registeredAddress = formState.registeredAddress;
 
-      if (Object.keys(updates).length > 0) {
-        const result = await apiClient.patch(
-          `/v1/organizations/issuer/${organizationId}/corporate-info`,
-          updates
-        );
-        if (!result.success) throw new Error(result.error.message);
-        queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      }
+      // ONLY PATCH IF ADMIN / OWNER
+      if (effectiveCanEdit) {
+        // PATCH corporate info
+        if (Object.keys(updates).length > 0) {
+          const result = await apiClient.patch(
+            `/v1/organizations/issuer/${organizationId}/corporate-info`,
+            updates
+          );
+          if (!result.success) throw new Error(result.error.message);
+        }
 
-      // Save banking
-      const bankAccountDetailsPayload = {
-        content: [
-          { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: formState.bankName ?? "" },
-          { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: formState.bankAccountNumber ?? "" },
-        ],
-        displayArea: "Operational Information",
-      };
-      const result = await apiClient.patch(`/v1/organizations/issuer/${organizationId}`, {
-        bankAccountDetails: bankAccountDetailsPayload,
-      });
-      if (!result.success) throw new Error(result.error.message);
-      queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+        // PATCH banking
+        const bankAccountDetailsPayload = {
+          content: [
+            {
+              cn: false,
+              fieldName: "Bank",
+              fieldType: "picklist",
+              fieldValue: formState.bankName ?? "",
+            },
+            {
+              cn: false,
+              fieldName: "Bank account number",
+              fieldType: "number",
+              fieldValue: formState.bankAccountNumber ?? "",
+            },
+          ],
+          displayArea: "Operational Information",
+        };
+
+        const result = await apiClient.patch(
+          `/v1/organizations/issuer/${organizationId}`,
+          {
+            bankAccountDetails: bankAccountDetailsPayload,
+          }
+        );
+
+        if (!result.success) throw new Error(result.error.message);
+
+        // Invalidate ONLY if patch happened
+        queryClient.invalidateQueries({
+          queryKey: ["corporate-info", organizationId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["organization-detail", organizationId],
+        });
+      }
 
       setFieldErrors({});
 
-      // Return contact person for application save
+      // Always return contact person (application-level)
       return {
         contact_person: {
           name: formState.contactPersonName.trim(),
@@ -374,11 +424,21 @@ export function CompanyDetailsStep({
         },
       };
     } catch (error) {
-      console.warn("[COMPANY] Save error:", error instanceof Error ? error.message : error);
+      console.warn(
+        "[COMPANY] Save error:",
+        error instanceof Error ? error.message : error
+      );
       toast.error("Something went wrong. Please try again.");
       throw error;
     }
-  }, [formState, organizationId, apiClient, queryClient, validateAll]);
+  }, [
+    formState,
+    organizationId,
+    apiClient,
+    queryClient,
+    validateAll,
+    effectiveCanEdit, 
+  ]);
 
   /* ================================================================
      VALIDITY CHECK - Compute from current state
@@ -531,347 +591,373 @@ export function CompanyDetailsStep({
 
   return (
     <>
-    <div className="space-y-10 px-3">
-      {/* Company Info Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Company info</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <div className={labelClassName}>Company name</div>
-          <Input
-            value={corporateInfo?.basicInfo?.businessName || "eg. Company Name"}
-            disabled
-            className={inputClassName}
-          />
-
-          <div className={labelClassName}>Type of entity</div>
-          <Input
-            value={corporateInfo?.basicInfo?.entityType || "eg. Private Limited Company"}
-            disabled
-            className={inputClassName}
-          />
-
-          <div className={labelClassName}>SSM no</div>
-          <Input
-            value={corporateInfo?.basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
-            disabled
-            className={inputClassName}
-          />
-
-          <div className={labelClassNameEditable}>Industry</div>
-          <div>
-            <Input
-              value={formState.industry}
-              onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
-              placeholder="eg. Technology"
-              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
-            />
-            {fieldErrors.industry && (
-              <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
-            )}
-          </div>
-
-          <div className={labelClassNameEditable}>Number of employees</div>
-          <div>
-            <Input
-              value={formState.numberOfEmployees}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  numberOfEmployees: restrictDigitsOnly(e.target.value),
-                }))
-              }
-              placeholder="eg. 10"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.numberOfEmployees)
-              )}
-            />
-            {fieldErrors.numberOfEmployees && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.numberOfEmployees}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Address Section */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className={sectionHeaderClassName}>Address</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditAddressOpen(true)}
-            className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
-          >
-            Edit
-            <PencilIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="mt-2 h-px bg-border" />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <div className={labelClassName}>Business address</div>
-          <Input
-            value={formatAddress(formState.businessAddress)}
-            disabled
-            className={inputClassName}
-          />
-
-          <div className={labelClassName}>Registered address</div>
-          <Input
-            value={formatAddress(formState.registeredAddress)}
-            disabled
-            className={inputClassName}
-          />
-        </div>
-      </div>
-
-      {/* Directors & Shareholders Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          {!hasDirectorsOrShareholders ? (
-            <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
-              No directors or shareholders found
-            </p>
-          ) : (
-            combinedList.map((item) => (
-              <React.Fragment key={item.key as string}>
-                <div className={labelClassName}>{item.roleLabel as string}</div>
-                <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                  <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                    {item.name as string}
-                  </div>
-                  <div className="h-4 w-px bg-border" />
-                  <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                    {item.ownership as string}
-                  </div>
-                  <div className="h-4 w-px bg-border" />
-                  {item.statusVerified ? (
-                    <div className="flex items-center gap-1.5 whitespace-nowrap">
-                      <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                      <span className="text-[17px] leading-7 text-green-600">
-                        {item.statusType === "kyb" ? "KYB" : "KYC"}
-                      </span>
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                </div>
-              </React.Fragment>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Banking Details Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Banking details</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <div className={labelClassNameEditable}>Bank name</div>
-          <div>
-            <Select
-              value={formState.bankName}
-              onValueChange={(value) =>
-                setFormState((prev) => ({ ...prev, bankName: value }))
-              }
+      <div className="space-y-10 px-3">
+        {process.env.NODE_ENV === "development" && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDevViewAsMember((v) => !v)}
+              className="h-8 gap-2 rounded-xl"
             >
-              <SelectTrigger
-                className={withFieldError(
-                  formSelectTriggerClassName,
-                  Boolean(fieldErrors.bankName)
-                )}
-              >
-                <SelectValue placeholder="Select bank" />
-              </SelectTrigger>
-              <SelectContent>
-                {MALAYSIAN_BANKS.map((bank) => (
-                  <SelectItem key={bank.value} value={bank.value}>
-                    {bank.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {fieldErrors.bankName && (
-              <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
-            )}
+              {devViewAsMember ? "Exit member view" : "View as Member"}
+            </Button>
+          </div>
+        )}
+        {/* Company Info Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Company info</h3>
+            <div className="mt-2 h-px bg-border" />
           </div>
 
-          <div className={labelClassNameEditable}>Bank account number</div>
-          <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+            <div className={labelClassName}>Company name</div>
             <Input
-              value={formState.bankAccountNumber}
-              onChange={(e) => {
-                const digitsOnly = restrictDigitsOnly(e.target.value);
-                if (digitsOnly.length > BANK_ACCOUNT_MAX_LENGTH) return;
-                setFormState((prev) => ({
-                  ...prev,
-                  bankAccountNumber: digitsOnly,
-                }));
-              }}
-              placeholder="eg. 1234123412341234"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.bankAccountNumber)
-              )}
+              value={corporateInfo?.basicInfo?.businessName || "eg. Company Name"}
+              disabled
+              className={inputClassName}
             />
 
-            <div className="min-h-[20px] mt-1">
-              {fieldErrors.bankAccountNumber ? (
-                <p className="text-destructive text-sm">
-                  {fieldErrors.bankAccountNumber}
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
+            <div className={labelClassName}>Type of entity</div>
+            <Input
+              value={corporateInfo?.basicInfo?.entityType || "eg. Private Limited Company"}
+              disabled
+              className={inputClassName}
+            />
+
+            <div className={labelClassName}>SSM no</div>
+            <Input
+              value={corporateInfo?.basicInfo?.ssmRegisterNumber || "eg. 1234567890"}
+              disabled
+              className={inputClassName}
+            />
+
+            <div className={labelClassNameEditable}>Industry</div>
+            <div>
+              <Input
+                value={formState.industry}
+                onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
+                disabled={!effectiveCanEdit}
+                placeholder="eg. Technology"
+                className={withFieldError(
+                  effectiveCanEdit ? inputClassNameEditable : inputClassName,
+                  Boolean(fieldErrors.industry)
+                )}
+              />
+              {fieldErrors.industry && (
+                <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
+              )}
+            </div>
+
+            <div className={labelClassNameEditable}>Number of employees</div>
+            <div>
+              <Input
+                value={formState.numberOfEmployees}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    numberOfEmployees: restrictDigitsOnly(e.target.value),
+                  }))
+                }
+                disabled={!effectiveCanEdit}
+                placeholder="eg. 10"
+                className={withFieldError(
+                  effectiveCanEdit ? inputClassNameEditable : inputClassName,
+                  Boolean(fieldErrors.numberOfEmployees)
+                )}
+              />
+              {fieldErrors.numberOfEmployees && (
+                <p className="text-destructive text-sm mt-1">
+                  {fieldErrors.numberOfEmployees}
                 </p>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Contact Person Section */}
-      <div className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Contact Person</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
-          <div className={labelClassNameEditable}>Applicant name</div>
-          <div>
-            <Input
-              value={formState.contactPersonName}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  contactPersonName: e.target.value,
-                }))
-              }
-              placeholder="eg. John Doe"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.contactPersonName)
-              )}
-            />
-            {fieldErrors.contactPersonName && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.contactPersonName}
-              </p>
-            )}
-          </div>
-
-          <div className={labelClassNameEditable}>Applicant position</div>
-          <div>
-            <Input
-              value={formState.contactPersonPosition}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  contactPersonPosition: e.target.value,
-                }))
-              }
-              placeholder="eg. CEO"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.contactPersonPosition)
-              )}
-            />
-            {fieldErrors.contactPersonPosition && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.contactPersonPosition}
-              </p>
-            )}
-          </div>
-
-          <div className={labelClassNameEditable}>Applicant IC no</div>
-          <div>
-            <Input
-              value={formState.contactPersonIc}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  contactPersonIc: restrictIcNumber(e.target.value),
-                }))
-              }
-              placeholder="eg. 1234567890"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.contactPersonIc)
-              )}
-            />
-            {fieldErrors.contactPersonIc && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.contactPersonIc}
-              </p>
-            )}
-          </div>
-
-          <div className={labelClassNameEditable}>Applicant contact</div>
-          <div>
-            <PhoneInput
-              international
-              defaultCountry="MY"
-              value={formState.contactPersonContact || undefined}
-              onChange={(v) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  contactPersonContact: v ?? "",
-                }))
-              }
+        {/* Address Section */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className={sectionHeaderClassName}>Address</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => effectiveCanEdit && setIsEditAddressOpen(true)}
               className={cn(
-                withFieldError(formInputClassName, Boolean(fieldErrors.contactPersonContact)),
-                "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                "h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm",
+                !effectiveCanEdit && "invisible pointer-events-none"
               )}
+            >
+              Edit
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-2 h-px bg-border" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+            <div className={labelClassName}>Business address</div>
+            <Input
+              value={formatAddress(formState.businessAddress)}
+              disabled
+              className={inputClassName}
             />
-            {fieldErrors.contactPersonContact && (
-              <p className="text-destructive text-sm mt-1">
-                {fieldErrors.contactPersonContact}
+
+            <div className={labelClassName}>Registered address</div>
+            <Input
+              value={formatAddress(formState.registeredAddress)}
+              disabled
+              className={inputClassName}
+            />
+          </div>
+        </div>
+
+        {/* Directors & Shareholders Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+            {!hasDirectorsOrShareholders ? (
+              <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
+                No directors or shareholders found
               </p>
+            ) : (
+              combinedList.map((item) => (
+                <React.Fragment key={item.key as string}>
+                  <div className={labelClassName}>{item.roleLabel as string}</div>
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
+                      {item.name as string}
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                      {item.ownership as string}
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    {item.statusVerified ? (
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                        <span className="text-[17px] leading-7 text-green-600">
+                          {item.statusType === "kyb" ? "KYB" : "KYC"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                  </div>
+                </React.Fragment>
+              ))
             )}
           </div>
         </div>
-      </div>
 
-      <EditAddressDialog
-        open={isEditAddressOpen}
-        onOpenChange={setIsEditAddressOpen}
-        businessAddress={{
-          line1: (formState.businessAddress?.line1 as string) || "",
-          line2: (formState.businessAddress?.line2 as string) || "",
-          city: (formState.businessAddress?.city as string) || "",
-          postalCode: (formState.businessAddress?.postalCode as string) || "",
-          state: (formState.businessAddress?.state as string) || "",
-          country: (formState.businessAddress?.country as string) || "Malaysia",
-        }}
-        registeredAddress={{
-          line1: (formState.registeredAddress?.line1 as string) || "",
-          line2: (formState.registeredAddress?.line2 as string) || "",
-          city: (formState.registeredAddress?.city as string) || "",
-          postalCode: (formState.registeredAddress?.postalCode as string) || "",
-          state: (formState.registeredAddress?.state as string) || "",
-          country: (formState.registeredAddress?.country as string) || "Malaysia",
-        }}
-        onSave={handleSaveAddress}
-      />
-    </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+        {/* Banking Details Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Banking details</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+            <div className={labelClassNameEditable}>Bank name</div>
+            <div>
+              {effectiveCanEdit ? (
+                <Select
+                  value={formState.bankName}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({ ...prev, bankName: value }))
+                  }
+                >
+                  <SelectTrigger
+                    className={withFieldError(
+                      formSelectTriggerClassName,
+                      Boolean(fieldErrors.bankName)
+                    )}
+                  >
+                    <SelectValue placeholder="Select bank" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MALAYSIAN_BANKS.map((bank) => (
+                      <SelectItem key={bank.value} value={bank.value}>
+                        {bank.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={formState.bankName || "—"} disabled className={inputClassName} />
+              )}
+
+              {fieldErrors.bankName && (
+                <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
+              )}
+            </div>
+
+            <div className={labelClassNameEditable}>Bank account number</div>
+            <div>
+              <Input
+                value={formState.bankAccountNumber}
+                onChange={(e) => {
+                  const digitsOnly = restrictDigitsOnly(e.target.value);
+                  if (digitsOnly.length > BANK_ACCOUNT_MAX_LENGTH) return;
+                  setFormState((prev) => ({
+                    ...prev,
+                    bankAccountNumber: digitsOnly,
+                  }));
+                }}
+                placeholder="eg. 1234123412341234"
+                disabled={!effectiveCanEdit}
+                className={withFieldError(
+                  effectiveCanEdit ? inputClassNameEditable : inputClassName,
+                  Boolean(fieldErrors.bankAccountNumber)
+                )}
+              />
+
+              <div className="min-h-[20px] mt-1">
+                {fieldErrors.bankAccountNumber ? (
+                  <p className="text-destructive text-sm">
+                    {fieldErrors.bankAccountNumber}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    {BANK_ACCOUNT_MIN_LENGTH}–{BANK_ACCOUNT_MAX_LENGTH} digits
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Person Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Contact Person</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+            <div className={labelClassNameEditable}>Applicant name</div>
+            <div>
+              <Input
+                value={formState.contactPersonName}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    contactPersonName: e.target.value,
+                  }))
+                }
+                placeholder="eg. John Doe"
+                className={withFieldError(
+                  inputClassNameEditable,
+                  Boolean(fieldErrors.contactPersonName)
+                )}
+              />
+              {fieldErrors.contactPersonName && (
+                <p className="text-destructive text-sm mt-1">
+                  {fieldErrors.contactPersonName}
+                </p>
+              )}
+            </div>
+
+            <div className={labelClassNameEditable}>Applicant position</div>
+            <div>
+              <Input
+                value={formState.contactPersonPosition}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    contactPersonPosition: e.target.value,
+                  }))
+                }
+                placeholder="eg. CEO"
+                className={withFieldError(
+                  inputClassNameEditable,
+                  Boolean(fieldErrors.contactPersonPosition)
+                )}
+              />
+              {fieldErrors.contactPersonPosition && (
+                <p className="text-destructive text-sm mt-1">
+                  {fieldErrors.contactPersonPosition}
+                </p>
+              )}
+            </div>
+
+            <div className={labelClassNameEditable}>Applicant IC no</div>
+            <div>
+              <Input
+                value={formState.contactPersonIc}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    contactPersonIc: restrictIcNumber(e.target.value),
+                  }))
+                }
+                placeholder="eg. 1234567890"
+                className={withFieldError(
+                  inputClassNameEditable,
+                  Boolean(fieldErrors.contactPersonIc)
+                )}
+              />
+              {fieldErrors.contactPersonIc && (
+                <p className="text-destructive text-sm mt-1">
+                  {fieldErrors.contactPersonIc}
+                </p>
+              )}
+            </div>
+
+            <div className={labelClassNameEditable}>Applicant contact</div>
+            <div>
+              <PhoneInput
+                international
+                defaultCountry="MY"
+                value={formState.contactPersonContact || undefined}
+                onChange={(v) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    contactPersonContact: v ?? "",
+                  }))
+                }
+                className={cn(
+                  withFieldError(formInputClassName, Boolean(fieldErrors.contactPersonContact)),
+                  "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                )}
+              />
+              {fieldErrors.contactPersonContact && (
+                <p className="text-destructive text-sm mt-1">
+                  {fieldErrors.contactPersonContact}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <EditAddressDialog
+          open={isEditAddressOpen}
+          onOpenChange={setIsEditAddressOpen}
+          businessAddress={{
+            line1: (formState.businessAddress?.line1 as string) || "",
+            line2: (formState.businessAddress?.line2 as string) || "",
+            city: (formState.businessAddress?.city as string) || "",
+            postalCode: (formState.businessAddress?.postalCode as string) || "",
+            state: (formState.businessAddress?.state as string) || "",
+            country: (formState.businessAddress?.country as string) || "Malaysia",
+          }}
+          registeredAddress={{
+            line1: (formState.registeredAddress?.line1 as string) || "",
+            line2: (formState.registeredAddress?.line2 as string) || "",
+            city: (formState.registeredAddress?.city as string) || "",
+            postalCode: (formState.registeredAddress?.postalCode as string) || "",
+            state: (formState.registeredAddress?.state as string) || "",
+            country: (formState.registeredAddress?.country as string) || "Malaysia",
+          }}
+          onSave={handleSaveAddress}
+          canEdit={effectiveCanEdit}
+        />
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }
@@ -882,12 +968,14 @@ function EditAddressDialog({
   businessAddress: initialBusinessAddress,
   registeredAddress: initialRegisteredAddress,
   onSave,
+  canEdit = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   businessAddress: Record<string, string>;
   registeredAddress: Record<string, string>;
   onSave: (businessAddress: Record<string, string>, registeredAddress: Record<string, string>) => void;
+  canEdit?: boolean;
 }) {
   const [businessAddress, setBusinessAddress] = React.useState<Record<string, string>>(initialBusinessAddress);
   const [registeredAddress, setRegisteredAddress] = React.useState<Record<string, string>>(initialRegisteredAddress);
@@ -913,6 +1001,7 @@ function EditAddressDialog({
 
   const handleSave = () => {
     const finalRegisteredAddress = registeredAddressSameAsBusiness ? businessAddress : registeredAddress;
+    if (!canEdit) return;
     onSave(businessAddress, finalRegisteredAddress);
   };
 
@@ -954,6 +1043,7 @@ function EditAddressDialog({
                   onChange={(e) => updateBusinessAddress("line1", e.target.value)}
                   placeholder="Street Address"
                   className={formInputClassName}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="space-y-2">
@@ -964,6 +1054,7 @@ function EditAddressDialog({
                   onChange={(e) => updateBusinessAddress("line2", e.target.value)}
                   placeholder="Apartment, suite, etc. (optional)"
                   className={formInputClassName}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -975,6 +1066,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("city", e.target.value)}
                     placeholder="Enter city"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -985,6 +1077,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("postalCode", restrictDigitsOnly(e.target.value))}
                     placeholder="Enter postal code (numbers only)"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -997,6 +1090,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("state", e.target.value)}
                     placeholder="Enter state"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1007,6 +1101,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("country", e.target.value)}
                     placeholder="Enter country"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -1020,6 +1115,7 @@ function EditAddressDialog({
                   id="registered-same-as-business"
                   checked={registeredAddressSameAsBusiness}
                   onCheckedChange={(checked) => setRegisteredAddressSameAsBusiness(checked === true)}
+                  disabled={!canEdit}
                 />
                 <Label htmlFor="registered-same-as-business" className={formLabelClassName}>
                   Same as business address
@@ -1036,6 +1132,7 @@ function EditAddressDialog({
                     onChange={(e) => updateRegisteredAddress("line1", e.target.value)}
                     placeholder="Street Address"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1046,6 +1143,7 @@ function EditAddressDialog({
                     onChange={(e) => updateRegisteredAddress("line2", e.target.value)}
                     placeholder="Apartment, suite, etc. (optional)"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1057,6 +1155,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("city", e.target.value)}
                       placeholder="Enter city"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1067,6 +1166,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("postalCode", restrictDigitsOnly(e.target.value))}
                       placeholder="Enter postal code (numbers only)"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -1079,6 +1179,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("state", e.target.value)}
                       placeholder="Enter state"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1089,6 +1190,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("country", e.target.value)}
                       placeholder="Enter country"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -1100,7 +1202,9 @@ function EditAddressDialog({
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+          <Button onClick={handleSave} disabled={!canEdit}>
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
