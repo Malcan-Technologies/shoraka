@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
@@ -163,6 +163,29 @@ export function CompanyDetailsStep({
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
     [getAccessToken]
   );
+
+  // Dev-only "View as Member" toggle
+  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
+
+  // Fetch current user to derive organization edit permission
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const canEditOrganization = React.useMemo(() => {
+    if (!activeOrganization || !currentUser) return false;
+    if (activeOrganization.isOwner) return true;
+    const currentUserMember = activeOrganization.members?.find((m: any) => m.id === currentUser.userId);
+    return currentUserMember?.role === "ORGANIZATION_ADMIN";
+  }, [activeOrganization, currentUser]);
+
+  const effectiveCanEdit = devViewAsMember ? false : canEditOrganization;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -532,6 +555,18 @@ export function CompanyDetailsStep({
   return (
     <>
     <div className="space-y-10 px-3">
+      {process.env.NODE_ENV === "development" && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDevViewAsMember((v) => !v)}
+            className="h-8 gap-2 rounded-xl"
+          >
+            {devViewAsMember ? "Exit member view" : "View as Member"}
+          </Button>
+        </div>
+      )}
       {/* Company Info Section */}
       <div className="space-y-4">
         <div>
@@ -566,8 +601,12 @@ export function CompanyDetailsStep({
             <Input
               value={formState.industry}
               onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
+              disabled={!effectiveCanEdit}
               placeholder="eg. Technology"
-              className={withFieldError(inputClassNameEditable, Boolean(fieldErrors.industry))}
+              className={withFieldError(
+                effectiveCanEdit ? inputClassNameEditable : inputClassName,
+                Boolean(fieldErrors.industry)
+              )}
             />
             {fieldErrors.industry && (
               <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
@@ -584,9 +623,10 @@ export function CompanyDetailsStep({
                   numberOfEmployees: restrictDigitsOnly(e.target.value),
                 }))
               }
+              disabled={!effectiveCanEdit}
               placeholder="eg. 10"
               className={withFieldError(
-                inputClassNameEditable,
+                effectiveCanEdit ? inputClassNameEditable : inputClassName,
                 Boolean(fieldErrors.numberOfEmployees)
               )}
             />
@@ -606,8 +646,11 @@ export function CompanyDetailsStep({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsEditAddressOpen(true)}
-            className="h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm"
+            onClick={() => effectiveCanEdit && setIsEditAddressOpen(true)}
+            className={cn(
+              "h-6 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-sm",
+              !effectiveCanEdit && "invisible pointer-events-none"
+            )}
           >
             Edit
             <PencilIcon className="h-4 w-4" />
@@ -684,28 +727,32 @@ export function CompanyDetailsStep({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
           <div className={labelClassNameEditable}>Bank name</div>
           <div>
-            <Select
-              value={formState.bankName}
-              onValueChange={(value) =>
-                setFormState((prev) => ({ ...prev, bankName: value }))
-              }
-            >
-              <SelectTrigger
-                className={withFieldError(
-                  formSelectTriggerClassName,
-                  Boolean(fieldErrors.bankName)
-                )}
+            {effectiveCanEdit ? (
+              <Select
+                value={formState.bankName}
+                onValueChange={(value) =>
+                  setFormState((prev) => ({ ...prev, bankName: value }))
+                }
               >
-                <SelectValue placeholder="Select bank" />
-              </SelectTrigger>
-              <SelectContent>
-                {MALAYSIAN_BANKS.map((bank) => (
-                  <SelectItem key={bank.value} value={bank.value}>
-                    {bank.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className={withFieldError(
+                    formSelectTriggerClassName,
+                    Boolean(fieldErrors.bankName)
+                  )}
+                >
+                  <SelectValue placeholder="Select bank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MALAYSIAN_BANKS.map((bank) => (
+                    <SelectItem key={bank.value} value={bank.value}>
+                      {bank.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input value={formState.bankName || "—"} disabled className={inputClassName} />
+            )}
 
             {fieldErrors.bankName && (
               <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
@@ -725,10 +772,11 @@ export function CompanyDetailsStep({
                 }));
               }}
               placeholder="eg. 1234123412341234"
-              className={withFieldError(
-                inputClassNameEditable,
-                Boolean(fieldErrors.bankAccountNumber)
-              )}
+            disabled={!effectiveCanEdit}
+            className={withFieldError(
+              effectiveCanEdit ? inputClassNameEditable : inputClassName,
+              Boolean(fieldErrors.bankAccountNumber)
+            )}
             />
 
             <div className="min-h-[20px] mt-1">
@@ -869,6 +917,7 @@ export function CompanyDetailsStep({
           country: (formState.registeredAddress?.country as string) || "Malaysia",
         }}
         onSave={handleSaveAddress}
+        canEdit={effectiveCanEdit}
       />
     </div>
     <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
@@ -882,12 +931,14 @@ function EditAddressDialog({
   businessAddress: initialBusinessAddress,
   registeredAddress: initialRegisteredAddress,
   onSave,
+  canEdit = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   businessAddress: Record<string, string>;
   registeredAddress: Record<string, string>;
   onSave: (businessAddress: Record<string, string>, registeredAddress: Record<string, string>) => void;
+  canEdit?: boolean;
 }) {
   const [businessAddress, setBusinessAddress] = React.useState<Record<string, string>>(initialBusinessAddress);
   const [registeredAddress, setRegisteredAddress] = React.useState<Record<string, string>>(initialRegisteredAddress);
@@ -913,6 +964,7 @@ function EditAddressDialog({
 
   const handleSave = () => {
     const finalRegisteredAddress = registeredAddressSameAsBusiness ? businessAddress : registeredAddress;
+    if (!canEdit) return;
     onSave(businessAddress, finalRegisteredAddress);
   };
 
@@ -954,6 +1006,7 @@ function EditAddressDialog({
                   onChange={(e) => updateBusinessAddress("line1", e.target.value)}
                   placeholder="Street Address"
                   className={formInputClassName}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="space-y-2">
@@ -964,6 +1017,7 @@ function EditAddressDialog({
                   onChange={(e) => updateBusinessAddress("line2", e.target.value)}
                   placeholder="Apartment, suite, etc. (optional)"
                   className={formInputClassName}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -975,6 +1029,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("city", e.target.value)}
                     placeholder="Enter city"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -985,6 +1040,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("postalCode", restrictDigitsOnly(e.target.value))}
                     placeholder="Enter postal code (numbers only)"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -997,6 +1053,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("state", e.target.value)}
                     placeholder="Enter state"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1007,6 +1064,7 @@ function EditAddressDialog({
                     onChange={(e) => updateBusinessAddress("country", e.target.value)}
                     placeholder="Enter country"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -1020,6 +1078,7 @@ function EditAddressDialog({
                   id="registered-same-as-business"
                   checked={registeredAddressSameAsBusiness}
                   onCheckedChange={(checked) => setRegisteredAddressSameAsBusiness(checked === true)}
+                  disabled={!canEdit}
                 />
                 <Label htmlFor="registered-same-as-business" className={formLabelClassName}>
                   Same as business address
@@ -1036,6 +1095,7 @@ function EditAddressDialog({
                     onChange={(e) => updateRegisteredAddress("line1", e.target.value)}
                     placeholder="Street Address"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1046,6 +1106,7 @@ function EditAddressDialog({
                     onChange={(e) => updateRegisteredAddress("line2", e.target.value)}
                     placeholder="Apartment, suite, etc. (optional)"
                     className={formInputClassName}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1057,6 +1118,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("city", e.target.value)}
                       placeholder="Enter city"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1067,6 +1129,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("postalCode", restrictDigitsOnly(e.target.value))}
                       placeholder="Enter postal code (numbers only)"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -1079,6 +1142,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("state", e.target.value)}
                       placeholder="Enter state"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1089,6 +1153,7 @@ function EditAddressDialog({
                       onChange={(e) => updateRegisteredAddress("country", e.target.value)}
                       placeholder="Enter country"
                       className={formInputClassName}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -1100,7 +1165,9 @@ function EditAddressDialog({
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+          <Button onClick={handleSave} disabled={!canEdit}>
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -390,6 +390,7 @@ export default function ProfilePage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("profile");
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
+  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
 
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
@@ -437,6 +438,8 @@ export default function ProfilePage() {
     );
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
+
+  const effectiveIsAdmin = devViewAsMember ? false : isCurrentUserAdmin;
 
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
@@ -776,15 +779,18 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="gap-2 h-11 rounded-xl"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="gap-2 h-11 rounded-xl"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            {false && null}
+            </div>
           </div>
 
           {/* Tabs */}
@@ -884,7 +890,10 @@ export default function ProfilePage() {
 
               {/* 1. Corporate Info Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && (
-                <CorporateInfoCard organizationId={activeOrganization.id} />
+                <CorporateInfoCard
+  organizationId={activeOrganization.id}
+  canEdit={effectiveIsAdmin}
+/>
               )}
 
               {/* 2. Address Section - Moved before Contact Details */}
@@ -902,8 +911,8 @@ export default function ProfilePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
-                        className="gap-2 rounded-xl"
+                        onClick={() => effectiveIsAdmin && setIsEditingProfile(true)}
+                        className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
                       >
                         <PencilIcon className="h-4 w-4" />
                         Edit
@@ -930,7 +939,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingProfile && (
+                    {isEditingProfile && effectiveIsAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -965,8 +974,8 @@ export default function ProfilePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingAddresses(true)}
-                        className="gap-2 rounded-xl"
+                        onClick={() => effectiveIsAdmin && setIsEditingAddresses(true)}
+                        className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
                       >
                         <PencilIcon className="h-4 w-4" />
                         Edit
@@ -1133,7 +1142,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingAddresses && (
+                    {isEditingAddresses && effectiveIsAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1170,8 +1179,8 @@ export default function ProfilePage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingProfile(true)}
-                      className="gap-2 rounded-xl"
+                      onClick={() => effectiveIsAdmin && setIsEditingProfile(true)}
+                      className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
                     >
                       <PencilIcon className="h-4 w-4" />
                       Edit
@@ -1472,12 +1481,12 @@ export default function ProfilePage() {
                       View or update your bank account information
                     </p>
                   </div>
-                  {!isEditingBanking && (
+                  {!isEditingBanking && effectiveIsAdmin && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingBanking(true)}
-                      className="gap-2 rounded-xl"
+                      onClick={() => effectiveIsAdmin && setIsEditingBanking(true)}
+                      className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
                     >
                       <PencilIcon className="h-4 w-4" />
                       Edit
@@ -1556,7 +1565,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {isEditingBanking && (
+                  {isEditingBanking && effectiveIsAdmin && (
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         variant="outline"
@@ -1587,6 +1596,20 @@ export default function ProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Dev-only bottom-right toggles */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 items-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDevViewAsMember((v) => !v)}
+            className="h-9 rounded-xl"
+          >
+            {devViewAsMember ? "Exit member view" : "View as Member"}
+          </Button>
+        </div>
+      )}
 
       {/* Confirmation Dialogs */}
       {confirmDialog.type === "remove" && confirmDialog.memberId && (
