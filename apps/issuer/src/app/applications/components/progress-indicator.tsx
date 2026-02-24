@@ -21,7 +21,7 @@ export function ProgressIndicator({
   if (isLoading) {
     return (
       <div className="mt-3">
-        <div className="relative flex items-start justify-between">
+        <div className="relative flex items-start justify-between min-h-[80px]">
           {steps.map((_, index) => (
             <div
               key={index}
@@ -77,7 +77,7 @@ export function ProgressIndicator({
 
   return (
     <div className="mt-3">
-      <div className="relative flex items-start justify-between">
+      <div className="relative flex items-start justify-between min-h-[80px]">
         {steps.map((label, index) => {
           const stepNumber = index + 1;
           const isCompleted = stepNumber < currentStep;
