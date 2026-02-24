@@ -55,6 +55,7 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
+import { useProducts } from "@/hooks/use-products";
 import {
   formLabelClassName,
   withFieldError,
@@ -81,21 +82,34 @@ interface InvoiceConfig {
   max_invoice_value?: number | null;
 }
 
-function getProductInvoiceConfig(application: any): InvoiceConfig | null {
-  /** Extract invoice step config from product workflow */
-  const workflow = application?.product?.workflow || [];
-  const invoiceStep = workflow.find(
-    (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
-  );
-  const config = invoiceStep?.config || {};
-
-  // If admin hasn't provided the invoice config, return null (validation will be skipped for missing fields)
-  if (config == null || Object.keys(config).length === 0) return null;
-
-  return {
-    min_invoice_value: config.min_invoice_value ?? null,
-    max_invoice_value: config.max_invoice_value ?? null,
-  };
+/**
+ * Resolve invoice config from product.
+ * Product is obtained by:
+ * 1) looking up application.financing_type.product_id in the provided products array
+ * 2) falling back to application.product if present
+ */
+function getProductInvoiceConfig(application: any, products: any[] = []): InvoiceConfig | null {
+  try {
+    const productId = application?.financing_type?.product_id;
+    let product = null;
+    if (productId && Array.isArray(products)) {
+      product = products.find((p: any) => p.id === productId) ?? null;
+    }
+    if (!product && application?.product) product = application.product;
+    const workflow = product?.workflow || [];
+    const invoiceStep = workflow.find(
+      (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
+    );
+    const config = invoiceStep?.config || {};
+    console.log('configgg', config)
+    if (config == null || Object.keys(config).length === 0) return null;
+    return {
+      min_invoice_value: config.min_invoice_value ?? null,
+      max_invoice_value: config.max_invoice_value ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -106,12 +120,10 @@ function getProductInvoiceConfig(application: any): InvoiceConfig | null {
  */
 function parseDateString(dateStr: string): Date | null {
   if (!dateStr) return null;
-  // ISO yyyy-MM-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const d = parseISO(dateStr);
-    return isValid(d) ? d : null;
-  }
-  // d/M/yyyy (user-facing)
+  // Try ISO formats first (full ISO or yyyy-MM-dd)
+  const iso = parseISO(dateStr);
+  if (isValid(iso)) return iso;
+  // Fallback to d/M/yyyy (user-facing)
   const d = parse(dateStr, "d/M/yyyy", new Date());
   return isValid(d) ? d : null;
 }
@@ -150,6 +162,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   const { getAccessToken } = useAuthToken();
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({ page: 1, pageSize: 100 });
 
   React.useEffect(() => {
     let mounted = true;
@@ -302,7 +315,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * 3. Contract date window (if contract exists)
    * 4. Min invoice value
    */
-  const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig): string => {
+  const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig | null): string => {
+    console.log('bye')
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
 
@@ -324,31 +338,58 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
 
     // contract window must be on the start date
-    if (!isInvoiceOnly && application?.contract) {
+    if ( true) {
+      // Debug logs: show raw and parsed dates and comparison result
+      // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
+      // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
+      // (Logs intentionally minimal; only invoice number and date values)
+      // eslint-disable-next-line no-console
+      console.log(`Invoice ${inv.number} - raw maturity:`, inv.maturity_date);
+      // eslint-disable-next-line no-console
+      console.log("parsed maturityDate:", maturityDate);
+      // eslint-disable-next-line no-console
+      console.log(
+        "application.contract.contract_details.start_date (raw):",
+        application?.contract?.contract_details?.start_date
+      );
+
       const contractStart = parseDateString(application.contract.contract_details?.start_date);
+      // eslint-disable-next-line no-console
+      console.log("parsed contractStart:", contractStart);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // eslint-disable-next-line no-console
+      console.log("today:", today);
+      // eslint-disable-next-line no-console
+      console.log("maturity < contractStart?", contractStart && maturityDate < contractStart);
+
       if (contractStart && maturityDate < contractStart) {
         return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
       }
     }
 
 
-    // min invoice value
-    const invoiceValue = parseMoney(inv.value);
-    const ratio = (inv.financing_ratio_percent || 60) / 100;
-    const financingAmount = invoiceValue * ratio;
+    // min/max invoice value checks only if productConfig provided
+    console.log('hahahah', productConfig)
+    if (productConfig) {
+      console.log('bababbaba')
+      const invoiceValue = parseMoney(inv.value);
+      const ratio = (inv.financing_ratio_percent || 60) / 100;
+      const financingAmount = invoiceValue * ratio;
 
-    const minValue = productConfig.min_invoice_value;
-    const maxValue = productConfig.max_invoice_value;
+      const minValue = productConfig.min_invoice_value;
+      const maxValue = productConfig.max_invoice_value;
 
-    if (typeof minValue === "number") {
-      if (financingAmount < minValue) {
-        return `Invoice ${inv.number}: Financing amount must be at least ${formatMoney(minValue)}.`;
+      if (typeof minValue === "number") {
+        if (financingAmount < minValue) {
+          return `Invoice ${inv.number}: Financing amount must be at least ${formatMoney(minValue)}.`;
+        }
       }
-    }
 
-    if (typeof maxValue === "number") {
-      if (financingAmount > maxValue) {
-        return `Invoice ${inv.number}: Financing amount cannot exceed ${formatMoney(maxValue)}.`;
+      if (typeof maxValue === "number") {
+        if (financingAmount > maxValue) {
+          return `Invoice ${inv.number}: Financing amount cannot exceed ${formatMoney(maxValue)}.`;
+        }
       }
     }
 
@@ -411,7 +452,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
   let productConfig: InvoiceConfig | null = null;
   try {
-    productConfig = getProductInvoiceConfig(application);
+    productConfig = getProductInvoiceConfig(application, productsData?.products || []);
+    // console.log('resolved productConfig', productConfig, { productId: application?.financing_type?.product_id });
   } catch (err) {
     validationError = err instanceof Error ? err.message : "Product configuration error";
   }
@@ -426,6 +468,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
 
     // Validate all invoice constraints (maturity date, value limits, contract window)
+    console.log(validationError, "as,", productConfig);
     if (!validationError && productConfig) {
       for (const inv of invoices) {
         const constraintError = validateInvoiceConstraints(inv, productConfig);
