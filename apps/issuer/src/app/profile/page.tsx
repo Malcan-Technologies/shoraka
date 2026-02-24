@@ -428,6 +428,10 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
+  // Temporary debug: log current user (who is performing actions)
+  // eslint-disable-next-line no-console
+  console.log("DEBUG currentUser:", currentUser);
+
   // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
   const isCurrentUserAdmin = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
