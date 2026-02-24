@@ -101,7 +101,7 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
       (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
     );
     const config = invoiceStep?.config || {};
-    console.log('configgg', config)
+  // debug removed
     if (config == null || Object.keys(config).length === 0) return null;
     return {
       min_invoice_value: config.min_invoice_value ?? null,
@@ -316,7 +316,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * 4. Min invoice value
    */
   const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig | null): string => {
-    console.log('bye')
+  // debug removed
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
 
@@ -343,25 +343,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
       // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
       // (Logs intentionally minimal; only invoice number and date values)
-      // eslint-disable-next-line no-console
-      console.log(`Invoice ${inv.number} - raw maturity:`, inv.maturity_date);
-      // eslint-disable-next-line no-console
-      console.log("parsed maturityDate:", maturityDate);
-      // eslint-disable-next-line no-console
-      console.log(
-        "application.contract.contract_details.start_date (raw):",
-        application?.contract?.contract_details?.start_date
-      );
-
       const contractStart = parseDateString(application.contract.contract_details?.start_date);
-      // eslint-disable-next-line no-console
-      console.log("parsed contractStart:", contractStart);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      // eslint-disable-next-line no-console
-      console.log("today:", today);
-      // eslint-disable-next-line no-console
-      console.log("maturity < contractStart?", contractStart && maturityDate < contractStart);
 
       if (contractStart && maturityDate < contractStart) {
         return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
@@ -370,9 +352,9 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
 
     // min/max invoice value checks only if productConfig provided
-    console.log('hahahah', productConfig)
+    // debug removed
     if (productConfig) {
-      console.log('bababbaba')
+      // debug removed
       const invoiceValue = parseMoney(inv.value);
       const ratio = (inv.financing_ratio_percent || 60) / 100;
       const financingAmount = invoiceValue * ratio;
@@ -453,8 +435,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   let productConfig: InvoiceConfig | null = null;
   try {
     productConfig = getProductInvoiceConfig(application, productsData?.products || []);
-    // console.log('resolved productConfig', productConfig, { productId: application?.financing_type?.product_id });
-  } catch (err) {
+    } catch (err) {
     validationError = err instanceof Error ? err.message : "Product configuration error";
   }
 
@@ -468,7 +449,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     }
 
     // Validate all invoice constraints (maturity date, value limits, contract window)
-    console.log(validationError, "as,", productConfig);
+    // debug removed
     if (!validationError && productConfig) {
       for (const inv of invoices) {
         const constraintError = validateInvoiceConstraints(inv, productConfig);
