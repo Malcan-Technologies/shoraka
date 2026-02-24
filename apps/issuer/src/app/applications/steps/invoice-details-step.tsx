@@ -364,13 +364,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
       if (typeof minValue === "number") {
         if (financingAmount < minValue) {
-          return `Invoice ${inv.number}: Financing amount must be at least ${formatMoney(minValue)}.`;
+          return `Invoice ${inv.number}: Financing amount must be at least RM ${formatMoney(minValue)}.`;
         }
       }
 
       if (typeof maxValue === "number") {
         if (financingAmount > maxValue) {
-          return `Invoice ${inv.number}: Financing amount cannot exceed ${formatMoney(maxValue)}.`;
+          return `Invoice ${inv.number}: Financing amount cannot exceed RM ${formatMoney(maxValue)}.`;
         }
       }
     }
@@ -475,7 +475,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         validationError = "Financing ratio must be between 60% and 80%.";
       }
       if (!validationError && totalFinancingAmount > facilityLimit) {
-        validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
+        validationError = `Total financing amount (RM ${formatMoney(totalFinancingAmount)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
       }
     }
   }
