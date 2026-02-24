@@ -8,7 +8,7 @@ import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { SectionActionDropdown } from "../section-action-dropdown";
 import type { ReviewSectionId } from "../section-types";
 
-export interface JustificationSectionProps {
+export interface BusinessSectionProps {
   businessDetails: unknown;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -88,7 +88,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
   };
 }
 
-/** Typography and layout aligned with Financial/Documents sections */
+/** Typography aligned with other review sections */
 const sectionHeaderClass = "text-sm font-semibold";
 const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 const rowGridClass =
@@ -117,7 +117,7 @@ function TextValue({
   );
 }
 
-export function JustificationSection({
+export function BusinessSection({
   businessDetails,
   section,
   isReviewable,
@@ -125,7 +125,7 @@ export function JustificationSection({
   onApprove,
   onReject,
   onRequestAmendment,
-}: JustificationSectionProps) {
+}: BusinessSectionProps) {
   const view = parseBusinessDetails(businessDetails);
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
 
@@ -135,7 +135,7 @@ export function JustificationSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Justification</CardTitle>
+            <CardTitle className="text-base font-semibold">Business</CardTitle>
           </div>
           <SectionActionDropdown
             section={section}
@@ -254,7 +254,7 @@ export function JustificationSection({
             </section>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">No justification details submitted.</p>
+          <p className="text-sm text-muted-foreground">No business details submitted.</p>
         )}
         <div>
           <Label className="text-xs text-muted-foreground">Add Remarks</Label>

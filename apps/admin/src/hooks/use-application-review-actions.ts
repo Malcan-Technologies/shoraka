@@ -101,7 +101,7 @@ export function useApproveReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "INVOICE" | "DOCUMENT";
+      itemType: "invoice" | "document";
       itemId: string;
       remark?: string;
     }) => {
@@ -136,7 +136,7 @@ export function useRejectReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "INVOICE" | "DOCUMENT";
+      itemType: "invoice" | "document";
       itemId: string;
       remark: string;
     }) => {
@@ -166,7 +166,7 @@ export function useRequestAmendmentReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "INVOICE" | "DOCUMENT";
+      itemType: "invoice" | "document";
       itemId: string;
       remark: string;
     }) => {

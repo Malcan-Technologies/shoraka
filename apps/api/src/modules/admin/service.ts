@@ -3788,14 +3788,14 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
-      const allApproved = this.allSectionsApproved(
-        (application.application_reviews ?? []) as { section: string; status: string }[]
-      );
+      const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+      const allApproved =
+        reviews.length > 0 && reviews.every((r) => r.status === "APPROVED");
       if (!allApproved) {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "All review sections (Financial, Justification, Documents) must be approved before final approval"
+          "All review sections must be approved before final approval"
         );
       }
     }
@@ -3914,10 +3914,10 @@ export class AdminService {
    */
   private validateReviewItemExists(
     application: { invoices?: { id: string }[]; supporting_documents?: unknown },
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string
   ): void {
-    if (itemType === "INVOICE") {
+    if (itemType === "invoice") {
       this.validateInvoiceExists(application as { invoices: { id: string }[] }, itemId);
     } else {
       this.validateDocumentExists(application as { supporting_documents?: unknown }, itemId);
@@ -3943,15 +3943,6 @@ export class AdminService {
   }
 
   /**
-   * Check if all review sections are approved (for final application approval)
-   */
-  private allSectionsApproved(reviews: { section: string; status: string }[]): boolean {
-    const sections = [ReviewSection.FINANCIAL, ReviewSection.JUSTIFICATION, ReviewSection.DOCUMENTS];
-    const approved = new Set(reviews?.filter((r) => r.status === "APPROVED").map((r) => r.section) ?? []);
-    return sections.every((s) => approved.has(s));
-  }
-
-  /**
    * Approve a review section
    */
   async approveReviewSection(
@@ -3962,7 +3953,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
-    await repository.ensureApplicationReviewSections(applicationId);
+    await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
       (r: { section: string; status: string }) => r.section === section
@@ -4011,7 +4002,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
-    await repository.ensureApplicationReviewSections(applicationId);
+    await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
       (r: { section: string; status: string }) => r.section === section
@@ -4060,7 +4051,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
-    await repository.ensureApplicationReviewSections(applicationId);
+    await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
       (r: { section: string; status: string }) => r.section === section
@@ -4103,7 +4094,7 @@ export class AdminService {
    */
   async approveReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     reviewerUserId: string,
     remark?: string | null
@@ -4154,7 +4145,7 @@ export class AdminService {
    */
   async rejectReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     remark: string,
     reviewerUserId: string
@@ -4202,7 +4193,7 @@ export class AdminService {
    */
   async requestAmendmentReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     remark: string,
     reviewerUserId: string

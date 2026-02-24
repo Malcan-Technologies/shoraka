@@ -1,8 +1,19 @@
 import type { Product } from "@cashsouk/types";
 import { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY, getStepKeyFromStepId } from "@cashsouk/types";
 
-/** Review section id for admin review tabs. Must align with Prisma ReviewSection enum. */
-export type ReviewSectionId = "FINANCIAL" | "JUSTIFICATION" | "DOCUMENTS";
+/**
+ * Canonical review section IDs aligned with Prisma ReviewSection enum and REVIEW_TAB_LABELS.
+ * Section-level actions use these keys; status mapping uses them as unique identifiers.
+ */
+export const REVIEW_SECTION_IDS = [
+  "financial",
+  "business_details",
+  "supporting_documents",
+  "contract_details",
+  "invoice_details",
+  "company_details",
+] as const;
+export type ReviewSectionId = (typeof REVIEW_SECTION_IDS)[number];
 
 /** One step in the workflow. id = stepId (e.g. financing_type_1), name = label, config = step-specific data. */
 export type WorkflowStepShape = {
@@ -17,18 +28,18 @@ export type WorkflowStepShape = {
 export type ReviewTabDescriptor = {
   id: string;
   label: string;
-  /** Backend section for status mapping. FINANCIAL | JUSTIFICATION | DOCUMENTS for special tabs; others use PENDING. */
-  reviewSection: ReviewSectionId | "PENDING";
-  kind: "financial" | "business_details" | "supporting_documents" | "step";
-  /** Step key when kind is "step" (e.g. financing_type, contract_details). */
+  /** Backend section for status mapping. Step-key based IDs. */
+  reviewSection: ReviewSectionId;
+  kind: "financial" | "business_details" | "supporting_documents" | "contract_details" | "invoice_details" | "company_details";
+  /** Step key (e.g. business_details, contract_details). */
   stepKey?: string;
-  /** Step id when kind is "step" (e.g. financing_type_1). */
+  /** Step id (e.g. business_details_1). */
   stepId?: string;
 };
 
 /**
  * Step keys that get an admin review tab when present in the workflow.
- * Add a key here when adding a new step that has a section component (StepSummarySection or dedicated).
+ * Each tab has a dedicated section component. Add a key here when adding a new step.
  * See docs/guides/add-a-product-workflow-step.md.
  */
 const REVIEW_TAB_STEP_KEYS = new Set([
@@ -41,7 +52,7 @@ const REVIEW_TAB_STEP_KEYS = new Set([
 
 /** Review-only tab labels. Edit this map to change labels shown on admin application review tabs. */
 const REVIEW_TAB_LABELS: Record<string, string> = {
-  FINANCIAL: "Financial",
+  financial: "Financial",
   business_details: "Business",
   supporting_documents: "Documents",
   contract_details: "Contract",
@@ -58,7 +69,8 @@ const REVIEW_TAB_ORDER = [
   "invoice_details",
 ] as const;
 
-function getReviewTabLabel(stepKey: string): string {
+/** Human-readable label for a review section or step key. */
+export function getReviewTabLabel(stepKey: string): string {
   return REVIEW_TAB_LABELS[stepKey] ?? stepKey.replace(/_/g, " ");
 }
 
@@ -67,9 +79,9 @@ export function getReviewTabDescriptorsFromWorkflow(workflow: unknown[] | null |
   const result: ReviewTabDescriptor[] = [];
 
   result.push({
-    id: "FINANCIAL",
-    label: getReviewTabLabel("FINANCIAL"),
-    reviewSection: "FINANCIAL",
+    id: "financial",
+    label: getReviewTabLabel("financial"),
+    reviewSection: "financial",
     kind: "financial",
   });
 
@@ -80,14 +92,14 @@ export function getReviewTabDescriptorsFromWorkflow(workflow: unknown[] | null |
     if (!stepKey || !REVIEW_TAB_STEP_KEYS.has(stepKey)) continue;
     const label = getReviewTabLabel(stepKey);
 
-    let tab: ReviewTabDescriptor;
-    if (stepKey === "business_details") {
-      tab = { id: step.id, label, reviewSection: "JUSTIFICATION", kind: "business_details", stepKey, stepId: step.id };
-    } else if (stepKey === "supporting_documents") {
-      tab = { id: step.id, label, reviewSection: "DOCUMENTS", kind: "supporting_documents", stepKey, stepId: step.id };
-    } else {
-      tab = { id: step.id, label, reviewSection: "PENDING", kind: "step", stepKey, stepId: step.id };
-    }
+    const tab: ReviewTabDescriptor = {
+      id: step.id,
+      label,
+      reviewSection: stepKey as ReviewSectionId,
+      kind: stepKey as ReviewTabDescriptor["kind"],
+      stepKey,
+      stepId: step.id,
+    };
     stepTabs.push(tab);
   }
 
@@ -123,9 +135,7 @@ export function normalizeWorkflowSteps(raw: unknown[] | null | undefined): Workf
     const name = s?.name?.trim() ?? stepDisplayName(step);
     const reviewSection = s?.reviewSection as ReviewSectionId | undefined;
     const validSection =
-      reviewSection && ["FINANCIAL", "JUSTIFICATION", "DOCUMENTS"].includes(reviewSection)
-        ? reviewSection
-        : undefined;
+      reviewSection && REVIEW_SECTION_IDS.includes(reviewSection) ? reviewSection : undefined;
     return {
       id: s?.id ?? "",
       name: name !== "—" ? name : "Step",

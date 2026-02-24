@@ -4,6 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { getReviewTabLabel } from "@/app/settings/products/product-utils";
 
 export interface ReviewSummaryCardProps {
   sections: { section: string; status: string }[];
@@ -27,7 +28,7 @@ export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
           <div className="space-y-1.5">
             {sections.map((s) => (
               <div key={s.section} className="flex items-center justify-between text-sm">
-                <span>{s.section}</span>
+                <span>{getReviewTabLabel(s.section)}</span>
                 <Badge
                   variant="secondary"
                   className={

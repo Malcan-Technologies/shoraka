@@ -271,7 +271,7 @@ export const reviewSectionRequestAmendmentSchema = z.object({
 });
 
 export const reviewItemActionSchema = z.object({
-  itemType: z.enum(["INVOICE", "DOCUMENT"]),
+  itemType: z.enum(["invoice", "document"]),
   itemId: z.string().min(1),
 });
 export const reviewItemApproveSchema = reviewItemActionSchema.extend({

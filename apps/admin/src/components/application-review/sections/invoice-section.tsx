@@ -4,47 +4,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { SectionActionDropdown } from "../section-action-dropdown";
-import { DocumentList } from "../document-list";
+import { InvoiceList } from "@/components/invoice-review-list";
 import type { ReviewSectionId } from "../section-types";
 
-export interface DocumentsSectionProps {
-  supportingDocuments: unknown;
+export interface InvoiceSectionProps {
+  invoices: { id: string; details?: unknown }[];
   reviewItems: { item_type: string; item_id: string; status: string }[];
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
-  viewDocumentPending: boolean;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
-  onViewDocument: (s3Key: string) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
 }
 
-export function DocumentsSection({
-  supportingDocuments,
+export function InvoiceSection({
+  invoices,
   reviewItems,
   section,
   isReviewable,
   approvePending,
-  viewDocumentPending,
   onApprove,
   onReject,
   onRequestAmendment,
-  onViewDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
-}: DocumentsSectionProps) {
+}: InvoiceSectionProps) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Documents</CardTitle>
+            <CardTitle className="text-base font-semibold">Invoice</CardTitle>
           </div>
           <SectionActionDropdown
             section={section}
@@ -57,20 +53,18 @@ export function DocumentsSection({
         </div>
       </CardHeader>
       <CardContent>
-        {supportingDocuments && typeof supportingDocuments === "object" ? (
-          <DocumentList
-            documents={supportingDocuments}
+        {invoices?.length ? (
+          <InvoiceList
+            invoices={invoices}
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
-            onViewDocument={onViewDocument}
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}
             isItemActionPending={approvePending}
-            isViewDocumentPending={viewDocumentPending}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">No supporting documents submitted.</p>
+          <p className="text-sm text-muted-foreground">No invoices submitted.</p>
         )}
         <div className="mt-6">
           <Label className="text-xs text-muted-foreground">Add Remarks</Label>

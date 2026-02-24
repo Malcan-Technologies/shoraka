@@ -396,7 +396,7 @@ export class ApiClient {
 
   async approveReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     remark?: string
   ): Promise<ApiResponse<any> | ApiError> {
@@ -408,7 +408,7 @@ export class ApiClient {
 
   async rejectReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     remark: string
   ): Promise<ApiResponse<any> | ApiError> {
@@ -420,7 +420,7 @@ export class ApiClient {
 
   async requestAmendmentReviewItem(
     applicationId: string,
-    itemType: "INVOICE" | "DOCUMENT",
+    itemType: "invoice" | "document",
     itemId: string,
     remark: string
   ): Promise<ApiResponse<any> | ApiError> {

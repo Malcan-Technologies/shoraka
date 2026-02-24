@@ -341,9 +341,12 @@ model Application {
 }
 
 enum ReviewSection {
-  FINANCIAL
-  JUSTIFICATION
-  DOCUMENTS
+  financial
+  business_details
+  supporting_documents
+  contract_details
+  invoice_details
+  company_details
 }
 
 enum ReviewStepStatus {
@@ -372,7 +375,7 @@ model ApplicationReview {
 model ApplicationReviewItem {
   id                  String           @id @default(cuid())
   application_id       String
-  item_type           String           // INVOICE | DOCUMENT
+  item_type           String           // invoice | document
   item_id             String           // invoice id or document key from supporting_documents
   status              ReviewStepStatus @default(PENDING)
   reviewer_user_id    String?
@@ -391,7 +394,7 @@ model ApplicationReviewRemark {
   id               String     @id @default(cuid())
   application_id   String
   scope            String     // section | item
-  scope_key        String     // FINANCIAL | JUSTIFICATION | DOCUMENTS | invoice:{id} | document:{key}
+  scope_key        String     // section id (e.g. business_details) | invoice:{id} | document:{key}
   action_type      String     // APPROVE | REJECT | REQUEST_AMENDMENT
   remark           String
   author_user_id   String

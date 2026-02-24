@@ -25,7 +25,7 @@ function StatusDot({ status }: { status: string }) {
 }
 
 export interface ApplicationReviewTabsProps {
-  /** Backend review section statuses for status dots. Key: FINANCIAL | JUSTIFICATION | DOCUMENTS. */
+  /** Backend review section statuses for status dots. Key: step-key based section IDs. */
   sections: { section: string; status: string }[];
   /** Tab descriptors from getReviewTabDescriptorsFromWorkflow (Financial + included steps). */
   tabDescriptors: ReviewTabDescriptor[];
@@ -47,7 +47,7 @@ export function ApplicationReviewTabs({
     return m;
   }, [sections]);
 
-  const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "FINANCIAL";
+  const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "financial";
 
   return (
     <Tabs defaultValue={defaultValue} className="w-full">
@@ -58,9 +58,7 @@ export function ApplicationReviewTabs({
             value={tab.id}
             className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
           >
-            <StatusDot
-              status={tab.reviewSection === "PENDING" ? "PENDING" : sectionMap.get(tab.reviewSection) ?? "PENDING"}
-            />
+            <StatusDot status={sectionMap.get(tab.reviewSection) ?? "PENDING"} />
             {tab.label}
           </TabsTrigger>
         ))}

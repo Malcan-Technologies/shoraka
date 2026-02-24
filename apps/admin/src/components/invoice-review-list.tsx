@@ -33,7 +33,7 @@ function getItemStatus(
   itemId: string
 ): string {
   return (
-    reviewItems.find((r) => r.item_type === "INVOICE" && r.item_id === itemId)
+    reviewItems.find((r) => r.item_type === "invoice" && r.item_id === itemId)
       ?.status ?? "PENDING"
   );
 }

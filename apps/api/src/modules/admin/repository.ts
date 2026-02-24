@@ -2250,19 +2250,17 @@ export class AdminRepository {
   }
 
   /**
-   * Ensure review section rows exist for an application (creates if missing)
+   * Ensure a review section row exists for an application (creates if missing).
+   * Called on-demand when a section action is performed.
    */
-  async ensureApplicationReviewSections(applicationId: string) {
-    const sections = [ReviewSection.FINANCIAL, ReviewSection.JUSTIFICATION, ReviewSection.DOCUMENTS];
-    for (const section of sections) {
-      await prisma.applicationReview.upsert({
-        where: {
-          application_id_section: { application_id: applicationId, section },
-        },
-        create: { application_id: applicationId, section },
-        update: {},
-      });
-    }
+  async ensureApplicationReviewSection(applicationId: string, section: ReviewSection) {
+    await prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: { application_id: applicationId, section },
+      update: {},
+    });
   }
 
   /**

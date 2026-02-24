@@ -117,7 +117,13 @@ export type ApplicationStatus =
   | "REJECTED"
   | "ARCHIVED";
 
-export type ReviewSection = "FINANCIAL" | "JUSTIFICATION" | "DOCUMENTS";
+export type ReviewSection =
+  | "financial"
+  | "business_details"
+  | "supporting_documents"
+  | "contract_details"
+  | "invoice_details"
+  | "company_details";
 
 export type ReviewStepStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMENDMENT_REQUESTED";
 

@@ -1066,7 +1066,7 @@ export interface ApplicationReviewEvent {
 }
 
 export interface ReviewItemActionPayload {
-  itemType: "INVOICE" | "DOCUMENT";
+  itemType: "invoice" | "document";
   itemId: string;
 }
 

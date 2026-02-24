@@ -1,9 +1,11 @@
 "use client";
 
 import { FinancialSection } from "./sections/financial-section";
-import { JustificationSection } from "./sections/justification-section";
+import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
-import { StepSummarySection } from "./sections/step-summary-section";
+import { CompanySection } from "./sections/company-section";
+import { ContractSection } from "./sections/contract-section";
+import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
 
@@ -20,7 +22,12 @@ export interface SectionContentProps {
     invoices?: { id: string; details?: unknown }[];
     application_review_items?: unknown;
     issuer_organization?: {
+      name?: string | null;
       corporate_entities?: unknown;
+      corporate_onboarding_data?: Record<string, unknown> | null;
+      corporateOnboardingData?: Record<string, unknown> | null;
+      bank_account_details?: Record<string, unknown> | null;
+      bankAccountDetails?: Record<string, unknown> | null;
       director_kyc_status?: unknown;
       director_aml_status?: unknown;
     } | null;
@@ -33,9 +40,9 @@ export interface SectionContentProps {
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
   onViewDocument: (s3Key: string) => void;
-  onApproveItem: (itemId: string) => Promise<void>;
-  onRejectItem: (itemId: string) => void;
-  onRequestAmendmentItem: (itemId: string) => void;
+  onApproveItem: (itemId: string, itemType: "invoice" | "document") => Promise<void>;
+  onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
+  onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -57,12 +64,14 @@ export function SectionContent({
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
 
+  const section = descriptor.reviewSection;
+
   switch (descriptor.kind) {
     case "financial":
       return (
         <FinancialSection
           app={app}
-          section="FINANCIAL"
+          section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
           onApprove={onApproveSection}
@@ -72,9 +81,21 @@ export function SectionContent({
       );
     case "business_details":
       return (
-        <JustificationSection
+        <BusinessSection
           businessDetails={app.business_details}
-          section="JUSTIFICATION"
+          section={section}
+          isReviewable={isReviewable}
+          approvePending={approveSectionPending}
+          onApprove={onApproveSection}
+          onReject={onRejectSection}
+          onRequestAmendment={onRequestAmendmentSection}
+        />
+      );
+    case "company_details":
+      return (
+        <CompanySection
+          app={app}
+          section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
           onApprove={onApproveSection}
@@ -87,7 +108,7 @@ export function SectionContent({
         <DocumentsSection
           supportingDocuments={app.supporting_documents}
           reviewItems={reviewItems}
-          section="DOCUMENTS"
+          section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
           viewDocumentPending={viewDocumentPending}
@@ -95,17 +116,37 @@ export function SectionContent({
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
-          onApproveItem={onApproveItem}
-          onRejectItem={onRejectItem}
-          onRequestAmendmentItem={onRequestAmendmentItem}
+          onApproveItem={(id) => onApproveItem(id, "document")}
+          onRejectItem={(id) => onRejectItem(id, "document")}
+          onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
         />
       );
-    case "step":
+    case "contract_details":
       return (
-        <StepSummarySection
-          stepKey={descriptor.stepKey ?? "unknown"}
-          stepLabel={descriptor.label}
-          app={app}
+        <ContractSection
+          contractDetails={app.contract?.contract_details}
+          section={section}
+          isReviewable={isReviewable}
+          approvePending={approveSectionPending}
+          onApprove={onApproveSection}
+          onReject={onRejectSection}
+          onRequestAmendment={onRequestAmendmentSection}
+        />
+      );
+    case "invoice_details":
+      return (
+        <InvoiceSection
+          invoices={app.invoices ?? []}
+          reviewItems={reviewItems}
+          section={section}
+          isReviewable={isReviewable}
+          approvePending={approveItemPending}
+          onApprove={onApproveSection}
+          onReject={onRejectSection}
+          onRequestAmendment={onRequestAmendmentSection}
+          onApproveItem={(id) => onApproveItem(id, "invoice")}
+          onRejectItem={(id) => onRejectItem(id, "invoice")}
+          onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
         />
       );
     default:

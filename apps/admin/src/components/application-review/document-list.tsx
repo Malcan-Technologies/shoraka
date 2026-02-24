@@ -126,7 +126,7 @@ export function DocumentList({
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
   const getItemStatus = (key: string) =>
-    reviewItems.find((r) => r.item_type === "DOCUMENT" && r.item_id === key)?.status ?? "PENDING";
+    reviewItems.find((r) => r.item_type === "document" && r.item_id === key)?.status ?? "PENDING";
 
   const totalItems = categoryGroups.reduce((acc, g) => acc + g.items.length, 0);
   if (totalItems === 0) {

@@ -1,3 +1,5 @@
-/** Canonical review section identifiers aligned with Prisma ReviewSection enum */
-export const REVIEW_SECTION_IDS = ["FINANCIAL", "JUSTIFICATION", "DOCUMENTS"] as const;
-export type ReviewSectionId = (typeof REVIEW_SECTION_IDS)[number];
+/** Re-export canonical review section IDs from product-utils (single source of truth). */
+export {
+  REVIEW_SECTION_IDS,
+  type ReviewSectionId,
+} from "@/app/settings/products/product-utils";

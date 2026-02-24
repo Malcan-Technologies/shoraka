@@ -31,7 +31,11 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
-import { productName, getReviewTabDescriptorsFromWorkflow } from "@/app/settings/products/product-utils";
+import {
+  productName,
+  getReviewTabDescriptorsFromWorkflow,
+  getReviewTabLabel,
+} from "@/app/settings/products/product-utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -97,10 +101,10 @@ export default function DynamicApplicationDetailPage() {
 
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
-    | { open: boolean; action: "reject" | "amend"; itemType: "INVOICE" | "DOCUMENT"; itemId: string }
+    | { open: boolean; action: "reject" | "amend"; itemType: "invoice" | "document"; itemId: string }
     | { open: boolean; action: "approve"; section: ReviewSectionId }
-    | { open: boolean; action: "approve"; itemType: "INVOICE" | "DOCUMENT"; itemId: string }
-  >({ open: false, action: "reject", section: "FINANCIAL" });
+    | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
+  >({ open: false, action: "reject", section: "financial" });
 
   const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
   const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
@@ -147,9 +151,7 @@ export default function DynamicApplicationDetailPage() {
         status: r.status,
       }));
     }
-    return tabDescriptors
-      .filter((d) => d.reviewSection !== "PENDING")
-      .map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+    return tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
   }, [app?.application_reviews, tabDescriptors]);
 
   const allSectionsApproved = React.useMemo(
@@ -247,14 +249,15 @@ export default function DynamicApplicationDetailPage() {
 
   const noteDialogIsSection = noteDialog && "section" in noteDialog;
   const noteDialogIsApprove = noteDialog?.action === "approve";
+  const sectionLabel = noteDialogIsSection ? getReviewTabLabel(noteDialog.section) : "";
   const noteDialogTitle = noteDialogIsApprove
     ? noteDialogIsSection
-      ? `Approve ${noteDialog.section}?`
+      ? `Approve ${sectionLabel}?`
       : "Approve item?"
     : noteDialogIsSection
       ? noteDialog.action === "reject"
-        ? `Reject ${noteDialog.section}?`
-        : `Request Amendment for ${noteDialog.section}?`
+        ? `Reject ${sectionLabel}?`
+        : `Request Amendment for ${sectionLabel}?`
       : noteDialog?.action === "reject"
         ? "Reject item?"
         : "Request amendment?";
@@ -471,27 +474,27 @@ export default function DynamicApplicationDetailPage() {
                         onRejectSection={(s) => setNoteDialog({ open: true, action: "reject", section: s })}
                         onRequestAmendmentSection={(s) => setNoteDialog({ open: true, action: "amend", section: s })}
                         onViewDocument={handleViewDocument}
-                        onApproveItem={async (itemId) => {
+                        onApproveItem={async (itemId, itemType) => {
                           setNoteDialog({
                             open: true,
                             action: "approve",
-                            itemType: "DOCUMENT",
+                            itemType,
                             itemId,
                           });
                         }}
-                        onRejectItem={(itemId) =>
+                        onRejectItem={(itemId, itemType) =>
                           setNoteDialog({
                             open: true,
                             action: "reject",
-                            itemType: "DOCUMENT",
+                            itemType,
                             itemId,
                           })
                         }
-                        onRequestAmendmentItem={(itemId) =>
+                        onRequestAmendmentItem={(itemId, itemType) =>
                           setNoteDialog({
                             open: true,
                             action: "amend",
-                            itemType: "DOCUMENT",
+                            itemType,
                             itemId,
                           })
                         }
@@ -542,7 +545,7 @@ export default function DynamicApplicationDetailPage() {
         open={noteDialog.open}
         onOpenChange={(open) =>
           setNoteDialog((prev) =>
-            prev ? { ...prev, open } : { open: false, action: "reject", section: "FINANCIAL" }
+            prev ? { ...prev, open } : { open: false, action: "reject", section: "financial" }
           )
         }
         title={noteDialogTitle}
