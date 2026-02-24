@@ -104,7 +104,7 @@ export function ProgressIndicator({
               {/* Connector — slightly thinner */}
               {index !== 0 && (
                 <div
-                  className={`absolute left-[-50%] w-full z-0 rounded-full ${displayFilled ? "bg-foreground" : "bg-border"}`}
+                  className={`absolute left-[-50%] w-full z-0 rounded-full ${displayFilled ? "bg-foreground" : "bg-muted"}`}
                   style={{
                     top: "16.5px",
                     height: "3px",
@@ -124,7 +124,7 @@ export function ProgressIndicator({
                 {/* Step circle */}
                 <div
                   className={`relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]
-                     ${displayFilled ? "border-2 border-foreground bg-foreground" : "border-2 border-border bg-background"} `}
+     ${displayFilled ? "border-2 border-foreground bg-foreground" : "border-2 border-muted bg-background"} `}
                 >
                   {displayCompleted ? (
                     <CheckIcon
@@ -132,7 +132,7 @@ export function ProgressIndicator({
                     />
 
                   ) : (
-                    <div className={`h-[8px] w-[8px] rounded-full ${displayFilled ? "bg-background" : "bg-border"}`} />
+                    <div className={`h-[8px] w-[8px] rounded-full ${displayFilled ? "bg-background" : "bg-muted-foreground/20"}`} />
                   )}
                 </div>
               </div>
