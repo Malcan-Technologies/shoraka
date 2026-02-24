@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
+import { cn } from "@cashsouk/ui";
 
 interface ProgressIndicatorProps {
   steps: string[];
@@ -104,10 +105,10 @@ export function ProgressIndicator({
               {/* Connector — slightly thinner */}
               {index !== 0 && (
                 <div
-                  className={`absolute left-[-50%] w-full z-0 rounded-full ${displayFilled ? "bg-foreground" : "bg-muted"}`}
+                  className={`absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out ${displayFilled ? "bg-foreground" : "bg-muted"}`}
                   style={{
-                    top: "16.5px",
-                    height: "3px",
+                    top: "16px",
+                    height: "4px",
                   }}
                 />
               )}
@@ -116,34 +117,46 @@ export function ProgressIndicator({
               <div className="relative flex items-center justify-center h-[36px] w-[36px]">
                 {isActive && !isDisabled && (
                   <>
-                    <div className="absolute inset-0 rounded-full bg-background z-10" />
-                    <div className="absolute inset-0 rounded-full border-2 border-foreground z-20" />
+                    <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
+                    <div className="absolute inset-0 rounded-full border-2 border-foreground z-20 transition-all duration-200 ease-out" />
                   </>
                 )}
 
                 {/* Step circle */}
                 <div
-                  className={`relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]
-     ${displayFilled ? "border-2 border-foreground bg-foreground" : "border-2 border-muted bg-background"} `}
+                  className={cn(
+                    "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] transition-all duration-200 ease-out",
+                    displayFilled
+                      ? "border-2 border-foreground bg-foreground scale-100"
+                      : "border-2 border-muted bg-background scale-95"
+                  )}
                 >
-                  {displayCompleted ? (
-                    <CheckIcon
-                      className="h-[20px] w-[20px] text-background translate-y-[0.5px]"
-                    />
+                  {/* Unfilled highlight disk (SOLID, no opacity) */}
+                  {!displayFilled && (
+                    <div className="absolute inset-[0px] rounded-full bg-muted/5" />
+                  )}
 
+                  {displayCompleted ? (
+                    <CheckIcon className="relative h-[20px] w-[20px] text-background translate-y-[0.5px]" />
                   ) : (
-                    <div className={`h-[8px] w-[8px] rounded-full ${displayFilled ? "bg-background" : "bg-muted-foreground/20"}`} />
+                    <div
+                      className={cn(
+                        "relative h-[8px] w-[8px] rounded-full",
+                        displayFilled ? "bg-background" : "bg-muted-foreground/15"
+                      )}
+                    />
                   )}
                 </div>
               </div>
 
               {/* Label */}
               <span
-                className={`mt-2.5 text-center text-[12px] leading-snug max-w-[90px]
-                  ${isActive && !isDisabled
+                className={cn(
+                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
+                  isActive && !isDisabled
                     ? "font-medium text-foreground"
                     : "text-muted-foreground"
-                  }`}
+                )}
               >
                 {typeof renderStepLabel(label) === "string" ? (
                   renderStepLabel(label)
