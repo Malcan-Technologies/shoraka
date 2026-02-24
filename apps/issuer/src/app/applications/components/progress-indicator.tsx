@@ -33,8 +33,8 @@ export function ProgressIndicator({
                 <div
                   className="absolute left-[-50%] w-full z-0 rounded-full bg-muted"
                   style={{
-                    top: "16.5px",
-                    height: "3px",
+                    top: "16px",
+                    height: "4px",
                   }}
                 />
               )}
