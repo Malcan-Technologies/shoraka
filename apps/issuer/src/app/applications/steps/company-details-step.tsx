@@ -178,6 +178,10 @@ export function CompanyDetailsStep({
     staleTime: 1000 * 60 * 5,
   });
 
+  // Temporary debug: log current user id and membership
+  // eslint-disable-next-line no-console
+  console.log("DEBUG currentUser (company-details):", currentUser);
+
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
