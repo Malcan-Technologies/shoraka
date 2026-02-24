@@ -22,7 +22,6 @@ import { ReviewInvoiceSkeleton } from "../components/review-invoice-skeleton";
 import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
 import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
-import { ReviewDeclarationsSkeleton } from "../components/review-declarations-skeleton";
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 import { formatMoney } from "../components/money";
@@ -75,9 +74,6 @@ const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-xl md:text-2xl font-semibold";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
-const cardClassName = "border rounded-2xl bg-card p-6 md:p-8";
-const tableWrapperClassName = "border rounded-xl bg-card overflow-hidden";
-
 export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
@@ -256,12 +252,7 @@ export function ReviewAndSubmitStep({
     baseFacility - totalFinancingAmount;
 
   // Determine which data is actually loading based on what sections are shown
-  const isLoading =
-    isLoadingApp ||
-    isLoadingProducts ||
-    (showCompanySection && (isLoadingInfo || isLoadingEntities)) ||
-    (showContractSection && contractId && isLoadingContract) ||
-    (showInvoiceSection && isLoadingInvoices);
+  // Note: removed unused isLoading variable to satisfy build checks.
 
   const isInvoiceOnly = structureType === "invoice_only";
 

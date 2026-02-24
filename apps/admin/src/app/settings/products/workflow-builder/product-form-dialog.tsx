@@ -334,8 +334,8 @@ const initialInvoice = normalizedInitial.find(
   (s) => getStepKeyFromStepId(getStepId(s)) === "invoice_details"
 );
 
-console.log("INITIAL INVOICE CONFIG:", initialInvoice?.config);
-console.log("CURRENT INVOICE CONFIG:", currentInvoice?.config);
+console.log("INITIAL INVOICE CONFIG:", (initialInvoice as any)?.config);
+console.log("CURRENT INVOICE CONFIG:", (currentInvoice as any)?.config);
 console.log("====================================");
 
 const hasChanges = !isEdit
