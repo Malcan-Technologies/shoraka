@@ -56,6 +56,7 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken } from "@cashsouk/config";
+import { ApplicationStatusBadge } from "@/components/application-review";
 
 function PageSkeleton() {
   return (
@@ -291,60 +292,6 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "SUBMITTED":
-        return (
-          <Badge className="bg-primary text-primary-foreground">
-            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
-            Submitted for Review
-          </Badge>
-        );
-      case "UNDER_REVIEW":
-        return (
-          <Badge variant="secondary">
-            <ClockIcon className="h-3.5 w-3.5 mr-1" />
-            Under Review
-          </Badge>
-        );
-      case "AMENDMENT_REQUESTED":
-        return (
-          <Badge className="bg-accent text-accent-foreground">
-            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
-            Amendment Requested
-          </Badge>
-        );
-      case "RESUBMITTED":
-        return (
-          <Badge className="bg-primary text-primary-foreground">
-            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
-            Resubmitted
-          </Badge>
-        );
-      case "APPROVED":
-        return (
-          <Badge className="bg-primary text-primary-foreground">
-            <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-            Approved
-          </Badge>
-        );
-      case "REJECTED":
-        return (
-          <Badge className="bg-destructive text-destructive-foreground">
-            <XCircleIcon className="h-3.5 w-3.5 mr-1" />
-            Rejected
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="secondary">
-            <ClockIcon className="h-3.5 w-3.5 mr-1" />
-            {status}
-          </Badge>
-        );
-    }
-  };
-
   const requestedAmount = React.useMemo(() => {
     if (!app) return 0;
     if (app.invoices && app.invoices.length > 0) {
@@ -414,7 +361,7 @@ export default function DynamicApplicationDetailPage() {
                             {formatCurrency(requestedAmount)}
                           </div>
                         </div>
-                        {getStatusBadge(app.status)}
+                        <ApplicationStatusBadge status={app.status} />
                       </div>
                     </div>
 

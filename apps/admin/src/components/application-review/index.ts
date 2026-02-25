@@ -10,3 +10,4 @@ export { CompanySection } from "./sections/company-section";
 export { ContractSection } from "./sections/contract-section";
 export { DocumentsSection } from "./sections/documents-section";
 export { InvoiceSection } from "./sections/invoice-section";
+export { ApplicationStatusBadge } from "./application-status-badge";
