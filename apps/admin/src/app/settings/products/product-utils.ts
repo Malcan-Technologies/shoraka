@@ -43,11 +43,11 @@ export type ReviewTabDescriptor = {
  * See docs/guides/add-a-product-workflow-step.md.
  */
 const REVIEW_TAB_STEP_KEYS = new Set([
+  "company_details",
   "business_details",
   "supporting_documents",
   "contract_details",
-  "invoice_details",
-  "company_details",
+  // "invoice_details",
 ]);
 
 /** Review-only tab labels. Edit this map to change labels shown on admin application review tabs. */
@@ -56,7 +56,7 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   business_details: "Business",
   supporting_documents: "Documents",
   contract_details: "Contract",
-  invoice_details: "Invoice",
+  // invoice_details: "Invoice",
   company_details: "Company",
 };
 
@@ -66,7 +66,7 @@ const REVIEW_TAB_ORDER = [
   "business_details",
   "supporting_documents",
   "contract_details",
-  "invoice_details",
+  // "invoice_details",
 ] as const;
 
 /** Human-readable label for a review section or step key. */

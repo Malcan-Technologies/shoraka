@@ -1,11 +1,18 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
-import { SectionActionDropdown } from "../section-action-dropdown";
+import { ReviewSectionCard } from "../review-section-card";
+import { ReviewFieldBlock } from "../review-field-block";
+import { ReviewValue } from "../review-value";
+import {
+  reviewLabelClass,
+  reviewValueClass,
+  reviewRowGridClass,
+  REVIEW_EMPTY_LABEL,
+} from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 
 export interface BusinessSectionProps {
@@ -20,8 +27,6 @@ export interface BusinessSectionProps {
 
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
-
-const EMPTY_LABEL = "Not provided";
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
@@ -67,20 +72,20 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
     return null;
   };
 
-  return {
+    return {
     about: {
-      whatDoesCompanyDo: str(a?.what_does_company_do ?? a?.whatDoesCompanyDo) || EMPTY_LABEL,
-      mainCustomers: str(a?.main_customers ?? a?.mainCustomers) || EMPTY_LABEL,
+      whatDoesCompanyDo: str(a?.what_does_company_do ?? a?.whatDoesCompanyDo) || REVIEW_EMPTY_LABEL,
+      mainCustomers: str(a?.main_customers ?? a?.mainCustomers) || REVIEW_EMPTY_LABEL,
       singleCustomerOver50Revenue: bool(a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue),
     },
     whyRaisingFunds: {
-      financingFor: str(w?.financing_for ?? w?.financingFor) || EMPTY_LABEL,
-      howFundsUsed: str(w?.how_funds_used ?? w?.howFundsUsed) || EMPTY_LABEL,
-      businessPlan: str(w?.business_plan ?? w?.businessPlan) || EMPTY_LABEL,
-      risksDelayRepayment: str(w?.risks_delay_repayment ?? w?.risksDelayRepayment) || EMPTY_LABEL,
-      backupPlan: str(w?.backup_plan ?? w?.backupPlan) || EMPTY_LABEL,
+      financingFor: str(w?.financing_for ?? w?.financingFor) || REVIEW_EMPTY_LABEL,
+      howFundsUsed: str(w?.how_funds_used ?? w?.howFundsUsed) || REVIEW_EMPTY_LABEL,
+      businessPlan: str(w?.business_plan ?? w?.businessPlan) || REVIEW_EMPTY_LABEL,
+      risksDelayRepayment: str(w?.risks_delay_repayment ?? w?.risksDelayRepayment) || REVIEW_EMPTY_LABEL,
+      backupPlan: str(w?.backup_plan ?? w?.backupPlan) || REVIEW_EMPTY_LABEL,
       raisingOnOtherP2P: bool(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
-      platformName: str(w?.platform_name ?? w?.platformName) || EMPTY_LABEL,
+      platformName: str(w?.platform_name ?? w?.platformName) || REVIEW_EMPTY_LABEL,
       amountRaised: num(w?.amount_raised ?? w?.amountRaised),
       sameInvoiceUsed: bool(w?.same_invoice_used ?? w?.sameInvoiceUsed),
     },
@@ -88,34 +93,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
   };
 }
 
-/** Typography aligned with other review sections */
-const sectionHeaderClass = "text-sm font-semibold";
 const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
-const rowGridClass =
-  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-8 gap-y-4 mt-3 w-full items-start";
-const labelClass = "text-sm font-normal text-foreground";
-const valueClass =
-  "min-h-[36px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground flex items-center";
-const valueClassTextarea =
-  "min-h-[60px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground flex items-start";
-
-function TextValue({
-  value,
-  className,
-  multiline,
-}: {
-  value: string;
-  className?: string;
-  multiline?: boolean;
-}) {
-  const isEmpty = value === EMPTY_LABEL;
-  const baseClass = multiline ? valueClassTextarea : valueClass;
-  return (
-    <div className={`${baseClass} ${className ?? ""}`}>
-      <span className={isEmpty ? "text-muted-foreground" : ""}>{value}</span>
-    </div>
-  );
-}
 
 export function BusinessSection({
   businessDetails,
@@ -130,98 +108,75 @@ export function BusinessSection({
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
 
   return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Business</CardTitle>
-          </div>
-          <SectionActionDropdown
-            section={section}
-            isReviewable={isReviewable}
-            onApprove={onApprove}
-            onReject={onReject}
-            onRequestAmendment={onRequestAmendment}
-            isPending={approvePending}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {view ? (
-          <>
-            {/* About your business */}
-            <section className="space-y-3">
-              <div>
-                <h3 className={sectionHeaderClass}>About your business</h3>
-                <div className="mt-1.5 h-px bg-border" />
-              </div>
-              <div className={rowGridClass}>
-                <Label className={labelClass}>What does your company do?</Label>
-                <TextValue value={view.about.whatDoesCompanyDo} multiline />
-                <Label className={labelClass}>Who are your main customers?</Label>
-                <TextValue value={view.about.mainCustomers} multiline />
-                <Label className={labelClass}>
-                  Does any single customer make up more than 50% of your revenue?
-                </Label>
-                <span className={yesNoScaleWrapper}>
-                  <YesNoRadioDisplay value={view.about.singleCustomerOver50Revenue} />
-                </span>
-              </div>
-            </section>
+    <ReviewSectionCard
+      title="Business Details"
+      icon={DocumentTextIcon}
+      section={section}
+      isReviewable={isReviewable}
+      approvePending={approvePending}
+      onApprove={onApprove}
+      onReject={onReject}
+      onRequestAmendment={onRequestAmendment}
+    >
+      {view ? (
+        <>
+          <ReviewFieldBlock title="About your business">
+            <div className={reviewRowGridClass}>
+              <Label className={reviewLabelClass}>What does your company do?</Label>
+              <ReviewValue value={view.about.whatDoesCompanyDo} multiline />
+              <Label className={reviewLabelClass}>Who are your main customers?</Label>
+              <ReviewValue value={view.about.mainCustomers} multiline />
+              <Label className={reviewLabelClass}>
+                Does any single customer make up more than 50% of your revenue?
+              </Label>
+              <span className={yesNoScaleWrapper}>
+                <YesNoRadioDisplay value={view.about.singleCustomerOver50Revenue} />
+              </span>
+            </div>
+          </ReviewFieldBlock>
 
-            {/* Why are you raising funds? */}
-            <section className="space-y-3">
-              <div>
-                <h3 className={sectionHeaderClass}>Why are you raising funds?</h3>
-                <div className="mt-1.5 h-px bg-border" />
-              </div>
-              <div className={rowGridClass}>
-                <Label className={labelClass}>What is this financing for?</Label>
-                <TextValue value={view.whyRaisingFunds.financingFor} multiline />
-                <Label className={labelClass}>How will the funds be used?</Label>
-                <TextValue value={view.whyRaisingFunds.howFundsUsed} multiline />
-                <Label className={labelClass}>Tell us about your business plan</Label>
-                <TextValue value={view.whyRaisingFunds.businessPlan} multiline />
-                <Label className={labelClass}>
-                  Are there any risks that may delay repayment of your invoices?
-                </Label>
-                <TextValue value={view.whyRaisingFunds.risksDelayRepayment} multiline />
-                <Label className={labelClass}>
-                  If payment is delayed, what is your backup plan?
-                </Label>
-                <TextValue value={view.whyRaisingFunds.backupPlan} multiline />
-                <Label className={labelClass}>
-                  Are you currently raising/applying funds on any other P2P platforms?
-                </Label>
-                <span className={yesNoScaleWrapper}>
-                  <YesNoRadioDisplay value={view.whyRaisingFunds.raisingOnOtherP2P} />
-                </span>
-                {showP2PFields && (
-                  <>
-                    <Label className={labelClass}>Name of platform</Label>
-                    <TextValue value={view.whyRaisingFunds.platformName} />
-                    <Label className={labelClass}>Amount raised</Label>
-                    <div className={`${valueClass} !min-h-0 h-9`}>
-                      {view.whyRaisingFunds.amountRaised != null
-                        ? formatCurrency(view.whyRaisingFunds.amountRaised)
-                        : EMPTY_LABEL}
-                    </div>
-                    <Label className={labelClass}>Is the same invoice being used?</Label>
-                    <span className={yesNoScaleWrapper}>
-                      <YesNoRadioDisplay value={view.whyRaisingFunds.sameInvoiceUsed} />
-                    </span>
-                  </>
-                )}
-              </div>
-            </section>
+          <ReviewFieldBlock title="Why are you raising funds?">
+            <div className={reviewRowGridClass}>
+              <Label className={reviewLabelClass}>What is this financing for?</Label>
+              <ReviewValue value={view.whyRaisingFunds.financingFor} multiline />
+              <Label className={reviewLabelClass}>How will the funds be used?</Label>
+              <ReviewValue value={view.whyRaisingFunds.howFundsUsed} multiline />
+              <Label className={reviewLabelClass}>Tell us about your business plan</Label>
+              <ReviewValue value={view.whyRaisingFunds.businessPlan} multiline />
+              <Label className={reviewLabelClass}>
+                Are there any risks that may delay repayment of your invoices?
+              </Label>
+              <ReviewValue value={view.whyRaisingFunds.risksDelayRepayment} multiline />
+              <Label className={reviewLabelClass}>
+                If payment is delayed, what is your backup plan?
+              </Label>
+              <ReviewValue value={view.whyRaisingFunds.backupPlan} multiline />
+              <Label className={reviewLabelClass}>
+                Are you currently raising/applying funds on any other P2P platforms?
+              </Label>
+              <span className={yesNoScaleWrapper}>
+                <YesNoRadioDisplay value={view.whyRaisingFunds.raisingOnOtherP2P} />
+              </span>
+              {showP2PFields && (
+                <>
+                  <Label className={reviewLabelClass}>Name of platform</Label>
+                  <ReviewValue value={view.whyRaisingFunds.platformName} />
+                  <Label className={reviewLabelClass}>Amount raised</Label>
+                  <div className={`${reviewValueClass} !min-h-0 h-9`}>
+                    {view.whyRaisingFunds.amountRaised != null
+                      ? formatCurrency(view.whyRaisingFunds.amountRaised)
+                      : REVIEW_EMPTY_LABEL}
+                  </div>
+                  <Label className={reviewLabelClass}>Is the same invoice being used?</Label>
+                  <span className={yesNoScaleWrapper}>
+                    <YesNoRadioDisplay value={view.whyRaisingFunds.sameInvoiceUsed} />
+                  </span>
+                </>
+              )}
+            </div>
+          </ReviewFieldBlock>
 
-            {/* Declarations */}
-            <section className="space-y-3">
-              <div>
-                <h3 className={sectionHeaderClass}>Declarations</h3>
-                <div className="mt-1.5 h-px bg-border" />
-              </div>
+          <ReviewFieldBlock title="Declarations">
               <div className="rounded-lg border border-input bg-background p-3">
                 <div className="flex items-start gap-3">
                   <div
@@ -251,16 +206,15 @@ export function BusinessSection({
                   {view.declarationConfirmed ? "Confirmed" : "Not confirmed"}
                 </p>
               </div>
-            </section>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No business details submitted.</p>
-        )}
-        <div>
-          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-        </div>
-      </CardContent>
-    </Card>
+          </ReviewFieldBlock>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">No business details submitted.</p>
+      )}
+      <div>
+        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
+        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+      </div>
+    </ReviewSectionCard>
   );
 }

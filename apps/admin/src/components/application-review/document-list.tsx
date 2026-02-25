@@ -153,7 +153,7 @@ export function DocumentList({
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="border-t pl-16 pr-4 py-3 space-y-3">
+              <div className="border-t pl-12 pr-4 py-3 space-y-3">
                 {items.map(({ key, label, s3Key }) => {
                   const status = getItemStatus(key);
                   return (

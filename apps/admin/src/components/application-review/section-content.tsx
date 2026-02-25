@@ -125,12 +125,15 @@ export function SectionContent({
       return (
         <ContractSection
           contractDetails={app.contract?.contract_details}
+          customerDetails={app.contract?.customer_details}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onViewDocument={onViewDocument}
+          viewDocumentPending={viewDocumentPending}
         />
       );
     case "invoice_details":

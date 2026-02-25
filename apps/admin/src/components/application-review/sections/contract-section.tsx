@@ -1,104 +1,198 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
+import { Button } from "@/components/ui/button";
+import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { format } from "date-fns";
-import { SectionActionDropdown } from "../section-action-dropdown";
+import { ReviewSectionCard } from "../review-section-card";
+import { ReviewFieldBlock } from "../review-field-block";
+import {
+  reviewLabelClass,
+  reviewValueClass,
+  reviewValueClassTextArea,
+  reviewRowGridClass,
+  REVIEW_EMPTY_LABEL,
+  formatReviewValue,
+  formatReviewDate,
+} from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 
-const EMPTY_LABEL = "Not provided";
-
-/** Typography aligned with other review sections. */
-const rowGridClass =
-  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-8 gap-y-4 mt-3 w-full items-start";
-const labelClass = "text-sm font-normal text-foreground";
-const valueClass =
-  "min-h-[36px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground flex items-center";
-
-function formatValue(v: unknown): string {
-  if (v == null || v === "") return EMPTY_LABEL;
-  if (typeof v === "number") return Number.isNaN(v) ? EMPTY_LABEL : formatCurrency(v);
-  if (typeof v === "string") return v.trim() || EMPTY_LABEL;
-  return String(v);
+interface FileDoc {
+  s3_key?: string;
+  file_name?: string;
+  file_size?: number;
 }
 
 export interface ContractSectionProps {
   contractDetails: unknown;
+  customerDetails?: unknown;
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onViewDocument?: (s3Key: string) => void;
+  viewDocumentPending?: boolean;
 }
 
 export function ContractSection({
   contractDetails,
+  customerDetails,
   section,
   isReviewable,
   approvePending,
   onApprove,
   onReject,
   onRequestAmendment,
+  onViewDocument,
+  viewDocumentPending,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
+  const cust = customerDetails as Record<string, unknown> | null | undefined;
+
+  const contractDoc = cd?.document as FileDoc | undefined;
+  const customerDoc = cust?.document as FileDoc | undefined;
+
+  const hasData = cd || cust;
 
   return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Contract</CardTitle>
-          </div>
-          <SectionActionDropdown
-            section={section}
-            isReviewable={isReviewable}
-            onApprove={onApprove}
-            onReject={onReject}
-            onRequestAmendment={onRequestAmendment}
-            isPending={approvePending}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {cd ? (
-          <div className={rowGridClass}>
-            <Label className={labelClass}>Title</Label>
-            <div className={valueClass}>{formatValue(cd.title)}</div>
-            <Label className={labelClass}>Contract number</Label>
-            <div className={valueClass}>{formatValue(cd.number)}</div>
-            <Label className={labelClass}>Value</Label>
-            <div className={valueClass}>
-              {typeof cd.value === "number" ? formatCurrency(cd.value) : formatValue(cd.value)}
+    <ReviewSectionCard
+      title="Contract Details"
+      icon={DocumentTextIcon}
+      section={section}
+      isReviewable={isReviewable}
+      approvePending={approvePending}
+      onApprove={onApprove}
+      onReject={onReject}
+      onRequestAmendment={onRequestAmendment}
+    >
+      {hasData ? (
+        <>
+          {cd && (
+            <ReviewFieldBlock title="Contract details">
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Contract title</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cd.title)}</div>
+                <Label className={reviewLabelClass}>Contract description</Label>
+                <div className={reviewValueClassTextArea}>{formatReviewValue(cd.description)}</div>
+                <Label className={reviewLabelClass}>Contract number</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cd.number)}</div>
+                <Label className={reviewLabelClass}>Contract value</Label>
+                <div className={reviewValueClass}>
+                  {typeof cd.value === "number"
+                    ? formatCurrency(cd.value)
+                    : formatReviewValue(cd.value)}
+                </div>
+                <Label className={reviewLabelClass}>Contract start date</Label>
+                <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
+                <Label className={reviewLabelClass}>Contract end date</Label>
+                <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
+                {typeof cd.approved_facility === "number" && cd.approved_facility > 0 && (
+                  <>
+                    <Label className={reviewLabelClass}>Approved facility</Label>
+                    <div className={reviewValueClass}>
+                      {formatCurrency(cd.approved_facility as number)}
+                    </div>
+                  </>
+                )}
+              </div>
+            </ReviewFieldBlock>
+          )}
+
+          {cust && (
+            <ReviewFieldBlock title="Customer details">
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Customer name</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
+                <Label className={reviewLabelClass}>Customer entity type</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+                <Label className={reviewLabelClass}>Customer SSM number</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
+                <Label className={reviewLabelClass}>Customer country</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+                <Label className={reviewLabelClass}>Is customer related to issuer?</Label>
+                <div className={reviewValueClass}>
+                  {cust.is_related_party === true
+                    ? "Yes"
+                    : cust.is_related_party === false
+                      ? "No"
+                      : REVIEW_EMPTY_LABEL}
+                </div>
+              </div>
+            </ReviewFieldBlock>
+          )}
+
+          <ReviewFieldBlock title="Evidence">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">Contract document</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {contractDoc?.file_name
+                        ? `${contractDoc.file_name}${
+                            contractDoc.file_size
+                              ? ` (${(contractDoc.file_size / 1024 / 1024).toFixed(2)} MB)`
+                              : ""
+                          }`
+                        : REVIEW_EMPTY_LABEL}
+                    </div>
+                  </div>
+                </div>
+                {contractDoc?.s3_key && onViewDocument && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg h-9 gap-1 shrink-0"
+                    onClick={() => onViewDocument(contractDoc.s3_key!)}
+                    disabled={viewDocumentPending}
+                  >
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                    View
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">Customer consent</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {customerDoc?.file_name
+                        ? `${customerDoc.file_name}${
+                            customerDoc.file_size
+                              ? ` (${(customerDoc.file_size / 1024 / 1024).toFixed(2)} MB)`
+                              : ""
+                          }`
+                        : REVIEW_EMPTY_LABEL}
+                    </div>
+                  </div>
+                </div>
+                {customerDoc?.s3_key && onViewDocument && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg h-9 gap-1 shrink-0"
+                    onClick={() => onViewDocument(customerDoc.s3_key!)}
+                    disabled={viewDocumentPending}
+                  >
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                    View
+                  </Button>
+                )}
+              </div>
             </div>
-            <Label className={labelClass}>Approved facility</Label>
-            <div className={valueClass}>
-              {typeof cd.approved_facility === "number"
-                ? formatCurrency(cd.approved_facility)
-                : formatValue(cd.approved_facility)}
-            </div>
-            <Label className={labelClass}>Start date</Label>
-            <div className={valueClass}>
-              {cd.start_date
-                ? format(new Date(String(cd.start_date)), "dd MMM yyyy")
-                : EMPTY_LABEL}
-            </div>
-            <Label className={labelClass}>End date</Label>
-            <div className={valueClass}>
-              {cd.end_date ? format(new Date(String(cd.end_date)), "dd MMM yyyy") : EMPTY_LABEL}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No contract details submitted.</p>
-        )}
-        <div>
-          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-        </div>
-      </CardContent>
-    </Card>
+          </ReviewFieldBlock>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">No contract details submitted.</p>
+      )}
+      <div>
+        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
+        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+      </div>
+    </ReviewSectionCard>
   );
 }

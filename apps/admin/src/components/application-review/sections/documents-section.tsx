@@ -44,7 +44,7 @@ export function DocumentsSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Documents</CardTitle>
+            <CardTitle className="text-base font-semibold">Supporting Documents</CardTitle>
           </div>
           <SectionActionDropdown
             section={section}

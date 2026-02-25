@@ -1,32 +1,22 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@cashsouk/ui";
 import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { useOrganizationDetail } from "@/hooks/use-organization-detail";
-import { SectionActionDropdown } from "../section-action-dropdown";
+import { ReviewSectionCard } from "../review-section-card";
+import { ReviewFieldBlock } from "../review-field-block";
+import {
+  reviewLabelClass,
+  reviewValueClass,
+  reviewRowGridClass,
+  REVIEW_EMPTY_LABEL,
+  formatReviewValue,
+} from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 
-const EMPTY_LABEL = "Not provided";
-
-/** Typography and layout aligned with other review sections */
-const sectionHeaderClass = "text-sm font-semibold";
-const rowGridClass =
-  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-8 gap-y-4 mt-3 w-full items-start";
-const labelClass = "text-sm font-normal text-foreground";
-const valueClass =
-  "min-h-[36px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground flex items-center";
-
-function formatValue(v: unknown): string {
-  if (v == null || v === "") return "—";
-  if (typeof v === "number") return Number.isNaN(v) ? "—" : String(v);
-  if (typeof v === "string") return v.trim() || "—";
-  return String(v);
-}
-
 function formatAddress(addr: Record<string, unknown> | null | undefined): string {
-  if (!addr || typeof addr !== "object") return EMPTY_LABEL;
+  if (!addr || typeof addr !== "object") return REVIEW_EMPTY_LABEL;
   const parts = [
     addr.line1,
     addr.line2,
@@ -35,7 +25,7 @@ function formatAddress(addr: Record<string, unknown> | null | undefined): string
     addr.state,
     addr.country,
   ].filter((p) => p != null && String(p).trim() !== "");
-  return parts.length > 0 ? parts.join(", ") : EMPTY_LABEL;
+  return parts.length > 0 ? parts.join(", ") : REVIEW_EMPTY_LABEL;
 }
 
 /** Same pattern as issuer company-details-step: extract bank fields from content array */
@@ -99,153 +89,105 @@ export function CompanySection({
   const cpIc = contactPerson?.ic != null ? String(contactPerson.ic).trim() : "";
   const cpContact = contactPerson?.contact != null ? String(contactPerson.contact).trim() : "";
 
+  const emptyDash = "—";
   const companyName =
     (basicInfo?.businessName ?? org?.name) != null
-      ? formatValue(basicInfo?.businessName ?? org?.name)
-      : EMPTY_LABEL;
-  const entityType = formatValue(basicInfo?.entityType) || EMPTY_LABEL;
-  const ssmNo = formatValue(basicInfo?.ssmRegisterNumber) || EMPTY_LABEL;
-  const industry = formatValue(basicInfo?.industry) || EMPTY_LABEL;
-  const numberOfEmployees = formatValue(basicInfo?.numberOfEmployees) || EMPTY_LABEL;
+      ? formatReviewValue(basicInfo?.businessName ?? org?.name, { emptyLabel: emptyDash })
+      : REVIEW_EMPTY_LABEL;
+  const entityType = formatReviewValue(basicInfo?.entityType, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const ssmNo = formatReviewValue(basicInfo?.ssmRegisterNumber, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const industry = formatReviewValue(basicInfo?.industry, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const numberOfEmployees = formatReviewValue(basicInfo?.numberOfEmployees, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
 
   if (organizationId && isLoadingOrg) {
     return (
-      <Card className="rounded-2xl">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Company Details</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className={rowGridClass}>
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        </CardContent>
-      </Card>
+      <ReviewSectionCard title="Company Details" icon={BuildingOffice2Icon}>
+        <div className={reviewRowGridClass}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      </ReviewSectionCard>
     );
   }
 
   if (!organizationId) {
     return (
-      <Card className="rounded-2xl">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Company Details</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No organization linked to this application.</p>
-        </CardContent>
-      </Card>
+      <ReviewSectionCard title="Company Details" icon={BuildingOffice2Icon}>
+        <p className="text-sm text-muted-foreground">No organization linked to this application.</p>
+      </ReviewSectionCard>
     );
   }
 
-  const showActions = section && isReviewable && onApprove && onReject && onRequestAmendment;
-
   return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Company Details</CardTitle>
-          </div>
-          {showActions && (
-            <SectionActionDropdown
-              section={section}
-              isReviewable={!!isReviewable}
-              onApprove={onApprove}
-              onReject={onReject}
-              onRequestAmendment={onRequestAmendment}
-              isPending={!!approvePending}
-            />
-          )}
+    <ReviewSectionCard
+      title="Company Details"
+      icon={BuildingOffice2Icon}
+      section={section}
+      isReviewable={isReviewable}
+      approvePending={approvePending}
+      onApprove={onApprove}
+      onReject={onReject}
+      onRequestAmendment={onRequestAmendment}
+    >
+      <ReviewFieldBlock title="Company info">
+        <div className={reviewRowGridClass}>
+          <Label className={reviewLabelClass}>Company name</Label>
+          <div className={reviewValueClass}>{companyName}</div>
+          <Label className={reviewLabelClass}>Type of entity</Label>
+          <div className={reviewValueClass}>{entityType}</div>
+          <Label className={reviewLabelClass}>SSM no</Label>
+          <div className={reviewValueClass}>{ssmNo}</div>
+          <Label className={reviewLabelClass}>Industry</Label>
+          <div className={reviewValueClass}>{industry}</div>
+          <Label className={reviewLabelClass}>Number of employees</Label>
+          <div className={reviewValueClass}>{numberOfEmployees}</div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Company info */}
-        <section className="space-y-3">
-          <div>
-            <h3 className={sectionHeaderClass}>Company info</h3>
-            <div className="mt-1.5 h-px bg-border" />
-          </div>
-          <div className={rowGridClass}>
-            <Label className={labelClass}>Company name</Label>
-            <div className={valueClass}>{companyName}</div>
-            <Label className={labelClass}>Type of entity</Label>
-            <div className={valueClass}>{entityType}</div>
-            <Label className={labelClass}>SSM no</Label>
-            <div className={valueClass}>{ssmNo}</div>
-            <Label className={labelClass}>Industry</Label>
-            <div className={valueClass}>{industry}</div>
-            <Label className={labelClass}>Number of employees</Label>
-            <div className={valueClass}>{numberOfEmployees}</div>
-          </div>
-        </section>
+      </ReviewFieldBlock>
 
-        {/* Address */}
-        <section className="space-y-3">
-          <div>
-            <h3 className={sectionHeaderClass}>Address</h3>
-            <div className="mt-1.5 h-px bg-border" />
-          </div>
-          <div className={rowGridClass}>
-            <Label className={labelClass}>Business address</Label>
-            <div className={valueClass}>{formatAddress(businessAddress)}</div>
-            <Label className={labelClass}>Registered address</Label>
-            <div className={valueClass}>{formatAddress(registeredAddress)}</div>
-          </div>
-        </section>
+      <ReviewFieldBlock title="Address">
+        <div className={reviewRowGridClass}>
+          <Label className={reviewLabelClass}>Business address</Label>
+          <div className={reviewValueClass}>{formatAddress(businessAddress)}</div>
+          <Label className={reviewLabelClass}>Registered address</Label>
+          <div className={reviewValueClass}>{formatAddress(registeredAddress)}</div>
+        </div>
+      </ReviewFieldBlock>
 
-        {/* Banking details */}
-        <section className="space-y-3">
-          <div>
-            <h3 className={sectionHeaderClass}>Banking details</h3>
-            <div className="mt-1.5 h-px bg-border" />
-          </div>
-          <div className={rowGridClass}>
-            <Label className={labelClass}>Bank name</Label>
-            <div className={valueClass}>{bankName || EMPTY_LABEL}</div>
-            <div className="contents">
-              <Label className={labelClass}>Bank account number</Label>
-              <div>
-                <div className={valueClass}>{bankAccountNumber || EMPTY_LABEL}</div>
-                <p className="mt-1 text-xs text-muted-foreground">10–18 digits</p>
-              </div>
+      <ReviewFieldBlock title="Banking details">
+        <div className={reviewRowGridClass}>
+          <Label className={reviewLabelClass}>Bank name</Label>
+          <div className={reviewValueClass}>{bankName || REVIEW_EMPTY_LABEL}</div>
+          <div className="contents">
+            <Label className={reviewLabelClass}>Bank account number</Label>
+            <div>
+              <div className={reviewValueClass}>{bankAccountNumber || REVIEW_EMPTY_LABEL}</div>
+              <p className="mt-1 text-xs text-muted-foreground">10–18 digits</p>
             </div>
           </div>
-        </section>
-
-        {/* Contact Person */}
-        <section className="space-y-3">
-          <div>
-            <h3 className={sectionHeaderClass}>Contact Person</h3>
-            <div className="mt-1.5 h-px bg-border" />
-          </div>
-          <div className={rowGridClass}>
-            <Label className={labelClass}>Applicant name</Label>
-            <div className={valueClass}>{cpName || EMPTY_LABEL}</div>
-            <Label className={labelClass}>Applicant position</Label>
-            <div className={valueClass}>{cpPosition || EMPTY_LABEL}</div>
-            <Label className={labelClass}>Applicant IC no</Label>
-            <div className={valueClass}>{cpIc || EMPTY_LABEL}</div>
-            <Label className={labelClass}>Applicant contact</Label>
-            <div className={valueClass}>{cpContact || EMPTY_LABEL}</div>
-          </div>
-        </section>
-
-        <div>
-          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
         </div>
-      </CardContent>
-    </Card>
+      </ReviewFieldBlock>
+
+      <ReviewFieldBlock title="Contact Person">
+        <div className={reviewRowGridClass}>
+          <Label className={reviewLabelClass}>Applicant name</Label>
+          <div className={reviewValueClass}>{cpName || REVIEW_EMPTY_LABEL}</div>
+          <Label className={reviewLabelClass}>Applicant position</Label>
+          <div className={reviewValueClass}>{cpPosition || REVIEW_EMPTY_LABEL}</div>
+          <Label className={reviewLabelClass}>Applicant IC no</Label>
+          <div className={reviewValueClass}>{cpIc || REVIEW_EMPTY_LABEL}</div>
+          <Label className={reviewLabelClass}>Applicant contact</Label>
+          <div className={reviewValueClass}>{cpContact || REVIEW_EMPTY_LABEL}</div>
+        </div>
+      </ReviewFieldBlock>
+
+      <div>
+        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
+        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+      </div>
+    </ReviewSectionCard>
   );
 }
