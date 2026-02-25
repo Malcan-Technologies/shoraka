@@ -3966,6 +3966,12 @@ export class AdminService {
       ReviewStepStatus.APPROVED,
       reviewerUserId
     );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "APPROVED" },
+      });
+    }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
       await repository.createReviewRemark(
@@ -4015,6 +4021,12 @@ export class AdminService {
       ReviewStepStatus.REJECTED,
       reviewerUserId
     );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "REJECTED" },
+      });
+    }
     await repository.createReviewRemark(
       applicationId,
       "section",
@@ -4072,6 +4084,12 @@ export class AdminService {
       remark,
       reviewerUserId
     );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "AMENDMENT_REQUESTED" },
+      });
+    }
     await repository.createReviewEvent(
       applicationId,
       "SECTION_REVIEWED",
