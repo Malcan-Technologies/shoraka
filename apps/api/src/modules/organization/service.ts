@@ -508,9 +508,13 @@ export class OrganizationService {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
-    // Only owner can update profile
-    if (organization.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "Only the organization owner can update profile");
+    // Only owner or organization admins can update profile
+    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
+    const canManageProfile =
+      organization.owner_user_id === userId || userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+
+    if (!canManageProfile) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to update profile");
     }
 
     logger.info(

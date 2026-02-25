@@ -25,13 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CloudUpload, X, CheckCircle2 } from "lucide-react";
+import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ContractDetailsSkeleton } from "@/app/applications/components/contract-details-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   formInputClassName,
   formLabelClassName,
@@ -40,6 +41,8 @@ import {
 } from "@/app/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
+import { format, parse, isValid, parseISO } from "date-fns";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -50,6 +53,11 @@ const ENTITY_TYPES = [
   "Partnership",
   "Private Limited Company (Sdn Bhd)",
   "Public Limited Company (Bhd)",
+  "Federal Government",
+  "State Government",
+  "Federal Government Agency",
+  "State Government Agency",
+  "Unlisted Public Company",
 ];
 
 const COUNTRIES = [
@@ -57,23 +65,73 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
+
+  const tooltipClassName =
+  "max-w-[240px] whitespace-normal break-words text-xs leading-snug";
+
 /* ================================================================
    VALIDATION HELPERS
    ================================================================ */
 
 function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
-  return new Date(start).getTime() < new Date(end).getTime();
+
+  const parsedStart = parse(start, "d/M/yyyy", new Date());
+  const parsedEnd = parse(end, "d/M/yyyy", new Date());
+
+  if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+    return true; // format validation handled elsewhere
+  }
+
+  return parsedStart.getTime() < parsedEnd.getTime();
 }
 
-const MIN_CONTRACT_MONTHS = 6;
-
-function isEndDateTooSoon(endDate?: string, minMonths = MIN_CONTRACT_MONTHS) {
+function isEndDateTooSoon(
+  startDate?: string,
+  endDate?: string,
+  minMonths?: number
+) {
   if (!endDate) return false;
+  if (!minMonths || minMonths <= 0) return false;
+
+  const parsedEnd = parse(endDate, "d/M/yyyy", new Date());
+  if (!isValid(parsedEnd)) return false;
+
   const today = new Date();
-  const minAllowedEndDate = new Date(today);
+  let baseDate = today;
+
+  if (startDate) {
+    const parsedStart = parse(startDate, "d/M/yyyy", new Date());
+    if (isValid(parsedStart) && parsedStart > today) {
+      baseDate = parsedStart;
+    }
+  }
+
+  const minAllowedEndDate = new Date(baseDate);
   minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
-  return new Date(endDate) < minAllowedEndDate;
+
+  return parsedEnd < minAllowedEndDate;
+}
+
+/** Read product-level min_contract_months from product workflow (if present). */
+function getProductMinContractMonths(workflow: any[]): number | null {
+  try {
+    const contractStep = workflow.find(
+      (step: any) =>
+        step.id?.includes?.("contract_details") ||
+        step.name?.toLowerCase?.()?.includes?.("contract")
+    );
+
+    const config = contractStep?.config || {};
+    const val = config.min_contract_months ?? config.minContractMonths;
+
+    if (typeof val === "number") return val;
+    if (typeof val === "string" && /^\d+$/.test(val)) return parseInt(val, 10);
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /* ================================================================
@@ -116,9 +174,8 @@ function CustomRadio({
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${
-            checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
-          }`}
+          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
+            }`}
           aria-hidden
         >
           {checked && (
@@ -293,42 +350,27 @@ function FileUploadArea({
    SKELETON
    ================================================================ */
 
-function ContractDetailsSkeleton() {
-  return (
-    <div className="space-y-10">
-      <section className="space-y-4">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 pl-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i}>
-              <Skeleton className="h-[22px] w-40 mb-2" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 /* ================================================================
    MAIN COMPONENT
    ================================================================ */
 
 interface ContractDetailsStepProps {
   applicationId: string;
+  workflow: Record<string, unknown>[];
   onDataChange?: (data: Record<string, unknown>) => void;
 }
 
 export function ContractDetailsStep({
   applicationId,
+  workflow,
   onDataChange,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
+
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
@@ -346,6 +388,7 @@ export function ContractDetailsStep({
       value: "",
       start_date: "",
       end_date: "",
+      financing: "",
       document: null as FileMetadata | null,
     },
     customer: {
@@ -357,6 +400,8 @@ export function ContractDetailsStep({
       document: null as FileMetadata | null,
     },
   });
+
+  /** Note: Date inputs are free-text. Parents handle validation on save. */
 
   const [pendingFiles, setPendingFiles] = React.useState<{
     contract?: File;
@@ -371,6 +416,27 @@ export function ContractDetailsStep({
   }>({});
 
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [financingError, setFinancingError] = React.useState<string | null>(null);
+  // --------------------------------------------------
+  // Product-level contract rule (computed once)
+  // --------------------------------------------------
+  const productMinMonths = React.useMemo(
+    () => getProductMinContractMonths(workflow || []),
+    [workflow]
+  );
+
+  React.useEffect(() => {
+    console.log("[ContractDetails] productMinMonths:", productMinMonths);
+  }, [productMinMonths]);
+
+  React.useEffect(() => {
+    console.log("[ContractDetails] application:", application);
+  }, [application]);
+
+  /* Clear financing error when user changes the value */
+  React.useEffect(() => {
+    setFinancingError(null);
+  }, [formData.contract.financing]);
 
   /* ================================================================
      INITIALIZATION (run only once per applicationId)
@@ -386,7 +452,7 @@ export function ContractDetailsStep({
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
-    const contractDetails = contract 
+    const contractDetails = contract
       ? ((contract as unknown) as { contract_details?: Record<string, unknown> })?.contract_details as Record<string, unknown>
       : {};
     const customerDetails = contract
@@ -395,7 +461,7 @@ export function ContractDetailsStep({
 
     const relatedPartyValue: YesNo | "" =
       customerDetails.is_related_party === undefined ||
-      customerDetails.is_related_party === null
+        customerDetails.is_related_party === null
         ? ""
         : customerDetails.is_related_party
           ? ("yes" as const)
@@ -409,6 +475,10 @@ export function ContractDetailsStep({
         value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
         start_date: (contractDetails.start_date as string) || "",
         end_date: (contractDetails.end_date as string) || "",
+        financing:
+          (contractDetails.financing != null ? formatMoney(contractDetails.financing as string | number) : "") ||
+          (contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "") ||
+          "",
         document: (contractDetails.document as FileMetadata | null) || null,
       },
       customer: {
@@ -422,6 +492,40 @@ export function ContractDetailsStep({
     };
 
     setFormData(initialData);
+
+    // Hydrate display dates: convert ISO to d/M/yyyy if present
+    if (initialData.contract.start_date) {
+      try {
+        const parsed = parseISO(initialData.contract.start_date);
+        if (isValid(parsed)) {
+          setFormData((prev) => ({
+            ...prev,
+            contract: {
+              ...prev.contract,
+              start_date: format(parsed, "d/M/yyyy"),
+            },
+          }));
+        }
+      } catch (e) {
+        // ignore, keep raw
+      }
+    }
+    if (initialData.contract.end_date) {
+      try {
+        const parsed = parseISO(initialData.contract.end_date);
+        if (isValid(parsed)) {
+          setFormData((prev) => ({
+            ...prev,
+            contract: {
+              ...prev.contract,
+              end_date: format(parsed, "d/M/yyyy"),
+            },
+          }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
 
     // Track S3 keys for versioning
     const contractDoc = contractDetails.document as FileMetadata | undefined;
@@ -441,27 +545,83 @@ export function ContractDetailsStep({
      SAVE FUNCTION
      ================================================================ */
 
+  /** Parse flexible date strings: ISO (yyyy-MM-dd) or d/M/yyyy */
+  const parseFlexibleDate = (dateStr?: string): Date | null => {
+    if (!dateStr) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const d = parseISO(dateStr);
+      return isValid(d) ? d : null;
+    }
+    const d = parse(dateStr, "d/M/yyyy", new Date());
+    return isValid(d) ? d : null;
+  };
+
+  const isValidCalendarDate = (dateStr?: string) => !!parseFlexibleDate(dateStr);
+
   const saveFunction = React.useCallback(async () => {
     console.warn("[CONTRACT] Save triggered");
     setHasSubmitted(true);
-
-    // ❌ Validation
-    if (!/^\d{12}$/.test(formData.customer.ssm_number)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_SSM_FORMAT");
+    if (productMinMonths == null) {
+      toast.error("System configuration error. Please contact administrator.");
+      throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
     }
 
-    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_DATE_ORDER");
+    // Collect validation errors so we can show all inline errors at once.
+    const validationErrors: string[] = [];
+    // Clear previous financing error before validating
+    setFinancingError(null);
+
+    // Required fields
+    if (!formData.contract.start_date)
+      validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
+
+    if (!formData.contract.end_date)
+      validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
+
+    // Date format
+    if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
+      validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
+
+    if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
+      validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
+
+    // Logical order
+    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
+      validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
+
+    // Duration rule (product-level)
+    if (
+      isEndDateTooSoon(
+        formData.contract.start_date,
+        formData.contract.end_date,
+        productMinMonths
+      )
+    ) {
+      validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
     }
 
-    if (isEndDateTooSoon(formData.contract.end_date)) {
-      toast.error("Please fix the highlighted fields");
-      throw new Error("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+
+    if (!/^\d{12}$/.test(formData.customer.ssm_number)) validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
+
+
+    /* Validate financing amount only on Save (not during typing).
+       Follow CashSouk pattern: validation happens at save boundary. */
+    const contractValueNum = parseMoney(formData.contract.value);
+    const financingAmountNum = parseMoney(formData.contract.financing);
+
+    if (financingAmountNum <= 0) {
+      setFinancingError("Financing amount must be greater than 0");
+      validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
+    } else if (financingAmountNum > contractValueNum) {
+      setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
+      validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
     }
 
-    // Create contract if needed
+    // If any validation errors, show a single toast and abort save so UI shows all inline errors.
+    if (validationErrors.length > 0) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_CONTRACT_FAILED");
+    }
     let effectiveContractId = contractId;
     if (!effectiveContractId) {
       try {
@@ -581,18 +741,30 @@ export function ContractDetailsStep({
 
     // Convert values to numbers
     const valueNum = parseMoney(updatedFormData.contract.value);
+    const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
     const approvedFacilityNum = (contract as unknown as { contract_details?: { approved_facility?: number } })?.contract_details?.approved_facility || 0;
     const utilizedFacilityNum = (contract as unknown as { contract_details?: { utilized_facility?: number } })?.contract_details?.utilized_facility || 0;
-    const availableFacilityNum = valueNum;
+    const availableFacilityNum = 0;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,
       value: valueNum,
+      financing: contractFinancingNum,
+      start_date: (() => {
+        const pd = parseFlexibleDate(updatedFormData.contract.start_date);
+        return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.start_date;
+      })(),
+      end_date: (() => {
+        const pd = parseFlexibleDate(updatedFormData.contract.end_date);
+        return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.end_date;
+      })(),
       approved_facility: approvedFacilityNum,
       utilized_facility: utilizedFacilityNum,
       available_facility: availableFacilityNum,
       document: updatedFormData.contract.document || undefined,
     };
+
+    console.warn("[CONTRACT] Payload being sent:", { financing: contractFinancingNum, updatedContractDetails });
 
     const updatedCustomerDetails = {
       ...updatedFormData.customer,
@@ -639,13 +811,18 @@ export function ContractDetailsStep({
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
+    // Check if dates are present and valid (parents store free-text dates)
+    const hasValidStartDate = !!formData.contract.start_date && isValidCalendarDate(formData.contract.start_date);
+    const hasValidEndDate = !!formData.contract.end_date && isValidCalendarDate(formData.contract.end_date);
+
     const isValid =
       !!formData.contract.title &&
       !!formData.contract.description &&
       !!formData.contract.number &&
       !!formData.contract.value &&
-      !!formData.contract.start_date &&
-      !!formData.contract.end_date &&
+      !!formData.contract.financing &&
+      hasValidStartDate &&
+      hasValidEndDate &&
       hasContractDocument &&
       !!formData.customer.name &&
       !!formData.customer.entity_type &&
@@ -684,12 +861,35 @@ export function ContractDetailsStep({
     setPendingFiles((prev) => ({ ...prev, [type]: file }));
   };
 
+  const isStartInvalid =
+    hasSubmitted &&
+    (
+      !formData.contract.start_date ||
+      !isValidCalendarDate(formData.contract.start_date)
+    );
+
+  const isEndInvalid =
+    hasSubmitted &&
+    (
+      !formData.contract.end_date ||
+      !isValidCalendarDate(formData.contract.end_date) ||
+      !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) ||
+      (productMinMonths != null &&
+        isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths))
+    );
+
+
   /* ================================================================
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current) {
-    return <ContractDetailsSkeleton />;
+  if (!isInitializedRef.current || debugSkeletonMode) {
+    return (
+      <>
+        <ContractDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
+    );
   }
 
   const labelClassName = cn(formLabelClassName, "font-normal");
@@ -698,202 +898,279 @@ export function ContractDetailsStep({
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
-    <div className="space-y-10 px-3">
-      {/* Contract Details Section */}
-      <section className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Contract details</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className={sectionGridClassName}>
-          <Label className={labelClassName}>Contract title</Label>
-          <Input
-            value={formData.contract.title}
-            onChange={(e) => handleInputChange("contract", "title", e.target.value)}
-            placeholder="eg. Mining Rig Repair 12654"
-            className={inputClassName}
-          />
-
-          <Label className={labelClassName}>Contract description</Label>
-          <Textarea
-            value={formData.contract.description}
-            onChange={(e) =>
-              handleInputChange("contract", "description", e.target.value)
-            }
-            placeholder="eg. Repair and maintenance for 12 mining rigs"
-            className={cn(formTextareaClassName, "min-h-[100px]")}
-          />
-
-          <Label className={labelClassName}>Contract number</Label>
-          <Input
-            value={formData.contract.number}
-            onChange={(e) => handleInputChange("contract", "number", e.target.value)}
-            placeholder="eg. 20212345678"
-            className={inputClassName}
-          />
-
-          <Label className={labelClassName}>Contract value</Label>
-          <div className="h-11 flex items-center">
-            <MoneyInput
-              value={formData.contract.value}
-              onValueChange={(value) => handleInputChange("contract", "value", value)}
-              placeholder={`eg. ${formatMoney(5000000)}`}
-              prefix="RM"
-              inputClassName={inputClassName}
-            />
+    <>
+      <div className="space-y-10 px-3">
+        {/* Contract Details Section */}
+        <section className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Contract details</h3>
+            <div className="mt-2 h-px bg-border" />
           </div>
 
-          <Label className={labelClassName}>Contract start date</Label>
-          <DateInput
-            value={formData.contract.start_date?.slice(0, 10) || ""}
-            onChange={(v) => handleInputChange("contract", "start_date", v)}
-            className={inputClassName}
-            placeholder="e.g. Apr 12, 2025"
-          />
-
-          <Label className={labelClassName}>Contract end date</Label>
-          <div className="space-y-1">
-            <DateInput
-              value={formData.contract.end_date?.slice(0, 10) || ""}
-              onChange={(v) => handleInputChange("contract", "end_date", v)}
-              className={cn(
-                inputClassName,
-                (hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date)) ||
-                (hasSubmitted && isEndDateTooSoon(formData.contract.end_date))
-                  ? "border-destructive focus-visible:ring-destructive"
-                  : ""
-              )}
-              placeholder="e.g. Jun 12, 2025"
-            />
-
-            {hasSubmitted && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
-              <p className="text-xs text-destructive">
-                End date must be after start date
-              </p>
-            )}
-
-            {hasSubmitted && isEndDateTooSoon(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) === false && (
-              <p className="text-xs text-destructive">
-                Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
-              </p>
-            )}
-          </div>
-
-          <Label className={labelClassName}>Upload contract</Label>
-          <FileUploadArea
-            onFileSelect={(file) => handleFileUpload("contract", file)}
-            isUploading={isUploading.contract}
-            uploadedFile={formData.contract.document}
-            pendingFile={pendingFiles.contract}
-            onRemove={() => {
-              handleInputChange("contract", "document", null);
-              setPendingFiles((prev) => ({ ...prev, contract: undefined }));
-            }}
-          />
-        </div>
-      </section>
-
-      {/* Customer Details Section */}
-      <section className="space-y-4">
-        <div>
-          <h3 className={sectionHeaderClassName}>Customer details</h3>
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className={sectionGridClassName}>
-          <Label className={labelClassName}>Customer name</Label>
-          <Input
-            value={formData.customer.name}
-            onChange={(e) => handleInputChange("customer", "name", e.target.value)}
-            placeholder="eg. Petronas Chemical Bhd"
-            className={inputClassName}
-          />
-
-          <Label className={labelClassName}>Customer entity type</Label>
-          <Select
-            value={formData.customer.entity_type}
-            onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
-          >
-            <SelectTrigger className={formSelectTriggerClassName}>
-              <SelectValue placeholder="Select entity type" />
-            </SelectTrigger>
-            <SelectContent>
-              {ENTITY_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Label className={labelClassName}>Customer SSM number</Label>
-          <div className="space-y-1 min-h-[48px]">
+          <div className={sectionGridClassName}>
+            <Label className={labelClassName}>Contract title</Label>
             <Input
-              value={formData.customer.ssm_number}
-              onChange={(e) => {
-                const raw = e.target.value;
-
-                if (raw === "") {
-                  handleInputChange("customer", "ssm_number", "");
-                  return;
-                }
-
-                if (!/^\d{0,12}$/.test(raw)) return;
-
-                handleInputChange("customer", "ssm_number", raw);
-              }}
-              placeholder="eg. 202123456789"
+              value={formData.contract.title}
+              onChange={(e) => handleInputChange("contract", "title", e.target.value)}
+              placeholder="eg. Mining Rig Repair 12654"
               className={inputClassName}
             />
-            {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
-              <p className="text-xs text-destructive">
-                SSM number must be 12 digits
-              </p>
-            )}
-          </div>
 
-          <Label className={labelClassName}>Customer country</Label>
-          <Select
-            value={formData.customer.country}
-            onValueChange={(value) => handleInputChange("customer", "country", value)}
-          >
-            <SelectTrigger className={formSelectTriggerClassName}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map((country) => (
-                <SelectItem key={country.code} value={country.code}>
-                  <div className="flex items-center gap-2">
-                    <span>{country.flag}</span>
-                    <span>{country.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Label className={labelClassName}>Contract description</Label>
+            <Textarea
+              value={formData.contract.description}
+              onChange={(e) =>
+                handleInputChange("contract", "description", e.target.value)
+              }
+              placeholder="eg. Repair and maintenance for 12 mining rigs"
+              className={cn(formTextareaClassName, "min-h-[100px]")}
+            />
 
-          <Label className={labelClassName}>is customer related to issuer?</Label>
-          <div className="h-11 flex items-center">
-            <YesNoRadioGroup
-              value={formData.customer.is_related_party}
-              onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
+            <Label className={labelClassName}>Contract number</Label>
+            <Input
+              value={formData.contract.number}
+              onChange={(e) => handleInputChange("contract", "number", e.target.value)}
+              placeholder="eg. 20212345678"
+              className={inputClassName}
+            />
+
+            <Label className={labelClassName}>Contract value</Label>
+            <div className="h-11 flex items-center">
+              <MoneyInput
+                value={formData.contract.value}
+                onValueChange={(value) => handleInputChange("contract", "value", value)}
+                placeholder={`eg. ${formatMoney(5000000)}`}
+                prefix="RM"
+                inputClassName={inputClassName}
+              />
+            </div>
+
+            <Label className={labelClassName}>Contract financing</Label>
+            <div className="space-y-1">
+              <div className="h-11 flex items-center">
+                <MoneyInput
+                  value={formData.contract.financing}
+                  onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                  placeholder={`eg. ${formatMoney(1000000)}`}
+                  prefix="RM"
+                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
+                />
+              </div>
+              {financingError && (
+                <p className="text-xs text-destructive">
+                  {financingError}
+                </p>
+              )}
+            </div>
+
+            <Label className={labelClassName}>Contract start date</Label>
+            <div className="space-y-1">
+              <DateInput
+                value={formData.contract.start_date || ""}
+                onChange={(v) => handleInputChange("contract", "start_date", v)}
+                isInvalid={isStartInvalid}
+                className={inputClassName}
+              />
+              {hasSubmitted && !formData.contract.start_date && (
+                <p className="text-xs text-destructive">
+                  Start date is required
+                </p>
+              )}
+              {hasSubmitted && formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date) && (
+                <p className="text-xs text-destructive">
+                  Invalid date
+                </p>
+              )}
+            </div>
+
+
+
+            <div className="flex items-center gap-1">
+              <Label className={labelClassName}>Contract end date</Label>
+              {formData.contract.start_date && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                  </TooltipTrigger>
+                  {productMinMonths && (
+                    <TooltipContent
+                      side="right"
+                      className={tooltipClassName}
+                    >
+                      {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              )}
+            </div>
+            <div className="space-y-1">
+              <DateInput
+                value={formData.contract.end_date || ""}
+                onChange={(v) => handleInputChange("contract", "end_date", v)}
+                isInvalid={isEndInvalid}
+                className={inputClassName}
+              />
+
+
+              {hasSubmitted && !formData.contract.end_date && (
+                <p className="text-xs text-destructive">
+                  End date is required
+                </p>
+              )}
+
+              {hasSubmitted && formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date) && (
+                <p className="text-xs text-destructive">
+                  Invalid date
+                </p>
+              )}
+
+              {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
+                <p className="text-xs text-destructive">
+                  End date must be after start date
+                </p>
+              )}
+
+              {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && isEndDateTooSoon(
+                formData.contract.start_date,
+                formData.contract.end_date,
+                productMinMonths ?? undefined
+              ) && (
+                  <p className="text-xs text-destructive">
+                    Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
+                  </p>
+                )}
+            </div>
+
+            <Label className={labelClassName}>Upload contract</Label>
+            <FileUploadArea
+              onFileSelect={(file) => handleFileUpload("contract", file)}
+              isUploading={isUploading.contract}
+              uploadedFile={formData.contract.document}
+              pendingFile={pendingFiles.contract}
+              onRemove={() => {
+                handleInputChange("contract", "document", null);
+                setPendingFiles((prev) => ({ ...prev, contract: undefined }));
+              }}
             />
           </div>
+        </section>
 
-          <Label className={labelClassName}>Upload customer consent</Label>
-          <FileUploadArea
-            onFileSelect={(file) => handleFileUpload("consent", file)}
-            isUploading={isUploading.consent}
-            uploadedFile={formData.customer.document}
-            pendingFile={pendingFiles.consent}
-            onRemove={() => {
-              handleInputChange("customer", "document", null);
-              setPendingFiles((prev) => ({ ...prev, consent: undefined }));
-            }}
-          />
-        </div>
-      </section>
-    </div>
+        {/* Customer Details Section */}
+        <section className="space-y-4">
+          <div>
+            <h3 className={sectionHeaderClassName}>Customer details</h3>
+            <div className="mt-2 h-px bg-border" />
+          </div>
+
+          <div className={sectionGridClassName}>
+            <Label className={labelClassName}>Customer name</Label>
+            <Input
+              value={formData.customer.name}
+              onChange={(e) => handleInputChange("customer", "name", e.target.value)}
+              placeholder="eg. Petronas Chemical Bhd"
+              className={inputClassName}
+            />
+
+            <Label className={labelClassName}>Customer entity type</Label>
+            <Select
+              value={formData.customer.entity_type}
+              onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
+            >
+              <SelectTrigger className={formSelectTriggerClassName}>
+                <SelectValue placeholder="Select entity type" />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTITY_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Label className={labelClassName}>Customer SSM number</Label>
+            <div className="space-y-1 min-h-[48px]">
+              <Input
+                value={formData.customer.ssm_number}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  if (raw === "") {
+                    handleInputChange("customer", "ssm_number", "");
+                    return;
+                  }
+
+                  if (!/^\d{0,12}$/.test(raw)) return;
+
+                  handleInputChange("customer", "ssm_number", raw);
+                }}
+                placeholder="eg. 202123456789"
+                className={inputClassName}
+              />
+              {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
+                <p className="text-xs text-destructive">
+                  SSM number must be 12 digits
+                </p>
+              )}
+            </div>
+
+            <Label className={labelClassName}>Customer country</Label>
+            <Select
+              value={formData.customer.country}
+              onValueChange={(value) => handleInputChange("customer", "country", value)}
+            >
+              <SelectTrigger className={formSelectTriggerClassName}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map((country) => (
+                  <SelectItem key={country.code} value={country.code}>
+                    <div className="flex items-center gap-2">
+                      <span>{country.flag}</span>
+                      <span>{country.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-1">
+              <Label className={labelClassName}>Is the customer related to you?</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  className={tooltipClassName}
+                >
+                  Related director/shareholder or having subsidiary/sister company or parent company relationship
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="h-11 flex items-center">
+              <YesNoRadioGroup
+                value={formData.customer.is_related_party}
+                onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
+              />
+            </div>
+
+            <Label className={labelClassName}>Upload customer consent</Label>
+            <FileUploadArea
+              onFileSelect={(file) => handleFileUpload("consent", file)}
+              isUploading={isUploading.consent}
+              uploadedFile={formData.customer.document}
+              pendingFile={pendingFiles.consent}
+              onRemove={() => {
+                handleInputChange("customer", "document", null);
+                setPendingFiles((prev) => ({ ...prev, consent: undefined }));
+              }}
+            />
+          </div>
+        </section>
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
+
 }

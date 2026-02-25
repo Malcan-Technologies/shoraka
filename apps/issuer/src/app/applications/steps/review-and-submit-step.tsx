@@ -17,6 +17,14 @@ import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
 import { SelectionCard } from "@/app/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
+import { ReviewContractSkeleton } from "../components/review-contract-skeleton";
+import { ReviewInvoiceSkeleton } from "../components/review-invoice-skeleton";
+import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
+import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
+import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
+import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { formatMoney } from "../components/money";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -59,16 +67,20 @@ interface ReviewAndSubmitStepProps {
  * REUSED STYLES FROM STEPS
  * Matching: business-details-step, contract-details-step patterns
  */
-const labelClassName = formLabelClassName;
+// Centralized layout/class tokens (aligned with Branding.mdc)
+const pageWrapperClassName = "mx-auto max-w-7xl px-6 py-10 md:py-12";
+const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
-const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
-const gridClassName = "grid grid-cols-1 sm:grid-cols-[348px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionHeaderClassName = "text-xl md:text-2xl font-semibold";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
-
 export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
 }: ReviewAndSubmitStepProps) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
   const contractId = (application as any)?.contract?.id || (application as any)?.contract_id;
@@ -240,12 +252,20 @@ export function ReviewAndSubmitStep({
     baseFacility - totalFinancingAmount;
 
   // Determine which data is actually loading based on what sections are shown
-  const isLoading =
-    isLoadingApp ||
-    isLoadingProducts ||
-    (showCompanySection && (isLoadingInfo || isLoadingEntities)) ||
-    (showContractSection && contractId && isLoadingContract) ||
-    (showInvoiceSection && isLoadingInvoices);
+  // Note: removed unused isLoading variable to satisfy build checks.
+
+  const isInvoiceOnly = structureType === "invoice_only";
+
+  // Section-level loading flags
+  const contractLoading =
+    showContractSection &&
+    !isInvoiceOnly &&
+    (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
+
+  const invoiceLoading = showInvoiceSection && isLoadingInvoices;
+  const financingLoading = showFinancingDetails && (isLoadingProducts || isLoadingProductImage);
+  const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
+  const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
 
 
@@ -260,20 +280,23 @@ export function ReviewAndSubmitStep({
     });
   }, [onDataChange]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-12">
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
-  }
+  // Debug: log raw financing value
+  console.log("contract.financing", (application as any)?.contract?.contract_details?.financing);
+
+  // Note: we no longer short-circuit to a full-page skeleton.
+  // Each section will render its own skeleton when its data is loading.
+  console.log("contractSkeletonActive", contractLoading);
+  console.log("invoiceSkeletonActive", invoiceLoading);
 
   // Formatters
-  const formatCurrency = (value: any) => {
-    const num = typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
-    return `RM ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const renderMoney = (value: any) => {
+    if (value === null || value === undefined) return "—";
+    // formatMoney returns a formatted number string like "1,234.56"
+    try {
+      return `RM ${formatMoney(value)}`;
+    } catch (e) {
+      return "—";
+    }
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
@@ -303,392 +326,425 @@ export function ReviewAndSubmitStep({
   const categories = supportingDocs?.categories || [];
 
   return (
-    <div className="space-y-12 px-3 max-w-[1200px] mx-auto pb-20">
-      {/* Financing details */}
-      {showFinancingDetails && (
-        <section className={sectionSpacingClassName}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Financing details</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
+    <>
+      <div className={`${pageWrapperClassName} space-y-12 pb-20`}>
+        {/* Financing details */}
+        {showFinancingDetails && (
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Financing details</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
 
-          {financingTypeConfig ? (
-            <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
-              <SelectionCard
-                title={financingTypeConfig.name}
-                description={financingTypeConfig.description}
-                isSelected={false}
-                onClick={() => { }}
-                leading={
-                  <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
-                    {isLoadingProductImage ? (
-                      <Skeleton className="h-full w-full rounded-md" />
-                    ) : productImageUrl ? (
-                      <img
-                        src={productImageUrl}
-                        alt={financingTypeConfig.name || "Product"}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                        Image
-                        <br />
-                        512x512
+            {financingTypeConfig ? (
+              financingLoading || debugSkeletonMode ? (
+                <ReviewFinancingSkeleton />
+              ) : (
+                <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
+                  <SelectionCard
+                    title={financingTypeConfig.name}
+                    description={financingTypeConfig.description}
+                    isSelected={false}
+                    onClick={() => { }}
+                    leading={
+                      <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                        {isLoadingProductImage ? (
+                          <Skeleton className="h-full w-full rounded-md" />
+                        ) : productImageUrl ? (
+                          <img
+                            src={productImageUrl}
+                            alt={financingTypeConfig.name || "Product"}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
+                            Image
+                            <br />
+                            512x512
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground italic">
-              Financing type not selected
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Contract */}
-      {showContractSection && contractId && (
-        <section className={sectionSpacingClassName}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Contract</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className={gridClassName}>
-            <div className={labelClassName}>Contract title</div>
-            <div className={valueClassName}>{contractDetails.title || "—"}</div>
-
-            <div className={labelClassName}>Contract status</div>
-            <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
-
-            <div className={labelClassName}>Customer</div>
-            <div className={valueClassName}>{customerDetails.name || "—"}</div>
-
-            <div className={labelClassName}>Contract value</div>
-            <div className={valueClassName}>
-              {isValidNumber(contractValue)
-                ? formatCurrency(contractValue)
-                : "—"}
-            </div>
-
-
-            <div className={labelClassName}>Approved facility</div>
-            <div className={valueClassName}>
-              {isValidNumber(approvedFacility) && approvedFacility > 0
-                ? formatCurrency(approvedFacility)
-                : "—"}
-
-            </div>
-
-            <div className={labelClassName}>Utilised facility</div>
-            <div className={valueClassName}>
-              {structureType === "existing_contract" &&
-                isValidNumber(totalFinancingAmount)
-                ? formatCurrency(totalFinancingAmount)
-                : "—"}
-
-            </div>
-
-            <div className={labelClassName}>Available facility</div>
-            <div className={valueClassName}>
-              {structureType === "existing_contract" &&
-                isValidNumber(calculatedAvailableFacility)
-                ? formatCurrency(calculatedAvailableFacility)
-                : "—"}
-
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Invoices */}
-      {showInvoiceSection && (
-        <section className={sectionSpacingClassName}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Invoices</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
-          </p>
-
-          <div className="border rounded-xl bg-card overflow-hidden">
-            {invoices.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground italic">
-                No invoices added
+                    }
+                  />
+                </div>
+              )
+            ) : (
+              <div className="text-sm text-muted-foreground italic">
+                Financing type not selected
               </div>
+            )}
+          </section>
+        )}
+
+        {/* Contract */}
+        {showContractSection && !isInvoiceOnly && (
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Contract</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
+            {contractLoading || debugSkeletonMode ? (
+              <ReviewContractSkeleton />
+            ) : (
+              <div className={sectionGridClassName}>
+                <div className={labelClassName}>Contract title</div>
+                <div className={valueClassName}>{contractDetails.title || "—"}</div>
+
+                <div className={labelClassName}>Contract status</div>
+                <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+
+                <div className={labelClassName}>Customer</div>
+                <div className={valueClassName}>{customerDetails.name || "—"}</div>
+
+                <div className={labelClassName}>Contract value</div>
+                <div className={valueClassName}>
+                  {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
+                </div>
+
+                <div className={labelClassName}>Contract financing</div>
+                <div className={valueClassName}>
+                  {contractDetails?.financing === null || contractDetails?.financing === undefined
+                    ? "—"
+                    : renderMoney(contractDetails?.financing)}
+                </div>
+
+                <div className={labelClassName}>Approved facility</div>
+                <div className={valueClassName}>
+                  {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
+                </div>
+
+                <div className={labelClassName}>Utilised facility</div>
+                <div className={valueClassName}>
+                  {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
+                </div>
+
+                <div className={labelClassName}>Available facility</div>
+                <div className={valueClassName}>
+                  {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Invoices */}
+        {showInvoiceSection && (
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Invoices</h3>
+              <div className="mt-2 h-px bg-border" />
+            </div>
+            {invoiceLoading || debugSkeletonMode ? (
+              <ReviewInvoiceSkeleton />
             ) : (
               <>
-                {/* Table */}
-                <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
-                  <Table className="table-fixed w-full">
-                    <TableHeader className="bg-muted/20">
-                      <TableRow>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
-                          Invoice
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
-                          Status
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
-                          Maturity date
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
-                          Invoice value (RM)
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
-                          Financing ratio
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
-                          Maximum financing amount (RM)
-                        </TableHead>
-                        <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
-                          Documents
-                        </TableHead>
-                        <TableHead className={INVOICE_TABLE_COLUMNS.action} />
-                      </TableRow>
-                    </TableHeader>
+                <p className="text-sm text-muted-foreground">
+                  You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+                </p>
+
+                <div className="border rounded-xl bg-card overflow-hidden">
+                  {invoices.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground italic">
+                      No invoices added
+                    </div>
+                  ) : (
+                    <>
+                      {/* Table */}
+                      <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
+                        <Table className="table-fixed w-full">
+                          <TableHeader className="bg-muted/20">
+                            <TableRow>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                                Invoice
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                                Status
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
+                                Maturity date
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
+                                Invoice value (RM)
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
+                                Financing ratio
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
+                                Maximum financing amount (RM)
+                              </TableHead>
+                              <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                                Documents
+                              </TableHead>
+                              <TableHead className={INVOICE_TABLE_COLUMNS.action} />
+                            </TableRow>
+                          </TableHeader>
 
 
-                    <TableBody>
-                      {invoices.map((invoice: any) => {
-                        const d = invoice.details || {};
-                        const value = Number(d.value || 0);
-                        const ratio = d.financing_ratio_percent ?? 60;
-                        const financingAmount = value * (ratio / 100);
+                          <TableBody>
+                            {invoices.map((invoice: any) => {
+                              const d = invoice.details || {};
+                              const value = Number(d.value || 0);
+                              const ratio = d.financing_ratio_percent ?? 60;
+                              const financingAmount = value * (ratio / 100);
 
-                        return (
-                          <TableRow key={invoice.id} className="hover:bg-muted/40">
-                            {/* Invoice */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {d.number || "—"}
-                            </TableCell>
+                              return (
+                                <TableRow key={invoice.id} className="hover:bg-muted/40">
+                                  {/* Invoice */}
+                                  <TableCell className="p-2 text-xs whitespace-nowrap">
+                                    {d.number || "—"}
+                                  </TableCell>
 
-                            {/* Status */}
-                            <TableCell className="p-2">
-                              <StatusBadge status={invoice.status} />
-                            </TableCell>
+                                  {/* Status */}
+                                  <TableCell className="p-2">
+                                    <StatusBadge status={invoice.status} />
+                                  </TableCell>
 
-                            {/* Maturity */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {formatDate(d.maturity_date)}
-                            </TableCell>
+                                  {/* Maturity */}
+                                  <TableCell className="p-2 text-xs whitespace-nowrap">
+                                    {formatDate(d.maturity_date)}
+                                  </TableCell>
 
-                            {/* Value */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
-                              {isValidNumber(value)
-                                ? formatCurrency(value)
-                                : "—"}
+                                  {/* Value */}
+                                  <TableCell className="p-2 text-xs whitespace-nowrap tabular-nums">
+                                    {isValidNumber(value) ? renderMoney(value) : "—"}
+                                  </TableCell>
 
-                            </TableCell>
+                                  {/* Ratio */}
+                                  <TableCell className="p-2 text-xs whitespace-nowrap">
+                                    {ratio}%
+                                  </TableCell>
 
-                            {/* Ratio */}
-                            <TableCell className="p-2 text-xs whitespace-nowrap">
-                              {ratio}%
-                            </TableCell>
+                                  {/* Amount */}
+                                  <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                                    {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
+                                  </TableCell>
 
-                            {/* Amount */}
-                            <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                              {isValidNumber(financingAmount)
-                                ? formatCurrency(financingAmount)
-                                : "—"}
+                                  {/* Document */}
+                                  <TableCell className="p-2">
+                                    {d.document?.file_name ? (
+                                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                        </div>
+                                        <span className="text-xs font-medium truncate max-w-[120px]">
+                                          {d.document.file_name}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">—</span>
+                                    )}
+                                  </TableCell>
 
-                            </TableCell>
+                                  {/* Empty action column (keeps width alignment) */}
+                                  <TableCell />
+                                </TableRow>
+                              );
+                            })}
 
-                            {/* Document */}
-                            <TableCell className="p-2">
-                              {d.document?.file_name ? (
-                                <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                                  <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                    <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                  </div>
-                                  <span className="text-xs font-medium truncate max-w-[120px]">
-                                    {d.document.file_name}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </TableCell>
+                            {/* TOTAL — identical to Invoice Details */}
+                            <TableRow className="bg-muted/10">
+                              <TableCell colSpan={5} />
+                              <TableCell className="p-2 font-semibold text-xs">
+                                {isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
 
-                            {/* Empty action column (keeps width alignment) */}
-                            <TableCell />
-                          </TableRow>
-                        );
-                      })}
+                                <div className="text-xs text-muted-foreground font-normal">Total</div>
+                              </TableCell>
+                              <TableCell colSpan={2} />
+                            </TableRow>
+                          </TableBody>
 
-                      {/* TOTAL — identical to Invoice Details */}
-                      <TableRow className="bg-muted/10">
-                        <TableCell colSpan={5} />
-                        <TableCell className="p-2 font-semibold text-xs">
-                          {isValidNumber(totalFinancingAmount)
-                            ? formatCurrency(totalFinancingAmount)
-                            : "—"}
-
-                          <div className="text-xs text-muted-foreground font-normal">Total</div>
-                        </TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
-                    </TableBody>
-
-                  </Table>
+                        </Table>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}
-          </div>
-        </section>
-      )}
-
-      {/* Company Info */}
-      {showCompanySection && (
-        <>
-          <section className={sectionSpacingClassName}>
-            <div>
-              <h3 className={sectionHeaderClassName}>Company info</h3>
-              <div className="mt-2 h-px bg-border" />
-            </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Company name</div>
-              <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
-
-              <div className={labelClassName}>Type of entity</div>
-              <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
-
-              <div className={labelClassName}>SSM no</div>
-              <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
-
-              <div className={labelClassName}>Industry</div>
-              <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
-
-              <div className={labelClassName}>Nature of business</div>
-              <div className={valueClassName}>Private</div>
-
-              <div className={labelClassName}>Number of employees</div>
-              <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
-            </div>
           </section>
+        )}
 
-          {/* Director & Shareholders */}
+        {/* Company Info */}
+        {showCompanySection && (
+          <>
+            <section className={sectionSpacingClassName}>
+              <div>
+                <h3 className={sectionHeaderClassName}>Company Info</h3>
+                <div className="mt-2 h-px bg-border" />
+              </div>
+              {companyLoading || debugSkeletonMode ? (
+                <ReviewCompanySkeleton />
+              ) : (
+                <div className={sectionGridClassName}>
+                  <div className={labelClassName}>Company name</div>
+                  <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
+
+                  <div className={labelClassName}>Type of entity</div>
+                  <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
+
+                  <div className={labelClassName}>SSM no</div>
+                  <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
+
+                  <div className={labelClassName}>Industry</div>
+                  <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
+
+                  <div className={labelClassName}>Nature of business</div>
+                  <div className={valueClassName}>Private</div>
+
+                  <div className={labelClassName}>Number of employees</div>
+                  <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
+                </div>
+              )}
+            </section>
+
+            {/* Director & Shareholders */}
+            <section className={sectionSpacingClassName}>
+              <div>
+                <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+                <div className="mt-2 h-px bg-border" />
+              </div>
+              {companyLoading || debugSkeletonMode ? (
+                <ReviewBusinessSkeleton />
+              ) : combinedList.length === 0 ? (
+                <div className="text-sm text-muted-foreground px-3">
+                  No directors or shareholders found
+                </div>
+              ) : (
+<div className={sectionGridClassName}>
+  {combinedList.map((item: any) => (
+    <React.Fragment key={item.key}>
+      <div className={labelClassName}>{item.roleLabel}</div>
+
+      <div className="max-w-[480px] w-full">
+        <div className="grid grid-cols-[160px_auto_160px_auto_160px] items-center gap-x-3">
+
+          <div className={valueClassName}>
+            {item.name}
+          </div>
+
+          <div className="w-px h-4 bg-border" />
+
+          <div className="text-[17px] leading-7 text-muted-foreground">
+            {item.ownership}
+          </div>
+
+          <div className="w-px h-4 bg-border" />
+
+          <div className="flex items-center gap-1.5">
+            {item.statusVerified && (
+              <>
+                <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                <span className="text-[17px] leading-7 text-green-600">
+                  {item.statusType === "kyb" ? "KYB" : "KYC"}
+                </span>
+              </>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </React.Fragment>
+  ))}
+</div>
+              )}
+            </section>
+
+            {/* Banking details */}
+            <section className={sectionSpacingClassName}>
+              <div>
+                <h3 className={sectionHeaderClassName}>Banking Details</h3>
+                <div className="mt-2 h-px bg-border" />
+              </div>
+              {companyLoading || debugSkeletonMode ? (
+                <ReviewBusinessSkeleton />
+              ) : (
+                <div className={sectionGridClassName}>
+                  <div className={labelClassName}>Bank name</div>
+                  <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
+
+                  <div className={labelClassName}>Bank account number</div>
+                  <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
+                </div>
+              )}
+            </section>
+
+            {/* Address */}
+            <section className={sectionSpacingClassName}>
+              <div>
+                <h3 className={sectionHeaderClassName}>Address</h3>
+                <div className="mt-2 h-px bg-border" />
+              </div>
+              {companyLoading || debugSkeletonMode ? (
+                <ReviewBusinessSkeleton />
+              ) : (
+                <div className={sectionGridClassName}>
+                  <div className={labelClassName}>Business address</div>
+                  <div className={valueClassName}>{formatAddress(businessAddress)}</div>
+
+                  <div className={labelClassName}>Registered address</div>
+                  <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
+                </div>
+              )}
+            </section>
+
+            {/* Contact Person */}
+            <section className={sectionSpacingClassName}>
+              <div>
+                <h3 className={sectionHeaderClassName}>Contact Person</h3>
+                <div className="mt-2 h-px bg-border" />
+              </div>
+              {companyLoading || debugSkeletonMode ? (
+                <ReviewBusinessSkeleton />
+              ) : (
+                <div className={sectionGridClassName}>
+                  <div className={labelClassName}>Applicant name</div>
+                  <div className={valueClassName}>{contactPerson.name || "—"}</div>
+
+                  <div className={labelClassName}>Applicant position</div>
+                  <div className={valueClassName}>{contactPerson.position || "—"}</div>
+
+                  <div className={labelClassName}>Applicant IC no</div>
+                  <div className={valueClassName}>{contactPerson.ic || "—"}</div>
+
+                  <div className={labelClassName}>Applicant contact</div>
+                  <div className={valueClassName}>{contactPerson.contact || "—"}</div>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* Legal docs */}
+        {showSupportingDocsSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
+              <h3 className={sectionHeaderClassName}>Legal Docs</h3>
               <div className="mt-2 h-px bg-border" />
             </div>
-            {combinedList.length === 0 ? (
-              <div className="text-sm text-muted-foreground px-3">
-                No directors or shareholders found
-              </div>
+            {supportingLoading || debugSkeletonMode ? (
+              <ReviewSupportingDocsSkeleton />
             ) : (
-              <div className={gridClassName}>
-                {combinedList.map((item: any) => (
-                  <React.Fragment key={item.key}>
-                    <div className={labelClassName}>{item.roleLabel}</div>
-                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                        {item.name}
-                      </div>
-                      <div className="h-4 w-px bg-border" />
-                      <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                        {item.ownership}
-                      </div>
-                      <div className="h-4 w-px bg-border" />
-                      {item.statusVerified ? (
-                        <div className="flex items-center gap-1.5 whitespace-nowrap">
-                          <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                          <span className="text-[17px] leading-7 text-green-600">
-                            {item.statusType === "kyb" ? "KYB" : "KYC"}
-                          </span>
+              <div className="space-y-4 px-3">
+                {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
+                  <div key={i} className="flex justify-between items-center py-2">
+                    <span className={labelClassName}>{doc.title}</span>
+                    {doc.file ? (
+                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                         </div>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  </React.Fragment>
+                        <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Not provided</span>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
           </section>
-
-          {/* Banking details */}
-          <section className={sectionSpacingClassName}>
-            <div>
-              <h3 className={sectionHeaderClassName}>Banking details</h3>
-              <div className="mt-2 h-px bg-border" />
-            </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Bank name</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
-
-              <div className={labelClassName}>Bank account number</div>
-              <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
-            </div>
-          </section>
-
-          {/* Address */}
-          <section className={sectionSpacingClassName}>
-            <div>
-              <h3 className={sectionHeaderClassName}>Address</h3>
-              <div className="mt-2 h-px bg-border" />
-            </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Business address</div>
-              <div className={valueClassName}>{formatAddress(businessAddress)}</div>
-
-              <div className={labelClassName}>Registered address</div>
-              <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
-            </div>
-          </section>
-
-          {/* Contact Person */}
-          <section className={sectionSpacingClassName}>
-            <div>
-              <h3 className={sectionHeaderClassName}>Contact Person</h3>
-              <div className="mt-2 h-px bg-border" />
-            </div>
-            <div className={gridClassName}>
-              <div className={labelClassName}>Applicant name</div>
-              <div className={valueClassName}>{contactPerson.name || "—"}</div>
-
-              <div className={labelClassName}>Applicant position</div>
-              <div className={valueClassName}>{contactPerson.position || "—"}</div>
-
-              <div className={labelClassName}>Applicant IC no</div>
-              <div className={valueClassName}>{contactPerson.ic || "—"}</div>
-
-              <div className={labelClassName}>Applicant contact</div>
-              <div className={valueClassName}>{contactPerson.contact || "—"}</div>
-            </div>
-          </section>
-        </>
-      )}
-
-      {/* Legal docs */}
-      {showSupportingDocsSection && (
-        <section className={sectionSpacingClassName}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Legal docs</h3>
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className="space-y-4 px-3">
-            {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-              <div key={i} className="flex justify-between items-center py-2">
-                <span className={labelClassName}>{doc.title}</span>
-                {doc.file ? (
-                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                    </div>
-                    <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
-                  </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground italic">Not provided</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
+        )}
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }

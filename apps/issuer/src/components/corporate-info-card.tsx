@@ -10,9 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface CorporateInfoCardProps {
   organizationId: string;
+  canEdit?: boolean;
 }
 
-export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
+export function CorporateInfoCard({
+  organizationId,
+  canEdit = true,
+}: CorporateInfoCardProps) {
   const { corporateInfo, isLoading, update, isUpdating } = useCorporateInfo(organizationId);
   const [isEditing, setIsEditing] = React.useState(false);
 
@@ -33,8 +37,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(
         corporateInfo.basicInfo?.ssmRegisterNumber ||
-          (corporateInfo.basicInfo as { ssmRegistrationNumber?: string })?.ssmRegistrationNumber ||
-          ""
+        (corporateInfo.basicInfo as { ssmRegistrationNumber?: string })?.ssmRegistrationNumber ||
+        ""
       );
     }
   }, [corporateInfo]);
@@ -88,8 +92,16 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             <p className="text-sm text-muted-foreground">Business and registration details</p>
           </div>
         </div>
-        {!isEditing && (
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2 rounded-xl">
+        {!isEditing && canEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!canEdit) return;
+              setIsEditing(true);
+            }}
+            className={`gap-2 rounded-xl ${!canEdit ? "invisible pointer-events-none" : ""}`}
+          >
             <PencilIcon className="h-4 w-4" />
             Edit
           </Button>
@@ -139,7 +151,7 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
         </div>
-        {isEditing && (
+        {isEditing && canEdit && (
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={handleCancel} disabled={isUpdating} className="gap-2 rounded-xl">
               <XMarkIcon className="h-4 w-4" />

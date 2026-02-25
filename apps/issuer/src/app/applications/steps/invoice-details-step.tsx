@@ -14,25 +14,16 @@
  *    - Invoice maturity date must be today or a future date.
  *    - Overdue (past) invoices cannot be financed.
  *
- * 4. Product max maturity days
- *    - Each product defines the maximum number of days
- *      an invoice is allowed to mature from today.
- *    - Invoice maturity date must be within this limit.
- *
- * 5. Contract date window (only if a contract exists)
+ * 4. Contract date window (only if a contract exists)
  *    - Invoice maturity date must fall within the
  *      contract start and end dates.
  *    - Skipped for invoice-only flows (no contract).
  *
- * 6. Minimum invoice value
+ * 5. Minimum invoice value
  *    - Each product defines a minimum invoice value.
  *    - Invoice value must meet or exceed this amount.
  *
- * 7. Maximum invoice value
- *    - Each product defines a maximum invoice value.
- *    - Invoice value must not exceed this amount.
- *
- * 8. Financing ratio
+ * 6. Financing ratio
  *    - Only part of each invoice can be financed.
  *    - Financing ratio must be between 60% and 80%.
  *
@@ -64,52 +55,61 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
-import { formLabelClassName } from "@/app/applications/components/form-control";
+import { useProducts } from "@/hooks/use-products";
+import {
+  formLabelClassName,
+  withFieldError,
+} from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { InvoiceDetailsSkeleton } from "@/app/applications/components/invoice-details-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-/**
- * VALIDATION CONSTANTS
- *
- * Product-level limits (will be configurable via Admin later).
- * These control invoice acceptance criteria.
- */
-const DEFAULT_MAX_INVOICE_MATURITY_DAYS = 180;
-const DEFAULT_MIN_INVOICE_VALUE = 0;
-const DEFAULT_MAX_INVOICE_VALUE = 500000;
+import { parseISO, parse, isValid, format } from "date-fns";
 
 /**
- * VALIDATION HELPERS
+ * PRODUCT CONFIG EXTRACTION
  *
- * These helpers calculate validation properties.
- * Extracted for easy replacement when product config becomes dynamic.
+ * Reads invoice validation config from product workflow.
+ * Config must be provided by admin; no fallbacks.
  */
-function getMaxInvoiceMaturityDays(): number {
-  return DEFAULT_MAX_INVOICE_MATURITY_DAYS;
-}
-
-function getMinInvoiceValue(): number {
-  return DEFAULT_MIN_INVOICE_VALUE;
-}
-
-function getMaxInvoiceValue(): number {
-  return DEFAULT_MAX_INVOICE_VALUE;
+interface InvoiceConfig {
+  min_invoice_value?: number | null;
+  max_invoice_value?: number | null;
 }
 
 /**
- * Calculate days between two dates.
- *
- * What: Returns the difference in days (whole days only).
- * Why: Used to validate maturity date constraints.
+ * Resolve invoice config from product.
+ * Product is obtained by:
+ * 1) looking up application.financing_type.product_id in the provided products array
+ * 2) falling back to application.product if present
  */
-function daysBetween(startDate: Date, endDate: Date): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay);
+function getProductInvoiceConfig(application: any, products: any[] = []): InvoiceConfig | null {
+  try {
+    const productId = application?.financing_type?.product_id;
+    let product = null;
+    if (productId && Array.isArray(products)) {
+      product = products.find((p: any) => p.id === productId) ?? null;
+    }
+    if (!product && application?.product) product = application.product;
+    const workflow = product?.workflow || [];
+    const invoiceStep = workflow.find(
+      (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
+    );
+    const config = invoiceStep?.config || {};
+    // debug removed
+    if (config == null || Object.keys(config).length === 0) return null;
+    return {
+      min_invoice_value: config.min_invoice_value ?? null,
+      max_invoice_value: config.max_invoice_value ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -120,8 +120,12 @@ function daysBetween(startDate: Date, endDate: Date): number {
  */
 function parseDateString(dateStr: string): Date | null {
   if (!dateStr) return null;
-  const date = new Date(dateStr);
-  return Number.isNaN(date.getTime()) ? null : date;
+  // Try ISO formats first (full ISO or yyyy-MM-dd)
+  const iso = parseISO(dateStr);
+  if (isValid(iso)) return iso;
+  // Fallback to d/M/yyyy (user-facing)
+  const d = parse(dateStr, "d/M/yyyy", new Date());
+  return isValid(d) ? d : null;
 }
 
 /**
@@ -144,6 +148,9 @@ interface InvoiceDetailsStepProps {
 }
 
 export default function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<any>(null);
@@ -155,6 +162,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   const { getAccessToken } = useAuthToken();
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
   React.useEffect(() => {
     let mounted = true;
@@ -302,62 +310,72 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
    * Returns error message if validation fails, empty string if valid.
    *
    * Validation order:
-   * 1. Past maturity date
-   * 2. Product max maturity days
+   * 1. Invalid date format
+   * 2. Past maturity date
    * 3. Contract date window (if contract exists)
    * 4. Min invoice value
-   * 5. Max invoice value
    */
-  const validateInvoiceConstraints = (inv: LocalInvoice): string => {
+  const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig | null): string => {
+    // debug removed
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
 
     // Parse maturity date
     const maturityDate = parseDateString(inv.maturity_date);
+
+    // Check if date string exists but couldn't be parsed (invalid date like Feb 31)
+    if (inv.maturity_date && !maturityDate) {
+      return `Invoice ${inv.number}: Invalid date.`;
+    }
+
     if (!maturityDate) return "";
 
+    // must be at least today
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
-
-    // 1. Maturity date must be TODAY or in the future
+    today.setHours(0, 0, 0, 0);
     if (maturityDate < today) {
       return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
     }
 
-    // 2. Maturity date must be within product max maturity days
-    const maxMaturityDays = getMaxInvoiceMaturityDays();
-    const daysUntilMaturity = daysBetween(today, maturityDate);
-    if (daysUntilMaturity > maxMaturityDays) {
-      return `Invoice ${inv.number}: Maturity date exceeds maximum ${maxMaturityDays} days limit.`;
-    }
-
-    // 3. Contract date window validation (if contract exists)
-    if (!isInvoiceOnly && application?.contract) {
-
+    // contract window must be on the start date
+    if (true) {
+      // Debug logs: show raw and parsed dates and comparison result
+      // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
+      // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
+      // (Logs intentionally minimal; only invoice number and date values)
       const contractStart = parseDateString(application.contract.contract_details?.start_date);
-      const contractEnd = parseDateString(application.contract.contract_details?.end_date);
 
       if (contractStart && maturityDate < contractStart) {
         return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
       }
+    }
 
-      if (contractEnd && maturityDate > contractEnd) {
-        return `Invoice ${inv.number}: Maturity date must be on or before contract end date.`;
+
+    // min/max invoice value checks only if productConfig provided
+    // debug removed
+    if (productConfig) {
+      // debug removed
+      const invoiceValue = parseMoney(inv.value);
+      const ratio = (inv.financing_ratio_percent || 60) / 100;
+      const financingAmount = invoiceValue * ratio;
+
+      const minValue = productConfig.min_invoice_value;
+      const maxValue = productConfig.max_invoice_value;
+
+      if (typeof minValue === "number") {
+        if (financingAmount < minValue) {
+          return `Invoice ${inv.number}: Financing amount must be at least RM ${formatMoney(minValue)}.`;
+        }
+      }
+
+      if (typeof maxValue === "number") {
+        if (financingAmount > maxValue) {
+          return `Invoice ${inv.number}: Financing amount cannot exceed RM ${formatMoney(maxValue)}.`;
+        }
       }
     }
 
-    // 4. Invoice value must be >= product minimum
-    const invoiceValue = parseMoney(inv.value);
-    const minValue = getMinInvoiceValue();
-    if (invoiceValue < minValue) {
-      return `Invoice ${inv.number}: Value must be at least ${formatMoney(minValue)}.`;
-    }
 
-    // 5. Invoice value must be <= product maximum
-    const maxValue = getMaxInvoiceValue();
-    if (invoiceValue > maxValue) {
-      return `Invoice ${inv.number}: Value cannot exceed ${formatMoney(maxValue)}.`;
-    }
 
     return "";
   };
@@ -406,46 +424,59 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
   let validationError = "";
+  const shouldRunValidation =
+    isInitialized &&
+    !isLoadingInvoices &&
+    !isLoadingApplication;
+
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
-
-
-  if (hasPartialRows) {
-    validationError = "Please complete all invoice details. Rows cannot have partial data.";
+  let productConfig: InvoiceConfig | null = null;
+  try {
+    productConfig = getProductInvoiceConfig(application, productsData?.products || []);
+  } catch (err) {
+    validationError = err instanceof Error ? err.message : "Product configuration error";
   }
 
-  if (!validationError && hasDuplicateInvoiceNumbers()) {
-    validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
-  }
+  if (shouldRunValidation) {
+    if (hasPartialRows) {
+      validationError = "Please complete all invoice details. Rows cannot have partial data.";
+    }
 
-  // Validate all invoice constraints (maturity date, value limits, contract window)
-  if (!validationError) {
-    for (const inv of invoices) {
-      const constraintError = validateInvoiceConstraints(inv);
-      if (constraintError) {
-        validationError = constraintError;
-        break;
+    if (!validationError && hasDuplicateInvoiceNumbers()) {
+      validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
+    }
+
+    // Validate all invoice constraints (maturity date, value limits, contract window)
+    // debug removed
+    if (!validationError) {
+      for (const inv of invoices) {
+        const constraintError = validateInvoiceConstraints(inv, productConfig);
+        if (constraintError) {
+          validationError = constraintError;
+          break;
+        }
       }
     }
-  }
 
-  if (!validationError && (isInvoiceOnly || isExistingContract)) {
-    const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
-    if (!hasAtLeastOneValidInvoice) {
-      validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+    if (!validationError && (isInvoiceOnly || isExistingContract)) {
+      const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
+      if (!hasAtLeastOneValidInvoice) {
+        validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+      }
     }
-  }
 
-  if (!isInvoiceOnly && !validationError) {
-    const invalidRatioInvoice = invoices.find(
-      (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
-    );
-    if (invalidRatioInvoice) {
-      validationError = "Financing ratio must be between 60% and 80%.";
-    }
-    if (!validationError && totalFinancingAmount > facilityLimit) {
-      validationError = `Total financing amount (${formatMoney(totalFinancingAmount)}) exceeds facility limit (${formatMoney(facilityLimit)}).`;
+    if (!isInvoiceOnly && !validationError) {
+      const invalidRatioInvoice = invoices.find(
+        (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
+      );
+      if (invalidRatioInvoice) {
+        validationError = "Financing ratio must be between 60% and 80%.";
+      }
+      if (!validationError && totalFinancingAmount > facilityLimit) {
+        validationError = `Total financing amount (RM ${formatMoney(totalFinancingAmount)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
+      }
     }
   }
 
@@ -455,6 +486,11 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
      *
      * If there are validation errors, show toast and prevent save.
      */
+    if (!productConfig) {
+      toast.error("Product configuration is missing. Please contact administrator.");
+      throw new Error("VALIDATION_PRODUCT_CONFIG");
+    }
+
     if (validationError) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_INVOICES");
@@ -492,7 +528,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
           details: {
             number: inv.number,
             value: parseMoney(inv.value),
-            maturity_date: inv.maturity_date,
+            maturity_date: (() => {
+              const pd = parseDateString(inv.maturity_date);
+              return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
+            })(),
             financing_ratio_percent: inv.financing_ratio_percent || 60,
           },
         };
@@ -522,7 +561,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
         const updatePayload: any = {
           number: inv.number,
           value: parseMoney(inv.value),
-          maturity_date: inv.maturity_date,
+          maturity_date: (() => {
+            const pd = parseDateString(inv.maturity_date);
+            return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
+          })(),
           financing_ratio_percent: inv.financing_ratio_percent || 60,
         };
 
@@ -610,7 +652,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
     setSelectedFiles({});
     setDeletedInvoices({});
-    
+
     // Return persisted invoices for application-level persistence
     return {
       invoices: invoices.filter((inv) => !isRowEmpty(inv)),
@@ -625,7 +667,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     Object.keys(deletedInvoices).length > 0;
 
   React.useEffect(() => {
-    let isValid = !hasPartialRows && !validationError;
+    let isValid = shouldRunValidation ? !hasPartialRows && !validationError : true;
     onDataChange?.({
       invoices,
       totalFinancingAmount,
@@ -661,7 +703,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
             number: d.number || "",
             status: it.status || "DRAFT",
             value: d.value != null ? formatMoney(d.value) : "",
-            maturity_date: d.maturity_date || "",
+            maturity_date: (() => {
+              if (!d.maturity_date) return "";
+              if (/^\d{4}-\d{2}-\d{2}$/.test(d.maturity_date)) {
+                const parsed = parseISO(d.maturity_date);
+                if (isValid(parsed)) return format(parsed, "d/M/yyyy");
+              }
+              return d.maturity_date || "";
+            })(),
             financing_ratio_percent: d.financing_ratio_percent || 60,
             document: d.document
               ? {
@@ -755,250 +804,244 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const isNewContract =
     application?.financing_structure?.structure_type === "new_contract";
 
+  if (isLoadingApplication || debugSkeletonMode) {
+    return (
+      <>
+        <InvoiceDetailsSkeleton
+          showContractSection={!isInvoiceOnly}
+          showInvoiceTable={true}
+        />
+
+        <DebugSkeletonToggle
+          isSkeletonMode={debugSkeletonMode}
+          onToggle={setDebugSkeletonMode}
+        />
+      </>
+    );
+  }
 
   return (
-    <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
-      {/* ================= Contract ================= */}
-      {isLoadingApplication ? (
-        <div className="space-y-4">
-          <div>
-            <Skeleton className="h-7 w-32" />
-            <div className="mt-2 h-px bg-border" />
-          </div>
-          <div className="space-y-3 mt-4 px-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-32" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        application?.contract && (
+    <>
+      <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
+        {/* ================= Contract ================= */}
+        {!isInvoiceOnly && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">Contract</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                Contract
+              </h3>
               <div className="mt-2 h-px bg-border" />
             </div>
 
-          <div className="space-y-3 mt-4 px-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-              <div className={formLabelClassName}>Contract title</div>
-              <div className={valueClassName}>{application.contract.contract_details?.title || "-"}</div>
+            <div className="space-y-3 mt-4 px-3">
+              <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
 
-              <div className={formLabelClassName}>Customer</div>
-              <div className={valueClassName}>{application.contract.customer_details?.name || "-"}</div>
+                {/* ================= Contract Title ================= */}
+                <div className={formLabelClassName}>Contract title</div>
+                <div className={valueClassName}>
+                  {application?.contract?.contract_details?.title ?? "—"}
+                </div>
 
-              <div className={formLabelClassName}>Contract value</div>
-              <div className={valueClassName}>
-                RM {application.contract.contract_details?.value != null
-                  ? formatMoney(application.contract.contract_details.value)
-                  : "—"}
+                {/* ================= Customer ================= */}
+                <div className={formLabelClassName}>Customer</div>
+                <div className={valueClassName}>
+                  {application?.contract?.customer_details?.name ?? "—"}
+                </div>
+
+                {/* ================= Contract Value ================= */}
+                <div className={formLabelClassName}>Contract value</div>
+                <div className={valueClassName}>
+                  {application?.contract?.contract_details?.value != null
+                    ? `RM ${formatMoney(application.contract.contract_details.value)}`
+                    : "—"}
+                </div>
+
+                {/* ================= Approved Facility ================= */}
+                <div className={formLabelClassName}>Approved facility</div>
+                <div className={valueClassName}>
+                  {isNewContract
+                    ? "—"
+                    : application?.contract?.contract_details?.approved_facility != null
+                      ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
+                      : "—"}
+                </div>
+
+                {/* ================= Utilised Facility ================= */}
+                <div className={formLabelClassName}>Utilised facility</div>
+                <div className={valueClassName}>
+                  {isNewContract
+                    ? "—"
+                    : application?.contract?.contract_details?.utilized_facility != null
+                      ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
+                      : "—"}
+                </div>
+
+                {/* ================= Available Facility ================= */}
+                <div className={formLabelClassName}>Available facility</div>
+                <div
+                  className={cn(
+                    "text-sm md:text-base leading-6 font-medium",
+                    !isNewContract &&
+                    liveAvailableFacility != null &&
+                    liveAvailableFacility < 0 &&
+                    "text-destructive"
+                  )}
+                >
+                  {isNewContract
+                    ? "—"
+                    : liveAvailableFacility != null
+                      ? `RM ${formatMoney(liveAvailableFacility)}`
+                      : "—"}
+                </div>
               </div>
-
-
-              <div className={formLabelClassName}>Approved facility</div>
-              <div className={valueClassName}>
-                {isNewContract ? "—" : (
-                  application.contract.contract_details?.approved_facility != null
-                    ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
-                    : "—"
-                )}
-              </div>
-
-
-
-
-
-
-              <div className={formLabelClassName}>Utilised facility</div>
-              <div className={valueClassName}>
-                {isNewContract ? "—" : (
-                  application.contract.contract_details?.utilized_facility != null
-                    ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
-                    : "—"
-                )}
-              </div>
-
-
-              <div className={formLabelClassName}>Available facility</div>
-              <div
-                className={cn(
-                  "text-sm md:text-base leading-6 font-medium",
-                  !isNewContract && liveAvailableFacility < 0 && "text-destructive"
-                )}
-              >
-                {isNewContract ? "—" : `RM ${formatMoney(Math.max(liveAvailableFacility ?? 0, 0))}`}
-              </div>
-
-
-
-
             </div>
           </div>
-        </div>
-        )
-      )}
+        )}
 
-      {/* ================= Invoice Details ================= */}
-      <div className="space-y-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-base sm:text-lg md:text-xl font-semibold">
-              Invoice details
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add invoices below. Rows are local until you Save and Continue.
-            </p>
-          </div>
-
-          <Button onClick={addInvoice} className="bg-primary text-primary-foreground">
-            Add invoice
-          </Button>
-        </div>
-
-        <div className="mt-2 h-px bg-border" />
-
-        {/* ================= Table ================= */}
-        <div className="mt-4 px-3">
-          {isLoadingInvoices ? (
-            <div className="border rounded-xl bg-card overflow-hidden p-4 space-y-4">
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-9 w-[140px]" />
-                <Skeleton className="h-9 w-[100px]" />
-                <Skeleton className="h-9 w-[150px]" />
-                <Skeleton className="h-9 w-[150px]" />
-                <Skeleton className="h-9 w-[130px]" />
-                <Skeleton className="h-9 w-[200px]" />
-                <Skeleton className="h-9 w-[160px]" />
+        {/* ================= Invoice Details ================= */}
+        {isLoadingApplication || debugSkeletonMode ? null : (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                  Invoice details
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add invoices below. Rows are local until you Save and Continue.
+                </p>
               </div>
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
+
+              <Button onClick={addInvoice} className="bg-primary text-primary-foreground">
+                Add invoice
+              </Button>
             </div>
-          ) : (
-          <div className="border rounded-xl bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table className="table-fixed w-full">
-                <TableHeader className="bg-muted/20">
-                  <TableRow>
-                    <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
-                      Invoice
-                    </TableHead>
 
-                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
-                      Status
-                    </TableHead>
+            <div className="mt-2 h-px bg-border" />
 
-                    <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                      Maturity date
-                    </TableHead>
+            {/* ================= Table ================= */}
+            <div className="mt-4 px-3">
+              {!isLoadingInvoices && (
+                <div className="border rounded-xl bg-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <Table className="table-fixed w-full">
+                      <TableHeader className="bg-muted/20">
+                        <TableRow>
+                          <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
+                            Invoice
+                          </TableHead>
 
-                    <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                      Invoice value (RM)
-                    </TableHead>
+                          <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
+                            Status
+                          </TableHead>
 
-                    <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                      Financing ratio
-                    </TableHead>
+                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                            Maturity date
+                          </TableHead>
 
-                    <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                      Maximum financing amount (RM)
-                    </TableHead>
+                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                            Invoice value (RM)
+                          </TableHead>
 
-                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
-                      Documents
-                    </TableHead>
+                          <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
+                            Financing ratio
+                          </TableHead>
 
-                    <TableHead className="w-[50px]" />
-                  </TableRow>
-                </TableHeader>
+                          <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
+                            Maximum financing amount (RM)
+                          </TableHead>
 
-                <TableBody>
-                  {/* APPLICATION INVOICES */}
-                  {invoices.map((inv) => {
-                    const ratio = inv.financing_ratio_percent || 60;
-                    const value = parseMoney(inv.value);
-                    const financingAmount = value * (ratio / 100);
-                    const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
-                    const isEditable = inv.status === "DRAFT" || !inv.status;
+                          <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
+                            Documents
+                          </TableHead>
 
-                    return (
-                      <TableRow
-                        key={inv.id}
-                        className={cn(
-                          "hover:bg-muted/40 transition-colors",
-                          isLocked && "opacity-60 grayscale pointer-events-none"
-                        )}
-                      >
-                        <TableCell className="p-2">
-                          <Input
-                            value={inv.number}
-                            disabled={!isEditable}
-                            onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                            placeholder="Enter invoice"
-                            className="h-9 text-xs"
-                          />
-                        </TableCell>
+                          <TableHead className="w-[50px]" />
+                        </TableRow>
+                      </TableHeader>
 
-                        <TableCell className="p-2">
-                          <StatusBadge status={inv.status} />
-                        </TableCell>
+                      <TableBody>
+                        {/* APPLICATION INVOICES */}
+                        {invoices.map((inv) => {
+                          const ratio = inv.financing_ratio_percent || 60;
+                          const value = parseMoney(inv.value);
+                          const financingAmount = value * (ratio / 100);
+                          const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
+                          const isEditable = inv.status === "DRAFT" || !inv.status;
 
-                        <TableCell className="p-2">
-                          <DateInput
-                            value={inv.maturity_date?.slice(0, 10) || ""}
-                            onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
-                            placeholder="Enter date"
-                            className={!isEditable ? "opacity-60 pointer-events-none" : ""}
-                          />
-                        </TableCell>
-
-                        <TableCell className="p-2">
-                          <MoneyInput
-                            value={inv.value}
-                            onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
-                            placeholder="Enter value"
-                            disabled={!isEditable}
-                            inputClassName="h-9 text-xs"
-                          />
-                        </TableCell>
-
-                        <TableCell className="p-2">
-                          <div className="space-y-1">
-                            <div
-                              className="relative text-[10px] font-medium text-muted-foreground"
-                              style={{
-                                left: `${((ratio - 60) / 20) * 100}%`,
-                                transform: "translateX(-50%)",
-                                width: "fit-content",
-                              }}
+                          return (
+                            <TableRow
+                              key={inv.id}
+                              className={cn(
+                                "hover:bg-muted/40 transition-colors",
+                                isLocked && "opacity-60 grayscale pointer-events-none"
+                              )}
                             >
-                              <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
-                                {ratio}%
-                              </div>
-                            </div>
+                              <TableCell className="p-2">
+                                <Input
+                                  value={inv.number}
+                                  disabled={!isEditable}
+                                  onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
+                                  placeholder="Enter invoice"
+                                  className={withFieldError(
+                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                    isRowPartial(inv)
+                                  )}
+                                />
+                              </TableCell>
 
-                            <div className="max-w-[110px] mx-auto">
-                              <Slider
-                                min={60}
-                                max={80}
-                                step={1}
-                                value={[ratio]}
-                                disabled={!isEditable}
-                                onValueChange={(value) =>
-                                  updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
-                                }
-                                className="
+                              <TableCell className="p-2">
+                                <StatusBadge status={inv.status} />
+                              </TableCell>
+
+                              <TableCell className="p-2">
+                                <DateInput
+                                  value={inv.maturity_date || ""}
+                                  onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
+                                  className={!isEditable ? "opacity-60 pointer-events-none" : ""}
+                                  isInvalid={isRowPartial(inv)}
+                                  size="compact"
+                                  placeholder="Enter date"
+                                />
+                              </TableCell>
+
+                              <TableCell className="p-2">
+                                <MoneyInput
+                                  value={inv.value}
+                                  onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
+                                  placeholder="Enter value"
+                                  disabled={!isEditable}
+                                  inputClassName={withFieldError(
+                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                    isRowPartial(inv)
+                                  )}
+                                />
+                              </TableCell>
+
+                              <TableCell className="p-2">
+                                <div className="space-y-1">
+                                  <div
+                                    className="relative text-[10px] font-medium text-muted-foreground"
+                                    style={{
+                                      left: `${((ratio - 60) / 20) * 100}%`,
+                                      transform: "translateX(-50%)",
+                                      width: "fit-content",
+                                    }}
+                                  >
+                                    <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
+                                      {ratio}%
+                                    </div>
+                                  </div>
+
+                                  <div className="max-w-[110px] mx-auto">
+                                    <Slider
+                                      min={60}
+                                      max={80}
+                                      step={1}
+                                      value={[ratio]}
+                                      disabled={!isEditable}
+                                      onValueChange={(value) =>
+                                        updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+                                      }
+                                      className="
                                 relative
                                 [&_[data-orientation=horizontal]]:h-1.5
                                 [&_[data-orientation=horizontal]]:bg-muted
@@ -1010,117 +1053,120 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 [&_[role=slider]]:bg-background
                                 [&_[role=slider]]:shadow-none
                               "
-                              />
-                            </div>
+                                    />
+                                  </div>
 
-                            <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                              <span>60%</span>
-                              <span>80%</span>
-                            </div>
-                          </div>
-                        </TableCell>
+                                  <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                                    <span>60%</span>
+                                    <span>80%</span>
+                                  </div>
+                                </div>
+                              </TableCell>
 
-                        <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                          {formatMoney(financingAmount)}
-                        </TableCell>
+                              <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
+                                {formatMoney(financingAmount)}
+                              </TableCell>
 
-                        <TableCell className="p-2">
-                          {inv.document ? (
-                            <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8">
-                              <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                <CheckIconSolid className="h-2 w-2 text-background" />
-                              </div>
-                              <span className="text-xs font-medium truncate flex-1">
-                                {inv.document.file_name}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (inv.document?.s3_key) {
-                                    setLastS3Keys((prev) => ({
-                                      ...prev,
-                                      [inv.id]: inv.document!.s3_key!,
-                                    }));
-                                  }
-                                  updateInvoiceField(inv.id, "document", null);
-                                  setSelectedFiles((prev) => {
-                                    const copy = { ...prev };
-                                    delete copy[inv.id];
-                                    return copy;
-                                  });
-                                }}
-                                className={cn(
-                                  "shrink-0",
-                                  isEditable
-                                    ? "text-muted-foreground hover:text-foreground cursor-pointer"
-                                    : "opacity-40 cursor-not-allowed"
+                              <TableCell className="p-2">
+                                {inv.document ? (
+                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8">
+                                    <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                      <CheckIconSolid className="h-2 w-2 text-background" />
+                                    </div>
+                                    <span className="text-xs font-medium truncate flex-1">
+                                      {inv.document.file_name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (inv.document?.s3_key) {
+                                          setLastS3Keys((prev) => ({
+                                            ...prev,
+                                            [inv.id]: inv.document!.s3_key!,
+                                          }));
+                                        }
+                                        updateInvoiceField(inv.id, "document", null);
+                                        setSelectedFiles((prev) => {
+                                          const copy = { ...prev };
+                                          delete copy[inv.id];
+                                          return copy;
+                                        });
+                                      }}
+                                      className={cn(
+                                        "shrink-0",
+                                        isEditable
+                                          ? "text-muted-foreground hover:text-foreground cursor-pointer"
+                                          : "opacity-40 cursor-not-allowed"
+                                      )}
+                                    >
+                                      <XMarkIcon className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate">Upload</span>
+                                    <Input
+                                      type="file"
+                                      accept="application/pdf"
+                                      className="hidden"
+                                      disabled={!isEditable}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
+                                      }}
+                                    />
+                                  </label>
                                 )}
-                              >
-                                <XMarkIcon className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
-                              <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">Upload</span>
-                              <Input
-                                type="file"
-                                accept="application/pdf"
-                                className="hidden"
-                                disabled={!isEditable}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
-                                }}
-                              />
-                            </label>
-                          )}
-                        </TableCell>
+                              </TableCell>
 
-                        <TableCell className="p-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={isLocked}
-                            onClick={() => deleteInvoice(inv)}
-                            className={cn(
-                              isLocked
-                                ? "text-muted-foreground cursor-not-allowed"
-                                : "hover:text-destructive"
-                            )}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                              <TableCell className="p-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isLocked}
+                                  onClick={() => deleteInvoice(inv)}
+                                  className={cn(
+                                    isLocked
+                                      ? "text-muted-foreground cursor-not-allowed"
+                                      : "hover:text-destructive"
+                                  )}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
 
-                  {/* TOTAL */}
-                  <TableRow className="bg-muted/10">
-                    <TableCell colSpan={5} />
-                    <TableCell className="p-2 font-semibold text-xs">
-                      {formatMoney(totalFinancingAmount)}
-                      <div className="text-xs text-muted-foreground font-normal">Total</div>
-                    </TableCell>
-                    <TableCell colSpan={2} />
-                  </TableRow>
-                </TableBody>
-              </Table>
+                        {/* TOTAL */}
+                        <TableRow className="bg-muted/10">
+                          <TableCell colSpan={5} />
+                          <TableCell className="p-2 font-semibold text-xs">
+                            {formatMoney(totalFinancingAmount)}
+                            <div className="text-xs text-muted-foreground font-normal">Total</div>
+                          </TableCell>
+                          <TableCell colSpan={2} />
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-          )}
-        </div>
 
-        {/* ================= Validation ================= */}
-        {validationError && (
-          <div className="mx-3 bg-primary/10 border border-primary text-primary px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
-            <XMarkIcon className="h-5 w-5" />
-            {validationError}
+            {/* ================= Validation ================= */}
+            {validationError && (
+              <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+                <XMarkIcon className="h-5 w-5" />
+                {validationError}
+              </div>
+            )}
           </div>
         )}
       </div>
-    </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }
 

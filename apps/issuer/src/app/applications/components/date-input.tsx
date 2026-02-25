@@ -1,88 +1,163 @@
-"use client";
+ "use client";
 
 import * as React from "react";
-import { Input } from "@/components/ui/input";
-import { CalendarIcon } from "@heroicons/react/24/outline";
-import { CalendarPopover } from "./calendar-popover";
-import { format, parseISO, isValid } from "date-fns";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { cn } from "@cashsouk/ui";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CalendarPopover } from "./calendar-popover";
+import { parse, isValid, format, parseISO } from "date-fns";
+
+type DateInputSize = "default" | "compact";
+
+interface DateInputProps {
+  value: string; // raw user text (e.g., "1/2/2025" or "" or iso)
+  onChange: (v: string) => void;
+  className?: string;
+  inputClassName?: string;
+  popoverClassName?: string;
+  isInvalid?: boolean;
+  defaultCalendarMonth?: Date;
+  size?: DateInputSize;
+  placeholder?: string;
+}
+
+/** Size presets for responsive DateInput */
+const sizePresets: Record<DateInputSize, {
+  container: string;
+  input: string;
+  icon: string;
+}> = {
+  default: {
+    container: "px-3 h-11 text-sm",
+    input: "text-base",
+    icon: "h-4 w-4",
+  },
+  compact: {
+    container: "px-3 h-9 text-sm",
+    input: "text-sm",
+    icon: "h-3 w-3",
+  },
+};
 
 export function DateInput({
-  id,
   value,
   onChange,
-  placeholder,
   className,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  className?: string;
-}) {
-  /**
-   * Radix Popover-based DateInput
-   *
-   * Uses Radix UI Popover for proper anchoring.
-   * - Automatically positions above/below based on viewport space
-   * - Follows scroll naturally (not detached)
-   * - No fixed positioning
-   * - Portal-based to avoid overflow clipping
-   */
+  inputClassName,
+  popoverClassName,
+  isInvalid,
+  defaultCalendarMonth,
+  size = "default",
+  placeholder,
+}: DateInputProps) {
   const [open, setOpen] = React.useState(false);
+  const preset = sizePresets[size];
 
-  const display = React.useMemo(() => {
-    if (!value) return "";
+  // If the provided value is ISO or a parseable d/M/yyyy, derive ISO for calendar selection only.
+  let isoSelected: string | undefined = undefined;
+  if (value) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      isoSelected = value;
+    } else {
+      try {
+        const parsed = parse(value, "d/M/yyyy", new Date());
+        if (isValid(parsed)) {
+          isoSelected = format(parsed, "yyyy-MM-dd");
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }
+
+  const handleBlur = () => {
+    if (!value) return;
     try {
-      const d = parseISO(value);
-      if (isValid(d)) {
-        return format(d, "MMM d, yyyy");
+      const parsed = parse(value, "d/M/yyyy", new Date());
+      if (isValid(parsed)) {
+        const normalized = format(parsed, "dd/MM/yyyy");
+        if (normalized !== value) {
+          onChange(normalized);
+        }
       }
     } catch {
-      return value;
+      // do nothing on parse failure
     }
-    return value;
-  }, [value]);
+  };
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <button
-          type="button"
+        <div
           className={cn(
-            "flex items-center justify-between w-full px-3 h-9 text-left rounded-md border border-input text-sm",
-            className
+            "relative flex items-center rounded-xl border bg-background transition-colors cursor-text",
+            preset.container,
+            isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
+            !isInvalid && "border-input focus-within:border-primary",
+            className && !className.includes("border") && className
           )}
-          aria-expanded={open}
         >
-          <span className={display ? "text-foreground truncate" : "text-muted-foreground"}>
-            {display || placeholder || "Enter date"}
-          </span>
-          <CalendarIcon className="h-4 w-4 text-muted-foreground ml-2 shrink-0" />
-        </button>
+          <input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={handleBlur}
+            placeholder={placeholder ?? "Enter date"}
+            maxLength={10}
+            className={cn(
+              "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
+              preset.input,
+              // reserve space for right icon
+              size === "compact" ? "pr-8" : "pr-10",
+              inputClassName
+            )}
+          />
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(true);
+            }}
+            className={cn(
+              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
+              size === "compact" ? "p-1" : "p-2"
+            )}
+            aria-label="Open calendar"
+          >
+            <CalendarIcon className={preset.icon} />
+          </button>
+        </div>
       </PopoverPrimitive.Trigger>
 
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           side="bottom"
           align="start"
-          sideOffset={8}
+          sideOffset={6}
           collisionPadding={8}
-          className="z-50 w-[280px] rounded-lg border bg-card shadow-lg outline-none"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className={cn("z-50", popoverClassName)}
         >
           <CalendarPopover
-            selected={value || undefined}
+            selected={isoSelected}
+            defaultMonth={defaultCalendarMonth}
             onSelect={(iso) => {
-              onChange(iso);
+              try {
+                const parsed = parseISO(iso);
+                if (isValid(parsed)) {
+                  const formatted = format(parsed, "dd/MM/yyyy");
+                  onChange(formatted);
+                } else {
+                  onChange(iso);
+                }
+              } catch {
+                onChange(iso);
+              }
               setOpen(false);
             }}
           />
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
-
-      {/* Hidden native input for form compatibility */}
-      <Input id={id} type="hidden" value={value || ""} onChange={() => {}} className="hidden" />
     </PopoverPrimitive.Root>
   );
 }

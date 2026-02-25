@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useProducts } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING TYPE STEP
@@ -28,6 +29,9 @@ export function FinancingTypeStep({
   initialProductId,
   onDataChange,
 }: FinancingTypeStepProps) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  
   // Load all products
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
     page: 1,
@@ -51,8 +55,10 @@ export function FinancingTypeStep({
 
       //  Tell parent this step already has valid data
       if (onDataChange) {
+        const savedProduct = products.find(p => p.id === initialProductId);
         onDataChange({
           product_id: initialProductId,
+          product_version: savedProduct?.version,
           hasPendingChanges: false
         });
       }
@@ -65,32 +71,33 @@ export function FinancingTypeStep({
    * 
    * Updates local state and notifies parent component.
    * Parent will save this when user clicks "Save and Continue".
+   * 
+   * Also include the current product version so the parent can snapshot it
+   * atomically when saving (server-side atomicity is ensured by service).
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
+
+    // Find the selected product to include its version
+    const selectedProduct = products.find(p => p.id === productId);
 
     // Pass data to parent for saving
     if (onDataChange) {
       onDataChange({
         product_id: productId,
+        product_version: selectedProduct?.version,
         hasPendingChanges: productId !== initialProductId
       });
     }
   };
 
   // Show loading state
-  if (isLoadingProducts) {
+  if (isLoadingProducts || debugSkeletonMode) {
     return (
-      <div className="space-y-10">
-        <div>
-          <Skeleton className="h-6 w-56" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className="space-y-3 px-3">
-          <Skeleton className="h-[86px] w-full rounded-xl" />
-          <Skeleton className="h-[86px] w-full rounded-xl" />
-        </div>
-      </div>
+      <>
+        <FinancingTypeSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
@@ -104,6 +111,7 @@ export function FinancingTypeStep({
   }
 
   return (
+    <>
     <div className="px-3">
       <ProductList
         products={products}
@@ -112,5 +120,7 @@ export function FinancingTypeStep({
           isLoading={isLoadingProducts}
       />
     </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 }

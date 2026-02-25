@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useApplication } from "@/hooks/use-applications";
+import { DeclarationsSkeleton } from "@/app/applications/components/declarations-skeleton";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
 /**
  * DECLARATIONS STEP
@@ -31,6 +32,9 @@ export function DeclarationsStep({
   stepConfig,
   onDataChange,
 }: DeclarationsStepProps) {
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
@@ -185,41 +189,12 @@ export function DeclarationsStep({
   /**
    * LOADING STATE
    */
-  if (isLoadingApp || !stepConfig) {
+  if (isLoadingApp || !stepConfig || debugSkeletonMode) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 sm:gap-6">
-        <div>
-          <div className="border rounded-xl p-4 sm:p-6 bg-card">
-            <div>
-              {[1, 2, 3].map((index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-2 sm:gap-3 py-3"
-                >
-                  <div className="shrink-0 mt-1">
-                    <Skeleton className="h-4 w-4 rounded" />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-5 w-3/4" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div>
-          <div className="border rounded-xl p-4 sm:p-6 bg-card">
-            <Skeleton className="h-6 w-40 mb-3" />
-            <div className="pl-5 space-y-2">
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-3/4" />
-            </div>
-            <Skeleton className="h-4 w-full mt-4" />
-          </div>
-        </div>
-      </div>
+      <>
+        <DeclarationsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
@@ -246,6 +221,7 @@ export function DeclarationsStep({
    * When there are more declarations, both grow together proportionally.
    */
 return (
+  <>
   <div className="px-3">
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
@@ -298,6 +274,8 @@ return (
         </p>
       </div>
     </div>
-  </div>
+    </div>
+    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+  </>
 );
 }

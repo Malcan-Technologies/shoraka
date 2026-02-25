@@ -11,14 +11,38 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import { RoleSelectionModal } from "../../../components/role-selection-modal";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function GetStartedPageContent() {
   const searchParams = useSearchParams();
   const [showSignInModal, setShowSignInModal] = React.useState(false);
+  const [showShariah, setShowShariah] = React.useState(false);
+  const [canContinue, setCanContinue] = React.useState(false);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const error = searchParams.get("error");
   const errorMessage = searchParams.get("message");
+
+  /** Handle scroll detection for Shariah compliance modal */
+  const handleScroll = React.useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const tolerance = 8;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= tolerance;
+    if (isAtBottom) {
+      setCanContinue(true);
+    }
+  }, []);
 
   const handleRoleSelect = (role: "INVESTOR" | "ISSUER") => {
     window.location.href = `${API_URL}/api/auth/login?role=${role}&signup=true`;
@@ -81,7 +105,7 @@ function GetStartedPageContent() {
           </Card>
         </button>
 
-        <button onClick={() => handleRoleSelect("ISSUER")} className="block text-left">
+        <button onClick={() => setShowShariah(true)} className="block text-left">
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -128,6 +152,96 @@ function GetStartedPageContent() {
       </div>
 
       <RoleSelectionModal open={showSignInModal} onOpenChange={setShowSignInModal} />
+      {/* Shariah Compliance modal */}
+      <AlertDialog
+        open={showShariah}
+        onOpenChange={(open) => {
+          setShowShariah(open);
+          if (!open) setCanContinue(false);
+        }}
+      >
+        <AlertDialogContent className="w-[95vw] sm:w-auto max-w-[95vw] sm:max-w-[720px] md:max-w-[860px] lg:max-w-[900px] px-4 sm:px-6 py-4 sm:py-6 rounded-[18px] shadow-[0_25px_60px_rgba(0,0,0,0.25)] bg-card flex flex-col max-h-[90vh] overflow-hidden">
+          <AlertDialogHeader>
+            <div className="w-full flex items-start justify-between gap-4">
+              <div>
+                <AlertDialogTitle className="text-[20px] font-bold">Shariah Compliance Requirement Notice</AlertDialogTitle>
+                <AlertDialogDescription className="text-sm text-muted-foreground mt-1">
+                  Please read the following carefully.
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 rounded-md border p-4 sm:p-6 overflow-y-auto"
+          >
+            <div className="w-full text-base sm:text-[17px] leading-8 text-foreground">
+              <div className="space-y-6 sm:space-y-6">
+                <p className="mb-4">CashSouk operates as a fully Shariah-compliant financing platform.</p>
+
+                <p className="mb-4">Before proceeding to sign-up, please note that all issuer applications are subject to a mandatory Shariah screening and financial ratio assessment as part of our onboarding and approval process.</p>
+
+                <p className="mb-4">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
+
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Conventional banking or interest-based lending;</li>
+                  <li>Conventional insurance;</li>
+                  <li>Gambling;</li>
+                  <li>Liquor or liquor-related activities;</li>
+                  <li>Pork or pork-related activities;</li>
+                  <li>Non-halal food and beverages;</li>
+                  <li>Tobacco or tobacco-related activities;</li>
+                  <li>Shariah non-compliant entertainment;</li>
+                  <li>Interest (riba)-based income or investments; or</li>
+                  <li>Any other activities deemed non-compliant by the relevant Shariah authorities</li>
+                </ul>
+
+                <p className="mb-4">may not qualify for listing on the platform.</p>
+
+                <p className="mb-4">In addition, businesses with significant exposure to:</p>
+
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Revenue derived from non-compliant activities,</li>
+                  <li>Cash placed in conventional interest-bearing accounts, or</li>
+                  <li>Interest-bearing debt,</li>
+                </ul>
+
+                <p className="mb-4">may not meet our Shariah screening benchmarks.</p>
+
+                <p className="mb-4">Please be aware that:</p>
+
+                <ul className="list-disc pl-5 mb-4 space-y-2">
+                  <li>Passing the Shariah screening assessment is a prerequisite for approval.</li>
+                  <li>Submission of an application does not guarantee eligibility or approval.</li>
+                  <li>CashSouk reserves the right to decline any application that does not meet its Shariah compliance standards.</li>
+                </ul>
+
+                <p className="mb-4">If your business may fall within any of the above categories, you are advised not to proceed with registration.</p>
+
+                <p className="mb-4">By continuing to the sign-up page, you acknowledge that your application will undergo Shariah screening and that approval is subject to meeting our compliance requirements.</p>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter className="pt-4 border-t border-border/50">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full gap-3 sm:justify-end">
+              <AlertDialogCancel className="w-full sm:w-auto px-4 py-2">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="w-full sm:w-auto px-6 py-2"
+                disabled={!canContinue}
+                onClick={() => {
+                  setShowShariah(false);
+                  handleRoleSelect("ISSUER");
+                }}
+              >
+                I Acknowledge & Continue
+              </AlertDialogAction>
+            </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

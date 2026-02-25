@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
@@ -21,6 +20,8 @@ import {
 } from "@/app/applications/components/form-control";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/applications/components/money";
+import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { BusinessDetailsSkeleton } from "@/app/applications/components/business-details-skeleton";
 
 /**
  * BUSINESS DETAILS STEP
@@ -55,6 +56,7 @@ interface WhyRaisingFunds {
   platformName: string;
   amountRaised: string;
   sameInvoiceUsed: YesNo | "";
+  accountingSoftware: string;
 }
 
 interface BusinessDetailsPayload {
@@ -80,6 +82,7 @@ interface BusinessDetailsSnake {
     platform_name?: string;
     amount_raised?: number;
     same_invoice_used?: boolean;
+    accounting_software?: string;
   };
   declaration_confirmed?: boolean;
 }
@@ -97,7 +100,7 @@ function booleanToYesNo(v: boolean | string | undefined): YesNo | "" {
 }
 
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
-  return {
+  const basePayload: BusinessDetailsSnake = {
     about_your_business: {
       what_does_company_do: p.aboutYourBusiness.whatDoesCompanyDo ?? "",
       main_customers: p.aboutYourBusiness.mainCustomers ?? "",
@@ -110,12 +113,19 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
-      platform_name: p.whyRaisingFunds.platformName ?? "",
-      amount_raised: parseMoney(p.whyRaisingFunds.amountRaised ?? ""),
-      same_invoice_used: yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed),
+      accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
     },
     declaration_confirmed: p.declarationConfirmed,
   };
+
+  /* If raisingOnOtherP2P === "yes", include the dependent fields. Otherwise omit them (don't save). */
+  if (p.whyRaisingFunds.raisingOnOtherP2P === "yes") {
+    basePayload.why_raising_funds!.platform_name = p.whyRaisingFunds.platformName ?? "";
+    basePayload.why_raising_funds!.amount_raised = parseMoney(p.whyRaisingFunds.amountRaised ?? "");
+    basePayload.why_raising_funds!.same_invoice_used = yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed);
+  }
+
+  return basePayload;
 }
 
 function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined): BusinessDetailsPayload {
@@ -138,6 +148,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       platformName: w?.platform_name ?? w?.platformName ?? "",
       amountRaised: w?.amount_raised != null || w?.amountRaised != null ? formatMoney(w?.amount_raised ?? w?.amountRaised) : "",
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
+      accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
   };
@@ -159,6 +170,7 @@ const defaultWhy: WhyRaisingFunds = {
   platformName: "",
   amountRaised: "",
   sameInvoiceUsed: "",
+  accountingSoftware: "",
 };
 
 interface BusinessDetailsStepProps {
@@ -339,6 +351,9 @@ export function BusinessDetailsStep({
 }: BusinessDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
+  // DEBUG: Toggle skeleton mode
+  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+
   const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
   const [declarationConfirmed, setDeclarationConfirmed] = React.useState(false);
@@ -363,6 +378,7 @@ export function BusinessDetailsStep({
       platformName,
       amountRaised,
       sameInvoiceUsed,
+      accountingSoftware,
     } = whyRaisingFunds;
 
     if (
@@ -375,6 +391,7 @@ export function BusinessDetailsStep({
       !risksDelayRepayment.trim() ||
       !backupPlan.trim() ||
       !raisingOnOtherP2P.trim() ||
+      !accountingSoftware.trim() ||
       !declarationConfirmed
     ) {
       return false;
@@ -406,6 +423,18 @@ export function BusinessDetailsStep({
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
+
+  /* Reset P2P fields when user selects "no". */
+  React.useEffect(() => {
+    if (whyRaisingFunds.raisingOnOtherP2P === "no") {
+      setWhyRaisingFunds((prev) => ({
+        ...prev,
+        platformName: "",
+        amountRaised: "",
+        sameInvoiceUsed: "",
+      }));
+    }
+  }, [whyRaisingFunds.raisingOnOtherP2P]);
 
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
@@ -441,16 +470,20 @@ export function BusinessDetailsStep({
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
-  if (isLoadingApp || !isInitialized) {
+  if (isLoadingApp || !isInitialized || debugSkeletonMode) {
     return (
-      <BusinessDetailsSkeleton />
+      <>
+        <BusinessDetailsSkeleton />
+        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+      </>
     );
   }
 
   return (
-    <div className={formOuterClassName}>
-      {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
+    <>
+      <div className={formOuterClassName}>
+        {/* ===================== ABOUT YOUR BUSINESS ===================== */}
+        <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
           <h3 className={sectionHeaderClassName}>About your business</h3>
           <div className="mt-2 h-px bg-border" />
@@ -502,6 +535,22 @@ export function BusinessDetailsStep({
             onValueChange={(v) =>
               setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
             }
+          />
+
+          <Label htmlFor="accounting-software" className={labelClassName}>
+            Which accounting software does the issuer use?
+          </Label>
+          <Input
+            id="accounting-software"
+            value={whyRaisingFunds.accountingSoftware}
+            onChange={(e) =>
+              setWhyRaisingFunds((prev) => ({
+                ...prev,
+                accountingSoftware: e.target.value,
+              }))
+            }
+            placeholder="e.g. QuickBooks, Xero, SAP"
+            className={inputClassName}
           />
         </div>
       </section>
@@ -615,56 +664,59 @@ export function BusinessDetailsStep({
             }
           />
 
-          <Label htmlFor="platform-name" className={labelClassName}>
-            Name of platform
-          </Label>
-          <Input
-            id="platform-name"
-            value={whyRaisingFunds.platformName}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                platformName: e.target.value,
-              }))
-            }
-            placeholder="e.g. CARPAY"
-            className={inputClassName}
-          />
-
-          <Label htmlFor="amount-raised" className={labelClassName}>
-            Amount raised
-          </Label>
-          <div className="h-11 flex items-center">
-            <div className="relative w-full h-full flex items-center">
-              <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
-                RM
-              </div>
-              <MoneyInput
-                value={whyRaisingFunds.amountRaised}
-                onValueChange={(v) =>
+          {whyRaisingFunds.raisingOnOtherP2P === "yes" && (
+            <>
+              <Label htmlFor="platform-name" className={labelClassName}>
+                Name of platform
+              </Label>
+              <Input
+                id="platform-name"
+                value={whyRaisingFunds.platformName}
+                onChange={(e) =>
                   setWhyRaisingFunds((prev) => ({
                     ...prev,
-                    amountRaised: v,
+                    platformName: e.target.value,
                   }))
                 }
-                placeholder="0.00"
-                prefix="RM"
-                inputClassName={inputClassName + " pl-12"}
+                placeholder="e.g. CAPBAY"
+                className={inputClassName}
               />
 
-            </div>
-          </div>
+              <Label htmlFor="amount-raised" className={labelClassName}>
+                Amount raised
+              </Label>
+              <div className="h-11 flex items-center">
+                <div className="relative w-full h-full flex items-center">
+                  <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+                    RM
+                  </div>
+                  <MoneyInput
+                    value={whyRaisingFunds.amountRaised}
+                    onValueChange={(v) =>
+                      setWhyRaisingFunds((prev) => ({
+                        ...prev,
+                        amountRaised: v,
+                      }))
+                    }
+                    placeholder="0.00"
+                    prefix="RM"
+                    inputClassName={inputClassName + " pl-12"}
+                  />
+                </div>
+              </div>
 
-          <Label className={labelClassName}>
-            Is the same invoice being used?
-          </Label>
-          <YesNoRadioGroup
-            name="sameInvoiceUsed"
-            value={whyRaisingFunds.sameInvoiceUsed}
-            onValueChange={(v) =>
-              setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
-            }
-          />
+              <Label className={labelClassName}>
+                Is the same invoice being used?
+              </Label>
+              <YesNoRadioGroup
+                name="sameInvoiceUsed"
+                value={whyRaisingFunds.sameInvoiceUsed}
+                onValueChange={(v) =>
+                  setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+                }
+              />
+            </>
+          )}
         </div>
       </section>
 
@@ -688,109 +740,9 @@ export function BusinessDetailsStep({
           </label>
         </div>
       </section>
-    </div>
+      </div>
+      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
+    </>
   );
 
-}
-
-function BusinessDetailsSkeleton() {
-  return (
-    <div className={`${formOuterClassName} mt-1`}>
-      {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-5`}>
-        <div>
-          <Skeleton className="h-6 w-[220px]" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className={rowGridClassName}>
-          {/* What does your company do */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Main customers */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Single customer > 50% */}
-          <Skeleton className="h-5 w-[280px]" />
-          <div className="flex gap-6 items-center">
-            <Skeleton className="h-5 w-[80px]" />
-            <Skeleton className="h-5 w-[80px]" />
-          </div>
-        </div>
-      </section>
-
-      {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <Skeleton className="h-6 w-[260px]" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className={rowGridClassName}>
-          {/* Financing for */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Funds usage */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Business plan */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[160px] w-full rounded-xl" />
-
-          {/* Risks */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Backup plan */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-[120px] w-full rounded-xl" />
-
-          {/* Other P2P */}
-          <Skeleton className="h-5 w-[280px]" />
-          <div className="flex gap-6 items-center">
-            <Skeleton className="h-5 w-[80px]" />
-            <Skeleton className="h-5 w-[80px]" />
-          </div>
-
-          {/* Platform name */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          {/* Amount raised */}
-          <Skeleton className="h-5 w-[280px]" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-
-          {/* Same invoice */}
-          <Skeleton className="h-5 w-[280px]" />
-          <div className="flex gap-6 items-center">
-            <Skeleton className="h-5 w-[80px]" />
-            <Skeleton className="h-5 w-[80px]" />
-          </div>
-        </div>
-      </section>
-
-      {/* ===================== DECLARATIONS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <Skeleton className="h-6 w-[160px]" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-
-        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <Skeleton className="h-4 w-4 rounded-sm mt-1" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-[92%]" />
-              <Skeleton className="h-4 w-[85%]" />
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
 }
