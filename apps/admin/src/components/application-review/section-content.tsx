@@ -9,6 +9,15 @@ import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
 
+export interface PendingAmendmentItem {
+  id: string;
+  scope: string;
+  scope_key: string;
+  remark: string;
+  item_type: string | null;
+  item_id: string | null;
+}
+
 export interface SectionContentProps {
   descriptor: ReviewTabDescriptor;
   app: {

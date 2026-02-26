@@ -4,6 +4,8 @@ import {
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
+  addPendingAmendmentSchema,
+  updatePendingAmendmentSchema,
 } from "./schemas";
 
 describe("Admin Review Schemas", () => {
@@ -113,6 +115,66 @@ describe("Admin Review Schemas", () => {
         itemId: "doc:0",
         remark: "",
       });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("addPendingAmendmentSchema", () => {
+    it("accepts section scope with scopeKey and remark", () => {
+      const result = addPendingAmendmentSchema.safeParse({
+        scope: "section",
+        scopeKey: "company_details",
+        remark: "Please clarify revenue sources",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts item scope with itemType, itemId and remark", () => {
+      const result = addPendingAmendmentSchema.safeParse({
+        scope: "item",
+        remark: "Re-upload with signature",
+        itemType: "invoice",
+        itemId: "inv_123",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects section scope without scopeKey", () => {
+      const result = addPendingAmendmentSchema.safeParse({
+        scope: "section",
+        remark: "Missing scopeKey",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects item scope without itemType and itemId", () => {
+      const result = addPendingAmendmentSchema.safeParse({
+        scope: "item",
+        remark: "Missing itemType/itemId",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects empty remark", () => {
+      const result = addPendingAmendmentSchema.safeParse({
+        scope: "section",
+        scopeKey: "company_details",
+        remark: "",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updatePendingAmendmentSchema", () => {
+    it("accepts valid remark", () => {
+      const result = updatePendingAmendmentSchema.safeParse({
+        remark: "Updated amendment details",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects empty remark", () => {
+      const result = updatePendingAmendmentSchema.safeParse({ remark: "" });
       expect(result.success).toBe(false);
     });
   });

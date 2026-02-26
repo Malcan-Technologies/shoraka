@@ -43,6 +43,11 @@ import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
+import {
+  getSectionForPendingAmendment,
+  parseItemScopeKey,
+  REVIEW_SECTION_ORDER,
+} from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
@@ -3974,7 +3979,7 @@ export class AdminService {
     }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
-      await repository.createReviewRemark(
+      await repository.upsertReviewRemark(
         applicationId,
         "section",
         section,
@@ -3993,6 +3998,8 @@ export class AdminService {
       "section",
       section
     );
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
 
     return repository.getApplicationById(applicationId);
   }
@@ -4027,7 +4034,7 @@ export class AdminService {
         data: { status: "REJECTED" },
       });
     }
-    await repository.createReviewRemark(
+    await repository.upsertReviewRemark(
       applicationId,
       "section",
       section,
@@ -4046,6 +4053,8 @@ export class AdminService {
       section
     );
     await repository.updateApplicationStatus(applicationId, ApplicationStatus.REJECTED);
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
 
     logger.info({ applicationId, section, reviewerUserId }, "Review section rejected");
 
@@ -4076,7 +4085,7 @@ export class AdminService {
       ReviewStepStatus.AMENDMENT_REQUESTED,
       reviewerUserId
     );
-    await repository.createReviewRemark(
+    await repository.upsertReviewRemark(
       applicationId,
       "section",
       section,
@@ -4101,6 +4110,8 @@ export class AdminService {
       section
     );
     await repository.updateApplicationStatus(applicationId, ApplicationStatus.AMENDMENT_REQUESTED);
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
 
     logger.info({ applicationId, section, reviewerUserId }, "Amendment requested for review section");
 
@@ -4135,7 +4146,7 @@ export class AdminService {
     );
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
-      await repository.createReviewRemark(
+      await repository.upsertReviewRemark(
         applicationId,
         "item",
         `${itemType}:${itemId}`,
@@ -4154,6 +4165,8 @@ export class AdminService {
       itemType,
       itemId
     );
+
+    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
 
     return repository.getApplicationById(applicationId);
   }
@@ -4184,7 +4197,7 @@ export class AdminService {
       ReviewStepStatus.REJECTED,
       reviewerUserId
     );
-    await repository.createReviewRemark(
+    await repository.upsertReviewRemark(
       applicationId,
       "item",
       `${itemType}:${itemId}`,
@@ -4202,6 +4215,8 @@ export class AdminService {
       itemType,
       itemId
     );
+
+    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
 
     return repository.getApplicationById(applicationId);
   }
@@ -4232,7 +4247,7 @@ export class AdminService {
       ReviewStepStatus.AMENDMENT_REQUESTED,
       reviewerUserId
     );
-    await repository.createReviewRemark(
+    await repository.upsertReviewRemark(
       applicationId,
       "item",
       `${itemType}:${itemId}`,
@@ -4251,6 +4266,222 @@ export class AdminService {
       itemId
     );
 
+    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Add or update a pending amendment (draft). Updates section/item status immediately and
+   * creates ApplicationReviewRemark with submitted_at=null. Proceed sets submitted_at.
+   */
+  async addPendingAmendment(
+    applicationId: string,
+    scope: "section" | "item",
+    scopeKey: string,
+    remark: string,
+    reviewerUserId: string,
+    itemType?: "invoice" | "document",
+    itemId?: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    if (scope === "section") {
+      const validSections = REVIEW_SECTION_ORDER;
+      if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
+        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
+      }
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        scopeKey as ReviewSection,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId
+      );
+    } else {
+      if (!itemType || !itemId) {
+        throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
+      }
+      this.validateReviewItemExists(application, itemType, itemId);
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId
+      );
+    }
+
+    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
+
+    logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * List pending amendments for an application (draft remarks with submitted_at=null)
+   */
+  async listPendingAmendments(applicationId: string) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (!this.isReviewable(application.status as ApplicationStatus)) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+    const rows = await repository.listPendingAmendments(applicationId);
+    return rows.map((r) => {
+      const base = {
+        id: r.id,
+        scope: r.scope,
+        scope_key: r.scope_key,
+        remark: r.remark,
+        author: r.author ? { first_name: r.author.first_name, last_name: r.author.last_name } : undefined,
+      };
+      if (r.scope === "item") {
+        const { itemType, itemId } = parseItemScopeKey(r.scope_key);
+        return { ...base, item_type: itemType || null, item_id: itemId || null };
+      }
+      return { ...base, item_type: null, item_id: null };
+    });
+  }
+
+  /**
+   * Update a pending amendment remark
+   */
+  async updatePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository } = await this.prepareForReviewAction(applicationId);
+    const result = await repository.updateDraftAmendment(
+      applicationId,
+      scope,
+      scopeKey,
+      remark,
+      reviewerUserId
+    );
+    if (result.count === 0) {
+      throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
+    }
+    logger.info({ applicationId, scope, scopeKey }, "Pending amendment updated");
+    return repository.listPendingAmendments(applicationId);
+  }
+
+  /**
+   * Remove a pending amendment. If the affected section has no pending amendments left,
+   * reverts the section status to PENDING.
+   */
+  async removePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    reviewerUserId: string
+  ) {
+    const { repository } = await this.prepareForReviewAction(applicationId);
+
+    const affectedSection =
+      scope === "section"
+        ? scopeKey
+        : scopeKey.startsWith("document:") || scopeKey.startsWith("doc:")
+          ? "supporting_documents"
+          : scopeKey.startsWith("invoice:")
+            ? "invoice_details"
+            : "supporting_documents";
+
+    const result = await repository.removeDraftAmendment(applicationId, scope, scopeKey);
+    if (result.count === 0) {
+      throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
+    }
+    logger.info({ applicationId, scope, scopeKey }, "Pending amendment removed");
+
+    if (scope === "item") {
+      const { itemType, itemId } = parseItemScopeKey(scopeKey);
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.PENDING,
+        reviewerUserId
+      );
+    }
+
+    const remaining = await repository.listPendingAmendments(applicationId);
+    const sectionStillHasAmendments = remaining.some((p) => {
+      const s = getSectionForPendingAmendment(p.scope, p.scope_key);
+      return s === affectedSection;
+    });
+
+    if (!sectionStillHasAmendments) {
+      const validSections = REVIEW_SECTION_ORDER;
+      if (validSections.includes(affectedSection as (typeof REVIEW_SECTION_ORDER)[number])) {
+        await repository.updateSectionReviewStatus(
+          applicationId,
+          affectedSection as ReviewSection,
+          ReviewStepStatus.PENDING,
+          reviewerUserId
+        );
+      }
+    }
+
+    return repository.listPendingAmendments(applicationId);
+  }
+
+  /**
+   * Submit all pending amendments. Marks draft remarks as submitted and updates application status.
+   * Item/section status already set when adding to pending; remarks already exist.
+   */
+  async submitPendingAmendments(applicationId: string, reviewerUserId: string) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const pending = await repository.listPendingAmendments(applicationId);
+    if (pending.length === 0) {
+      throw new AppError(400, "EMPTY_LIST", "No pending amendments to submit");
+    }
+
+    const hasContractDetails = pending.some(
+      (p) => p.scope === "section" && p.scope_key === "contract_details"
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.applicationReviewRemark.updateMany({
+        where: {
+          application_id: applicationId,
+          action_type: "REQUEST_AMENDMENT",
+          submitted_at: null,
+        },
+        data: { submitted_at: new Date() },
+      });
+
+      if (hasContractDetails && application.contract_id) {
+        await tx.contract.update({
+          where: { id: application.contract_id },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
+
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
+      });
+
+      await tx.applicationReviewEvent.create({
+        data: {
+          application_id: applicationId,
+          event_type: "AMENDMENTS_SUBMITTED",
+          new_status: "AMENDMENT_REQUESTED",
+          reviewer_user_id: reviewerUserId,
+          remark: `${pending.length} amendment(s) sent to issuer`,
+        },
+      });
+    });
+
+    logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
     return repository.getApplicationById(applicationId);
   }
 }

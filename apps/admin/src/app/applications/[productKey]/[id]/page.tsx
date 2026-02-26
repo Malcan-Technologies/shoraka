@@ -14,10 +14,12 @@ import { useUpdateApplicationStatus } from "@/hooks/use-update-application-statu
 import {
   useApproveReviewSection,
   useRejectReviewSection,
-  useRequestAmendmentReviewSection,
   useApproveReviewItem,
   useRejectReviewItem,
-  useRequestAmendmentReviewItem,
+  useAddPendingAmendment,
+  useListPendingAmendments,
+  useRemovePendingAmendment,
+  useSubmitAmendmentRequest,
 } from "@/hooks/use-application-review-actions";
 import {
   ApplicationReviewTabs,
@@ -28,6 +30,7 @@ import {
   SectionContent,
   ReviewSummaryCard,
   RecentActivityCard,
+  AmendmentReviewModal,
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
@@ -50,10 +53,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   CheckCircleIcon,
-  ClockIcon,
   ArrowLeftIcon,
-  ClipboardDocumentCheckIcon,
   XCircleIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
@@ -95,10 +97,13 @@ export default function DynamicApplicationDetailPage() {
 
   const approveSection = useApproveReviewSection();
   const rejectSection = useRejectReviewSection();
-  const requestAmendment = useRequestAmendmentReviewSection();
+  const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
-  const requestAmendmentItem = useRequestAmendmentReviewItem();
+  const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
+  const removePendingAmendment = useRemovePendingAmendment();
+  const submitAmendmentRequest = useSubmitAmendmentRequest();
+  const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
 
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
@@ -146,14 +151,31 @@ export default function DynamicApplicationDetailPage() {
   );
 
   const reviewSections = React.useMemo(() => {
-    if (app?.application_reviews?.length) {
-      return (app.application_reviews as { section: string; status: string }[]).map((r) => ({
-        section: r.section,
-        status: r.status,
-      }));
+    const reviewItems =
+      (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
+    const baseSections =
+      app?.application_reviews?.length
+        ? (app.application_reviews as { section: string; status: string }[]).map((r) => ({
+            section: r.section,
+            status: r.status,
+          }))
+        : tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+
+    const sectionWithAmendmentFromItems = new Set<string>();
+    for (const item of reviewItems) {
+      if (item.status === "AMENDMENT_REQUESTED") {
+        const section =
+          item.item_type === "invoice" ? "invoice_details" : "supporting_documents";
+        sectionWithAmendmentFromItems.add(section);
+      }
     }
-    return tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
-  }, [app?.application_reviews, tabDescriptors]);
+
+    return baseSections.map((s) => {
+      const fromItems = sectionWithAmendmentFromItems.has(s.section);
+      const status = fromItems ? "AMENDMENT_REQUESTED" : s.status;
+      return { section: s.section, status };
+    });
+  }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
 
   const allSectionsApproved = React.useMemo(
     () =>
@@ -182,19 +204,37 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const handleRequestAmendmentItem = async (remark: string) => {
+  const handleAddPendingAmendmentItem = async (remark: string) => {
     const d = noteDialog;
     if (!d || !("itemType" in d)) return;
     try {
-      await requestAmendmentItem.mutateAsync({
+      await addPendingAmendment.mutateAsync({
         applicationId,
+        scope: "item",
+        remark,
         itemType: d.itemType,
         itemId: d.itemId,
+      });
+      toast.success("Added to amendment list");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add amendment");
+      throw err;
+    }
+  };
+
+  const handleAddPendingAmendmentSection = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("section" in d)) return;
+    try {
+      await addPendingAmendment.mutateAsync({
+        applicationId,
+        scope: "section",
+        scopeKey: d.section,
         remark,
       });
-      toast.success("Amendment requested");
+      toast.success("Added to amendment list");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to request amendment");
+      toast.error(err instanceof Error ? err.message : "Failed to add amendment");
       throw err;
     }
   };
@@ -219,12 +259,7 @@ export default function DynamicApplicationDetailPage() {
         await rejectSection.mutateAsync({ applicationId, section: d.section, remark });
         toast.success("Section rejected");
       } else {
-        await requestAmendment.mutateAsync({
-          applicationId,
-          section: d.section,
-          remark,
-        });
-        toast.success("Amendment requested");
+        await handleAddPendingAmendmentSection(remark);
       }
     } else if ("itemType" in d) {
       if (d.action === "approve") {
@@ -243,7 +278,7 @@ export default function DynamicApplicationDetailPage() {
       } else if (d.action === "reject") {
         await handleRejectItem(remark);
       } else {
-        await handleRequestAmendmentItem(remark);
+        await handleAddPendingAmendmentItem(remark);
       }
     }
   };
@@ -267,20 +302,19 @@ export default function DynamicApplicationDetailPage() {
     : noteDialogIsSection
       ? noteDialog.action === "reject"
         ? "This will reject the section. A remark is required."
-        : "Request changes from the issuer. A remark is required."
-      : "A remark is required for this action.";
+        : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
+      : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
   const noteDialogSubmitLabel = noteDialogIsApprove
     ? "Approve"
     : noteDialog?.action === "reject"
       ? "Reject"
-      : "Send Amendment Request";
+      : "Add to List";
   const noteDialogPending =
     approveSection.isPending ||
     approveItem.isPending ||
     rejectSection.isPending ||
-    requestAmendment.isPending ||
-    rejectItem.isPending ||
-    requestAmendmentItem.isPending;
+    addPendingAmendment.isPending ||
+    rejectItem.isPending;
 
   const handleUpdateStatus = async (status: string) => {
     try {
@@ -453,7 +487,20 @@ export default function DynamicApplicationDetailPage() {
 
               <div className="space-y-6">
                 {isReviewable && (
-                  <div className="flex items-center justify-end gap-3">
+                  <div className="flex items-center justify-end gap-3 flex-wrap">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => setAmendmentModalOpen(true)}
+                    >
+                      <PencilSquareIcon className="h-4 w-4" />
+                      Request Amendment
+                      {pendingAmendments.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
+                          {pendingAmendments.length}
+                        </Badge>
+                      )}
+                    </Button>
                     <Button
                       className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
                       disabled={!allSectionsApproved}
@@ -502,6 +549,22 @@ export default function DynamicApplicationDetailPage() {
         optional={noteDialog?.action === "approve"}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
+      />
+
+      <AmendmentReviewModal
+        open={amendmentModalOpen}
+        onOpenChange={setAmendmentModalOpen}
+        items={pendingAmendments}
+        onRemove={async (scope, scopeKey) => {
+          await removePendingAmendment.mutateAsync({ applicationId, scope, scopeKey });
+        }}
+        onSubmit={async () => {
+          await submitAmendmentRequest.mutateAsync({ applicationId });
+          toast.success("Amendment request sent to issuer");
+          setAmendmentModalOpen(false);
+        }}
+        isRemovePending={removePendingAmendment.isPending}
+        isSubmitPending={submitAmendmentRequest.isPending}
       />
 
       <AlertDialog open={confirmAction.isOpen} onOpenChange={(open) => setConfirmAction((prev) => ({ ...prev, isOpen: open }))}>

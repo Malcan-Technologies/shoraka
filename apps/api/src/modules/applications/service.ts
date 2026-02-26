@@ -18,6 +18,7 @@ import {
   deleteS3Object,
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -406,10 +407,45 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
+    const currentStatus = application.status as string;
+    if (status === "RESUBMITTED" && currentStatus !== "AMENDMENT_REQUESTED") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "RESUBMITTED is only allowed when application is in AMENDMENT_REQUESTED status"
+      );
+    }
+
     const updateData: Prisma.ApplicationUpdateInput = {
       status: status as any,
       updated_at: new Date(),
     };
+
+    // Resubmission after amendment: reset all section/item statuses for full re-review
+    if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
+      await prisma.applicationReview.updateMany({
+        where: { application_id: id },
+        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
+      });
+      await prisma.applicationReviewItem.updateMany({
+        where: { application_id: id },
+        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
+      });
+      await prisma.applicationReviewRemark.deleteMany({
+        where: {
+          application_id: id,
+          action_type: "REQUEST_AMENDMENT",
+          submitted_at: null,
+        },
+      });
+      if (application.contract_id) {
+        await prisma.contract.updateMany({
+          where: { id: application.contract_id, status: "AMENDMENT_REQUESTED" },
+          data: { status: "SUBMITTED" },
+        });
+      }
+      logger.info({ applicationId: id, userId }, "Application resubmitted: all section/item statuses reset for re-review");
+    }
 
     // If submitting, perform cleanup of unused steps
     if (status === "SUBMITTED") {

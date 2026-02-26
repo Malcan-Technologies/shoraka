@@ -117,14 +117,6 @@ export type ApplicationStatus =
   | "REJECTED"
   | "ARCHIVED";
 
-export type ReviewSection =
-  | "financial"
-  | "business_details"
-  | "supporting_documents"
-  | "contract_details"
-  | "invoice_details"
-  | "company_details";
-
 export type ReviewStepStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMENDMENT_REQUESTED";
 
 export interface Application {
@@ -247,3 +239,4 @@ export interface Invoice {
 export * from "./activity-config";
 export * from "./admin";
 export * from "./application-steps";
+export * from "./review-scope";

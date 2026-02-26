@@ -1,3 +1,4 @@
+export { AmendmentReviewModal } from "./amendment-review-modal";
 export { DocumentList } from "./document-list";
 export { RecentActivityCard } from "./recent-activity-card";
 export { ReviewSummaryCard } from "./review-summary-card";

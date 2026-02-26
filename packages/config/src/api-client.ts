@@ -430,6 +430,72 @@ export class ApiClient {
     );
   }
 
+  async addPendingAmendment(
+    applicationId: string,
+    params: {
+      scope: "section" | "item";
+      scopeKey?: string;
+      remark: string;
+      itemType?: "invoice" | "document";
+      itemId?: string;
+    }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments`,
+      params
+    );
+  }
+
+  async listPendingAmendments(applicationId: string): Promise<
+    | ApiResponse<
+        {
+          id: string;
+          scope: string;
+          scope_key: string;
+          remark: string;
+          item_type: string | null;
+          item_id: string | null;
+          author: { first_name: string; last_name: string };
+        }[]
+      >
+    | ApiError
+  > {
+    return this.get<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments`
+    );
+  }
+
+  async updatePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
+      { remark }
+    );
+  }
+
+  async removePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.delete<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`
+    );
+  }
+
+  async submitAmendmentRequest(applicationId: string): Promise<
+    ApiResponse<any> | ApiError
+  > {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/submit-amendment-request`,
+      {}
+    );
+  }
+
   // Request redo onboarding for an application
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<

@@ -2349,6 +2349,141 @@ export class AdminRepository {
   }
 
   /**
+   * Upsert review remark (one current remark per scope)
+   */
+  async upsertReviewRemark(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    actionType: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.upsert({
+      where: {
+        application_id_scope_scope_key: {
+          application_id: applicationId,
+          scope,
+          scope_key: scopeKey,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: actionType,
+        remark,
+        author_user_id: authorUserId,
+      },
+      update: {
+        action_type: actionType,
+        remark,
+        author_user_id: authorUserId,
+        updated_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null)
+   */
+  async upsertDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.upsert({
+      where: {
+        application_id_scope_scope_key: {
+          application_id: applicationId,
+          scope,
+          scope_key: scopeKey,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
+        remark,
+        author_user_id: authorUserId,
+        submitted_at: null,
+      },
+      update: {
+        remark,
+        author_user_id: authorUserId,
+        updated_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * List pending amendments (draft remarks with submitted_at=null)
+   */
+  async listPendingAmendments(applicationId: string) {
+    return prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: null,
+      },
+      orderBy: { created_at: "asc" },
+      include: { author: { select: { first_name: true, last_name: true } } },
+    });
+  }
+
+  /**
+   * Update draft amendment remark
+   */
+  async updateDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        submitted_at: null,
+      },
+      data: { remark, author_user_id: authorUserId, updated_at: new Date() },
+    });
+  }
+
+  /**
+   * Remove draft amendment (delete remark, caller must revert item/section status)
+   */
+  async removeDraftAmendment(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.deleteMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        submitted_at: null,
+      },
+    });
+  }
+
+  /**
+   * Mark draft amendments as submitted (set submitted_at)
+   */
+  async markDraftAmendmentsAsSubmitted(applicationId: string) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: null,
+      },
+      data: { submitted_at: new Date() },
+    });
+  }
+
+  /**
    * Create review event (audit trail)
    */
   async createReviewEvent(

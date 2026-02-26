@@ -1050,6 +1050,29 @@ export interface ApplicationReviewRemark {
   remark: string;
   author_user_id: string;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface ApplicationPendingAmendment {
+  id: string;
+  application_id: string;
+  scope: string;
+  scope_key: string;
+  remark: string;
+  item_type: string | null;
+  item_id: string | null;
+  author_user_id: string;
+  created_at: string;
+  updated_at: string;
+  author?: { first_name: string; last_name: string };
+}
+
+export interface AddPendingAmendmentParams {
+  scope: "section" | "item";
+  scopeKey?: string;
+  remark: string;
+  itemType?: "invoice" | "document";
+  itemId?: string;
 }
 
 export interface ApplicationReviewEvent {

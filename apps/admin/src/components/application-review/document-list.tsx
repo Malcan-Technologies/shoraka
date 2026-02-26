@@ -125,8 +125,9 @@ export function DocumentList({
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
-  const getItemStatus = (key: string) =>
-    reviewItems.find((r) => r.item_type === "document" && r.item_id === key)?.status ?? "PENDING";
+  const getItemStatus = (key: string) => {
+    return reviewItems.find((r) => r.item_type === "document" && r.item_id === key)?.status ?? "PENDING";
+  };
 
   const totalItems = categoryGroups.reduce((acc, g) => acc + g.items.length, 0);
   if (totalItems === 0) {
@@ -165,8 +166,14 @@ export function DocumentList({
                         <span className="text-sm text-foreground">{label}</span>
                         {status !== "PENDING" && (
                           <Badge
-                            variant={status === "APPROVED" ? "default" : "secondary"}
-                            className={status === "APPROVED" ? "bg-primary text-primary-foreground" : ""}
+                            variant="secondary"
+                            className={
+                              status === "APPROVED"
+                                ? "bg-primary text-primary-foreground"
+                                : status === "AMENDMENT_REQUESTED"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : ""
+                            }
                           >
                             {status}
                           </Badge>
