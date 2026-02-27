@@ -118,21 +118,31 @@ export function getReviewTabDescriptorsFromWorkflow(
  */
 export function isTabUnlocked(
   sectionId: string,
-  sectionStatusMap: Map<string, string>
+  sectionStatusMap: Map<string, string>,
+  availableSections?: ReadonlySet<string>
 ): boolean {
   const prereqs = TAB_PREREQUISITES[sectionId];
   if (!prereqs?.length) return true;
-  return prereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+  const relevantPrereqs = availableSections
+    ? prereqs.filter((prereq) => availableSections.has(prereq))
+    : prereqs;
+  if (!relevantPrereqs.length) return true;
+  return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
 }
 
 /** Human-readable tooltip explaining why a tab is locked. */
 export function getTabUnlockTooltip(
   sectionId: string,
-  sectionStatusMap: Map<string, string>
+  sectionStatusMap: Map<string, string>,
+  availableSections?: ReadonlySet<string>
 ): string {
   const prereqs = TAB_PREREQUISITES[sectionId];
   if (!prereqs?.length) return "";
-  const missing = prereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
+  const relevantPrereqs = availableSections
+    ? prereqs.filter((prereq) => availableSections.has(prereq))
+    : prereqs;
+  if (!relevantPrereqs.length) return "";
+  const missing = relevantPrereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
   if (missing.length === 0) return "";
   const labels = missing.map((m) => REVIEW_TAB_LABELS[m] ?? m).join(", ");
   return `Approve ${labels} section first`;

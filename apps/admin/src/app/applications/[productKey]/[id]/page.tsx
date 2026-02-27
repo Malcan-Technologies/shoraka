@@ -203,6 +203,10 @@ export default function DynamicApplicationDetailPage() {
     }
     return m;
   }, [reviewSections]);
+  const availableReviewSections = React.useMemo(
+    () => new Set(tabDescriptors.map((d) => d.reviewSection)),
+    [tabDescriptors]
+  );
 
   const handleApproveSection = (section: string) => {
     setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
@@ -571,9 +575,17 @@ export default function DynamicApplicationDetailPage() {
                   defaultTabId={tabDescriptors[0]?.id}
                 >
                   {tabDescriptors.map((descriptor) => {
-                    const actionLocked = !isTabUnlocked(descriptor.reviewSection, sectionStatusMap);
+                    const actionLocked = !isTabUnlocked(
+                      descriptor.reviewSection,
+                      sectionStatusMap,
+                      availableReviewSections
+                    );
                     const actionLockTooltip = actionLocked
-                      ? getTabUnlockTooltip(descriptor.reviewSection, sectionStatusMap)
+                      ? getTabUnlockTooltip(
+                          descriptor.reviewSection,
+                          sectionStatusMap,
+                          availableReviewSections
+                        )
                       : undefined;
                     const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                     return (
