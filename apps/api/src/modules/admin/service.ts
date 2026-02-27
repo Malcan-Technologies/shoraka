@@ -44,6 +44,7 @@ import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
+  buildItemScopeKey,
   getSectionForPendingAmendment,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
@@ -3814,7 +3815,14 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    return application;
+    const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+    const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
+      requiredSections.has(section)
+    );
+    return {
+      ...application,
+      required_review_sections: orderedRequiredSections,
+    };
   }
 
   /**
@@ -4002,7 +4010,7 @@ export class AdminService {
 
   /**
    * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
-   * Canonical format is `${itemType}:${itemId}`; legacy rows may use plain `itemId`.
+   * Canonical format is buildItemScopeKey(itemType, itemId); legacy rows may use plain itemId.
    */
   private async clearItemDraftAmendments(
     repository: AdminRepository,
@@ -4010,7 +4018,7 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([`${itemType}:${itemId}`]);
+    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId)]);
     if (itemType === "document" || itemType === "invoice") {
       scopeKeys.add(itemId);
     }
@@ -4031,7 +4039,7 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([`${itemType}:${itemId}`, itemId]);
+    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId), itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
         repository.removeReviewRemark(applicationId, "item", scopeKey)
@@ -4317,7 +4325,7 @@ export class AdminService {
       await repository.upsertReviewRemark(
         applicationId,
         "item",
-        `${itemType}:${itemId}`,
+        buildItemScopeKey(itemType, itemId),
         "APPROVE",
         remarkValue,
         reviewerUserId
@@ -4368,7 +4376,7 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      `${itemType}:${itemId}`,
+      buildItemScopeKey(itemType, itemId),
       "REJECT",
       remark,
       reviewerUserId
@@ -4418,7 +4426,7 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      `${itemType}:${itemId}`,
+      buildItemScopeKey(itemType, itemId),
       "REQUEST_AMENDMENT",
       remark,
       reviewerUserId

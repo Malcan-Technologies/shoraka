@@ -185,17 +185,6 @@ export default function DynamicApplicationDetailPage() {
     });
   }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
 
-  const allSectionsApproved = React.useMemo(
-    () =>
-      reviewSections.length > 0 && reviewSections.every((s) => s.status === "APPROVED"),
-    [reviewSections]
-  );
-
-  const hasRejectedSection = React.useMemo(
-    () => reviewSections.some((s) => s.status === "REJECTED"),
-    [reviewSections]
-  );
-
   const sectionStatusMap = React.useMemo(() => {
     const m = new Map<string, string>();
     for (const s of reviewSections) {
@@ -203,6 +192,25 @@ export default function DynamicApplicationDetailPage() {
     }
     return m;
   }, [reviewSections]);
+  const requiredReviewSections = React.useMemo(() => {
+    const fromApi = (app as { required_review_sections?: unknown } | undefined)?.required_review_sections;
+    if (Array.isArray(fromApi)) {
+      const normalized = fromApi.filter((s): s is string => typeof s === "string");
+      if (normalized.length > 0) return normalized;
+    }
+    return tabDescriptors.map((d) => d.reviewSection);
+  }, [app, tabDescriptors]);
+  const allSectionsApproved = React.useMemo(
+    () =>
+      requiredReviewSections.length > 0 &&
+      requiredReviewSections.every((section) => sectionStatusMap.get(section) === "APPROVED"),
+    [requiredReviewSections, sectionStatusMap]
+  );
+
+  const hasRejectedSection = React.useMemo(
+    () => requiredReviewSections.some((section) => sectionStatusMap.get(section) === "REJECTED"),
+    [requiredReviewSections, sectionStatusMap]
+  );
   const availableReviewSections = React.useMemo(
     () => new Set(tabDescriptors.map((d) => d.reviewSection)),
     [tabDescriptors]

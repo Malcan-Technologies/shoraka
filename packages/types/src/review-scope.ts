@@ -58,6 +58,11 @@ export function parseItemScopeKey(scopeKey: string): {
   };
 }
 
+/** Build canonical item scope_key in "itemType:itemId" format. */
+export function buildItemScopeKey(itemType: string, itemId: string): string {
+  return `${itemType}:${itemId}`;
+}
+
 /**
  * Get the document/invoice item id from scope_key for frontend matching.
  * scope_key = "document:doc:cat:0:slug" → "doc:cat:0:slug"

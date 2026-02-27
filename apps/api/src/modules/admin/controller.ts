@@ -3,6 +3,7 @@ import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
+import { buildItemScopeKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
@@ -2154,7 +2155,7 @@ router.post(
       const scopeKey =
         validated.scope === "section"
           ? String(validated.scopeKey ?? "")
-          : `${validated.itemType}:${validated.itemId}`;
+          : buildItemScopeKey(validated.itemType ?? "", String(validated.itemId ?? ""));
       const result = await adminService.addPendingAmendment(
         id,
         validated.scope,

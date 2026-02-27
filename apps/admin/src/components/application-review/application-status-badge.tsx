@@ -16,6 +16,40 @@ interface ApplicationStatusBadgeProps {
   label?: string;
 }
 
+const STATUS_STYLE: Record<
+  string,
+  { badgeClass: string; iconClass: string }
+> = {
+  blue: {
+    badgeClass: "border-blue-500/30 bg-blue-500/10 text-foreground",
+    iconClass: "text-blue-600",
+  },
+  yellow: {
+    badgeClass: "border-yellow-500/30 bg-yellow-500/10 text-foreground",
+    iconClass: "text-yellow-600",
+  },
+  orange: {
+    badgeClass: "border-orange-500/30 bg-orange-500/10 text-foreground",
+    iconClass: "text-orange-600",
+  },
+  green: {
+    badgeClass: "border-green-500/30 bg-green-500/10 text-foreground",
+    iconClass: "text-green-600",
+  },
+  red: {
+    badgeClass: "border-red-500/30 bg-red-500/10 text-foreground",
+    iconClass: "text-red-600",
+  },
+  amber: {
+    badgeClass: "border-amber-500/30 bg-amber-500/10 text-foreground",
+    iconClass: "text-amber-600",
+  },
+  slate: {
+    badgeClass: "border-slate-500/30 bg-slate-500/10 text-foreground",
+    iconClass: "text-slate-600",
+  },
+};
+
 const STATUS_CONFIG: Record<string, {
   color: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -43,13 +77,14 @@ export function ApplicationStatusBadge({ status, size = "md", label }: Applicati
   const sizeClasses =
     size === "sm" ? "text-xs px-1.5 py-0" : size === "lg" ? "text-sm px-2.5 py-1" : "";
   const displayLabel = label ?? config.label;
+  const style = STATUS_STYLE[config.color] ?? STATUS_STYLE.amber;
 
   return (
     <Badge
       variant="outline"
-      className={`border-${config.color}-500/30 text-foreground bg-${config.color}-500/10 ${sizeClasses}`}
+      className={`${style.badgeClass} ${sizeClasses}`}
     >
-      <Icon className={`${iconSize} mr-1 text-${config.color}-600`} />
+      <Icon className={`${iconSize} mr-1 ${style.iconClass}`} />
       {displayLabel}
     </Badge>
   );
