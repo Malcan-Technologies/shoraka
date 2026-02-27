@@ -402,134 +402,133 @@ export default function DynamicApplicationDetailPage() {
           )}
 
           {app && (
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
-              <div className="min-w-0 space-y-6">
-                <Card className="rounded-2xl">
-                  <CardContent className="pt-6 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Requested Facility
-                          </div>
-                          <div className="text-2xl font-bold text-primary">
-                            {formatCurrency(requestedAmount)}
-                          </div>
-                        </div>
-                        <ApplicationStatusBadge status={app.status} />
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Requested Facility
                       </div>
-                      {isReviewable && (
-                        <TooltipProvider>
-                          <div className="flex flex-wrap items-center gap-3">
-                            {(app.status === "APPROVED" || app.status === "REJECTED" || app.status === "AMENDMENT_REQUESTED") && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-flex">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={async () => {
-                                        try {
-                                          await updateStatus.mutateAsync({ id: applicationId, status: "UNDER_REVIEW" });
-                                          toast.success("Application reset to under review");
-                                        } catch (err) {
-                                          toast.error(err instanceof Error ? err.message : "Failed to reset status");
-                                        }
-                                      }}
-                                    >
-                                      <ArrowPathIcon className="h-4 w-4" />
-                                      Reset to Under Review
-                                    </Button>
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
-                                  Clear application status so it can be reviewed again
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0 ? "inline-flex cursor-not-allowed" : "inline-flex"}>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="gap-2"
-                                    disabled={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0}
-                                    onClick={() => setAmendmentModalOpen(true)}
-                                  >
-                                    <PencilSquareIcon className="h-4 w-4" />
-                                    Request Amendment
-                                    {pendingAmendments.length > 0 && (
-                                      <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                                        {pendingAmendments.length}
-                                      </Badge>
-                                    )}
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
-                                {app.status === "AMENDMENT_REQUESTED"
-                                  ? "Amendment already requested; issuer must respond first"
-                                  : pendingAmendments.length === 0
-                                    ? "Request amendment on at least one section first"
-                                    : "Review and send amendment request to issuer"}
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection ? "inline-flex cursor-not-allowed" : "inline-flex"}>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-                                    disabled={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection}
-                                    onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
-                                  >
-                                    <XCircleIcon className="h-4 w-4" />
-                                    Reject
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
-                                {app.status === "REJECTED"
-                                  ? "Application already rejected"
-                                  : allSectionsApproved
-                                    ? "Cannot reject when all sections are approved"
-                                    : !hasRejectedSection
-                                      ? "Reject at least one section first"
-                                      : "Reject the application and notify the issuer"}
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={app.status === "APPROVED" || !allSectionsApproved ? "inline-flex cursor-not-allowed" : "inline-flex"}>
-                                  <Button
-                                    size="sm"
-                                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
-                                    disabled={app.status === "APPROVED" || !allSectionsApproved}
-                                    onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                                  >
-                                    <CheckCircleIcon className="h-4 w-4" />
-                                    Approve
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
-                                {app.status === "APPROVED"
-                                  ? "Application already approved"
-                                  : !allSectionsApproved
-                                    ? "Approve all sections first"
-                                    : "Approve the application and move to the next stage"}
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TooltipProvider>
-                      )}
+                      <div className="text-2xl font-bold text-primary">
+                        {formatCurrency(requestedAmount)}
+                      </div>
                     </div>
+                    <ApplicationStatusBadge status={app.status} size="lg" />
+                  </div>
+                  {isReviewable && (
+                    <TooltipProvider>
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        {(app.status === "APPROVED" || app.status === "REJECTED" || app.status === "AMENDMENT_REQUESTED") && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  variant="outline"
+                                  size="default"
+                                  className="gap-2"
+                                  onClick={async () => {
+                                    try {
+                                      await updateStatus.mutateAsync({ id: applicationId, status: "UNDER_REVIEW" });
+                                      toast.success("Application reset to under review");
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : "Failed to reset status");
+                                    }
+                                  }}
+                                >
+                                  <ArrowPathIcon className="h-4 w-4" />
+                                  Reset to Under Review
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                              Clear application status so it can be reviewed again
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0 ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                variant="outline"
+                                size="default"
+                                className="gap-2 border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
+                                disabled={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0}
+                                onClick={() => setAmendmentModalOpen(true)}
+                              >
+                                <PencilSquareIcon className="h-4 w-4" />
+                                Request Amendment
+                                {pendingAmendments.length > 0 && (
+                                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
+                                    {pendingAmendments.length}
+                                  </Badge>
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "AMENDMENT_REQUESTED"
+                              ? "Amendment already requested; issuer must respond first"
+                              : pendingAmendments.length === 0
+                                ? "Request amendment on at least one section first"
+                                : "Review and send amendment request to issuer"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                variant="outline"
+                                size="default"
+                                className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                                disabled={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection}
+                                onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                              >
+                                <XCircleIcon className="h-4 w-4" />
+                                Reject
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "REJECTED"
+                              ? "Application already rejected"
+                              : allSectionsApproved
+                                ? "Cannot reject when all sections are approved"
+                                : !hasRejectedSection
+                                  ? "Reject at least one section first"
+                                  : "Reject the application and notify the issuer"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "APPROVED" || !allSectionsApproved ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                size="default"
+                                className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                                disabled={app.status === "APPROVED" || !allSectionsApproved}
+                                onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
+                              >
+                                <CheckCircleIcon className="h-4 w-4" />
+                                Approve
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "APPROVED"
+                              ? "Application already approved"
+                              : !allSectionsApproved
+                                ? "Approve all sections first"
+                                : "Approve the application and move to the next stage"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
+                  )}
+              </div>
 
-                    <Separator />
-
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
+                <div className="min-w-0 space-y-6">
+                  <Card className="rounded-2xl">
+                  <CardContent className="pt-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-1">
                         <div className="text-xs text-muted-foreground uppercase tracking-wider">Organization</div>
@@ -651,6 +650,7 @@ export default function DynamicApplicationDetailPage() {
                   remarks={(app.application_review_remarks as { scope_key: string; action_type: string; remark: string; created_at: string }[]) ?? []}
                 />
               </div>
+            </div>
             </div>
           )}
         </div>

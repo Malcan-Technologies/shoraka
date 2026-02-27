@@ -81,7 +81,7 @@ export function SectionActionDropdown({
           Approve
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="rounded-lg text-destructive focus:text-destructive"
+          className="rounded-lg"
           onClick={() => onReject(section)}
         >
           <XCircleIcon className="h-4 w-4 mr-2" />

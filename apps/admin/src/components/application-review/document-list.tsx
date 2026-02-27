@@ -217,7 +217,7 @@ export function DocumentList({
                                 Approve
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                className="rounded-lg text-destructive focus:text-destructive"
+                                className="rounded-lg"
                                 onClick={() => onRejectItem(key)}
                               >
                                 <XCircleIcon className="h-4 w-4 mr-2" />

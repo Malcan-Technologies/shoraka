@@ -106,7 +106,7 @@ export function InvoiceList({
                       Approve
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      className="rounded-lg text-destructive focus:text-destructive"
+                      className="rounded-lg"
                       onClick={() => onRejectItem(inv.id)}
                     >
                       <XCircleIcon className="h-4 w-4 mr-2" />
