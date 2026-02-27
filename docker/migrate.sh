@@ -95,7 +95,7 @@ if echo "$LOCK_ACQUIRED" | grep -q "^t$"; then
 
         if [ "$(echo "$BASELINE_READY" | xargs)" = "t" ]; then
           echo "    ✅ Baseline objects already exist. Marking migration as applied..."
-          pnpm prisma migrate resolve --applied "$MIGRATION_NAME" > /dev/null
+          pnpm prisma migrate resolve --applied "$MIGRATION_NAME" > /dev/null 2>&1 || true
           continue
         else
           echo "    ❌ Baseline objects are incomplete."
