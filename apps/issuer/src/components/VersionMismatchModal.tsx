@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useArchiveApplication } from "@/hooks/use-applications";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface VersionMismatchModalProps {
   open: boolean;
@@ -35,11 +36,13 @@ export function VersionMismatchModal({
   onOpenChange,
 }: VersionMismatchModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const archiveMutation = useArchiveApplication();
 
   const handleRestart = async () => {
     try {
       await archiveMutation.mutateAsync(applicationId);
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
       router.replace("/applications/new");
     } catch {
       toast.error("Unable to restart. Please try again.");
