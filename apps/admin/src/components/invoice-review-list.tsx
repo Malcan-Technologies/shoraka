@@ -110,7 +110,7 @@ export function InvoiceList({
                       onClick={() => onRejectItem(inv.id)}
                     >
                       <XCircleIcon className="h-4 w-4 mr-2" />
-                      Reject (leave remark)
+                      Reject
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="rounded-lg"

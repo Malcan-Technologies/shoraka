@@ -1,32 +1,19 @@
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import {
+  getStepKeyFromStepId,
+  REVIEW_SECTION_ORDER,
+  type ReviewSection,
+} from "@cashsouk/types";
 
-/**
- * Canonical admin review section IDs.
- * Keep aligned with backend ReviewSection enum and review scope helpers.
- */
-export const REVIEW_SECTION_IDS = [
-  "financial",
-  "business_details",
-  "supporting_documents",
-  "contract_details",
-  "invoice_details",
-  "company_details",
-] as const;
-
-export type ReviewSectionId = (typeof REVIEW_SECTION_IDS)[number];
+/** Canonical section IDs sourced from shared types package. */
+export const REVIEW_SECTION_IDS = REVIEW_SECTION_ORDER;
+export type ReviewSectionId = ReviewSection;
 
 /** Descriptor for an admin review tab. Used for dynamic tab rendering. */
 export type ReviewTabDescriptor = {
   id: string;
   label: string;
   reviewSection: ReviewSectionId;
-  kind:
-    | "financial"
-    | "business_details"
-    | "supporting_documents"
-    | "contract_details"
-    | "invoice_details"
-    | "company_details";
+  kind: ReviewSectionId;
   stepKey?: string;
   stepId?: string;
 };
