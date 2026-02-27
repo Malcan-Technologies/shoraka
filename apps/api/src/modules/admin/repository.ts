@@ -2519,7 +2519,22 @@ export class AdminRepository {
         application_id: applicationId,
         scope,
         scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
+      },
+    });
+  }
+
+  /**
+   * Remove review remark for a specific scope key regardless of action type/submission state.
+   * Useful when resetting an item/section back to pending and clearing its current remark entry.
+   */
+  async removeReviewRemark(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.deleteMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
       },
     });
   }

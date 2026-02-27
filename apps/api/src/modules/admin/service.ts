@@ -47,22 +47,69 @@ import {
   getSectionForPendingAmendment,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
+  getStepKeyFromStepId,
 } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
+import { ProductRepository } from "../products/repository";
 
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
   private notificationService: NotificationService;
+  private productRepository: ProductRepository;
+
+  /** Sections that are workflow-step-driven (financial is always required separately). */
+  private static readonly WORKFLOW_REVIEW_SECTION_KEYS: ReadonlySet<string> = new Set(
+    REVIEW_SECTION_ORDER.filter((section) => section !== "financial")
+  );
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
+    this.productRepository = new ProductRepository();
+  }
+
+  /**
+   * Derive required review sections from the product workflow referenced by the application.
+   * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
+   */
+  private async getRequiredReviewSectionsForApproval(application: {
+    financing_type?: unknown;
+  }): Promise<Set<ReviewSection>> {
+    const required = new Set<ReviewSection>(["financial"]);
+    const financingType =
+      application.financing_type && typeof application.financing_type === "object"
+        ? (application.financing_type as Record<string, unknown>)
+        : null;
+    const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
+
+    if (!productId) {
+      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+    }
+
+    const product = await this.productRepository.findById(productId);
+    if (!product) {
+      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+    }
+
+    const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+    for (const rawStep of workflow) {
+      const step = rawStep as { id?: unknown };
+      const stepId = typeof step.id === "string" ? step.id : "";
+      if (!stepId) continue;
+      const stepKey = getStepKeyFromStepId(stepId);
+      if (!stepKey || !AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) {
+        continue;
+      }
+      required.add(stepKey as ReviewSection);
+    }
+
+    return required;
   }
 
   /**
@@ -3794,13 +3841,19 @@ export class AdminService {
 
     if (status === ApplicationStatus.APPROVED) {
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
-      const allApproved =
-        reviews.length > 0 && reviews.every((r) => r.status === "APPROVED");
-      if (!allApproved) {
+      const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+      const reviewStatusBySection = new Map<string, string>();
+      for (const review of reviews) {
+        reviewStatusBySection.set(review.section, review.status);
+      }
+      const notApprovedSections = Array.from(requiredSections).filter(
+        (section) => reviewStatusBySection.get(section) !== "APPROVED"
+      );
+      if (notApprovedSections.length > 0) {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "All review sections must be approved before final approval"
+          `All required review sections must be approved before final approval. Pending: ${notApprovedSections.join(", ")}`
         );
       }
     }
@@ -3948,6 +4001,45 @@ export class AdminService {
   }
 
   /**
+   * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
+   * Canonical format is `${itemType}:${itemId}`; legacy rows may use plain `itemId`.
+   */
+  private async clearItemDraftAmendments(
+    repository: AdminRepository,
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<void> {
+    const scopeKeys = new Set<string>([`${itemType}:${itemId}`]);
+    if (itemType === "document" || itemType === "invoice") {
+      scopeKeys.add(itemId);
+    }
+    await Promise.all(
+      Array.from(scopeKeys).map((scopeKey) =>
+        repository.removeDraftAmendment(applicationId, "item", scopeKey)
+      )
+    );
+  }
+
+  /**
+   * Clear item remark entries for both canonical and legacy scope_key formats.
+   * Used by reset-to-pending to fully clear the item's current remark entry.
+   */
+  private async clearItemRemarks(
+    repository: AdminRepository,
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<void> {
+    const scopeKeys = new Set<string>([`${itemType}:${itemId}`, itemId]);
+    await Promise.all(
+      Array.from(scopeKeys).map((scopeKey) =>
+        repository.removeReviewRemark(applicationId, "item", scopeKey)
+      )
+    );
+  }
+
+  /**
    * Approve a review section
    */
   async approveReviewSection(
@@ -4073,7 +4165,8 @@ export class AdminService {
       itemType,
       itemId
     );
-    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+    await this.clearItemRemarks(repository, applicationId, itemType, itemId);
 
     logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
     return repository.getApplicationById(applicationId);
@@ -4241,7 +4334,7 @@ export class AdminService {
       itemId
     );
 
-    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     return repository.getApplicationById(applicationId);
   }
@@ -4291,7 +4384,7 @@ export class AdminService {
       itemId
     );
 
-    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     return repository.getApplicationById(applicationId);
   }
@@ -4341,7 +4434,7 @@ export class AdminService {
       itemId
     );
 
-    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     return repository.getApplicationById(applicationId);
   }
