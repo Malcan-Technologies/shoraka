@@ -103,6 +103,35 @@ export function useRequestAmendmentReviewSection() {
   });
 }
 
+export function useResetSectionReviewToPending() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      section,
+    }: {
+      applicationId: string;
+      section: string;
+    }) => {
+      const response = await apiClient.resetSectionReviewToPending(applicationId, section);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to reset section");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+    },
+  });
+}
+
 export function useApproveReviewItem() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -199,6 +228,41 @@ export function useRequestAmendmentReviewItem() {
       );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+    },
+  });
+}
+
+export function useResetItemReviewToPending() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      itemType,
+      itemId,
+    }: {
+      applicationId: string;
+      itemType: "invoice" | "document";
+      itemId: string;
+    }) => {
+      const response = await apiClient.resetItemReviewToPending(
+        applicationId,
+        itemType,
+        itemId
+      );
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to reset item");
       }
       return response.data;
     },

@@ -4005,6 +4005,81 @@ export class AdminService {
   }
 
   /**
+   * Reset a review section to PENDING (undoes approve/reject/amendment for that section).
+   */
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: ReviewSection,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.resetSectionReviewToPending(applicationId, section);
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "SUBMITTED" },
+      });
+    }
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "PENDING",
+      reviewerUserId,
+      "Reset to pending",
+      "section",
+      section
+    );
+    await repository.removeDraftAmendment(applicationId, "section", section);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reset a review item to PENDING (undoes approve/reject/amendment for that item).
+   */
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.validateReviewItemExists(application, itemType, itemId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.resetItemReviewToPending(applicationId, itemType, itemId);
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "PENDING",
+      reviewerUserId,
+      "Reset to pending",
+      itemType,
+      itemId
+    );
+    await repository.removeDraftAmendment(applicationId, "item", `${itemType}:${itemId}`);
+
+    logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
    * Reject a review section. Updates section status only; does not change application status.
    * Application-level Reject must be triggered separately when admin finalizes.
    */
@@ -4298,6 +4373,12 @@ export class AdminService {
         ReviewStepStatus.AMENDMENT_REQUESTED,
         reviewerUserId
       );
+      if (scopeKey === "contract_details" && application.contract_id) {
+        await prisma.contract.update({
+          where: { id: application.contract_id },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
     } else {
       if (!itemType || !itemId) {
         throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
@@ -4425,6 +4506,15 @@ export class AdminService {
           ReviewStepStatus.PENDING,
           reviewerUserId
         );
+      }
+      if (affectedSection === "contract_details") {
+        const application = await repository.getApplicationById(applicationId);
+        if (application?.contract_id) {
+          await prisma.contract.update({
+            where: { id: application.contract_id },
+            data: { status: "SUBMITTED" },
+          });
+        }
       }
     }
 

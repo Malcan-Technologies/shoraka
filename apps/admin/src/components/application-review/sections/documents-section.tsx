@@ -15,6 +15,8 @@ export interface DocumentsSectionProps {
   approvePending: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  sectionStatus?: string;
+  onResetSectionToPending?: (section: ReviewSectionId) => void;
   viewDocumentPending: boolean;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
@@ -23,6 +25,7 @@ export interface DocumentsSectionProps {
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
+  onResetItemToPending?: (itemId: string) => void;
 }
 
 export function DocumentsSection({
@@ -33,6 +36,8 @@ export function DocumentsSection({
   approvePending,
   isActionLocked,
   actionLockTooltip,
+  sectionStatus,
+  onResetSectionToPending,
   viewDocumentPending,
   onApprove,
   onReject,
@@ -41,6 +46,7 @@ export function DocumentsSection({
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
+  onResetItemToPending,
 }: DocumentsSectionProps) {
   return (
     <Card className="rounded-2xl">
@@ -59,6 +65,8 @@ export function DocumentsSection({
             isPending={approvePending}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
+            sectionStatus={sectionStatus}
+            onResetToPending={onResetSectionToPending}
           />
         </div>
       </CardHeader>
@@ -72,6 +80,7 @@ export function DocumentsSection({
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}
+            onResetItemToPending={onResetItemToPending}
             isItemActionPending={approvePending}
             isViewDocumentPending={viewDocumentPending}
           />

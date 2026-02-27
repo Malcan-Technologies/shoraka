@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ArrowPathIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentTextIcon,
@@ -25,6 +26,7 @@ interface InvoiceReviewListProps {
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
+  onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
 }
 
@@ -45,6 +47,7 @@ export function InvoiceList({
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
+  onResetItemToPending,
   isItemActionPending,
 }: InvoiceReviewListProps) {
   return (
@@ -116,6 +119,15 @@ export function InvoiceList({
                       <DocumentTextIcon className="h-4 w-4 mr-2" />
                       Request Amendment
                     </DropdownMenuItem>
+                    {onResetItemToPending && status !== "PENDING" && (
+                      <DropdownMenuItem
+                        className="rounded-lg"
+                        onClick={() => onResetItemToPending(inv.id)}
+                      >
+                        <ArrowPathIcon className="h-4 w-4 mr-2" />
+                        Set to Pending
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

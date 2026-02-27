@@ -394,6 +394,16 @@ export class ApiClient {
     );
   }
 
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reset-to-pending`,
+      {}
+    );
+  }
+
   async approveReviewItem(
     applicationId: string,
     itemType: "invoice" | "document",
@@ -427,6 +437,17 @@ export class ApiClient {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/items/request-amendment`,
       { itemType, itemId, remark }
+    );
+  }
+
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/reset-to-pending`,
+      { itemType, itemId }
     );
   }
 

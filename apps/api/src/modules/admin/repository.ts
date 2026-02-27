@@ -2264,6 +2264,61 @@ export class AdminRepository {
   }
 
   /**
+   * Reset section review status to PENDING (clears reviewer and reviewed_at)
+   */
+  async resetSectionReviewToPending(applicationId: string, section: ReviewSection) {
+    return prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: {
+        application_id: applicationId,
+        section,
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
+   * Reset item review status to PENDING (clears reviewer and reviewed_at)
+   */
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: string,
+    itemId: string
+  ) {
+    return prisma.applicationReviewItem.upsert({
+      where: {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: itemType,
+          item_id: itemId,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        item_type: itemType,
+        item_id: itemId,
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
    * Update section review status
    */
   async updateSectionReviewStatus(

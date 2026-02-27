@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CheckCircleIcon, ChevronDownIcon, DocumentTextIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ChevronDownIcon, DocumentTextIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { ReviewSectionId } from "./section-types";
 
 export interface SectionActionDropdownProps {
@@ -17,7 +17,10 @@ export interface SectionActionDropdownProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onResetToPending?: (section: ReviewSectionId) => void;
   isPending: boolean;
+  /** Current section status; when not PENDING, shows "Set to Pending" option. */
+  sectionStatus?: string;
   /** When true, the dropdown is disabled and shows tooltip explaining why. */
   isActionLocked?: boolean;
   /** Tooltip text when isActionLocked is true. */
@@ -30,7 +33,9 @@ export function SectionActionDropdown({
   onApprove,
   onReject,
   onRequestAmendment,
+  onResetToPending,
   isPending,
+  sectionStatus,
   isActionLocked = false,
   actionLockTooltip,
 }: SectionActionDropdownProps) {
@@ -89,6 +94,15 @@ export function SectionActionDropdown({
           <DocumentTextIcon className="h-4 w-4 mr-2" />
           Request amendment
         </DropdownMenuItem>
+        {onResetToPending && sectionStatus && sectionStatus !== "PENDING" && (
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => onResetToPending(section)}
+          >
+            <ArrowPathIcon className="h-4 w-4 mr-2" />
+            Set to Pending
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

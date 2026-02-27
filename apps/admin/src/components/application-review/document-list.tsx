@@ -15,11 +15,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
   DocumentTextIcon,
-  ArrowTopRightOnSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -108,6 +109,7 @@ export interface DocumentListProps {
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
+  onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
   isViewDocumentPending?: boolean;
 }
@@ -120,6 +122,7 @@ export function DocumentList({
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
+  onResetItemToPending,
   isItemActionPending,
   isViewDocumentPending,
 }: DocumentListProps) {
@@ -227,6 +230,15 @@ export function DocumentList({
                                 <DocumentTextIcon className="h-4 w-4 mr-2" />
                                 Request Amendment
                               </DropdownMenuItem>
+                              {onResetItemToPending && status !== "PENDING" && (
+                                <DropdownMenuItem
+                                  className="rounded-lg"
+                                  onClick={() => onResetItemToPending(key)}
+                                >
+                                  <ArrowPathIcon className="h-4 w-4 mr-2" />
+                                  Set to Pending
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}

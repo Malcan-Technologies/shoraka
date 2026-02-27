@@ -15,12 +15,15 @@ export interface InvoiceSectionProps {
   approvePending: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  sectionStatus?: string;
+  onResetSectionToPending?: (section: ReviewSectionId) => void;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
+  onResetItemToPending?: (itemId: string) => void;
 }
 
 export function InvoiceSection({
@@ -31,12 +34,15 @@ export function InvoiceSection({
   approvePending,
   isActionLocked,
   actionLockTooltip,
+  sectionStatus,
+  onResetSectionToPending,
   onApprove,
   onReject,
   onRequestAmendment,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
+  onResetItemToPending,
 }: InvoiceSectionProps) {
   return (
     <Card className="rounded-2xl">
@@ -55,6 +61,8 @@ export function InvoiceSection({
             isPending={approvePending}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
+            sectionStatus={sectionStatus}
+            onResetToPending={onResetSectionToPending}
           />
         </div>
       </CardHeader>
@@ -67,6 +75,7 @@ export function InvoiceSection({
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}
+            onResetItemToPending={onResetItemToPending}
             isItemActionPending={approvePending}
           />
         ) : (

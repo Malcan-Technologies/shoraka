@@ -22,6 +22,8 @@ export interface BusinessSectionProps {
   approvePending: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  sectionStatus?: string;
+  onResetSectionToPending?: (section: ReviewSectionId) => void;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
@@ -104,6 +106,8 @@ export function BusinessSection({
   approvePending,
   isActionLocked,
   actionLockTooltip,
+  sectionStatus,
+  onResetSectionToPending,
   onApprove,
   onReject,
   onRequestAmendment,
@@ -120,6 +124,8 @@ export function BusinessSection({
       approvePending={approvePending}
       isActionLocked={isActionLocked}
       actionLockTooltip={actionLockTooltip}
+      sectionStatus={sectionStatus}
+      onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}

@@ -13,6 +13,8 @@ export interface ReviewSectionCardProps {
   approvePending?: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  sectionStatus?: string;
+  onResetToPending?: (section: ReviewSectionId) => void;
   onApprove?: (section: ReviewSectionId) => void;
   onReject?: (section: ReviewSectionId) => void;
   onRequestAmendment?: (section: ReviewSectionId) => void;
@@ -31,6 +33,8 @@ export function ReviewSectionCard({
   approvePending,
   isActionLocked,
   actionLockTooltip,
+  sectionStatus,
+  onResetToPending,
   onApprove,
   onReject,
   onRequestAmendment,
@@ -61,6 +65,8 @@ export function ReviewSectionCard({
               isPending={!!approvePending}
               isActionLocked={isActionLocked}
               actionLockTooltip={actionLockTooltip}
+              sectionStatus={sectionStatus}
+              onResetToPending={onResetToPending}
             />
           )}
         </div>

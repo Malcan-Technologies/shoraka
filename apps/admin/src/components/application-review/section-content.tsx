@@ -49,6 +49,10 @@ export interface SectionContentProps {
   isActionLocked?: boolean;
   /** Tooltip when Action is locked. */
   actionLockTooltip?: string;
+  /** Current status of this section for conditional "Set to Pending" option. */
+  sectionStatus?: string;
+  /** Callback to reset section to PENDING. */
+  onResetSectionToPending?: (section: ReviewSectionId) => void;
   onApproveSection: (section: ReviewSectionId) => void;
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
@@ -56,6 +60,7 @@ export interface SectionContentProps {
   onApproveItem: (itemId: string, itemType: "invoice" | "document") => Promise<void>;
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
+  onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -68,6 +73,8 @@ export function SectionContent({
   viewDocumentPending,
   isActionLocked,
   actionLockTooltip,
+  sectionStatus,
+  onResetSectionToPending,
   onApproveSection,
   onRejectSection,
   onRequestAmendmentSection,
@@ -75,6 +82,7 @@ export function SectionContent({
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
+  onResetItemToPending,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -91,6 +99,8 @@ export function SectionContent({
           approvePending={approveSectionPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -105,6 +115,8 @@ export function SectionContent({
           approvePending={approveSectionPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -119,6 +131,8 @@ export function SectionContent({
           approvePending={approveSectionPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -134,6 +148,8 @@ export function SectionContent({
           approvePending={approveItemPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           viewDocumentPending={viewDocumentPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
@@ -142,6 +158,7 @@ export function SectionContent({
           onApproveItem={(id) => onApproveItem(id, "document")}
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
+          onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
         />
       );
     case "contract_details":
@@ -154,6 +171,8 @@ export function SectionContent({
           approvePending={approveSectionPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -171,12 +190,15 @@ export function SectionContent({
           approvePending={approveItemPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
+          onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "invoice") : undefined}
         />
       );
     default:

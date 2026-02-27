@@ -30,6 +30,7 @@ import {
   reviewSectionApproveSchema,
   reviewSectionRejectSchema,
   reviewSectionRequestAmendmentSchema,
+  reviewItemActionSchema,
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
@@ -2011,6 +2012,31 @@ router.post(
 );
 
 router.post(
+  "/applications/:id/reviews/sections/:section/reset-to-pending",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const result = await adminService.resetSectionReviewToPending(
+        id,
+        validatedSection,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
   "/applications/:id/reviews/items/approve",
   requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -2077,6 +2103,32 @@ router.post(
         validated.itemType,
         validated.itemId,
         validated.remark,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/items/reset-to-pending",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reviewItemActionSchema.parse(req.body);
+      const result = await adminService.resetItemReviewToPending(
+        id,
+        validated.itemType,
+        validated.itemId,
         req.user.user_id
       );
 
