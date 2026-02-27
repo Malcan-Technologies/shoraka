@@ -337,8 +337,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
     }
 
-    // contract window must be on the start date
-    if (true) {
+    // contract window check (only for contract-based structures)
+    if (!isInvoiceOnly && application?.contract?.contract_details?.start_date) {
       // Debug logs: show raw and parsed dates and comparison result
       // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
       // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
