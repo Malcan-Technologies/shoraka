@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TrashIcon } from "@heroicons/react/24/outline";
-import { getReviewTabLabel } from "@/app/settings/products/product-utils";
+import { getReviewTabLabel } from "./review-registry";
 import {
   getSectionForScopeKey,
   getSectionSortIndex,

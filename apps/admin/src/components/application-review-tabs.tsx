@@ -3,9 +3,9 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
-import type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
+import type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
-export type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
+export type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
 function StatusDot({ status }: { status: string }) {
   const dotClass =

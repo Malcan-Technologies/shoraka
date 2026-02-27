@@ -7,7 +7,7 @@ import { CompanySection } from "./sections/company-section";
 import { ContractSection } from "./sections/contract-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
-import type { ReviewTabDescriptor } from "@/app/settings/products/product-utils";
+import type { ReviewTabDescriptor } from "./review-registry";
 
 export interface PendingAmendmentItem {
   id: string;

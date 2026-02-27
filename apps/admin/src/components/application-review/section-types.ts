@@ -1,5 +1,5 @@
-/** Re-export canonical review section IDs from product-utils (single source of truth). */
+/** Re-export canonical review section IDs from review registry. */
 export {
   REVIEW_SECTION_IDS,
   type ReviewSectionId,
-} from "@/app/settings/products/product-utils";
+} from "./review-registry";

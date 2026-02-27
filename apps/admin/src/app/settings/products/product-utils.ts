@@ -1,158 +1,17 @@
 import type { Product } from "@cashsouk/types";
-import { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY, getStepKeyFromStepId } from "@cashsouk/types";
-
-/**
- * Canonical review section IDs aligned with Prisma ReviewSection enum and REVIEW_TAB_LABELS.
- * Section-level actions use these keys; status mapping uses them as unique identifiers.
- */
-export const REVIEW_SECTION_IDS = [
-  "financial",
-  "business_details",
-  "supporting_documents",
-  "contract_details",
-  "invoice_details",
-  "company_details",
-] as const;
-export type ReviewSectionId = (typeof REVIEW_SECTION_IDS)[number];
+import { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY } from "@cashsouk/types";
 
 /** One step in the workflow. id = stepId (e.g. financing_type_1), name = label, config = step-specific data. */
 export type WorkflowStepShape = {
   id: string;
   name: string;
   config?: unknown;
-  /** Optional: which review section this step belongs to. If absent, inferred from step key. */
-  reviewSection?: ReviewSectionId;
+  /**
+   * Optional: review section metadata stored in workflow.
+   * Kept as string to avoid coupling product settings utilities with review module internals.
+   */
+  reviewSection?: string;
 };
-
-/** Descriptor for an admin review tab. Used for dynamic tab rendering. */
-export type ReviewTabDescriptor = {
-  id: string;
-  label: string;
-  /** Backend section for status mapping. Step-key based IDs. */
-  reviewSection: ReviewSectionId;
-  kind: "financial" | "business_details" | "supporting_documents" | "contract_details" | "invoice_details" | "company_details";
-  /** Step key (e.g. business_details, contract_details). */
-  stepKey?: string;
-  /** Step id (e.g. business_details_1). */
-  stepId?: string;
-};
-
-/**
- * Step keys that get an admin review tab when present in the workflow.
- * Each tab has a dedicated section component. Add a key here when adding a new step.
- * See docs/guides/add-a-product-workflow-step.md.
- */
-const REVIEW_TAB_STEP_KEYS = new Set([
-  "company_details",
-  "business_details",
-  "supporting_documents",
-  "contract_details",
-  "invoice_details",
-]);
-
-/** Review-only tab labels. Edit this map to change labels shown on admin application review tabs. */
-const REVIEW_TAB_LABELS: Record<string, string> = {
-  financial: "Financial",
-  business_details: "Business",
-  supporting_documents: "Documents",
-  contract_details: "Contract",
-  invoice_details: "Invoice",
-  company_details: "Company",
-};
-
-/** Order of step keys on review tabs. Financial is always first; this controls the rest. Add new step keys here when adding workflow steps. */
-const REVIEW_TAB_ORDER = [
-  "company_details",
-  "business_details",
-  "supporting_documents",
-  "contract_details",
-  "invoice_details",
-] as const;
-
-/**
- * Prerequisites for each tab. Contract unlocks when Financial, Company, Business, Documents are all approved.
- * Invoice unlocks when Contract is approved.
- */
-const TAB_PREREQUISITES: Record<string, string[]> = {
-  financial: [],
-  company_details: [],
-  business_details: [],
-  supporting_documents: [],
-  contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
-  invoice_details: ["contract_details"],
-};
-
-/**
- * Check if a tab is unlocked based on section approval status.
- * Sections not in TAB_PREREQUISITES (e.g. from future workflow steps) are treated as unlocked.
- */
-export function isTabUnlocked(
-  sectionId: string,
-  sectionStatusMap: Map<string, string>
-): boolean {
-  const prereqs = TAB_PREREQUISITES[sectionId];
-  if (!prereqs?.length) return true;
-  return prereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
-}
-
-/**
- * Human-readable tooltip explaining why a tab is locked.
- */
-export function getTabUnlockTooltip(
-  sectionId: string,
-  sectionStatusMap: Map<string, string>
-): string {
-  const prereqs = TAB_PREREQUISITES[sectionId];
-  if (!prereqs?.length) return "";
-  const missing = prereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
-  if (missing.length === 0) return "";
-  const labels = missing.map((m) => REVIEW_TAB_LABELS[m] ?? m).join(", ");
-  return `Approve ${labels} section first`;
-}
-
-/** Human-readable label for a review section or step key. */
-export function getReviewTabLabel(stepKey: string): string {
-  return REVIEW_TAB_LABELS[stepKey] ?? stepKey.replace(/_/g, " ");
-}
-
-/** Build ordered review tab descriptors from product workflow. Financial tab is always first; step tabs follow REVIEW_TAB_ORDER. */
-export function getReviewTabDescriptorsFromWorkflow(workflow: unknown[] | null | undefined): ReviewTabDescriptor[] {
-  const result: ReviewTabDescriptor[] = [];
-
-  result.push({
-    id: "financial",
-    label: getReviewTabLabel("financial"),
-    reviewSection: "financial",
-    kind: "financial",
-  });
-
-  const steps = normalizeWorkflowSteps(workflow);
-  const stepTabs: ReviewTabDescriptor[] = [];
-  for (const step of steps) {
-    const stepKey = getStepKeyFromStepId(step.id);
-    if (!stepKey || !REVIEW_TAB_STEP_KEYS.has(stepKey)) continue;
-    const label = getReviewTabLabel(stepKey);
-
-    const tab: ReviewTabDescriptor = {
-      id: step.id,
-      label,
-      reviewSection: stepKey as ReviewSectionId,
-      kind: stepKey as ReviewTabDescriptor["kind"],
-      stepKey,
-      stepId: step.id,
-    };
-    stepTabs.push(tab);
-  }
-
-  const orderIndex = (key: string) => {
-    const i = REVIEW_TAB_ORDER.indexOf(key as (typeof REVIEW_TAB_ORDER)[number]);
-    return i === -1 ? REVIEW_TAB_ORDER.length : i;
-  };
-  stepTabs.sort((a, b) => orderIndex(a.stepKey!) - orderIndex(b.stepKey!));
-
-  result.push(...stepTabs);
-  return result;
-}
 
 /** Default workflow: all 9 steps in APPLICATION_STEP_KEYS order, id = `${key}_1`, name from STEP_KEY_DISPLAY. */
 export function getDefaultWorkflowSteps(): WorkflowStepShape[] {
@@ -174,14 +33,11 @@ export function normalizeWorkflowSteps(raw: unknown[] | null | undefined): Workf
   const steps = raw.map((step) => {
     const s = step as WorkflowStepShape;
     const name = s?.name?.trim() ?? stepDisplayName(step);
-    const reviewSection = s?.reviewSection as ReviewSectionId | undefined;
-    const validSection =
-      reviewSection && REVIEW_SECTION_IDS.includes(reviewSection) ? reviewSection : undefined;
     return {
       id: s?.id ?? "",
       name: name !== "—" ? name : "Step",
       config: s?.config,
-      reviewSection: validSection,
+      reviewSection: typeof s?.reviewSection === "string" ? s.reviewSection : undefined,
     };
   }).filter((s) => s.id);
   return steps.length ? steps : getDefaultWorkflowSteps();

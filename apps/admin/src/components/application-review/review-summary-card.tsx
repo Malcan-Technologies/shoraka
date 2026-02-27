@@ -4,7 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
-import { getReviewTabLabel } from "@/app/settings/products/product-utils";
+import { getReviewTabLabel } from "./review-registry";
 
 export interface ReviewSummaryCardProps {
   sections: { section: string; status: string }[];

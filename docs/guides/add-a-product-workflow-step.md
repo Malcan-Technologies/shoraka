@@ -133,15 +133,15 @@ if (stepKey === "terms_and_conditions" && config.someField === undefined) {
 | 3b + 4 | New file + `workflow-registry.tsx` | Form → create `step-configs/your-step-config.tsx`, then import and add to `STEP_CONFIG_MAP`. |
 | 5 | `product-form-helpers.ts` | Optional: add validation in `getRequiredStepErrors()`. |
 | 6 | `product-form-helpers.ts` | Optional: add default in `buildPayloadFromSteps()`. |
-| 7 | `product-utils.ts` + section component | If step should appear in admin review: add to `REVIEW_TAB_STEP_KEYS` and implement a dedicated section component. |
+| 7 | `review-registry.ts` + section component | If step should appear in admin review: add to `REVIEW_TAB_STEP_KEYS` and implement a dedicated section component. |
 
 ---
 
 ## 7. (Optional) Admin review tab
 
-When an admin reviews a financing application, tabs are derived from the product workflow via `getReviewTabDescriptorsFromWorkflow()`. All review tab config lives in `product-utils.ts`; there is no separate registry.
+When an admin reviews a financing application, tabs are derived from the product workflow via `getReviewTabDescriptorsFromWorkflow()`. Review tab config lives in `review-registry.ts`.
 
-**File:** `apps/admin/src/app/settings/products/product-utils.ts`
+**File:** `apps/admin/src/components/application-review/review-registry.ts`
 
 - Add your step key to `REVIEW_TAB_STEP_KEYS` so it gets a tab when present in the workflow.
 - Add it to `REVIEW_TAB_ORDER` to control where the tab appears (order is fixed in code).

@@ -36,13 +36,13 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
+import { productName } from "@/app/settings/products/product-utils";
 import {
-  productName,
   getReviewTabDescriptorsFromWorkflow,
   getReviewTabLabel,
   getTabUnlockTooltip,
   isTabUnlocked,
-} from "@/app/settings/products/product-utils";
+} from "@/components/application-review/review-registry";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
