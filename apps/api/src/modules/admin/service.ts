@@ -4005,7 +4005,8 @@ export class AdminService {
   }
 
   /**
-   * Reject a review section (terminal: application set to REJECTED)
+   * Reject a review section. Updates section status only; does not change application status.
+   * Application-level Reject must be triggered separately when admin finalizes.
    */
   async rejectReviewSection(
     applicationId: string,
@@ -4052,7 +4053,6 @@ export class AdminService {
       "section",
       section
     );
-    await repository.updateApplicationStatus(applicationId, ApplicationStatus.REJECTED);
 
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4062,7 +4062,8 @@ export class AdminService {
   }
 
   /**
-   * Request amendment for a review section (application set to AMENDMENT_REQUESTED)
+   * Request amendment for a review section. Updates section status only; does not change application status.
+   * Application-level amendment submission must be triggered separately via submitPendingAmendments.
    */
   async requestAmendmentReviewSection(
     applicationId: string,
@@ -4109,7 +4110,6 @@ export class AdminService {
       "section",
       section
     );
-    await repository.updateApplicationStatus(applicationId, ApplicationStatus.AMENDMENT_REQUESTED);
 
     await repository.removeDraftAmendment(applicationId, "section", section);
 

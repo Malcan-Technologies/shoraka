@@ -69,6 +69,47 @@ const REVIEW_TAB_ORDER = [
   "invoice_details",
 ] as const;
 
+/**
+ * Prerequisites for each tab. Contract unlocks when Financial, Company, Business, Documents are all approved.
+ * Invoice unlocks when Contract is approved.
+ */
+const TAB_PREREQUISITES: Record<string, string[]> = {
+  financial: [],
+  company_details: [],
+  business_details: [],
+  supporting_documents: [],
+  contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
+  invoice_details: ["contract_details"],
+};
+
+/**
+ * Check if a tab is unlocked based on section approval status.
+ * Sections not in TAB_PREREQUISITES (e.g. from future workflow steps) are treated as unlocked.
+ */
+export function isTabUnlocked(
+  sectionId: string,
+  sectionStatusMap: Map<string, string>
+): boolean {
+  const prereqs = TAB_PREREQUISITES[sectionId];
+  if (!prereqs?.length) return true;
+  return prereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+}
+
+/**
+ * Human-readable tooltip explaining why a tab is locked.
+ */
+export function getTabUnlockTooltip(
+  sectionId: string,
+  sectionStatusMap: Map<string, string>
+): string {
+  const prereqs = TAB_PREREQUISITES[sectionId];
+  if (!prereqs?.length) return "";
+  const missing = prereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
+  if (missing.length === 0) return "";
+  const labels = missing.map((m) => REVIEW_TAB_LABELS[m] ?? m).join(", ");
+  return `Approve ${labels} section first`;
+}
+
 /** Human-readable label for a review section or step key. */
 export function getReviewTabLabel(stepKey: string): string {
   return REVIEW_TAB_LABELS[stepKey] ?? stepKey.replace(/_/g, " ");

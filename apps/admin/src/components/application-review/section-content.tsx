@@ -45,6 +45,10 @@ export interface SectionContentProps {
   approveSectionPending: boolean;
   approveItemPending: boolean;
   viewDocumentPending: boolean;
+  /** When true, section Action dropdown is disabled (e.g. prerequisites not met). */
+  isActionLocked?: boolean;
+  /** Tooltip when Action is locked. */
+  actionLockTooltip?: string;
   onApproveSection: (section: ReviewSectionId) => void;
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
@@ -62,6 +66,8 @@ export function SectionContent({
   approveSectionPending,
   approveItemPending,
   viewDocumentPending,
+  isActionLocked,
+  actionLockTooltip,
   onApproveSection,
   onRejectSection,
   onRequestAmendmentSection,
@@ -83,6 +89,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -95,6 +103,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -107,6 +117,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -120,6 +132,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           viewDocumentPending={viewDocumentPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}
@@ -138,6 +152,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
@@ -153,6 +169,8 @@ export function SectionContent({
           section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}

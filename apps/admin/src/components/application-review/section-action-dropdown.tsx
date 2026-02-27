@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CheckCircleIcon, ChevronDownIcon, DocumentTextIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { ReviewSectionId } from "./section-types";
 
@@ -17,6 +18,10 @@ export interface SectionActionDropdownProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   isPending: boolean;
+  /** When true, the dropdown is disabled and shows tooltip explaining why. */
+  isActionLocked?: boolean;
+  /** Tooltip text when isActionLocked is true. */
+  actionLockTooltip?: string;
 }
 
 export function SectionActionDropdown({
@@ -26,17 +31,41 @@ export function SectionActionDropdown({
   onReject,
   onRequestAmendment,
   isPending,
+  isActionLocked = false,
+  actionLockTooltip,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
+  const button = (
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-xl gap-1.5"
+      disabled={isActionLocked || isPending}
+    >
+      Action
+      <ChevronDownIcon className="h-4 w-4" />
+    </Button>
+  );
+
+  if (isActionLocked) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-not-allowed">{button}</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+            {actionLockTooltip ?? "Complete previous sections first"}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
-          Action
-          <ChevronDownIcon className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
         <DropdownMenuItem
           className="rounded-lg"

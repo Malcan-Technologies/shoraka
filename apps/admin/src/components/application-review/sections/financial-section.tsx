@@ -18,6 +18,8 @@ export interface FinancialSectionProps {
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
@@ -28,6 +30,8 @@ export function FinancialSection({
   section,
   isReviewable,
   approvePending,
+  isActionLocked,
+  actionLockTooltip,
   onApprove,
   onReject,
   onRequestAmendment,
@@ -47,6 +51,8 @@ export function FinancialSection({
             onReject={onReject}
             onRequestAmendment={onRequestAmendment}
             isPending={approvePending}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
           />
         </div>
       </CardHeader>

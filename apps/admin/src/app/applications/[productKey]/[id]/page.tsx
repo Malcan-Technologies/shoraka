@@ -38,6 +38,8 @@ import {
   productName,
   getReviewTabDescriptorsFromWorkflow,
   getReviewTabLabel,
+  getTabUnlockTooltip,
+  isTabUnlocked,
 } from "@/app/settings/products/product-utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -51,6 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   CheckCircleIcon,
   ArrowLeftIcon,
@@ -182,6 +185,22 @@ export default function DynamicApplicationDetailPage() {
       reviewSections.length > 0 && reviewSections.every((s) => s.status === "APPROVED"),
     [reviewSections]
   );
+
+  const hasRejectedSectionOrItem = React.useMemo(() => {
+    const rejectedSection = reviewSections.some((s) => s.status === "REJECTED");
+    const reviewItems =
+      (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
+    const rejectedItem = reviewItems.some((i) => i.status === "REJECTED");
+    return rejectedSection || rejectedItem;
+  }, [reviewSections, app?.application_review_items]);
+
+  const sectionStatusMap = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of reviewSections) {
+      m.set(s.section, s.status);
+    }
+    return m;
+  }, [reviewSections]);
 
   const handleApproveSection = (section: string) => {
     setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
@@ -442,7 +461,12 @@ export default function DynamicApplicationDetailPage() {
                   tabDescriptors={tabDescriptors}
                   defaultTabId={tabDescriptors[0]?.id}
                 >
-                  {tabDescriptors.map((descriptor) => (
+                  {tabDescriptors.map((descriptor) => {
+                    const actionLocked = !isTabUnlocked(descriptor.reviewSection, sectionStatusMap);
+                    const actionLockTooltip = actionLocked
+                      ? getTabUnlockTooltip(descriptor.reviewSection, sectionStatusMap)
+                      : undefined;
+                    return (
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                       <SectionContent
                         descriptor={descriptor}
@@ -451,6 +475,8 @@ export default function DynamicApplicationDetailPage() {
                         approveSectionPending={approveSection.isPending}
                         approveItemPending={approveItem.isPending}
                         viewDocumentPending={viewDocumentPending}
+                        isActionLocked={actionLocked}
+                        actionLockTooltip={actionLockTooltip}
                         onApproveSection={handleApproveSection}
                         onRejectSection={(s) => setNoteDialog({ open: true, action: "reject", section: s })}
                         onRequestAmendmentSection={(s) => setNoteDialog({ open: true, action: "amend", section: s })}
@@ -481,43 +507,81 @@ export default function DynamicApplicationDetailPage() {
                         }
                       />
                     </ApplicationReviewTabContent>
-                  ))}
+                  );
+                  })}
                 </ApplicationReviewTabs>
               </div>
 
               <div className="space-y-6">
                 {isReviewable && (
-                  <div className="flex items-center justify-end gap-3 flex-wrap">
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => setAmendmentModalOpen(true)}
-                    >
-                      <PencilSquareIcon className="h-4 w-4" />
-                      Request Amendment
-                      {pendingAmendments.length > 0 && (
-                        <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                          {pendingAmendments.length}
-                        </Badge>
-                      )}
-                    </Button>
-                    <Button
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-                      disabled={!allSectionsApproved}
-                      onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                    >
-                      <CheckCircleIcon className="h-4 w-4" />
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 border-destructive/30"
-                      onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
-                    >
-                      <XCircleIcon className="h-4 w-4" />
-                      Reject
-                    </Button>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex items-center justify-end gap-3 flex-wrap">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={pendingAmendments.length === 0 ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                            <Button
+                              variant="outline"
+                              className="gap-2"
+                              disabled={pendingAmendments.length === 0}
+                              onClick={() => setAmendmentModalOpen(true)}
+                            >
+                              <PencilSquareIcon className="h-4 w-4" />
+                              Request Amendment
+                              {pendingAmendments.length > 0 && (
+                                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
+                                  {pendingAmendments.length}
+                                </Badge>
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs bg-muted text-muted-foreground">
+                          {pendingAmendments.length === 0
+                            ? "Reject or request amendment on at least one section first"
+                            : "Review and send amendment request to issuer"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={!allSectionsApproved ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                            <Button
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+                              disabled={!allSectionsApproved}
+                              onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
+                            >
+                              <CheckCircleIcon className="h-4 w-4" />
+                              Approve
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs bg-muted text-muted-foreground">
+                          {!allSectionsApproved
+                            ? "Approve all sections first"
+                            : "Approve the application and move to the next stage"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={!hasRejectedSectionOrItem ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                            <Button
+                              variant="outline"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 border-destructive/30"
+                              disabled={!hasRejectedSectionOrItem}
+                              onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                            >
+                              <XCircleIcon className="h-4 w-4" />
+                              Reject
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs bg-muted text-muted-foreground">
+                          {!hasRejectedSectionOrItem
+                            ? "Reject at least one section or item first"
+                            : "Reject the application and notify the issuer"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
                 )}
 
                 <ReviewSummaryCard

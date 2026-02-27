@@ -13,6 +13,8 @@ export interface DocumentsSectionProps {
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
   viewDocumentPending: boolean;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
@@ -29,6 +31,8 @@ export function DocumentsSection({
   section,
   isReviewable,
   approvePending,
+  isActionLocked,
+  actionLockTooltip,
   viewDocumentPending,
   onApprove,
   onReject,
@@ -53,6 +57,8 @@ export function DocumentsSection({
             onReject={onReject}
             onRequestAmendment={onRequestAmendment}
             isPending={approvePending}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
           />
         </div>
       </CardHeader>

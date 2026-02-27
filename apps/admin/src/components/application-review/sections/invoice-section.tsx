@@ -13,6 +13,8 @@ export interface InvoiceSectionProps {
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
@@ -27,6 +29,8 @@ export function InvoiceSection({
   section,
   isReviewable,
   approvePending,
+  isActionLocked,
+  actionLockTooltip,
   onApprove,
   onReject,
   onRequestAmendment,
@@ -49,6 +53,8 @@ export function InvoiceSection({
             onReject={onReject}
             onRequestAmendment={onRequestAmendment}
             isPending={approvePending}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
           />
         </div>
       </CardHeader>
