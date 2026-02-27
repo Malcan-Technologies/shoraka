@@ -3,6 +3,7 @@ import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
+import { buildItemScopeKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
@@ -26,6 +27,16 @@ import {
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
   updateApplicationStatusSchema,
+  reviewSectionSchema,
+  reviewSectionApproveSchema,
+  reviewSectionRejectSchema,
+  reviewSectionRequestAmendmentSchema,
+  reviewItemActionSchema,
+  reviewItemApproveSchema,
+  reviewItemRejectSchema,
+  reviewItemRequestAmendmentSchema,
+  addPendingAmendmentSchema,
+  updatePendingAmendmentSchema,
 } from "./schemas";
 
 const router = Router();
@@ -1913,6 +1924,340 @@ router.patch(
       const { id } = req.params;
       const validated = updateApplicationStatusSchema.parse(req.body);
       const result = await adminService.updateApplicationStatus(id, validated.status);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/sections/:section/approve",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const validated = reviewSectionApproveSchema.parse(req.body ?? {});
+      const result = await adminService.approveReviewSection(
+        id,
+        validatedSection,
+        req.user.user_id,
+        validated.remark
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/sections/:section/reject",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const validated = reviewSectionRejectSchema.parse(req.body);
+      const result = await adminService.rejectReviewSection(id, validatedSection, validated.remark, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/sections/:section/request-amendment",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const validated = reviewSectionRequestAmendmentSchema.parse(req.body);
+      const result = await adminService.requestAmendmentReviewSection(
+        id,
+        validatedSection,
+        validated.remark,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/sections/:section/reset-to-pending",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const result = await adminService.resetSectionReviewToPending(
+        id,
+        validatedSection,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/items/approve",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reviewItemApproveSchema.parse(req.body);
+      const result = await adminService.approveReviewItem(
+        id,
+        validated.itemType,
+        validated.itemId,
+        req.user.user_id,
+        validated.remark
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/items/reject",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reviewItemRejectSchema.parse(req.body);
+      const result = await adminService.rejectReviewItem(
+        id,
+        validated.itemType,
+        validated.itemId,
+        validated.remark,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/items/request-amendment",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reviewItemRequestAmendmentSchema.parse(req.body);
+      const result = await adminService.requestAmendmentReviewItem(
+        id,
+        validated.itemType,
+        validated.itemId,
+        validated.remark,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/items/reset-to-pending",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reviewItemActionSchema.parse(req.body);
+      const result = await adminService.resetItemReviewToPending(
+        id,
+        validated.itemType,
+        validated.itemId,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/pending-amendments",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = addPendingAmendmentSchema.parse(req.body);
+      const scopeKey =
+        validated.scope === "section"
+          ? String(validated.scopeKey ?? "")
+          : buildItemScopeKey(validated.itemType ?? "", String(validated.itemId ?? ""));
+      const result = await adminService.addPendingAmendment(
+        id,
+        validated.scope,
+        scopeKey,
+        validated.remark,
+        req.user.user_id,
+        validated.itemType ?? undefined,
+        validated.itemId ?? undefined
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/reviews/pending-amendments",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const list = await adminService.listPendingAmendments(id);
+
+      res.json({
+        success: true,
+        data: list,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.patch(
+  "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, scope, scopeKey } = req.params;
+      const decodedScopeKey = decodeURIComponent(scopeKey);
+      const validated = updatePendingAmendmentSchema.parse(req.body);
+      const list = await adminService.updatePendingAmendment(
+        id,
+        scope,
+        decodedScopeKey,
+        validated.remark,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: list,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, scope, scopeKey } = req.params;
+      const decodedScopeKey = decodeURIComponent(scopeKey);
+      const list = await adminService.removePendingAmendment(
+        id,
+        scope,
+        decodedScopeKey,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: list,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/submit-amendment-request",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const result = await adminService.submitPendingAmendments(id, req.user.user_id);
 
       res.json({
         success: true,

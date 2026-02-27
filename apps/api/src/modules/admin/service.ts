@@ -10,6 +10,8 @@ import {
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
+  ReviewSection,
+  ReviewStepStatus,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -41,21 +43,74 @@ import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
+import {
+  buildItemScopeKey,
+  getSectionForPendingAmendment,
+  parseItemScopeKey,
+  REVIEW_SECTION_ORDER,
+  getStepKeyFromStepId,
+} from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
+import { ProductRepository } from "../products/repository";
 
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
   private notificationService: NotificationService;
+  private productRepository: ProductRepository;
+
+  /** Sections that are workflow-step-driven (financial is always required separately). */
+  private static readonly WORKFLOW_REVIEW_SECTION_KEYS: ReadonlySet<string> = new Set(
+    REVIEW_SECTION_ORDER.filter((section) => section !== "financial")
+  );
 
   constructor() {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
+    this.productRepository = new ProductRepository();
+  }
+
+  /**
+   * Derive required review sections from the product workflow referenced by the application.
+   * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
+   */
+  private async getRequiredReviewSectionsForApproval(application: {
+    financing_type?: unknown;
+  }): Promise<Set<ReviewSection>> {
+    const required = new Set<ReviewSection>(["financial"]);
+    const financingType =
+      application.financing_type && typeof application.financing_type === "object"
+        ? (application.financing_type as Record<string, unknown>)
+        : null;
+    const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
+
+    if (!productId) {
+      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+    }
+
+    const product = await this.productRepository.findById(productId);
+    if (!product) {
+      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+    }
+
+    const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+    for (const rawStep of workflow) {
+      const step = rawStep as { id?: unknown };
+      const stepId = typeof step.id === "string" ? step.id : "";
+      if (!stepId) continue;
+      const stepKey = getStepKeyFromStepId(stepId);
+      if (!stepKey || !AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) {
+        continue;
+      }
+      required.add(stepKey as ReviewSection);
+    }
+
+    return required;
   }
 
   /**
@@ -3760,11 +3815,19 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    return application;
+    const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+    const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
+      requiredSections.has(section)
+    );
+    return {
+      ...application,
+      required_review_sections: orderedRequiredSections,
+    };
   }
 
   /**
-   * Update AR financing application status
+   * Update AR financing application status.
+   * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
    */
   async updateApplicationStatus(id: string, status: ApplicationStatus) {
     const repository = new AdminRepository();
@@ -3773,9 +3836,37 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
 
-    const updatedApplication = await repository.updateApplicationStatus(id, status);
+    const currentStatus = application.status as ApplicationStatus;
+    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+      if (!this.isReviewable(currentStatus)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Application is already in a terminal state; cannot change status"
+        );
+      }
+    }
 
-    // TODO: Send notification to issuer about status change
+    if (status === ApplicationStatus.APPROVED) {
+      const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+      const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+      const reviewStatusBySection = new Map<string, string>();
+      for (const review of reviews) {
+        reviewStatusBySection.set(review.section, review.status);
+      }
+      const notApprovedSections = Array.from(requiredSections).filter(
+        (section) => reviewStatusBySection.get(section) !== "APPROVED"
+      );
+      if (notApprovedSections.length > 0) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `All required review sections must be approved before final approval. Pending: ${notApprovedSections.join(", ")}`
+        );
+      }
+    }
+
+    const updatedApplication = await repository.updateApplicationStatus(id, status);
 
     logger.info(
       { applicationId: id, newStatus: status },
@@ -3783,5 +3874,805 @@ export class AdminService {
     );
 
     return updatedApplication;
+  }
+
+  private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
+    ApplicationStatus.SUBMITTED,
+    ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.RESUBMITTED,
+    ApplicationStatus.AMENDMENT_REQUESTED,
+    ApplicationStatus.REJECTED,
+    ApplicationStatus.APPROVED,
+  ];
+
+  private isReviewable(status: ApplicationStatus): boolean {
+    return AdminService.REVIEWABLE_STATUSES.includes(status);
+  }
+
+  /**
+   * Transition application to UNDER_REVIEW on first review action (when SUBMITTED or RESUBMITTED)
+   */
+  private async ensureUnderReview(repository: AdminRepository, applicationId: string, appStatus: ApplicationStatus) {
+    if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
+      await repository.updateApplicationStatus(applicationId, ApplicationStatus.UNDER_REVIEW);
+    }
+  }
+
+  /**
+   * Validate that an invoice item exists in the application
+   */
+  private validateInvoiceExists(application: { invoices: { id: string }[] }, itemId: string): void {
+    const exists = application.invoices?.some((inv) => inv.id === itemId);
+    if (!exists) {
+      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
+    }
+  }
+
+  /**
+   * Validate that a document item exists in the application.
+   * Ensures supporting_documents exists and itemId format is valid (doc:...).
+   * Full key resolution matches frontend buildCategoryGroups logic.
+   */
+  private validateDocumentExists(
+    application: { supporting_documents?: unknown },
+    itemId: string
+  ): void {
+    const docs = application.supporting_documents;
+    if (!docs || typeof docs !== "object") {
+      throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
+    }
+    if (!itemId.startsWith("doc:")) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid document item ID: ${itemId}`);
+    }
+    const docKeys = this.collectDocumentKeys(docs);
+    if (!docKeys.has(itemId)) {
+      throw new AppError(400, "INVALID_ITEM", `Document ${itemId} not found in this application`);
+    }
+  }
+
+  /** Collect document keys from supporting_documents structure (matches frontend key generation). */
+  private collectDocumentKeys(docs: unknown): Set<string> {
+    const keys = new Set<string>();
+    const raw = (docs as Record<string, unknown>)?.supporting_documents ?? docs;
+    if (Array.isArray(raw)) {
+      raw.forEach((d: Record<string, unknown>, i: number) => {
+        keys.add(`doc:${i}:${String(d?.name ?? d?.title ?? "document")}`);
+      });
+      return keys;
+    }
+    if (typeof raw !== "object" || raw === null) return keys;
+    const obj = raw as Record<string, unknown>;
+    const categoryKeys = ["financial_docs", "legal_docs", "compliance_docs", "others"];
+    for (const catKey of categoryKeys) {
+      const val = obj[catKey];
+      if (val == null) continue;
+      const arr = Array.isArray(val) ? val : [val];
+      arr.forEach((d: Record<string, unknown>, i: number) => {
+        keys.add(`doc:${catKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`);
+      });
+    }
+    const cats = obj.categories;
+    const labelToKey: Record<string, string> = {
+      "Financial Docs": "financial_docs",
+      "Legal Docs": "legal_docs",
+      "Compliance Docs": "compliance_docs",
+      Others: "others",
+    };
+    if (Array.isArray(cats)) {
+      cats.forEach((cat: Record<string, unknown>, catIndex: number) => {
+        const categoryLabel = String(cat?.name ?? `Category ${catIndex + 1}`);
+        const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
+        const docList = Array.isArray(cat?.documents) ? cat.documents : [];
+        docList.forEach((d: Record<string, unknown>, docIndex: number) => {
+          const file = d?.file as { file_name?: string } | undefined;
+          const label =
+            String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
+          const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+          keys.add(`doc:${categoryKey}:${docIndex}:${slug}`);
+        });
+      });
+    }
+    return keys;
+  }
+
+  /**
+   * Validate that a review item exists in the application
+   */
+  private validateReviewItemExists(
+    application: { invoices?: { id: string }[]; supporting_documents?: unknown },
+    itemType: "invoice" | "document",
+    itemId: string
+  ): void {
+    if (itemType === "invoice") {
+      this.validateInvoiceExists(application as { invoices: { id: string }[] }, itemId);
+    } else {
+      this.validateDocumentExists(application as { supporting_documents?: unknown }, itemId);
+    }
+  }
+
+  /**
+   * Load application and validate it is in a reviewable state. Shared by all review actions.
+   */
+  private async prepareForReviewAction(applicationId: string): Promise<{
+    repository: AdminRepository;
+    application: NonNullable<Awaited<ReturnType<AdminRepository["getApplicationById"]>>>;
+  }> {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (!this.isReviewable(application.status as ApplicationStatus)) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+    return { repository, application };
+  }
+
+  /**
+   * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
+   * Canonical format is buildItemScopeKey(itemType, itemId)
+   */
+  private async clearItemDraftAmendments(
+    repository: AdminRepository,
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<void> {
+    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId)]);
+    if (itemType === "document" || itemType === "invoice") {
+      scopeKeys.add(itemId);
+    }
+    await Promise.all(
+      Array.from(scopeKeys).map((scopeKey) =>
+        repository.removeDraftAmendment(applicationId, "item", scopeKey)
+      )
+    );
+  }
+
+  /**
+   * Clear item remark entries for both canonical and legacy scope_key formats.
+   * Used by reset-to-pending to fully clear the item's current remark entry.
+   */
+  private async clearItemRemarks(
+    repository: AdminRepository,
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<void> {
+    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId), itemId]);
+    await Promise.all(
+      Array.from(scopeKeys).map((scopeKey) =>
+        repository.removeReviewRemark(applicationId, "item", scopeKey)
+      )
+    );
+  }
+
+  /**
+   * Approve a review section
+   */
+  async approveReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    reviewerUserId: string,
+    remark?: string | null
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await repository.ensureApplicationReviewSection(applicationId, section);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.APPROVED,
+      reviewerUserId
+    );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "APPROVED" },
+      });
+    }
+    const remarkValue = remark?.trim() || null;
+    if (remarkValue) {
+      await repository.upsertReviewRemark(
+        applicationId,
+        "section",
+        section,
+        "APPROVE",
+        remarkValue,
+        reviewerUserId
+      );
+    }
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "APPROVED",
+      reviewerUserId,
+      remarkValue,
+      "section",
+      section
+    );
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reset a review section to PENDING (undoes approve/reject/amendment for that section).
+   */
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: ReviewSection,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.resetSectionReviewToPending(applicationId, section);
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "SUBMITTED" },
+      });
+    }
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "PENDING",
+      reviewerUserId,
+      "Reset to pending",
+      "section",
+      section
+    );
+    await repository.removeDraftAmendment(applicationId, "section", section);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reset a review item to PENDING (undoes approve/reject/amendment for that item).
+   */
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.validateReviewItemExists(application, itemType, itemId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.resetItemReviewToPending(applicationId, itemType, itemId);
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "PENDING",
+      reviewerUserId,
+      "Reset to pending",
+      itemType,
+      itemId
+    );
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+    await this.clearItemRemarks(repository, applicationId, itemType, itemId);
+
+    logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reject a review section. Updates section status only; does not change application status.
+   * Application-level Reject must be triggered separately when admin finalizes.
+   */
+  async rejectReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await repository.ensureApplicationReviewSection(applicationId, section);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.REJECTED,
+      reviewerUserId
+    );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "REJECTED" },
+      });
+    }
+    await repository.upsertReviewRemark(
+      applicationId,
+      "section",
+      section,
+      "REJECT",
+      remark,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "REJECTED",
+      reviewerUserId,
+      remark,
+      "section",
+      section
+    );
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Review section rejected");
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Request amendment for a review section. Updates section status only; does not change application status.
+   * Application-level amendment submission must be triggered separately via submitPendingAmendments.
+   */
+  async requestAmendmentReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await repository.ensureApplicationReviewSection(applicationId, section);
+
+    const existing = application.application_reviews?.find(
+      (r: { section: string; status: string }) => r.section === section
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      section,
+      ReviewStepStatus.AMENDMENT_REQUESTED,
+      reviewerUserId
+    );
+    await repository.upsertReviewRemark(
+      applicationId,
+      "section",
+      section,
+      "REQUEST_AMENDMENT",
+      remark,
+      reviewerUserId
+    );
+    if (section === "contract_details" && application.contract_id) {
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: { status: "AMENDMENT_REQUESTED" },
+      });
+    }
+    await repository.createReviewEvent(
+      applicationId,
+      "SECTION_REVIEWED",
+      oldStatus,
+      "AMENDMENT_REQUESTED",
+      reviewerUserId,
+      remark,
+      "section",
+      section
+    );
+
+    await repository.removeDraftAmendment(applicationId, "section", section);
+
+    logger.info({ applicationId, section, reviewerUserId }, "Amendment requested for review section");
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Approve a review item (invoice or document)
+   */
+  async approveReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    reviewerUserId: string,
+    remark?: string | null
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.validateReviewItemExists(application, itemType, itemId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.APPROVED,
+      reviewerUserId
+    );
+    const remarkValue = remark?.trim() || null;
+    if (remarkValue) {
+      await repository.upsertReviewRemark(
+        applicationId,
+        "item",
+        buildItemScopeKey(itemType, itemId),
+        "APPROVE",
+        remarkValue,
+        reviewerUserId
+      );
+    }
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "APPROVED",
+      reviewerUserId,
+      remarkValue,
+      itemType,
+      itemId
+    );
+
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Reject a review item
+   */
+  async rejectReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.validateReviewItemExists(application, itemType, itemId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.REJECTED,
+      reviewerUserId
+    );
+    await repository.upsertReviewRemark(
+      applicationId,
+      "item",
+      buildItemScopeKey(itemType, itemId),
+      "REJECT",
+      remark,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "REJECTED",
+      reviewerUserId,
+      remark,
+      itemType,
+      itemId
+    );
+
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Request amendment for a review item
+   */
+  async requestAmendmentReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.validateReviewItemExists(application, itemType, itemId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      itemType,
+      itemId,
+      ReviewStepStatus.AMENDMENT_REQUESTED,
+      reviewerUserId
+    );
+    await repository.upsertReviewRemark(
+      applicationId,
+      "item",
+      buildItemScopeKey(itemType, itemId),
+      "REQUEST_AMENDMENT",
+      remark,
+      reviewerUserId
+    );
+    await repository.createReviewEvent(
+      applicationId,
+      "ITEM_REVIEWED",
+      oldStatus,
+      "AMENDMENT_REQUESTED",
+      reviewerUserId,
+      remark,
+      itemType,
+      itemId
+    );
+
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Add or update a pending amendment (draft). Updates section/item status immediately and
+   * creates ApplicationReviewRemark with submitted_at=null. Proceed sets submitted_at.
+   */
+  async addPendingAmendment(
+    applicationId: string,
+    scope: "section" | "item",
+    scopeKey: string,
+    remark: string,
+    reviewerUserId: string,
+    itemType?: "invoice" | "document",
+    itemId?: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    if (scope === "section") {
+      const validSections = REVIEW_SECTION_ORDER;
+      if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
+        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
+      }
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        scopeKey as ReviewSection,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId
+      );
+      if (scopeKey === "contract_details" && application.contract_id) {
+        await prisma.contract.update({
+          where: { id: application.contract_id },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
+    } else {
+      if (!itemType || !itemId) {
+        throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
+      }
+      this.validateReviewItemExists(application, itemType, itemId);
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId
+      );
+    }
+
+    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
+
+    logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * List pending amendments for an application (draft remarks with submitted_at=null)
+   */
+  async listPendingAmendments(applicationId: string) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (!this.isReviewable(application.status as ApplicationStatus)) {
+      throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
+    }
+    const rows = await repository.listPendingAmendments(applicationId);
+    return rows.map((r) => {
+      const base = {
+        id: r.id,
+        scope: r.scope,
+        scope_key: r.scope_key,
+        remark: r.remark,
+        author: r.author ? { first_name: r.author.first_name, last_name: r.author.last_name } : undefined,
+      };
+      if (r.scope === "item") {
+        const { itemType, itemId } = parseItemScopeKey(r.scope_key);
+        return { ...base, item_type: itemType || null, item_id: itemId || null };
+      }
+      return { ...base, item_type: null, item_id: null };
+    });
+  }
+
+  /**
+   * Update a pending amendment remark
+   */
+  async updatePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    reviewerUserId: string
+  ) {
+    const { repository } = await this.prepareForReviewAction(applicationId);
+    const result = await repository.updateDraftAmendment(
+      applicationId,
+      scope,
+      scopeKey,
+      remark,
+      reviewerUserId
+    );
+    if (result.count === 0) {
+      throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
+    }
+    logger.info({ applicationId, scope, scopeKey }, "Pending amendment updated");
+    return repository.listPendingAmendments(applicationId);
+  }
+
+  /**
+   * Remove a pending amendment. If the affected section has no pending amendments left,
+   * reverts the section status to PENDING.
+   */
+  async removePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    reviewerUserId: string
+  ) {
+    const { repository } = await this.prepareForReviewAction(applicationId);
+
+    const affectedSection =
+      scope === "section"
+        ? scopeKey
+        : scopeKey.startsWith("document:") || scopeKey.startsWith("doc:")
+          ? "supporting_documents"
+          : scopeKey.startsWith("invoice:")
+            ? "invoice_details"
+            : "supporting_documents";
+
+    const result = await repository.removeDraftAmendment(applicationId, scope, scopeKey);
+    if (result.count === 0) {
+      throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
+    }
+    logger.info({ applicationId, scope, scopeKey }, "Pending amendment removed");
+
+    if (scope === "item") {
+      const { itemType, itemId } = parseItemScopeKey(scopeKey);
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.PENDING,
+        reviewerUserId
+      );
+    }
+
+    const remaining = await repository.listPendingAmendments(applicationId);
+    const sectionStillHasAmendments = remaining.some((p) => {
+      const s = getSectionForPendingAmendment(p.scope, p.scope_key);
+      return s === affectedSection;
+    });
+
+    if (!sectionStillHasAmendments) {
+      const validSections = REVIEW_SECTION_ORDER;
+      if (validSections.includes(affectedSection as (typeof REVIEW_SECTION_ORDER)[number])) {
+        await repository.updateSectionReviewStatus(
+          applicationId,
+          affectedSection as ReviewSection,
+          ReviewStepStatus.PENDING,
+          reviewerUserId
+        );
+      }
+      if (affectedSection === "contract_details") {
+        const application = await repository.getApplicationById(applicationId);
+        if (application?.contract_id) {
+          await prisma.contract.update({
+            where: { id: application.contract_id },
+            data: { status: "SUBMITTED" },
+          });
+        }
+      }
+    }
+
+    return repository.listPendingAmendments(applicationId);
+  }
+
+  /**
+   * Submit all pending amendments. Marks draft remarks as submitted and updates application status.
+   * Item/section status already set when adding to pending; remarks already exist.
+   */
+  async submitPendingAmendments(applicationId: string, reviewerUserId: string) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const pending = await repository.listPendingAmendments(applicationId);
+    if (pending.length === 0) {
+      throw new AppError(400, "EMPTY_LIST", "No pending amendments to submit");
+    }
+
+    const hasContractDetails = pending.some(
+      (p) => p.scope === "section" && p.scope_key === "contract_details"
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.applicationReviewRemark.updateMany({
+        where: {
+          application_id: applicationId,
+          action_type: "REQUEST_AMENDMENT",
+          submitted_at: null,
+        },
+        data: { submitted_at: new Date() },
+      });
+
+      if (hasContractDetails && application.contract_id) {
+        await tx.contract.update({
+          where: { id: application.contract_id },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
+
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
+      });
+
+      await tx.applicationReviewEvent.create({
+        data: {
+          application_id: applicationId,
+          event_type: "AMENDMENTS_SUBMITTED",
+          new_status: "AMENDMENT_REQUESTED",
+          reviewer_user_id: reviewerUserId,
+          remark: `${pending.length} amendment(s) sent to issuer`,
+        },
+      });
+    });
+
+    logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
+    return repository.getApplicationById(applicationId);
   }
 }

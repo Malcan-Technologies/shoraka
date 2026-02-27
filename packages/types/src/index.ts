@@ -107,7 +107,17 @@ export interface ActivitiesResponse {
 }
 
 // Application Types
-export type ApplicationStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+export type ApplicationStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "AMENDMENT_REQUESTED"
+  | "RESUBMITTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "ARCHIVED";
+
+export type ReviewStepStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMENDMENT_REQUESTED";
 
 export interface Application {
   id: string;
@@ -229,3 +239,4 @@ export interface Invoice {
 export * from "./activity-config";
 export * from "./admin";
 export * from "./application-steps";
+export * from "./review-scope";

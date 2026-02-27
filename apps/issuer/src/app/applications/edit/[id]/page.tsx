@@ -606,12 +606,16 @@ export default function EditApplicationPage() {
         },
       });
 
+      const currentStatus = (application as { status?: string })?.status;
+      const isResubmit = currentStatus === "AMENDMENT_REQUESTED";
       await updateStatusMutation.mutateAsync({
         id: applicationId,
-        status: "SUBMITTED",
+        status: isResubmit ? "RESUBMITTED" : "SUBMITTED",
       });
 
-      toast.success("Application submitted successfully");
+      toast.success(
+        isResubmit ? "Application resubmitted successfully" : "Application submitted successfully"
+      );
 
       router.replace("/");
 

@@ -1,19 +1,14 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
 import type { ApplicationListItem } from "@cashsouk/types";
 import {
   BanknotesIcon,
-  CheckCircleIcon,
-  ClockIcon,
   EyeIcon,
-  XCircleIcon,
-  ClipboardDocumentCheckIcon,
-  ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { ApplicationStatusBadge } from "@/components/application-review";
 
 interface ApplicationsTableRowProps {
   application: ApplicationListItem;
@@ -24,53 +19,6 @@ export function ApplicationsTableRow({
   application,
   onViewDetails,
 }: ApplicationsTableRowProps) {
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "SUBMITTED":
-        return (
-          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
-            <ClipboardDocumentCheckIcon className="h-3 w-3 mr-1 text-blue-600" />
-            Submitted
-          </Badge>
-        );
-      case "APPROVED":
-        return (
-          <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
-            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Approved
-          </Badge>
-        );
-      case "REJECTED":
-        return (
-          <Badge variant="outline" className="border-red-500/30 text-foreground bg-red-500/10">
-            <XCircleIcon className="h-3 w-3 mr-1 text-red-600" />
-            Rejected
-          </Badge>
-        );
-      case "ARCHIVED":
-        return (
-          <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10">
-            <ArchiveBoxIcon className="h-3 w-3 mr-1 text-slate-600" />
-            Archived
-          </Badge>
-        );
-      case "DRAFT":
-        return (
-          <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />
-            Draft
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />
-            {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}
-          </Badge>
-        );
-    }
-  };
-
   return (
     <TableRow className="odd:bg-muted/40 hover:bg-muted">
       {/* Reference */}
@@ -111,7 +59,7 @@ export function ApplicationsTableRow({
 
       {/* Status */}
       <TableCell>
-        {getStatusBadge(application.status)}
+        <ApplicationStatusBadge status={application.status} />
       </TableCell>
 
       {/* Updated */}

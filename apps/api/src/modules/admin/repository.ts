@@ -12,6 +12,8 @@ import {
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
+  ReviewSection,
+  ReviewStepStatus,
 } from "@prisma/client";
 import type {
   GetUsersQuery,
@@ -2219,7 +2221,7 @@ export class AdminRepository {
   }
 
   /**
-   * Get financing application by ID with all details
+   * Get financing application by ID with all details and review data
    */
   async getApplicationById(id: string) {
     return prisma.application.findUnique({
@@ -2239,6 +2241,341 @@ export class AdminRepository {
         },
         invoices: true,
         contract: true,
+        application_reviews: true,
+        application_review_items: true,
+        application_review_remarks: { orderBy: { created_at: "desc" } },
+        application_review_events: { orderBy: { created_at: "desc" }, take: 50 },
+      },
+    });
+  }
+
+  /**
+   * Ensure a review section row exists for an application (creates if missing).
+   * Called on-demand when a section action is performed.
+   */
+  async ensureApplicationReviewSection(applicationId: string, section: ReviewSection) {
+    await prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: { application_id: applicationId, section },
+      update: {},
+    });
+  }
+
+  /**
+   * Reset section review status to PENDING (clears reviewer and reviewed_at)
+   */
+  async resetSectionReviewToPending(applicationId: string, section: ReviewSection) {
+    return prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: {
+        application_id: applicationId,
+        section,
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
+   * Reset item review status to PENDING (clears reviewer and reviewed_at)
+   */
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: string,
+    itemId: string
+  ) {
+    return prisma.applicationReviewItem.upsert({
+      where: {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: itemType,
+          item_id: itemId,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        item_type: itemType,
+        item_id: itemId,
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
+   * Update section review status
+   */
+  async updateSectionReviewStatus(
+    applicationId: string,
+    section: ReviewSection,
+    status: ReviewStepStatus,
+    reviewerUserId: string
+  ) {
+    return prisma.applicationReview.upsert({
+      where: {
+        application_id_section: { application_id: applicationId, section },
+      },
+      create: {
+        application_id: applicationId,
+        section,
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+      update: {
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Upsert item review status
+   */
+  async upsertItemReviewStatus(
+    applicationId: string,
+    itemType: string,
+    itemId: string,
+    status: ReviewStepStatus,
+    reviewerUserId: string
+  ) {
+    return prisma.applicationReviewItem.upsert({
+      where: {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: itemType,
+          item_id: itemId,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        item_type: itemType,
+        item_id: itemId,
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+      update: {
+        status,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Create review remark
+   */
+  async createReviewRemark(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    actionType: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.create({
+      data: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: actionType,
+        remark,
+        author_user_id: authorUserId,
+      },
+    });
+  }
+
+  /**
+   * Upsert review remark (one current remark per scope)
+   */
+  async upsertReviewRemark(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    actionType: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.upsert({
+      where: {
+        application_id_scope_scope_key: {
+          application_id: applicationId,
+          scope,
+          scope_key: scopeKey,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: actionType,
+        remark,
+        author_user_id: authorUserId,
+      },
+      update: {
+        action_type: actionType,
+        remark,
+        author_user_id: authorUserId,
+        updated_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null)
+   */
+  async upsertDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.upsert({
+      where: {
+        application_id_scope_scope_key: {
+          application_id: applicationId,
+          scope,
+          scope_key: scopeKey,
+        },
+      },
+      create: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
+        remark,
+        author_user_id: authorUserId,
+        submitted_at: null,
+      },
+      update: {
+        remark,
+        author_user_id: authorUserId,
+        updated_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * List pending amendments (draft remarks with submitted_at=null)
+   */
+  async listPendingAmendments(applicationId: string) {
+    return prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: null,
+      },
+      orderBy: { created_at: "asc" },
+      include: { author: { select: { first_name: true, last_name: true } } },
+    });
+  }
+
+  /**
+   * Update draft amendment remark
+   */
+  async updateDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string,
+    authorUserId: string
+  ) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        submitted_at: null,
+      },
+      data: { remark, author_user_id: authorUserId, updated_at: new Date() },
+    });
+  }
+
+  /**
+   * Remove draft amendment (delete remark, caller must revert item/section status)
+   */
+  async removeDraftAmendment(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.deleteMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: null,
+      },
+    });
+  }
+
+  /**
+   * Remove review remark for a specific scope key regardless of action type/submission state.
+   * Useful when resetting an item/section back to pending and clearing its current remark entry.
+   */
+  async removeReviewRemark(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.deleteMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+      },
+    });
+  }
+
+  /**
+   * Mark draft amendments as submitted (set submitted_at)
+   */
+  async markDraftAmendmentsAsSubmitted(applicationId: string) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: null,
+      },
+      data: { submitted_at: new Date() },
+    });
+  }
+
+  /**
+   * Create review event (audit trail)
+   */
+  async createReviewEvent(
+    applicationId: string,
+    eventType: string,
+    oldStatus: string | null,
+    newStatus: string,
+    reviewerUserId: string | null,
+    remark: string | null,
+    scope?: string,
+    scopeKey?: string
+  ) {
+    return prisma.applicationReviewEvent.create({
+      data: {
+        application_id: applicationId,
+        event_type: eventType,
+        old_status: oldStatus,
+        new_status: newStatus,
+        reviewer_user_id: reviewerUserId,
+        remark,
+        scope,
+        scope_key: scopeKey,
       },
     });
   }

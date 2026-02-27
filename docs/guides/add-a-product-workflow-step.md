@@ -133,6 +133,23 @@ if (stepKey === "terms_and_conditions" && config.someField === undefined) {
 | 3b + 4 | New file + `workflow-registry.tsx` | Form → create `step-configs/your-step-config.tsx`, then import and add to `STEP_CONFIG_MAP`. |
 | 5 | `product-form-helpers.ts` | Optional: add validation in `getRequiredStepErrors()`. |
 | 6 | `product-form-helpers.ts` | Optional: add default in `buildPayloadFromSteps()`. |
+| 7 | `review-registry.ts` + section component | If step should appear in admin review: add to `REVIEW_TAB_STEP_KEYS` and implement a dedicated section component. |
+
+---
+
+## 7. (Optional) Admin review tab
+
+When an admin reviews a financing application, tabs are derived from the product workflow via `getReviewTabDescriptorsFromWorkflow()`. Review tab config lives in `review-registry.ts`.
+
+**File:** `apps/admin/src/components/application-review/review-registry.ts`
+
+- Add your step key to `REVIEW_TAB_STEP_KEYS` so it gets a tab when present in the workflow.
+- Add it to `REVIEW_TAB_ORDER` to control where the tab appears (order is fixed in code).
+- Tab labels come from `REVIEW_TAB_LABELS`; add or edit entries there for review-only labels.
+
+**File:** `apps/admin/src/components/application-review/section-content.tsx` and `sections/`
+
+- Add a dedicated section component for each step (e.g. Business, Documents, Company, Contract, Invoice), and wire it in `SectionContent` via the descriptor `kind`. Section IDs align with step keys (e.g. `business_details`, `supporting_documents`).
 
 ---
 
