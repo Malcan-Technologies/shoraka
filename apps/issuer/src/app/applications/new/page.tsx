@@ -10,8 +10,10 @@ import { useProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
+import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
@@ -46,6 +48,7 @@ export default function NewApplicationPage() {
   const {
     data: productsData,
     isLoading: isLoadingProducts,
+    refetch: refetchProducts,
   } = useProducts({
     page: 1,
     pageSize: 100,
@@ -59,6 +62,10 @@ export default function NewApplicationPage() {
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+  const [versionModalOpen, setVersionModalOpen] = React.useState(false);
+  const [versionModalReason, setVersionModalReason] = React.useState<
+    "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null
+  >(null);
 
   const onConfirmNavigation = React.useCallback(
     (path: string) => {
@@ -80,6 +87,8 @@ export default function NewApplicationPage() {
     hasUnsavedChanges,
     onConfirmNavigation
   );
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(undefined, getAccessToken);
 
   /**
    * ORGANIZATION VERIFICATION CHECK
@@ -188,7 +197,27 @@ export default function NewApplicationPage() {
     }
 
     try {
-      // Call API: POST /v1/applications
+      // Revalidate selected product without mutating product list cache
+      const productResp = await apiClient.getProduct(selectedProductId);
+      const latestProduct = productResp.success ? productResp.data : null;
+
+      const currentProduct = productsData?.products?.find((p: any) => p.id === selectedProductId);
+
+      if (!latestProduct) {
+        // Product deleted
+        setVersionModalReason("PRODUCT_DELETED");
+        setVersionModalOpen(true);
+        return;
+      }
+
+      if (!currentProduct || latestProduct.version !== currentProduct.version) {
+        // Product updated since page load
+        setVersionModalReason("PRODUCT_VERSION_CHANGED");
+        setVersionModalOpen(true);
+        return;
+      }
+
+      // Call API: POST /v1/applications (snapshot productVersion in backend)
       const application = await createApplicationMutation.mutateAsync({
         productId: selectedProductId,
         issuerOrganizationId: activeOrganization.id,
@@ -305,6 +334,17 @@ export default function NewApplicationPage() {
       {isModalOpen && (
         <UnsavedChangesModal onConfirm={() => confirmLeave()} onCancel={() => cancelLeave()} />
       )}
+
+      <VersionMismatchModal
+        open={versionModalOpen}
+        blockReason={versionModalReason}
+        onOpenChange={(open: boolean) => setVersionModalOpen(open)}
+        primaryLabel="Refresh products"
+        onPrimary={async () => {
+          await refetchProducts();
+          setVersionModalOpen(false);
+        }}
+      />
     </div>
   );
 }

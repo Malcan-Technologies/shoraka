@@ -25,8 +25,11 @@ import { useQueryClient } from "@tanstack/react-query";
 interface VersionMismatchModalProps {
   open: boolean;
   blockReason?: "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null;
-  applicationId: string;
+  applicationId?: string;
   onOpenChange?: (open: boolean) => void;
+  // optional primary action (used by /new to refresh products instead of archive)
+  primaryLabel?: string;
+  onPrimary?: () => Promise<void> | void;
 }
 
 export function VersionMismatchModal({
@@ -34,12 +37,15 @@ export function VersionMismatchModal({
   blockReason,
   applicationId,
   onOpenChange,
+  primaryLabel,
+  onPrimary,
 }: VersionMismatchModalProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const archiveMutation = useArchiveApplication();
 
   const handleRestart = async () => {
+    if (!applicationId) return;
     try {
       await archiveMutation.mutateAsync(applicationId);
       await queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -47,6 +53,18 @@ export function VersionMismatchModal({
     } catch {
       toast.error("Unable to restart. Please try again.");
     }
+  };
+
+  const handlePrimary = async () => {
+    if (onPrimary) {
+      try {
+        await onPrimary();
+      } catch {
+        toast.error("Action failed. Please try again.");
+      }
+      return;
+    }
+    await handleRestart();
   };
 
   return (
@@ -74,17 +92,17 @@ export function VersionMismatchModal({
             )}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button
-            onClick={handleRestart}
-            className="w-full"
-            disabled={archiveMutation.isPending}
-          >
-            {archiveMutation.isPending
-              ? "Restarting..."
-              : "Start New Application"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              onClick={handlePrimary}
+              className="w-full"
+              disabled={archiveMutation.isPending && !onPrimary}
+            >
+              {archiveMutation.isPending && !onPrimary
+                ? "Working..."
+                : primaryLabel || "Start New Application"}
+            </Button>
+          </DialogFooter>
       </DialogContent>
     </Dialog>
   );
