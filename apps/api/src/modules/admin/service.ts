@@ -4010,7 +4010,7 @@ export class AdminService {
 
   /**
    * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
-   * Canonical format is buildItemScopeKey(itemType, itemId); legacy rows may use plain itemId.
+   * Canonical format is buildItemScopeKey(itemType, itemId)
    */
   private async clearItemDraftAmendments(
     repository: AdminRepository,

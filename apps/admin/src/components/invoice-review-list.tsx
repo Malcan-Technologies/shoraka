@@ -1,23 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  ArrowPathIcon,
-  CheckCircleIcon,
-  ChevronDownIcon,
   DocumentTextIcon,
-  XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
+import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
+import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 
 interface InvoiceReviewListProps {
   invoices: { id: string; details?: unknown }[];
@@ -73,63 +63,20 @@ export function InvoiceList({
                 </span>
               </div>
               {status !== "PENDING" && (
-                <Badge
-                  variant={status === "APPROVED" ? "default" : "secondary"}
-                  className={
-                    status === "APPROVED" ? "bg-primary text-primary-foreground" : ""
-                  }
-                >
-                  {status}
-                </Badge>
+                <ReviewStepStatusBadge status={status} />
               )}
             </div>
             <div className="flex items-center gap-2">
               {isReviewable && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg h-9 gap-1"
-                      disabled={isItemActionPending}
-                    >
-                      Action
-                      <ChevronDownIcon className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="rounded-xl">
-                    <DropdownMenuItem
-                      className="rounded-lg"
-                      onClick={() => onApproveItem(inv.id)}
-                    >
-                      <CheckCircleIcon className="h-4 w-4 mr-2" />
-                      Approve
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="rounded-lg"
-                      onClick={() => onRejectItem(inv.id)}
-                    >
-                      <XCircleIcon className="h-4 w-4 mr-2" />
-                      Reject
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="rounded-lg"
-                      onClick={() => onRequestAmendmentItem(inv.id)}
-                    >
-                      <DocumentTextIcon className="h-4 w-4 mr-2" />
-                      Request Amendment
-                    </DropdownMenuItem>
-                    {onResetItemToPending && status !== "PENDING" && (
-                      <DropdownMenuItem
-                        className="rounded-lg"
-                        onClick={() => onResetItemToPending(inv.id)}
-                      >
-                        <ArrowPathIcon className="h-4 w-4 mr-2" />
-                        Set to Pending
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ItemActionDropdown
+                  itemId={inv.id}
+                  status={status}
+                  isPending={isItemActionPending}
+                  onApprove={onApproveItem}
+                  onReject={onRejectItem}
+                  onRequestAmendment={onRequestAmendmentItem}
+                  onResetToPending={onResetItemToPending}
+                />
               )}
             </div>
           </div>

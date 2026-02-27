@@ -1,32 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
-  CheckCircleIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
-  DocumentTextIcon,
-  XCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   SUPPORTING_DOC_CATEGORY_KEYS,
   SUPPORTING_DOC_CATEGORY_LABELS,
 } from "@/app/settings/products/workflow-builder/product-form-helpers";
+import { ItemActionDropdown } from "./item-action-dropdown";
+import { ReviewStepStatusBadge } from "./review-step-status-badge";
 
 type DocItem = { key: string; label: string; s3Key?: string };
 type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
@@ -168,18 +159,7 @@ export function DocumentList({
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground">{label}</span>
                         {status !== "PENDING" && (
-                          <Badge
-                            variant="secondary"
-                            className={
-                              status === "APPROVED"
-                                ? "bg-primary text-primary-foreground"
-                                : status === "AMENDMENT_REQUESTED"
-                                  ? "bg-destructive/10 text-destructive"
-                                  : ""
-                            }
-                          >
-                            {status}
-                          </Badge>
+                          <ReviewStepStatusBadge status={status} />
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -196,51 +176,15 @@ export function DocumentList({
                           </Button>
                         )}
                         {isReviewable && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="rounded-lg h-9 gap-1"
-                                disabled={isItemActionPending}
-                              >
-                                Action
-                                <ChevronDownIcon className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem
-                                className="rounded-lg"
-                                onClick={() => onApproveItem(key)}
-                              >
-                                <CheckCircleIcon className="h-4 w-4 mr-2" />
-                                Approve
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="rounded-lg"
-                                onClick={() => onRejectItem(key)}
-                              >
-                                <XCircleIcon className="h-4 w-4 mr-2" />
-                                Reject
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="rounded-lg"
-                                onClick={() => onRequestAmendmentItem(key)}
-                              >
-                                <DocumentTextIcon className="h-4 w-4 mr-2" />
-                                Request Amendment
-                              </DropdownMenuItem>
-                              {onResetItemToPending && status !== "PENDING" && (
-                                <DropdownMenuItem
-                                  className="rounded-lg"
-                                  onClick={() => onResetItemToPending(key)}
-                                >
-                                  <ArrowPathIcon className="h-4 w-4 mr-2" />
-                                  Set to Pending
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <ItemActionDropdown
+                            itemId={key}
+                            status={status}
+                            isPending={isItemActionPending}
+                            onApprove={onApproveItem}
+                            onReject={onRejectItem}
+                            onRequestAmendment={onRequestAmendmentItem}
+                            onResetToPending={onResetItemToPending}
+                          />
                         )}
                       </div>
                     </div>
