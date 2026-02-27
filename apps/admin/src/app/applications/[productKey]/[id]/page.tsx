@@ -491,7 +491,7 @@ export default function DynamicApplicationDetailPage() {
                               <Button
                                 variant="outline"
                                 size="default"
-                                className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                                className="gap-2 border-red-500/30 bg-red-500/10 text-red-800 hover:bg-red-500/20 hover:text-red-900 dark:text-red-200 dark:hover:text-red-100"
                                 disabled={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection}
                                 onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
                               >
@@ -514,8 +514,9 @@ export default function DynamicApplicationDetailPage() {
                           <TooltipTrigger asChild>
                             <span className={app.status === "APPROVED" || !allSectionsApproved ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                               <Button
+                                variant="outline"
                                 size="default"
-                                className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                                className="gap-2 border-green-500/30 bg-green-500/10 text-green-800 hover:bg-green-500/20 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
                                 disabled={app.status === "APPROVED" || !allSectionsApproved}
                                 onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
                               >
