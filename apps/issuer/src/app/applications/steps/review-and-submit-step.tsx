@@ -68,7 +68,7 @@ interface ReviewAndSubmitStepProps {
  * Matching: business-details-step, contract-details-step patterns
  */
 // Centralized layout/class tokens (aligned with Branding.mdc)
-const pageWrapperClassName = "mx-auto max-w-7xl px-6 py-10 md:py-12";
+const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
