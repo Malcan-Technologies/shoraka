@@ -52,6 +52,7 @@ export default function NewApplicationPage() {
   } = useProducts({
     page: 1,
     pageSize: 100,
+    activeOnly: true,
   });
 
 

@@ -24,12 +24,13 @@ const productRepository = new ProductRepository();
  * List products with pagination and optional search (admin only).
  */
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
-    try {
+  try {
       const validated = getProductsListQuerySchema.parse(req.query);
       const { products, total } = await productRepository.findAll({
         page: validated.page,
         pageSize: validated.pageSize,
         search: validated.search,
+        activeOnly: validated.active === true,
       });
 
       const pageSize = validated.pageSize;
@@ -42,6 +43,9 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             id: p.id,
             version: p.version,
             workflow: p.workflow as unknown[],
+            category_name: (p as any).category_name ?? null,
+            category_display_order: (p as any).category_display_order ?? null,
+            product_display_order: (p as any).product_display_order ?? null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),

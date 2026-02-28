@@ -6,6 +6,7 @@ export interface ListProductsParams {
   page: number;
   pageSize: number;
   search?: string;
+  activeOnly?: boolean;
 }
 
 export interface UpdateProductData {
@@ -50,11 +51,46 @@ export class ProductRepository {
   }
 
   async create(data: CreateProductData): Promise<Product> {
-    return prisma.product.create({
-      data: {
-        version: 1,
-        workflow: data.workflow as Prisma.InputJsonValue,
-      },
+    // Determine category and ordering from workflow config (financing type step)
+    const workflow = data.workflow as unknown[];
+    const financingStep = (workflow || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const config = financingStep?.config ?? {};
+    const categoryName = (config.category as string) || "Other";
+
+    // Run in transaction to avoid race conditions when computing max + 1
+    return await prisma.$transaction(async (tx) => {
+      // Find max product_display_order within the category
+      const prodMax = await tx.product.aggregate({
+        _max: { product_display_order: true },
+        where: { category_name: categoryName },
+      });
+      const nextProductOrder = (prodMax._max.product_display_order ?? 0) + 1;
+
+      // Determine category_display_order: reuse existing category's display order if present,
+      // otherwise append at global max + 1.
+      const existingCategory = await tx.product.findFirst({
+        where: { category_name: categoryName },
+        orderBy: { category_display_order: "desc" },
+      });
+      let categoryDisplayOrder: number;
+      if (existingCategory && existingCategory.category_display_order !== null) {
+        categoryDisplayOrder = existingCategory.category_display_order;
+      } else {
+        const catMax = await tx.product.aggregate({ _max: { category_display_order: true } });
+        categoryDisplayOrder = (catMax._max.category_display_order ?? 0) + 1;
+      }
+
+      return tx.product.create({
+        data: {
+          version: 1,
+          workflow: data.workflow as Prisma.InputJsonValue,
+          category_name: categoryName,
+          category_display_order: categoryDisplayOrder,
+          product_display_order: nextProductOrder,
+        },
+      });
     });
   }
 
@@ -72,6 +108,56 @@ export class ProductRepository {
       return current;
     }
     const skipIncrement = data.completeCreate === true;
+    // Determine if category changed; extract category from new workflow
+    const newWorkflow = data.workflow as unknown[];
+    const newFinancingStep = (newWorkflow || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const newConfig = newFinancingStep?.config ?? {};
+    const newCategoryName = (newConfig.category as string) || "Other";
+
+    const currentFinancingStep = (currentWorkflow as any[] || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const currentCategoryName = (currentFinancingStep?.config?.category as string) || "Other";
+
+    // If category changed, assign new display orders accordingly
+    if (newCategoryName !== currentCategoryName) {
+      return await prisma.$transaction(async (tx) => {
+        // Compute new product_display_order for target category
+        const prodMax = await tx.product.aggregate({
+          _max: { product_display_order: true },
+          where: { category_name: newCategoryName },
+        });
+        const nextProductOrder = (prodMax._max.product_display_order ?? 0) + 1;
+
+        // Determine target category_display_order (reuse if exists, else max+1)
+        const existingCategory = await tx.product.findFirst({
+          where: { category_name: newCategoryName },
+          orderBy: { category_display_order: "desc" },
+        });
+        let categoryDisplayOrder: number;
+        if (existingCategory && existingCategory.category_display_order !== null) {
+          categoryDisplayOrder = existingCategory.category_display_order;
+        } else {
+          const catMax = await tx.product.aggregate({ _max: { category_display_order: true } });
+          categoryDisplayOrder = (catMax._max.category_display_order ?? 0) + 1;
+        }
+
+        return tx.product.update({
+          where: { id },
+          data: {
+            workflow: data.workflow as Prisma.InputJsonValue,
+            ...(skipIncrement ? {} : { version: { increment: 1 } }),
+            category_name: newCategoryName,
+            category_display_order: categoryDisplayOrder,
+            product_display_order: nextProductOrder,
+          },
+        });
+      });
+    }
+
+    // Category unchanged: simple update (increment version if needed)
     return prisma.product.update({
       where: { id },
       data: {
@@ -93,6 +179,15 @@ export class ProductRepository {
     const searchTrim = search?.trim();
 
     if (!searchTrim) {
+      // If caller requested activeOnly (frontend new flow), return all products ordered by display orders
+      if (params.activeOnly) {
+        const products = await prisma.$queryRaw<Product[]>`
+          SELECT * FROM products
+          ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
+        `;
+        return { products, total: products.length };
+      }
+
       const [products, total] = await Promise.all([
         prisma.product.findMany({
           skip,

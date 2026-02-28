@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Select Financing Type</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    function toggleCategory(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle("hidden");
+    }
+  </script>
+</head>
+
+<body class="bg-gray-50 font-sans">
+
+<div class="min-h-screen flex">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white border-r p-6">
+    <h1 class="text-xl font-bold text-red-700 mb-6">CashSouk</h1>
+    <nav class="space-y-3 text-gray-600">
+      <div class="font-medium text-gray-900">Dashboard</div>
+      <div>Profile</div>
+      <div>Applications</div>
+      <div>Loan</div>
+      <div>Transactions</div>
+      <div>Activity</div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 px-10 py-8">
+
+    <!-- Page Title -->
+    <h2 class="text-2xl font-semibold mb-6">Select financing type</h2>
+
+    <!-- Progress Bar -->
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-col items-center w-full">
+        <div class="h-9 w-9 rounded-full bg-black text-white flex items-center justify-center text-sm font-semibold">●</div>
+        <span class="text-xs mt-2 font-medium">Financing Type</span>
+      </div>
+
+      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
+
+      <div class="flex flex-col items-center w-full">
+        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
+        <span class="text-xs mt-2 text-gray-500">Contract Details</span>
+      </div>
+
+      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
+
+      <div class="flex flex-col items-center w-full">
+        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
+        <span class="text-xs mt-2 text-gray-500">Financing Structure</span>
+      </div>
+
+      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
+
+      <div class="flex flex-col items-center w-full">
+        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
+        <span class="text-xs mt-2 text-gray-500">Review & Submit</span>
+      </div>
+    </div>
+
+    <!-- Divider Line Under Progress -->
+    <div class="border-t mb-8"></div>
+
+    <!-- Category 1 -->
+    <div class="mb-8">
+
+      <button onclick="toggleCategory('cat1')" 
+        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
+        <span>Invoice Financing (3)</span>
+        <span>▾</span>
+      </button>
+
+      <div id="cat1" class="space-y-4">
+
+        <!-- Selected Product -->
+        <div class="border-2 border-red-600 rounded-xl p-5 bg-white shadow-sm">
+          <div class="flex justify-between">
+            <div>
+              <h3 class="font-semibold text-lg">Account Receivable (AR) Financing</h3>
+              <p class="text-sm text-gray-500 mt-1">
+                Get funding against your issued invoices under Islamic financing principles
+              </p>
+            </div>
+            <div class="h-6 w-6 bg-red-600 text-white flex items-center justify-center rounded">✓</div>
+          </div>
+        </div>
+
+        <!-- Product -->
+        <div class="border rounded-xl p-5 bg-white hover:border-gray-300 cursor-pointer">
+          <h3 class="font-semibold text-lg">Purchase Order (PO) Financing</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Receive funds to fulfill your customers’ purchase orders
+          </p>
+        </div>
+
+        <!-- Product -->
+        <div class="border rounded-xl p-5 bg-white hover:border-gray-300 cursor-pointer">
+          <h3 class="font-semibold text-lg">Short-term Murabaha</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Finance your short-term needs under Islamic Murabaha principle
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Category 2 -->
+    <div class="mb-8">
+      <button onclick="toggleCategory('cat2')" 
+        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
+        <span>Working Capital (2)</span>
+        <span>▸</span>
+      </button>
+
+      <div id="cat2" class="hidden space-y-4">
+        <div class="border rounded-xl p-5 bg-white">
+          <h3 class="font-semibold text-lg">Revolving Credit</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Flexible short-term working capital financing
+          </p>
+        </div>
+
+        <div class="border rounded-xl p-5 bg-white">
+          <h3 class="font-semibold text-lg">Term Financing</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Structured term-based working capital
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category 3 -->
+    <div class="mb-10">
+      <button onclick="toggleCategory('cat3')" 
+        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
+        <span>Expansion Financing (2)</span>
+        <span>▸</span>
+      </button>
+
+      <div id="cat3" class="hidden space-y-4">
+        <div class="border rounded-xl p-5 bg-white">
+          <h3 class="font-semibold text-lg">Asset Financing</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Finance purchase of business assets
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex justify-end">
+      <button class="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg">
+        Save and continue →
+      </button>
+    </div>
+
+  </main>
+
+</div>
+
+</body>
+</html>

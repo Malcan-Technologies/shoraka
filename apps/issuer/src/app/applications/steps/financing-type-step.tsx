@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useProducts } from "@/hooks/use-products";
+import { useProducts, useProduct } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
 import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
@@ -33,12 +33,19 @@ export function FinancingTypeStep({
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   // Load all products
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
-    page: 1,
-    pageSize: 100,
-  });
+  // If initialProductId is present (edit flow), fetch only that product.
+  const { data: productsData, isLoading: isLoadingProducts } = initialProductId
+    ? { data: undefined, isLoading: false }
+    : useProducts({
+        page: 1,
+        pageSize: 100,
+        activeOnly: true,
+      } as any);
 
-  const products = productsData?.products || [];
+  const singleProductQuery = useProduct(initialProductId || "");
+  const products = initialProductId ? (singleProductQuery?.data ? { products: [singleProductQuery.data] } : { products: [] }) : productsData || { products: [] };
+
+  const isLoading = initialProductId ? singleProductQuery?.isLoading : isLoadingProducts;
 
   // Track which product is selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
@@ -53,13 +60,13 @@ export function FinancingTypeStep({
     if (initialProductId && !selectedProductId) {
       setSelectedProductId(initialProductId);
 
-      //  Tell parent this step already has valid data
+      // Tell parent this step already has valid data
       if (onDataChange) {
-        const savedProduct = products.find(p => p.id === initialProductId);
+        const savedProduct = products.products?.find((p: any) => p.id === initialProductId) ?? singleProductQuery?.data;
         onDataChange({
           product_id: initialProductId,
           product_version: savedProduct?.version,
-          hasPendingChanges: false
+          hasPendingChanges: false,
         });
       }
     }
@@ -79,7 +86,7 @@ export function FinancingTypeStep({
     setSelectedProductId(productId);
 
     // Find the selected product to include its version
-    const selectedProduct = products.find(p => p.id === productId);
+    const selectedProduct = (products.products || []).find((p: any) => p.id === productId) ?? singleProductQuery?.data;
 
     // Pass data to parent for saving
     if (onDataChange) {
@@ -92,7 +99,7 @@ export function FinancingTypeStep({
   };
 
   // Show loading state
-  if (isLoadingProducts || debugSkeletonMode) {
+  if (isLoading || debugSkeletonMode) {
     return (
       <>
         <FinancingTypeSkeleton />
@@ -100,9 +107,9 @@ export function FinancingTypeStep({
       </>
     );
   }
-
   // Show empty state
-  if (products.length === 0) {
+  const productList = products.products || [];
+  if (productList.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         No financing products available
@@ -113,12 +120,28 @@ export function FinancingTypeStep({
   return (
     <>
     <div className="px-3">
-      <ProductList
-        products={products}
-        selectedProductId={selectedProductId}
-        onProductSelect={handleProductSelect}
+      {initialProductId ? (
+        // Edit mode: show only the selected product (read-only)
+        productList.map((p: any) => (
+          <div key={p.id} className="pointer-events-none">
+            <ProductCard
+              id={p.id}
+              name={p.workflow?.[0]?.config?.name || "Unnamed Product"}
+              description={p.workflow?.[0]?.config?.description || ""}
+              imageS3Key={p.workflow?.[0]?.config?.image?.s3_key || ""}
+              isSelected={true}
+              onSelect={() => {}}
+            />
+          </div>
+        ))
+      ) : (
+        <ProductList
+          products={products.products}
+          selectedProductId={selectedProductId}
+          onProductSelect={handleProductSelect}
           isLoading={isLoadingProducts}
-      />
+        />
+      )}
     </div>
     <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

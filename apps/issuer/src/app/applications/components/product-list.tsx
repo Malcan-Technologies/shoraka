@@ -139,7 +139,7 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }
  * - onProductSelect: function to call when user selects a product
  */
 interface ProductListProps {
-  products: any[];  // Accept any product structure from API
+  products: any[]; // Accept any product structure from API
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
   isLoading: boolean;
@@ -147,44 +147,71 @@ interface ProductListProps {
 
 export function ProductList({ products, selectedProductId, onProductSelect, isLoading }: ProductListProps) {
   /**
-   * Group products by category
-   * 
-   * Extracts product info from the workflow config.
-   * Each product has a workflow, and the first step (Financing Type) 
-   * contains the display information in its config.
+   * Group products by category_name and sort by display order fields.
+   * Falls back to workflow config if category fields missing.
    */
-  const productsByCategory = React.useMemo(() => {
-    const grouped: Record<string, any[]> = {};
+  const categories = React.useMemo(() => {
+    type CatEntry = {
+      name: string;
+      displayOrder: number | null;
+      items: {
+        id: string;
+        name: string;
+        description: string;
+        imageUrl: string;
+        productDisplayOrder: number | null;
+        created_at?: string;
+      }[];
+    };
+
+    const map = new Map<string, CatEntry>();
 
     products.forEach((product: any) => {
-      // Find the "Financing Type" step in the workflow
       const financingStep = product.workflow?.find((step: any) =>
-        step.name?.toLowerCase().includes("financing type")
+        String(step?.name).toLowerCase().includes("financing type")
       );
       const config = financingStep?.config || {};
 
-      // Extract data from config (image can be nested config.image or legacy config.s3_key)
-      const category = config.category || "Other";
-      const name = config.name || "Unnamed Product";
+      const categoryName = product.category_name || config.category || "Other";
+      const categoryDisplayOrder = product.category_display_order ?? config.category_display_order ?? null;
+      const productDisplayOrder = product.product_display_order ?? config.product_display_order ?? null;
+
+      const name = config.name || (product.workflow?.[0]?.config?.name as string) || "Unnamed Product";
       const description = config.description || "";
       const imageUrl = config.image?.s3_key || config.s3_key || "";
 
-      // Create product data
-      const productData = {
-        id: product.id,
-        name: name,
-        description: description,
-        imageUrl: imageUrl,
-        category: category,
-      };
-
-      if (!grouped[category]) {
-        grouped[category] = [];
+      if (!map.has(categoryName)) {
+        map.set(categoryName, { name: categoryName, displayOrder: categoryDisplayOrder, items: [] });
       }
-      grouped[category].push(productData);
+      map.get(categoryName)!.items.push({
+        id: product.id,
+        name,
+        description,
+        imageUrl,
+        productDisplayOrder,
+        created_at: product.created_at ? new Date(product.created_at).toISOString() : undefined,
+      });
     });
 
-    return grouped;
+    // Convert map to array and sort categories/products by display order (nulls -> large)
+    const result = Array.from(map.values());
+    result.forEach((cat) => {
+      cat.items.sort((a, b) => {
+        const oa = a.productDisplayOrder ?? 999999;
+        const ob = b.productDisplayOrder ?? 999999;
+        if (oa !== ob) return oa - ob;
+        // tie-breaker
+        if (a.created_at && b.created_at) return a.created_at.localeCompare(b.created_at);
+        return 0;
+      });
+    });
+    result.sort((a, b) => {
+      const ca = a.displayOrder ?? 999999;
+      const cb = b.displayOrder ?? 999999;
+      if (ca !== cb) return ca - cb;
+      return a.name.localeCompare(b.name);
+    });
+    return result;
   }, [products]);
 
   if (isLoading) {
@@ -196,34 +223,49 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
     );
   }
 
-  return (
-    <div className="space-y-10">
-      {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
-        <section key={category} className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              {category}
-            </h2>
-            <div className="mt-2 h-px bg-border" />
-          </div>
+  // Collapsible categories state
+  const [expandedCategory, setExpandedCategory] = React.useState<string | null>(null);
 
-          <div className="space-y-3 px-3">
-            {categoryProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                id={product.id}
-                name={product.name}
-                description={product.description}
-                imageS3Key={product.imageUrl}
-                isSelected={selectedProductId === product.id}
-                onSelect={onProductSelect}
-              />
-            ))}
+  React.useEffect(() => {
+    if (categories.length > 0 && expandedCategory === null) {
+      setExpandedCategory(categories[0].name);
+    }
+  }, [categories, expandedCategory]);
+
+  return (
+    <div className="space-y-6">
+      {categories.map((cat) => (
+        <section key={cat.name} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">{cat.name}</h2>
+            <button
+              aria-expanded={expandedCategory === cat.name}
+              onClick={() =>
+                setExpandedCategory((prev) => (prev === cat.name ? null : cat.name))
+              }
+              className="text-sm text-muted-foreground"
+            >
+              {expandedCategory === cat.name ? "Collapse" : "Expand"}
+            </button>
           </div>
+          <div className="mt-2 h-px bg-border" />
+          {expandedCategory === cat.name && (
+            <div className="space-y-3 px-3">
+              {cat.items.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  id={product.id}
+                  name={product.name}
+                  description={product.description}
+                  imageS3Key={product.imageUrl}
+                  isSelected={selectedProductId === product.id}
+                  onSelect={onProductSelect}
+                />
+              ))}
+            </div>
+          )}
         </section>
       ))}
     </div>
-
-
   );
 }

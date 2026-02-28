@@ -40,6 +40,11 @@ export const getProductsListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().optional(),
+  active: z.preprocess((v) => {
+    if (v === undefined) return undefined;
+    if (v === "true" || v === true) return true;
+    return false;
+  }, z.boolean().optional()),
 });
 
 export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;

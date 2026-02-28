@@ -4,14 +4,19 @@ import type { GetProductsParams } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useProducts(params: GetProductsParams) {
+export function useProducts(params: GetProductsParams & { activeOnly?: boolean }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["products", params.page, params.pageSize, params.search],
+    queryKey: ["products", params.page, params.pageSize, params.search, params.activeOnly],
     queryFn: async () => {
-      const response = await apiClient.getProducts(params);
+      const response = await apiClient.getProducts({
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+        active: params.activeOnly,
+      });
       if (!response.success) {
         throw new Error(response.error.message);
       }
