@@ -67,10 +67,9 @@ function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
 
   if (!imageUrl) {
     return (
-      <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-        Image
-        <br />
-        512x512
+      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+        {/* Fallback if image missing */}
+        <div className="w-10 h-10 rounded-md bg-muted" />
       </div>
     );
   }
@@ -114,12 +113,13 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }
       isSelected={isSelected}
       onClick={() => onSelect(id)}
       leading={
-        <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+        <div className="w-12 h-12 rounded-lg border border-input bg-muted flex items-center justify-center overflow-hidden">
           <ProductImage s3Key={imageS3Key} alt={name} />
         </div>
       }
+      className="space-y-0"
     />
-  )
+  );
 
 }
 
@@ -223,49 +223,72 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
     );
   }
 
-  // Collapsible categories state
-  const [expandedCategory, setExpandedCategory] = React.useState<string | null>(null);
+  // Collapsible categories state - allow multiple expanded
+  const [expandedCategories, setExpandedCategories] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
-    if (categories.length > 0 && expandedCategory === null) {
-      setExpandedCategory(categories[0].name);
+    if (categories.length > 0 && Object.keys(expandedCategories).length === 0) {
+      // Expand first category by default
+      setExpandedCategories({ [categories[0].name]: true });
     }
-  }, [categories, expandedCategory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
 
   return (
     <div className="space-y-6">
-      {categories.map((cat) => (
-        <section key={cat.name} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-foreground">{cat.name}</h2>
-            <button
-              aria-expanded={expandedCategory === cat.name}
-              onClick={() =>
-                setExpandedCategory((prev) => (prev === cat.name ? null : cat.name))
-              }
-              className="text-sm text-muted-foreground"
-            >
-              {expandedCategory === cat.name ? "Collapse" : "Expand"}
-            </button>
-          </div>
-          <div className="mt-2 h-px bg-border" />
-          {expandedCategory === cat.name && (
-            <div className="space-y-3 px-3">
-              {cat.items.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  id={product.id}
-                  name={product.name}
-                  description={product.description}
-                  imageS3Key={product.imageUrl}
-                  isSelected={selectedProductId === product.id}
-                  onSelect={onProductSelect}
-                />
-              ))}
+      {categories.map((cat) => {
+        const isExpanded = Boolean(expandedCategories[cat.name]);
+        return (
+          <section key={cat.name} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  onClick={() =>
+                    setExpandedCategories((prev) => ({ ...prev, [cat.name]: !prev[cat.name] }))
+                  }
+                  className="flex items-center gap-2 text-left"
+                >
+                  {/* Chevron */}
+                  <svg
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden
+                  >
+                    <path d="M6 8L10 12L14 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <h2 className="text-xl font-semibold text-foreground truncate">{cat.name}</h2>
+                </button>
+              </div>
+
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {cat.items.length} items
+              </span>
             </div>
-          )}
-        </section>
-      ))}
+
+            <div className="border-b border-border mt-4 mb-4" />
+
+            {isExpanded && (
+              <div className="space-y-4 px-3">
+                {cat.items.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    description={product.description}
+                    imageS3Key={product.imageUrl}
+                    isSelected={selectedProductId === product.id}
+                    onSelect={onProductSelect}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

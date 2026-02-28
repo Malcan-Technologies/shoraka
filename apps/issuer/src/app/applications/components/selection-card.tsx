@@ -15,16 +15,14 @@ import { cn } from "@/lib/utils";
  * Why: Keep border thickness, radius, padding, typography consistent everywhere.
  * Data: Pure strings used by the `SelectionCard` render.
  */
-const cardBaseClassName =
-  "w-full rounded-xl border bg-background text-foreground transition-colors";
-const cardUnselectedClassName = "border-border hover:border-primary/50";
-const cardSelectedClassName = "border-primary";
-const cardPaddingClassName = "px-6 py-3";
+const cardBaseClassName = "w-full rounded-2xl border border-input bg-card text-foreground transition-colors";
+const cardUnselectedClassName = "border-input hover:border-primary/50";
+const cardSelectedClassName = "border-primary bg-card";
+const cardPaddingClassName = "p-4";
 const cardFocusClassName =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
-const titleClassName = "text-[20px] leading-[28px] font-medium text-foreground";
-const descriptionClassName =
-  "text-[16px] leading-[22px] text-muted-foreground";
+const titleClassName = "text-base font-semibold text-foreground";
+const descriptionClassName = "text-sm text-muted-foreground mt-1";
 
 export type SelectionCardProps = {
   /** What: Title shown as primary line.
