@@ -73,6 +73,7 @@ export class ProductRepository {
         SELECT MAX(product_display_order) as max
         FROM products
         WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
+          AND status = 'ACTIVE'
       `;
       const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
 
@@ -83,13 +84,14 @@ export class ProductRepository {
         FROM products
         WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
           AND category_display_order IS NOT NULL
+          AND status = 'ACTIVE'
       `;
       let categoryDisplayOrder: number;
       if (catMinRows[0]?.min != null) {
         categoryDisplayOrder = catMinRows[0].min;
       } else {
         const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
-          SELECT MAX(category_display_order) as max FROM products
+          SELECT MAX(category_display_order) as max FROM products WHERE status = 'ACTIVE'
         `;
         categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
       }
@@ -166,6 +168,7 @@ export class ProductRepository {
           SELECT MAX(product_display_order) as max
           FROM products
           WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
+            AND status = 'ACTIVE'
         `;
         const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
 
@@ -175,13 +178,14 @@ export class ProductRepository {
           FROM products
           WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
             AND category_display_order IS NOT NULL
+            AND status = 'ACTIVE'
         `;
         let categoryDisplayOrder: number;
         if (catMinRows[0]?.min != null) {
           categoryDisplayOrder = catMinRows[0].min;
         } else {
           const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
-            SELECT MAX(category_display_order) as max FROM products
+            SELECT MAX(category_display_order) as max FROM products WHERE status = 'ACTIVE'
           `;
           categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
         }
@@ -274,7 +278,7 @@ export class ProductRepository {
           product_created_at: currentAny.created_at.toISOString(),
           product_updated_at: currentAny.updated_at.toISOString(),
         };
-        // create log before delete so snapshot represents persisted state
+        // create log before soft-delete so snapshot represents persisted state
         await tx.productLog.create({
           data: {
             user_id: logContext.userId,
@@ -287,15 +291,53 @@ export class ProductRepository {
           },
         } as any);
 
-        // delete product
-        return tx.product.delete({ where: { id } });
+        // soft-delete: mark status and deleted_at
+        return tx.product.update({
+          where: { id },
+          data: {
+            // Note: cast to any as Prisma client may need regen
+            status: "DELETED" as any,
+            deleted_at: new Date(),
+          },
+        } as any);
       });
     }
 
-    return prisma.product.delete({
+    // non-logged path: perform soft-delete update
+    return prisma.product.update({
       where: { id },
-    });
+      data: {
+        status: "DELETED" as any,
+        deleted_at: new Date(),
+      },
+    } as any);
   }
+
+  // Helper: mark product inactive
+  async setInactive(id: string): Promise<Product> {
+    return prisma.product.update({
+      where: { id },
+      data: {
+        status: "INACTIVE" as any,
+      },
+    } as any);
+  }
+
+  // Helper: restore product to ACTIVE (undo soft-delete)
+  async restoreProduct(id: string): Promise<Product> {
+    return prisma.product.update({
+      where: { id },
+      data: {
+        status: "ACTIVE" as any,
+        deleted_at: null,
+      },
+    } as any);
+  }
+
+  // ⚠ HARD DELETE — DO NOT USE (kept for rollback / maintenance only)
+  // async hardDeleteProduct(id: string) {
+  //   return prisma.product.delete({ where: { id } });
+  // }
 
   async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
     const { page, pageSize, search } = params;
@@ -307,18 +349,21 @@ export class ProductRepository {
       if (params.activeOnly) {
         const products = await prisma.$queryRaw<Product[]>`
           SELECT * FROM products
+          WHERE status = 'ACTIVE'
           ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
         `;
         return { products, total: products.length };
       }
 
+      const whereAdmin = { status: { not: "DELETED" } } as any;
       const [products, total] = await Promise.all([
         prisma.product.findMany({
+          where: whereAdmin,
           skip,
           take: pageSize,
           orderBy: { updated_at: "desc" },
         }),
-        prisma.product.count(),
+        prisma.product.count({ where: whereAdmin }),
       ]);
       return { products, total };
     }
@@ -331,6 +376,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
+          AND status != 'DELETED'
         ORDER BY updated_at DESC
         LIMIT ${pageSize} OFFSET ${skip}
       `,
@@ -340,6 +386,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
+          AND status != 'DELETED'
       `,
     ]);
     const total = countResult[0]?.count ?? 0;

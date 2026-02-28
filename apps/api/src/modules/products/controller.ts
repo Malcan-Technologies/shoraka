@@ -202,19 +202,26 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
     }
     const workflow = (product.workflow as unknown[]) ?? [];
     const keysToDelete = getProductS3KeysFromWorkflow(workflow);
+    // keysToDelete intentionally preserved for manual cleanup reference
+    void keysToDelete;
 
     const userId = req.user?.user_id ?? null;
     const ip = getClientIp(req) ?? null;
     const deviceInfo = getDeviceInfo(req) ?? null;
     await productRepository.delete(id, { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo });
 
-    for (const key of keysToDelete) {
-      try {
-        await deleteS3Object(key);
-      } catch (err) {
-        logger.warn({ err, key }, "Failed to delete product file from S3 after product delete");
-      }
-    }
+    // NOTE: products are soft-deleted now. Do NOT delete S3 assets as part of DELETE API.
+    // The following S3 cleanup is intentionally commented out and preserved for manual/emergency use only.
+    //
+    // HARD DELETE S3 CLEANUP (NOT USED)
+    // ⚠ WARNING: This removes S3 objects and should NOT be executed as part of normal delete flow.
+    // for (const key of keysToDelete) {
+    //   try {
+    //     await deleteS3Object(key);
+    //   } catch (err) {
+    //     logger.warn({ err, key }, "Failed to delete product file from S3 during HARD DELETE cleanup");
+    //   }
+    // }
     res.status(204).send();
   } catch (error) {
     next(error);

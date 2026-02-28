@@ -582,8 +582,18 @@ model Product {
   category_display_order Int?
   product_display_order Int?
 
+  status     ProductStatus @default(ACTIVE)
+  deleted_at DateTime?
+
   @@map("products")
 }
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
 
 enum UserRole {
   INVESTOR
