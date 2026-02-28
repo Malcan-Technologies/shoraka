@@ -3,7 +3,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import { ProductRepository } from "./repository";
-import { createProductUploadsRouter } from "./product-uploads-controller";
+import { createProductUploadsRouter } from "./upload/controller";
 import {
   getProductsListQuerySchema,
   createProductBodySchema,
@@ -13,7 +13,7 @@ import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
   getProductS3KeysFromWorkflow,
   getReplacedProductS3Keys,
-} from "./product-log";
+} from "./log/service";
 
 const router = Router();
 const productRepository = new ProductRepository();
@@ -222,3 +222,4 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
 });
 
 export const productsRouter = router;
+
