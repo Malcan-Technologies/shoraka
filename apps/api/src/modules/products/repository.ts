@@ -61,32 +61,36 @@ export class ProductRepository {
 
     // Run in transaction to avoid race conditions when computing max + 1
     return await prisma.$transaction(async (tx) => {
-      // Find max product_display_order within the category
-      const prodMax = await tx.product.aggregate({
-        _max: { product_display_order: true },
-        where: { category_name: categoryName },
-      });
-      const nextProductOrder = (prodMax._max.product_display_order ?? 0) + 1;
+      // Find max product_display_order within the category using JSONB filter
+      const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+        SELECT MAX(product_display_order) as max
+        FROM products
+        WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
+      `;
+      const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
 
-      // Determine category_display_order: reuse existing category's display order if present,
+      // Determine category_display_order: reuse existing category's MIN display order if present,
       // otherwise append at global max + 1.
-      const existingCategory = await tx.product.findFirst({
-        where: { category_name: categoryName },
-        orderBy: { category_display_order: "desc" },
-      });
+      const catMinRows = await tx.$queryRaw<Array<{ min: number | null }>>`
+        SELECT MIN(category_display_order) as min
+        FROM products
+        WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
+          AND category_display_order IS NOT NULL
+      `;
       let categoryDisplayOrder: number;
-      if (existingCategory && existingCategory.category_display_order !== null) {
-        categoryDisplayOrder = existingCategory.category_display_order;
+      if (catMinRows[0]?.min != null) {
+        categoryDisplayOrder = catMinRows[0].min;
       } else {
-        const catMax = await tx.product.aggregate({ _max: { category_display_order: true } });
-        categoryDisplayOrder = (catMax._max.category_display_order ?? 0) + 1;
+        const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+          SELECT MAX(category_display_order) as max FROM products
+        `;
+        categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
       }
 
       return tx.product.create({
         data: {
           version: 1,
           workflow: data.workflow as Prisma.InputJsonValue,
-          category_name: categoryName,
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
         },
@@ -124,24 +128,29 @@ export class ProductRepository {
     // If category changed, assign new display orders accordingly
     if (newCategoryName !== currentCategoryName) {
       return await prisma.$transaction(async (tx) => {
-        // Compute new product_display_order for target category
-        const prodMax = await tx.product.aggregate({
-          _max: { product_display_order: true },
-          where: { category_name: newCategoryName },
-        });
-        const nextProductOrder = (prodMax._max.product_display_order ?? 0) + 1;
+        // Compute new product_display_order for target category (JSONB filter)
+        const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+          SELECT MAX(product_display_order) as max
+          FROM products
+          WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
+        `;
+        const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
 
-        // Determine target category_display_order (reuse if exists, else max+1)
-        const existingCategory = await tx.product.findFirst({
-          where: { category_name: newCategoryName },
-          orderBy: { category_display_order: "desc" },
-        });
+        // Determine target category_display_order (reuse MIN if exists, else max+1)
+        const catMinRows = await tx.$queryRaw<Array<{ min: number | null }>>`
+          SELECT MIN(category_display_order) as min
+          FROM products
+          WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
+            AND category_display_order IS NOT NULL
+        `;
         let categoryDisplayOrder: number;
-        if (existingCategory && existingCategory.category_display_order !== null) {
-          categoryDisplayOrder = existingCategory.category_display_order;
+        if (catMinRows[0]?.min != null) {
+          categoryDisplayOrder = catMinRows[0].min;
         } else {
-          const catMax = await tx.product.aggregate({ _max: { category_display_order: true } });
-          categoryDisplayOrder = (catMax._max.category_display_order ?? 0) + 1;
+          const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+            SELECT MAX(category_display_order) as max FROM products
+          `;
+          categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
         }
 
         return tx.product.update({
@@ -149,7 +158,6 @@ export class ProductRepository {
           data: {
             workflow: data.workflow as Prisma.InputJsonValue,
             ...(skipIncrement ? {} : { version: { increment: 1 } }),
-            category_name: newCategoryName,
             category_display_order: categoryDisplayOrder,
             product_display_order: nextProductOrder,
           },

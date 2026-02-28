@@ -43,7 +43,6 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             id: p.id,
             version: p.version,
             workflow: p.workflow as unknown[],
-            category_name: (p as any).category_name ?? null,
             category_display_order: (p as any).category_display_order ?? null,
             product_display_order: (p as any).product_display_order ?? null,
             created_at: p.created_at.toISOString(),

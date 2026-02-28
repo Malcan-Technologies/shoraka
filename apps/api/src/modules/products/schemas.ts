@@ -51,14 +51,35 @@ export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;
 
 // Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
 export const createProductBodySchema = z.object({
-  workflow: z.array(z.unknown()).min(1),
+  workflow: z
+    .array(z.unknown())
+    .min(1)
+    .refine((arr) => {
+      try {
+        const c = (arr as any)[0]?.config?.category;
+        return typeof c === "string" && c.trim().length > 0;
+      } catch {
+        return false;
+      }
+    }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
 
 // Body for PATCH /v1/products/:id. Version auto-increments unless completeCreate is true (used only to complete the first save after create).
 export const updateProductBodySchema = z.object({
-  workflow: z.array(z.unknown()).optional(),
+  workflow: z
+    .array(z.unknown())
+    .optional()
+    .refine((arr) => {
+      if (arr === undefined) return true;
+      try {
+        const c = (arr as any)[0]?.config?.category;
+        return typeof c === "string" && c.trim().length > 0;
+      } catch {
+        return false;
+      }
+    }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   completeCreate: z.boolean().optional(),
 });
 
