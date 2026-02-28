@@ -6,7 +6,7 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
-import { useS3ViewUrl } from "@/hooks/use-s3";
+import { ProductImagePreview } from "@/app/applications/components/product-image-preview";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
@@ -143,7 +143,6 @@ export function ReviewAndSubmitStep({
 
   // Get the product image S3 key from config
   const productImageS3Key = financingTypeConfig?.image?.s3_key || "";
-  const { data: productImageUrl, isLoading: isLoadingProductImage } = useS3ViewUrl(productImageS3Key || null);
 
 
   /**
@@ -263,7 +262,7 @@ export function ReviewAndSubmitStep({
     (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
 
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
-  const financingLoading = showFinancingDetails && (isLoadingProducts || isLoadingProductImage);
+  const financingLoading = showFinancingDetails && isLoadingProducts;
   const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
   const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
@@ -340,33 +339,14 @@ export function ReviewAndSubmitStep({
               financingLoading || debugSkeletonMode ? (
                 <ReviewFinancingSkeleton />
               ) : (
-                <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
-                  <SelectionCard
-                    title={financingTypeConfig.name}
-                    description={financingTypeConfig.description}
-                    isSelected={false}
-                    onClick={() => { }}
-                    leading={
-                      <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
-                        {isLoadingProductImage ? (
-                          <Skeleton className="h-full w-full rounded-md" />
-                        ) : productImageUrl ? (
-                          <img
-                            src={productImageUrl}
-                            alt={financingTypeConfig.name || "Product"}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                            Image
-                            <br />
-                            512x512
-                          </div>
-                        )}
-                      </div>
-                    }
-                  />
-                </div>
+                <SelectionCard
+                  title={financingTypeConfig.name}
+                  description={financingTypeConfig.description}
+                  isSelected={false}
+                  onClick={() => {}}
+                  disabled={true}
+                  leading={<ProductImagePreview s3Key={productImageS3Key} alt={financingTypeConfig.name || "Product"} />}
+                />
               )
             ) : (
               <div className="text-sm text-muted-foreground italic">
@@ -723,7 +703,7 @@ export function ReviewAndSubmitStep({
             {supportingLoading || debugSkeletonMode ? (
               <ReviewSupportingDocsSkeleton />
             ) : (
-              <div className="space-y-4 px-3">
+              <div className="space-y-3 px-3">
                 {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
                   <div key={i} className="flex justify-between items-center py-2">
                     <span className={labelClassName}>{doc.title}</span>

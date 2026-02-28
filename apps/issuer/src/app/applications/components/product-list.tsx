@@ -2,27 +2,30 @@
 
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useS3ViewUrl } from "@/hooks/use-s3";
 import { SelectionCard } from "@/app/applications/components/selection-card";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ProductImagePreview } from "./product-image-preview";
 
 
 
 function ProductCardSkeleton() {
   return (
     <div className="block w-full">
-      <div className="w-full rounded-xl border border-border bg-background px-6 py-3">
-          <div className="flex items-start gap-4">
+      <div className="w-full rounded-xl border border-input bg-card px-4 py-3">
+          <div className="flex items-center gap-3">
             {/* Image */}
             <div className="shrink-0">
-              <div className="h-14 w-14 rounded-md border border-border bg-white overflow-hidden">
+              <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
                 <Skeleton className="h-full w-full" />
               </div>
             </div>
 
             {/* Text - name and description */}
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-6 w-[62%] rounded" />
-              <Skeleton className="h-5 w-[78%] rounded" />
+            <div className="min-w-0 flex-1">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-[62%] rounded" />
+                <Skeleton className="h-5 w-[78%] rounded" />
+              </div>
             </div>
           </div>
         </div>
@@ -33,11 +36,11 @@ function ProductCardSkeleton() {
 
 function CategorySkeleton() {
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div>
         {/* Category header — VERY SLIGHTLY higher */}
         <Skeleton className="h-[24px] w-[160px] rounded" />
-        <div className="mt-2 h-px bg-border" />
+        <div className="border-b border-border" />
       </div>
 
       <div className="space-y-3 px-3">
@@ -52,36 +55,7 @@ function CategorySkeleton() {
 
 
 
-/**
- * PRODUCT IMAGE
- * 
- * Shows product image from S3.
- * If image is loading or missing, shows placeholder.
- */
-function ProductImage({ s3Key, alt }: { s3Key: string; alt: string }) {
-  const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
-
-  if (isLoading) {
-    return <Skeleton className="h-full w-full rounded-md" />;
-  }
-
-  if (!imageUrl) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-        {/* Fallback if image missing */}
-        <div className="w-10 h-10 rounded-md bg-muted" />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={imageUrl}
-      alt={alt}
-      className="w-full h-full object-contain"
-    />
-  );
-}
+// PRODUCT IMAGE handled by ProductImagePreview component (shared standard)
 
 
 
@@ -112,11 +86,7 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }
       description={description}
       isSelected={isSelected}
       onClick={() => onSelect(id)}
-      leading={
-        <div className="w-12 h-12 rounded-lg border border-input bg-muted flex items-center justify-center overflow-hidden">
-          <ProductImage s3Key={imageS3Key} alt={name} />
-        </div>
-      }
+      leading={<ProductImagePreview s3Key={imageS3Key} alt={name} />}
       className="space-y-0"
     />
   );
@@ -239,40 +209,43 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
       {categories.map((cat) => {
         const isExpanded = Boolean(expandedCategories[cat.name]);
         return (
-          <section key={cat.name} className="space-y-4">
+          <section key={cat.name} className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                <button
-                  type="button"
-                  aria-expanded={isExpanded}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     setExpandedCategories((prev) => ({ ...prev, [cat.name]: !prev[cat.name] }))
                   }
-                  className="flex items-center gap-2 text-left"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpandedCategories((prev) => ({ ...prev, [cat.name]: !prev[cat.name] }))
+                    }
+                  }}
+                  className="flex items-center gap-3 text-left cursor-pointer py-2 w-full"
                 >
                   {/* Chevron */}
-                  <svg
-                    className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
+                  <ChevronDownIcon
+                    className={`h-5 w-5 text-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                     aria-hidden
-                  >
-                    <path d="M6 8L10 12L14 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <h2 className="text-xl font-semibold text-foreground truncate">{cat.name}</h2>
-                </button>
+                  />
+                  <h2 className="text-base font-semibold text-foreground truncate">{cat.name}</h2>
+                </div>
               </div>
 
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {cat.items.length} items
-              </span>
+              {cat.items.length >= 1 ? (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {cat.items.length} option{cat.items.length > 1 ? "s" : ""}
+                </span>
+              ) : null}
             </div>
 
-            <div className="border-b border-border mt-4 mb-4" />
+            <div className="border-b border-border" />
 
             {isExpanded && (
-              <div className="space-y-4 px-3">
+              <div className="space-y-3 px-3">
                 {cat.items.map((product) => (
                   <ProductCard
                     key={product.id}

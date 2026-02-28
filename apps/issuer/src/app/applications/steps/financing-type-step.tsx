@@ -4,6 +4,7 @@ import * as React from "react";
 import { useProducts, useProduct } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
 import { SelectionCard } from "../components/selection-card";
+import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 import { useS3ViewUrl } from "@/hooks/use-s3";
@@ -52,19 +53,7 @@ export function FinancingTypeStep({
   // Track which product is selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
 
-  // Inline ProductImage for edit mode to avoid importing from product-list
-  function ProductImageInline({ s3Key, alt }: { s3Key: string; alt: string }) {
-    const { data: imageUrl, isLoading } = useS3ViewUrl(s3Key);
-    if (isLoading) return <div className="w-full h-full" />;
-    if (!imageUrl) {
-      return (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-10 h-10 rounded-md bg-muted" />
-        </div>
-      );
-    }
-    return <img src={imageUrl} alt={alt} className="w-full h-full object-contain" />;
-  }
+  // Use shared ProductImagePreview for image consistency
 
   /**
    * Initialize with product from database
@@ -141,30 +130,23 @@ export function FinancingTypeStep({
         productList.map((p: any) => {
           const category = (p.workflow?.[0]?.config?.category as string) || "Uncategorized";
           return (
-            <section key={p.id} className="space-y-2">
-              <div className="flex items-center justify-between py-3 border-b border-border">
-                <h2 className="text-base font-semibold text-foreground">{category}</h2>
-                <span className="text-sm text-muted-foreground">1 item</span>
-              </div>
+          <section key={p.id} className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-border cursor-pointer">
+              <h2 className="text-base font-semibold text-foreground">{category}</h2>
+              <span className="text-xs text-muted-foreground">{1} option</span>
+            </div>
 
-              <div>
-                <div className="pointer-events-none">
-                  <SelectionCard
-                    title={p.workflow?.[0]?.config?.name || "Unnamed Product"}
-                    description={p.workflow?.[0]?.config?.description || ""}
-                    isSelected={true}
-                    onClick={() => {}}
-                    leading={
-                      <div className="w-12 h-12 rounded-lg border border-input bg-muted flex items-center justify-center overflow-hidden">
-                        {/* Use S3 view URL hook for proper absolute URL */}
-                        <ProductImageInline s3Key={p.workflow?.[0]?.config?.image?.s3_key || ""} alt={p.workflow?.[0]?.config?.name || ""} />
-                      </div>
-                    }
-                    className="space-y-0"
-                  />
-                </div>
-              </div>
-            </section>
+            <div>
+              <SelectionCard
+                title={p.workflow?.[0]?.config?.name || "Unnamed Product"}
+                description={p.workflow?.[0]?.config?.description || ""}
+                isSelected={true}
+                onClick={() => {}}
+                disabled={true}
+                leading={<ProductImagePreview s3Key={p.workflow?.[0]?.config?.image?.s3_key || ""} alt={p.workflow?.[0]?.config?.name || ""} />}
+              />
+            </div>
+          </section>
           );
         })
       ) : (

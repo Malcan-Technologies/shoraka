@@ -483,7 +483,7 @@ export function BusinessDetailsStep({
     <>
       <div className={formOuterClassName}>
         {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-4`}>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>About your business</h3>
           <div className="mt-2 h-px bg-border" />
@@ -556,7 +556,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
+      <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
           <div className="mt-2 h-px bg-border" />
@@ -721,7 +721,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
+      <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>Declarations</h3>
           <div className="mt-2 h-px bg-border" />

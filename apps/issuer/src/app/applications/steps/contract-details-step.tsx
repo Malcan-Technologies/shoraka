@@ -901,7 +901,7 @@ export function ContractDetailsStep({
     <>
       <div className="space-y-10 px-3">
         {/* Contract Details Section */}
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Contract details</h3>
             <div className="mt-2 h-px bg-border" />
@@ -1056,7 +1056,7 @@ export function ContractDetailsStep({
         </section>
 
         {/* Customer Details Section */}
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Customer details</h3>
             <div className="mt-2 h-px bg-border" />

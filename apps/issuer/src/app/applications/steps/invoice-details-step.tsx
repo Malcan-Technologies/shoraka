@@ -825,7 +825,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
         {/* ================= Contract ================= */}
         {!isInvoiceOnly && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
               <h3 className="text-base sm:text-lg md:text-xl font-semibold">
                 Contract
@@ -900,7 +900,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || debugSkeletonMode ? null : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-base sm:text-lg md:text-xl font-semibold">

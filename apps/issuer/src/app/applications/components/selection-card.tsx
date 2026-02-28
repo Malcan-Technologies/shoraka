@@ -15,14 +15,14 @@ import { cn } from "@/lib/utils";
  * Why: Keep border thickness, radius, padding, typography consistent everywhere.
  * Data: Pure strings used by the `SelectionCard` render.
  */
-const cardBaseClassName = "w-full rounded-2xl border border-input bg-card text-foreground transition-colors";
+const cardBaseClassName = "w-full rounded-xl border border-input bg-card text-foreground transition-colors";
 const cardUnselectedClassName = "border-input hover:border-primary/50";
 const cardSelectedClassName = "border-primary bg-card";
-const cardPaddingClassName = "p-4";
+const cardPaddingClassName = "px-4 py-3";
 const cardFocusClassName =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
-const titleClassName = "text-base font-semibold text-foreground";
-const descriptionClassName = "text-sm text-muted-foreground mt-1";
+const titleClassName = "text-base font-semibold text-foreground leading-tight";
+const descriptionClassName = "text-sm text-muted-foreground mt-0.5 leading-snug";
 
 export type SelectionCardProps = {
   /** What: Title shown as primary line.
@@ -60,6 +60,11 @@ export type SelectionCardProps = {
    * Data: Tailwind class string.
    */
   className?: string;
+  /** What: Disabled flag to prevent interaction while keeping visual parity.
+   * Why: Edit/Review use-cases show the card but must not be clickable.
+   * Data: boolean
+   */
+  disabled?: boolean;
 };
 
 /** Render blocks
@@ -76,13 +81,16 @@ export function SelectionCard({
   leading,
   trailing,
   className,
+  disabled = false,
 }: SelectionCardProps) {
   return (
     <div
       role="button"
-      tabIndex={0}
-      onClick={onClick}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled ? true : undefined}
+      onClick={disabled ? undefined : onClick}
       onKeyDown={(e) => {
+        if (disabled) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick();
@@ -94,11 +102,12 @@ export function SelectionCard({
         className={cn(
           cardBaseClassName,
           cardPaddingClassName,
-          isSelected ? cardSelectedClassName : cardUnselectedClassName
+          isSelected ? cardSelectedClassName : cardUnselectedClassName,
+          "min-h-[80px] flex items-center"
         )}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4 min-w-0">
+        <div className="flex w-full justify-between gap-3">
+          <div className="flex gap-3 min-w-0">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <div className="min-w-0 flex-1">
               <div className={cn(titleClassName, "truncate")}>{title}</div>
