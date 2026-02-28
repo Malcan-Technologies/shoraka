@@ -40,11 +40,11 @@ function SkeletonCategory() {
       {/* Category header */}
       <div>
         <Skeleton className="h-[24px] w-[160px] rounded" />
-        <div className="border-b border-border mt-3 -mb-1" />
+        <div className="border-b border-border mt-2 " />
       </div>
 
       {/* 2 product cards per category */}
-      <div className="space-y-3 px-3">
+      <div className="space-y-3">
         <SkeletonProductCard />
         <SkeletonProductCard />
       </div>
