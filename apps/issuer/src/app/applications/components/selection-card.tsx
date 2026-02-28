@@ -107,7 +107,7 @@ export function SelectionCard({
         )}
       >
         <div className="flex w-full justify-between gap-3">
-          <div className="flex gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <div className="min-w-0 flex-1">
               <div className={cn(titleClassName, "truncate")}>{title}</div>
