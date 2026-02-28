@@ -209,7 +209,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
       {categories.map((cat) => {
         const isExpanded = Boolean(expandedCategories[cat.name]);
         return (
-          <section key={cat.name} className="space-y-3">
+          <section key={cat.name}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
                 <div
@@ -242,7 +242,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
               ) : null}
             </div>
 
-            <div className="border-b border-border mt-2" />
+            <div className="border-b border-border mt-2 mb-4" />
 
             {isExpanded && (
               <div className="space-y-3 px-3">

@@ -7,7 +7,6 @@ import { SelectionCard } from "../components/selection-card";
 import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
-import { useS3ViewUrl } from "@/hooks/use-s3";
 
 /**
  * FINANCING TYPE STEP
@@ -130,12 +129,12 @@ export function FinancingTypeStep({
         productList.map((p: any) => {
           const category = (p.workflow?.[0]?.config?.category as string) || "Uncategorized";
           return (
-          <section key={p.id} className="space-y-3">
+          <section key={p.id}>
           <div className="flex items-center justify-between cursor-pointer">
               <h2 className="text-base font-semibold text-foreground">{category}</h2>
               <span className="text-xs text-muted-foreground">{1} option</span>
             </div>
-            <div className="border-b border-border mt-2" />
+            <div className="border-b border-border mt-2 mb-4" />
 
             <div>
               <SelectionCard
