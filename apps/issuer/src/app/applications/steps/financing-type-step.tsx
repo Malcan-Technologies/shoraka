@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useProducts, useProduct } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
+import { SelectionCard } from "../components/selection-card";
 import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
@@ -124,13 +125,21 @@ export function FinancingTypeStep({
         // Edit mode: show only the selected product (read-only)
         productList.map((p: any) => (
           <div key={p.id} className="pointer-events-none">
-            <ProductCard
-              id={p.id}
-              name={p.workflow?.[0]?.config?.name || "Unnamed Product"}
+            <SelectionCard
+              title={p.workflow?.[0]?.config?.name || "Unnamed Product"}
               description={p.workflow?.[0]?.config?.description || ""}
-              imageS3Key={p.workflow?.[0]?.config?.image?.s3_key || ""}
               isSelected={true}
-              onSelect={() => {}}
+              onClick={() => {}}
+              leading={
+                <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
+                  {/* Image */}
+                  <img
+                    src={p.workflow?.[0]?.config?.image?.s3_key || ""}
+                    alt={p.workflow?.[0]?.config?.name || ""}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              }
             />
           </div>
         ))

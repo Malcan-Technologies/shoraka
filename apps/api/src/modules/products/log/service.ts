@@ -4,9 +4,7 @@
  * Also: helpers for the controller to find S3 keys to delete on update/delete.
  */
 
-import { Request } from "express";
 import { logger } from "../../../lib/logger";
-import { getClientIp, getDeviceInfo } from "../../../lib/http/request-utils";
 import { productLogRepository } from "../repository";
 import type { ProductEventType } from "../schemas";
 

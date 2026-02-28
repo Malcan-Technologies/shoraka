@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requireRole } from "../../lib/auth/middleware";
+import { requireRole } from "../../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
-import { AppError } from "../../lib/http/error-handler";
+import { AppError } from "../../../lib/http/error-handler";
 import { productService } from "../service";
 import {
   getProductLogsQuerySchema,
