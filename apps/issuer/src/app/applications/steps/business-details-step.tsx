@@ -178,8 +178,7 @@ interface BusinessDetailsStepProps {
   onDataChange?: (data: any) => void;
 }
 
-const sectionHeaderClassName =
-  "text-base sm:text-lg md:text-xl font-semibold";
+const sectionHeaderClassName = "text-base font-semibold text-foreground";
 
 /** Helpers
  *
@@ -486,7 +485,7 @@ export function BusinessDetailsStep({
         <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>About your business</h3>
-          <div className="mt-2 h-px bg-border" />
+          <div className="border-b border-border mt-2 mb-4" />
         </div>
 
         <div className={rowGridClassName}>
@@ -559,7 +558,7 @@ export function BusinessDetailsStep({
       <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-          <div className="mt-2 h-px bg-border" />
+          <div className="border-b border-border mt-2 mb-4" />
         </div>
 
         <div className={rowGridClassName}>
@@ -724,7 +723,7 @@ export function BusinessDetailsStep({
       <section className={`${sectionWrapperClassName} space-y-3`}>
         <div>
           <h3 className={sectionHeaderClassName}>Declarations</h3>
-          <div className="mt-2 h-px bg-border" />
+          <div className="border-b border-border mt-2 mb-4" />
         </div>
 
         <div className="rounded-xl border border-border bg-background p-4 sm:p-5">

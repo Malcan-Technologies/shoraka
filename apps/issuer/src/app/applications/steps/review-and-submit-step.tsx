@@ -71,7 +71,7 @@ interface ReviewAndSubmitStepProps {
 const pageWrapperClassName = "mx-auto max-w-7xl px-6 py-10 md:py-12";
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
-const sectionHeaderClassName = "text-xl md:text-2xl font-semibold";
+const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
@@ -332,7 +332,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Financing details</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
 
             {financingTypeConfig ? (
@@ -361,7 +361,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Contract</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {contractLoading || debugSkeletonMode ? (
               <ReviewContractSkeleton />
@@ -412,7 +412,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Invoices</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {invoiceLoading || debugSkeletonMode ? (
               <ReviewInvoiceSkeleton />
@@ -549,7 +549,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Company Info</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewCompanySkeleton />
@@ -580,7 +580,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -632,7 +632,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Banking Details</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -651,7 +651,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Address</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -670,7 +670,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Contact Person</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -698,7 +698,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Legal Docs</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {supportingLoading || debugSkeletonMode ? (
               <ReviewSupportingDocsSkeleton />

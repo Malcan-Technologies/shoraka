@@ -894,7 +894,7 @@ export function ContractDetailsStep({
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = formInputClassName;
-  const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+  const sectionHeaderClassName = "text-base font-semibold text-foreground";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
@@ -904,7 +904,7 @@ export function ContractDetailsStep({
         <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Contract details</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>
@@ -1059,7 +1059,7 @@ export function ContractDetailsStep({
         <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Customer details</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>

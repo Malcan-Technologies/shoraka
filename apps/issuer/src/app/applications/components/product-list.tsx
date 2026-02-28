@@ -224,7 +224,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
                       setExpandedCategories((prev) => ({ ...prev, [cat.name]: !prev[cat.name] }))
                     }
                   }}
-                  className="flex items-center gap-3 text-left cursor-pointer py-2 w-full"
+                  className="flex items-center gap-3 text-left cursor-pointer w-full"
                 >
                   {/* Chevron */}
                   <ChevronDownIcon
@@ -242,7 +242,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
               ) : null}
             </div>
 
-            <div className="border-b border-border" />
+            <div className="border-b border-border mt-2" />
 
             {isExpanded && (
               <div className="space-y-3 px-3">

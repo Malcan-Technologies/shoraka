@@ -611,8 +611,8 @@ export function CompanyDetailsStep({
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Company info</h3>
-            <div className="mt-2 h-px bg-border" />
+          <h3 className={sectionHeaderClassName}>Company info</h3>
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -697,7 +697,7 @@ export function CompanyDetailsStep({
               <PencilIcon className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-2 h-px bg-border" />
+          <div className="border-b border-border mt-2 mb-4" />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
             <div className={labelClassName}>Business address</div>
@@ -720,7 +720,7 @@ export function CompanyDetailsStep({
         <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -762,7 +762,7 @@ export function CompanyDetailsStep({
         <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Banking details</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -839,7 +839,7 @@ export function CompanyDetailsStep({
         <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Contact Person</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">

@@ -131,10 +131,11 @@ export function FinancingTypeStep({
           const category = (p.workflow?.[0]?.config?.category as string) || "Uncategorized";
           return (
           <section key={p.id} className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border cursor-pointer">
+          <div className="flex items-center justify-between cursor-pointer">
               <h2 className="text-base font-semibold text-foreground">{category}</h2>
               <span className="text-xs text-muted-foreground">{1} option</span>
             </div>
+            <div className="border-b border-border mt-2" />
 
             <div>
               <SelectionCard

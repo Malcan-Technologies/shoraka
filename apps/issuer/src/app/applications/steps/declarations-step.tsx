@@ -256,10 +256,10 @@ return (
 
       {/* ================= WHAT HAPPENS NEXT ================= */}
       <div className="rounded-xl border border-border bg-background p-6">
-        <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground mb-3">
+        <h3 className="text-base font-semibold text-foreground mb-3">
           What happens next?
         </h3>
-        <div className="mt-2 h-px bg-border" />
+        <div className="border-b border-border mt-2 mb-4" />
 
         <ul className="list-disc pl-5 space-y-3 text-sm md:text-base leading-6 text-foreground mt-4">
           <li>After submission, your application will be reviewed by our team.</li>
