@@ -19,6 +19,13 @@ export interface CreateProductData {
   workflow: unknown[];
 }
 
+export interface LogContext {
+  userId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  deviceInfo?: string | null;
+}
+
 /** Deep equality for JSON-like workflow (arrays and plain objects). Used to avoid version bump when nothing changed. */
 function workflowDeepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -50,7 +57,7 @@ export class ProductRepository {
     });
   }
 
-  async create(data: CreateProductData): Promise<Product> {
+  async create(data: CreateProductData, logContext?: LogContext): Promise<Product> {
     // Determine category and ordering from workflow config (financing type step)
     const workflow = data.workflow as unknown[];
     const financingStep = (workflow || []).find((step: any) =>
@@ -87,19 +94,45 @@ export class ProductRepository {
         categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
       }
 
-      return tx.product.create({
+      const created = await tx.product.create({
         data: {
           version: 1,
           workflow: data.workflow as Prisma.InputJsonValue,
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
         },
-      });
+      } as any);
+
+      // ProductLog snapshot (inside same transaction) if user provided
+      if (logContext?.userId) {
+        const createdAny = created as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
+          category_display_order: createdAny.category_display_order ?? null,
+          product_display_order: createdAny.product_display_order ?? null,
+          version: createdAny.version,
+          product_created_at: createdAny.created_at.toISOString(),
+          product_updated_at: createdAny.updated_at.toISOString(),
+        };
+          await tx.productLog.create({
+            data: {
+              user_id: logContext.userId,
+              product_id: created.id,
+              event_type: "PRODUCT_CREATED",
+              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+              metadata: metadata as Prisma.InputJsonValue,
+            },
+          } as any);
+      }
+
+      return created;
     });
   }
 
   /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
-  async update(id: string, data: UpdateProductData): Promise<Product> {
+  async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
     if (data.workflow === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
@@ -153,7 +186,7 @@ export class ProductRepository {
           categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
         }
 
-        return tx.product.update({
+        const updated = await tx.product.update({
           where: { id },
           data: {
             workflow: data.workflow as Prisma.InputJsonValue,
@@ -161,21 +194,104 @@ export class ProductRepository {
             category_display_order: categoryDisplayOrder,
             product_display_order: nextProductOrder,
           },
-        });
+        } as any);
+
+        if (logContext?.userId) {
+          const updatedAny = updated as any;
+          const metadata = {
+            workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
+            category_display_order: updatedAny.category_display_order ?? null,
+            product_display_order: updatedAny.product_display_order ?? null,
+            version: updatedAny.version,
+            product_created_at: updatedAny.created_at.toISOString(),
+            product_updated_at: updatedAny.updated_at.toISOString(),
+          };
+          await tx.productLog.create({
+            data: {
+              user_id: logContext.userId,
+              product_id: updated.id,
+              event_type: "PRODUCT_UPDATED",
+              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+              metadata: metadata as Prisma.InputJsonValue,
+            },
+          } as any);
+        }
+
+        return updated;
       });
     }
 
     // Category unchanged: simple update (increment version if needed)
-    return prisma.product.update({
+    const updated = await prisma.product.update({
       where: { id },
       data: {
         workflow: data.workflow as Prisma.InputJsonValue,
         ...(skipIncrement ? {} : { version: { increment: 1 } }),
       },
-    });
+    } as any);
+
+    // Log update outside of transaction if no context; prefer context-based tx logging when caller provides it
+    if (logContext?.userId) {
+      await prisma.productLog.create({
+        data: {
+          user_id: logContext.userId,
+          product_id: updated.id,
+          event_type: "PRODUCT_UPDATED",
+          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+          metadata: {
+            workflow: JSON.parse(JSON.stringify((updated as any).workflow)),
+            category_display_order: (updated as any).category_display_order ?? null,
+            product_display_order: (updated as any).product_display_order ?? null,
+            version: (updated as any).version,
+            product_created_at: (updated as any).created_at.toISOString(),
+            product_updated_at: (updated as any).updated_at.toISOString(),
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    return updated;
   }
 
-  async delete(id: string): Promise<Product> {
+  async delete(id: string, logContext?: LogContext): Promise<Product> {
+    // Perform delete inside transaction and snapshot metadata before deletion when logContext provided
+    if (logContext?.userId) {
+      return await prisma.$transaction(async (tx) => {
+        const current = await tx.product.findUnique({ where: { id } });
+        if (!current) {
+          throw new Error("Product not found");
+        }
+        const currentAny = current as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
+          category_display_order: currentAny.category_display_order ?? null,
+          product_display_order: currentAny.product_display_order ?? null,
+          version: currentAny.version,
+          product_created_at: currentAny.created_at.toISOString(),
+          product_updated_at: currentAny.updated_at.toISOString(),
+        };
+        // create log before delete so snapshot represents persisted state
+        await tx.productLog.create({
+          data: {
+            user_id: logContext.userId,
+            product_id: current.id,
+            event_type: "PRODUCT_DELETED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: metadata as Prisma.InputJsonValue,
+          },
+        } as any);
+
+        // delete product
+        return tx.product.delete({ where: { id } });
+      });
+    }
+
     return prisma.product.delete({
       where: { id },
     });

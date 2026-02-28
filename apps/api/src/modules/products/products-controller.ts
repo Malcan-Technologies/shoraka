@@ -9,9 +9,8 @@ import {
   createProductBodySchema,
   updateProductBodySchema,
 } from "./schemas";
+import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
-  createProductLog,
-  buildProductLogMetadata,
   getProductS3KeysFromWorkflow,
   getReplacedProductS3Keys,
 } from "./product-log";
@@ -74,11 +73,13 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = createProductBodySchema.parse(req.body);
-    const product = await productRepository.create({
-      workflow: validated.workflow,
-    });
-    const workflowArr = (product.workflow as unknown[]) ?? [];
-    await createProductLog(req, "PRODUCT_CREATED", product.id, buildProductLogMetadata(workflowArr, product.version, product.created_at, product.updated_at));
+    const userId = req.user?.user_id ?? null;
+    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
+    const deviceInfo = (req as any).deviceInfo ?? null;
+    const product = await productRepository.create(
+      { workflow: validated.workflow },
+      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
+    );
     res.status(201).json({
       success: true,
       data: {
@@ -145,13 +146,17 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         ? getReplacedProductS3Keys(oldWorkflow, validated.workflow)
         : [];
 
-    const product = await productRepository.update(id, {
-      workflow: validated.workflow,
-      completeCreate: validated.completeCreate,
-    });
-
-    const newWorkflow = (product.workflow as unknown[]) ?? [];
-    await createProductLog(req, "PRODUCT_UPDATED", id, buildProductLogMetadata(newWorkflow, product.version, product.created_at, product.updated_at));
+    const userId = req.user?.user_id ?? null;
+    const ip = getClientIp(req) ?? null;
+    const deviceInfo = getDeviceInfo(req) ?? null;
+    const product = await productRepository.update(
+      id,
+      {
+        workflow: validated.workflow,
+        completeCreate: validated.completeCreate,
+      },
+      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
+    );
 
     for (const key of keysToDelete) {
       try {
@@ -198,9 +203,10 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
     const workflow = (product.workflow as unknown[]) ?? [];
     const keysToDelete = getProductS3KeysFromWorkflow(workflow);
 
-    await createProductLog(req, "PRODUCT_DELETED", id, buildProductLogMetadata(workflow, product.version, product.created_at, product.updated_at));
-
-    await productRepository.delete(id);
+    const userId = req.user?.user_id ?? null;
+    const ip = getClientIp(req) ?? null;
+    const deviceInfo = getDeviceInfo(req) ?? null;
+    await productRepository.delete(id, { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo });
 
     for (const key of keysToDelete) {
       try {
