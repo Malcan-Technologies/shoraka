@@ -6,6 +6,7 @@ export interface ListProductsParams {
   page: number;
   pageSize: number;
   search?: string;
+  activeOnly?: boolean;
 }
 
 export interface UpdateProductData {
@@ -16,6 +17,13 @@ export interface UpdateProductData {
 
 export interface CreateProductData {
   workflow: unknown[];
+}
+
+export interface LogContext {
+  userId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  deviceInfo?: string | null;
 }
 
 /** Deep equality for JSON-like workflow (arrays and plain objects). Used to avoid version bump when nothing changed. */
@@ -49,17 +57,84 @@ export class ProductRepository {
     });
   }
 
-  async create(data: CreateProductData): Promise<Product> {
-    return prisma.product.create({
-      data: {
-        version: 1,
-        workflow: data.workflow as Prisma.InputJsonValue,
-      },
+  async create(data: CreateProductData, logContext?: LogContext): Promise<Product> {
+    // Determine category and ordering from workflow config (financing type step)
+    const workflow = data.workflow as unknown[];
+    const financingStep = (workflow || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const config = financingStep?.config ?? {};
+    const categoryName = (config.category as string) || "Other";
+
+    // Run in transaction to avoid race conditions when computing max + 1
+    return await prisma.$transaction(async (tx) => {
+      // Find max product_display_order within the category using JSONB filter
+      const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+        SELECT MAX(product_display_order) as max
+        FROM products
+        WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
+          AND status = 'ACTIVE'
+      `;
+      const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
+
+      // Determine category_display_order: reuse existing category's MIN display order if present,
+      // otherwise append at global max + 1.
+      const catMinRows = await tx.$queryRaw<Array<{ min: number | null }>>`
+        SELECT MIN(category_display_order) as min
+        FROM products
+        WHERE (workflow::jsonb->0->'config'->>'category') = ${categoryName}
+          AND category_display_order IS NOT NULL
+          AND status = 'ACTIVE'
+      `;
+      let categoryDisplayOrder: number;
+      if (catMinRows[0]?.min != null) {
+        categoryDisplayOrder = catMinRows[0].min;
+      } else {
+        const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+          SELECT MAX(category_display_order) as max FROM products WHERE status = 'ACTIVE'
+        `;
+        categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
+      }
+
+      const created = await tx.product.create({
+        data: {
+          version: 1,
+          workflow: data.workflow as Prisma.InputJsonValue,
+          category_display_order: categoryDisplayOrder,
+          product_display_order: nextProductOrder,
+        },
+      } as any);
+
+      // ProductLog snapshot (inside same transaction) if user provided
+      if (logContext?.userId) {
+        const createdAny = created as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
+          category_display_order: createdAny.category_display_order ?? null,
+          product_display_order: createdAny.product_display_order ?? null,
+          version: createdAny.version,
+          product_created_at: createdAny.created_at.toISOString(),
+          product_updated_at: createdAny.updated_at.toISOString(),
+        };
+          await tx.productLog.create({
+            data: {
+              user_id: logContext.userId,
+              product_id: created.id,
+              event_type: "PRODUCT_CREATED",
+              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+              metadata: metadata as Prisma.InputJsonValue,
+            },
+          } as any);
+      }
+
+      return created;
     });
   }
 
   /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
-  async update(id: string, data: UpdateProductData): Promise<Product> {
+  async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
     if (data.workflow === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
@@ -72,20 +147,197 @@ export class ProductRepository {
       return current;
     }
     const skipIncrement = data.completeCreate === true;
-    return prisma.product.update({
+    // Determine if category changed; extract category from new workflow
+    const newWorkflow = data.workflow as unknown[];
+    const newFinancingStep = (newWorkflow || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const newConfig = newFinancingStep?.config ?? {};
+    const newCategoryName = (newConfig.category as string) || "Other";
+
+    const currentFinancingStep = (currentWorkflow as any[] || []).find((step: any) =>
+      String(step?.name).toLowerCase().includes("financing type")
+    ) as any | undefined;
+    const currentCategoryName = (currentFinancingStep?.config?.category as string) || "Other";
+
+    // If category changed, assign new display orders accordingly
+    if (newCategoryName !== currentCategoryName) {
+      return await prisma.$transaction(async (tx) => {
+        // Compute new product_display_order for target category (JSONB filter)
+        const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+          SELECT MAX(product_display_order) as max
+          FROM products
+          WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
+            AND status = 'ACTIVE'
+        `;
+        const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
+
+        // Determine target category_display_order (reuse MIN if exists, else max+1)
+        const catMinRows = await tx.$queryRaw<Array<{ min: number | null }>>`
+          SELECT MIN(category_display_order) as min
+          FROM products
+          WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
+            AND category_display_order IS NOT NULL
+            AND status = 'ACTIVE'
+        `;
+        let categoryDisplayOrder: number;
+        if (catMinRows[0]?.min != null) {
+          categoryDisplayOrder = catMinRows[0].min;
+        } else {
+          const catMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
+            SELECT MAX(category_display_order) as max FROM products WHERE status = 'ACTIVE'
+          `;
+          categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
+        }
+
+        const updated = await tx.product.update({
+          where: { id },
+          data: {
+            workflow: data.workflow as Prisma.InputJsonValue,
+            ...(skipIncrement ? {} : { version: { increment: 1 } }),
+            category_display_order: categoryDisplayOrder,
+            product_display_order: nextProductOrder,
+          },
+        } as any);
+
+        if (logContext?.userId) {
+          const updatedAny = updated as any;
+          const metadata = {
+            workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
+            category_display_order: updatedAny.category_display_order ?? null,
+            product_display_order: updatedAny.product_display_order ?? null,
+            version: updatedAny.version,
+            product_created_at: updatedAny.created_at.toISOString(),
+            product_updated_at: updatedAny.updated_at.toISOString(),
+          };
+          await tx.productLog.create({
+            data: {
+              user_id: logContext.userId,
+              product_id: updated.id,
+              event_type: "PRODUCT_UPDATED",
+              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+              metadata: metadata as Prisma.InputJsonValue,
+            },
+          } as any);
+        }
+
+        return updated;
+      });
+    }
+
+    // Category unchanged: simple update (increment version if needed)
+    const updated = await prisma.product.update({
       where: { id },
       data: {
         workflow: data.workflow as Prisma.InputJsonValue,
         ...(skipIncrement ? {} : { version: { increment: 1 } }),
       },
-    });
+    } as any);
+
+    // Log update outside of transaction if no context; prefer context-based tx logging when caller provides it
+    if (logContext?.userId) {
+      await prisma.productLog.create({
+        data: {
+          user_id: logContext.userId,
+          product_id: updated.id,
+          event_type: "PRODUCT_UPDATED",
+          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+          metadata: {
+            workflow: JSON.parse(JSON.stringify((updated as any).workflow)),
+            category_display_order: (updated as any).category_display_order ?? null,
+            product_display_order: (updated as any).product_display_order ?? null,
+            version: (updated as any).version,
+            product_created_at: (updated as any).created_at.toISOString(),
+            product_updated_at: (updated as any).updated_at.toISOString(),
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    return updated;
   }
 
-  async delete(id: string): Promise<Product> {
-    return prisma.product.delete({
+  async delete(id: string, logContext?: LogContext): Promise<Product> {
+    // Perform delete inside transaction and snapshot metadata before deletion when logContext provided
+    if (logContext?.userId) {
+      return await prisma.$transaction(async (tx) => {
+        const current = await tx.product.findUnique({ where: { id } });
+        if (!current) {
+          throw new Error("Product not found");
+        }
+        const currentAny = current as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
+          category_display_order: currentAny.category_display_order ?? null,
+          product_display_order: currentAny.product_display_order ?? null,
+          version: currentAny.version,
+          product_created_at: currentAny.created_at.toISOString(),
+          product_updated_at: currentAny.updated_at.toISOString(),
+        };
+        // create log before soft-delete so snapshot represents persisted state
+        await tx.productLog.create({
+          data: {
+            user_id: logContext.userId,
+            product_id: current.id,
+            event_type: "PRODUCT_DELETED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: metadata as Prisma.InputJsonValue,
+          },
+        } as any);
+
+        // soft-delete: mark status and deleted_at
+        return tx.product.update({
+          where: { id },
+          data: {
+            // Note: cast to any as Prisma client may need regen
+            status: "DELETED" as any,
+            deleted_at: new Date(),
+          },
+        } as any);
+      });
+    }
+
+    // non-logged path: perform soft-delete update
+    return prisma.product.update({
       where: { id },
-    });
+      data: {
+        status: "DELETED" as any,
+        deleted_at: new Date(),
+      },
+    } as any);
   }
+
+  // Helper: mark product inactive
+  async setInactive(id: string): Promise<Product> {
+    return prisma.product.update({
+      where: { id },
+      data: {
+        status: "INACTIVE" as any,
+      },
+    } as any);
+  }
+
+  // Helper: restore product to ACTIVE (undo soft-delete)
+  async restoreProduct(id: string): Promise<Product> {
+    return prisma.product.update({
+      where: { id },
+      data: {
+        status: "ACTIVE" as any,
+        deleted_at: null,
+      },
+    } as any);
+  }
+
+  // ⚠ HARD DELETE — DO NOT USE (kept for rollback / maintenance only)
+  // async hardDeleteProduct(id: string) {
+  //   return prisma.product.delete({ where: { id } });
+  // }
 
   async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
     const { page, pageSize, search } = params;
@@ -93,13 +345,25 @@ export class ProductRepository {
     const searchTrim = search?.trim();
 
     if (!searchTrim) {
+      // If caller requested activeOnly (frontend new flow), return all products ordered by display orders
+      if (params.activeOnly) {
+        const products = await prisma.$queryRaw<Product[]>`
+          SELECT * FROM products
+          WHERE status = 'ACTIVE'
+          ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
+        `;
+        return { products, total: products.length };
+      }
+
+      const whereAdmin = { status: { not: "DELETED" } } as any;
       const [products, total] = await Promise.all([
         prisma.product.findMany({
+          where: whereAdmin,
           skip,
           take: pageSize,
           orderBy: { updated_at: "desc" },
         }),
-        prisma.product.count(),
+        prisma.product.count({ where: whereAdmin }),
       ]);
       return { products, total };
     }
@@ -112,6 +376,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
+          AND status != 'DELETED'
         ORDER BY updated_at DESC
         LIMIT ${pageSize} OFFSET ${skip}
       `,
@@ -121,6 +386,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
+          AND status != 'DELETED'
       `,
     ]);
     const total = countResult[0]?.count ?? 0;

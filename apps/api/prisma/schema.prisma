@@ -651,9 +651,20 @@ model Product {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   workflow   Json
+  category_display_order Int?
+  product_display_order Int?
+
+  status     ProductStatus @default(ACTIVE)
+  deleted_at DateTime?
   version    Int      @default(1)
 
   @@map("products")
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
 }
 
 model NotificationType {

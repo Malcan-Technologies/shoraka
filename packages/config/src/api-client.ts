@@ -1118,11 +1118,12 @@ export class ApiClient {
   }
 
   // Products
-  async getProducts(params: { page: number; pageSize: number; search?: string }): Promise<ApiResponse<GetProductsResponse> | ApiError> {
+  async getProducts(params: { page: number; pageSize: number; search?: string; active?: boolean }): Promise<ApiResponse<GetProductsResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page));
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
+    if (params.active !== undefined) queryParams.append("active", String(params.active));
 
     return this.get<GetProductsResponse>(`/v1/products?${queryParams.toString()}`);
   }

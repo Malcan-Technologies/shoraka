@@ -230,7 +230,7 @@ export function FinancingStructureStep({
   return (
     <>
     <div className="px-3">
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Option 1: Submit a new contract */}
         <SelectionCard
           title="Submit a new contract"

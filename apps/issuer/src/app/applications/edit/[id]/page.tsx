@@ -360,27 +360,44 @@ export default function EditApplicationPage() {
 
   // Navigation guard integration
   const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
+  const isNavigatingRef = React.useRef(false);
 
   const onConfirmNavigation = React.useCallback(
-    (path: string) => {
+    async (path: string) => {
       // Parent must reset unsaved BEFORE navigating
       setHasUnsavedChanges(false);
 
       const pending = pendingNavRef.current;
+
       // Handle back sentinel
       if (path === "__BACK__") {
         // Deterministic: always exit wizard to dashboard
         pendingNavRef.current = null;
-        router.replace("/");
+        isNavigatingRef.current = true;
+        try {
+          await router.replace("/");
+        } finally {
+          isNavigatingRef.current = false;
+        }
         return;
       }
 
       if (pending?.leavingPage) {
         pendingNavRef.current = null;
-        router.replace(path);
+        isNavigatingRef.current = true;
+        try {
+          await router.replace(path);
+        } finally {
+          isNavigatingRef.current = false;
+        }
       } else {
         pendingNavRef.current = null;
-        router.push(path);
+        isNavigatingRef.current = true;
+        try {
+          await router.push(path);
+        } finally {
+          isNavigatingRef.current = false;
+        }
       }
     },
     [router]
@@ -671,6 +688,9 @@ export default function EditApplicationPage() {
     }
 
     if (!isSavingRef.current) {
+      // Ignore transient child updates while we are actively navigating after "Don't Save"
+      if (isNavigatingRef.current) return;
+
       if (data?.hasPendingChanges !== undefined) {
         setHasUnsavedChanges(data.hasPendingChanges as boolean);
       } else if (data) {
