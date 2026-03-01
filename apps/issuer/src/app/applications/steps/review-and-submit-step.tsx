@@ -7,7 +7,6 @@ import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { ProductImagePreview } from "@/app/applications/components/product-image-preview";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { formLabelClassName } from "@/app/applications/components/form-control";

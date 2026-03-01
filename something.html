@@ -1,169 +1,531 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Select Financing Type</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    function toggleCategory(id) {
-      const el = document.getElementById(id);
-      el.classList.toggle("hidden");
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Activity Timeline (Standalone)</title>
+
+  <style>
+    :root{
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --border: #e6e8ef;
+      --text: #111827;
+      --muted: #6b7280;
+
+      --primary: #8A0304;
+
+      --ok: #16a34a;
+      --bad: #dc2626;
+      --warn: #f59e0b;
+      --info: #2563eb;
+
+      --chip-bg: #f3f4f6;
+      --chip-text: #374151;
+
+      --chip-admin-bg: #ecfdf5;
+      --chip-admin-text: #047857;
+
+      --chip-issuer-bg: #f3f4f6;
+      --chip-issuer-text: #374151;
+
+      --shadow: 0 10px 28px rgba(17,24,39,0.08);
+      --radius: 16px;
     }
-  </script>
+
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px;
+    }
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .header{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 4px 16px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .title{
+      font-size: 18px;
+      font-weight: 700;
+      margin:0;
+    }
+    .subtitle{
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .count{
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+
+    .timeline{
+      position: relative;
+      max-height: 560px;
+      overflow: auto;
+      padding-right: 6px;
+      padding-left: 4px;
+    }
+
+    .line{
+      position:absolute;
+      left: 15px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .item{
+      position: relative;
+      display:flex;
+      gap: 12px;
+      padding: 14px 0;
+    }
+
+    .dot{
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      flex: 0 0 26px;
+      z-index: 2;
+      margin-left: 2px;
+      margin-top: 1px;
+    }
+
+    .dot.approved{ background: var(--ok); }
+    .dot.rejected{ background: var(--bad); }
+    .dot.amend{ background: var(--warn); }
+    .dot.submitted{ background: var(--primary); }
+    .dot.default{ background: #9ca3af; }
+
+    .content{
+      flex:1;
+      padding-bottom: 2px;
+      min-width: 0;
+    }
+
+    .row-top{
+      display:flex;
+      align-items:center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .event{
+      font-size: 14px;
+      font-weight: 650;
+      margin:0;
+    }
+
+    .chip{
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: var(--chip-bg);
+      color: var(--chip-text);
+      line-height: 1.6;
+    }
+
+    .chip.admin{
+      background: var(--chip-admin-bg);
+      color: var(--chip-admin-text);
+      border-color: rgba(4,120,87,0.12);
+    }
+
+    .chip.issuer{
+      background: var(--chip-issuer-bg);
+      color: var(--chip-issuer-text);
+      border-color: rgba(55,65,81,0.10);
+    }
+
+    .chip.cycle{
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: rgba(29,78,216,0.12);
+    }
+
+    .meta{
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .meta .sep{ opacity: 0.6; }
+
+    .details-toggle{
+      margin-top: 10px;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: #374151;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .details-toggle:hover{ text-decoration: underline; }
+
+    .details{
+      display:none;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .details.show{ display:block; }
+
+    .details .label{
+      font-size: 12px;
+      font-weight: 650;
+      margin: 0 0 6px 0;
+      color: #111827;
+    }
+
+    .kv{
+      display:flex;
+      align-items:flex-start;
+      gap: 10px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #111827;
+    }
+    .kv .k{
+      width: 110px;
+      color: var(--muted);
+      flex: 0 0 110px;
+    }
+    .kv .v{
+      flex:1;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .remark{
+      margin-top: 10px;
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      background: #f9fafb;
+      font-size: 12px;
+      color: #111827;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    /* tint remark box by type */
+    .remark.approved { background: #ecfdf5; border-color: rgba(4,120,87,0.18); }
+    .remark.rejected { background: #fef2f2; border-color: rgba(220,38,38,0.18); }
+    .remark.amend { background: #fffbeb; border-color: rgba(245,158,11,0.22); }
+
+    .empty{
+      padding: 18px;
+      text-align:center;
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: #fafafa;
+    }
+
+    .footer-note{
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    code.inline{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      background: #f3f4f6;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px 6px;
+      color: #111827;
+    }
+  </style>
 </head>
 
-<body class="bg-gray-50 font-sans">
+<body>
+  <div class="wrap">
+    <div class="card">
 
-<div class="min-h-screen flex">
-
-  <!-- Sidebar -->
-  <aside class="w-64 bg-white border-r p-6">
-    <h1 class="text-xl font-bold text-red-700 mb-6">CashSouk</h1>
-    <nav class="space-y-3 text-gray-600">
-      <div class="font-medium text-gray-900">Dashboard</div>
-      <div>Profile</div>
-      <div>Applications</div>
-      <div>Loan</div>
-      <div>Transactions</div>
-      <div>Activity</div>
-    </nav>
-  </aside>
-
-  <!-- Main -->
-  <main class="flex-1 px-10 py-8">
-
-    <!-- Page Title -->
-    <h2 class="text-2xl font-semibold mb-6">Select financing type</h2>
-
-    <!-- Progress Bar -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex flex-col items-center w-full">
-        <div class="h-9 w-9 rounded-full bg-black text-white flex items-center justify-center text-sm font-semibold">●</div>
-        <span class="text-xs mt-2 font-medium">Financing Type</span>
+      <div class="header">
+        <div>
+          <h1 class="title">Activity Timeline</h1>
+          <p class="subtitle">Final application decisions and actions (audit trail)</p>
+        </div>
+        <div class="count" id="count">0 events</div>
       </div>
 
-      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
-
-      <div class="flex flex-col items-center w-full">
-        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
-        <span class="text-xs mt-2 text-gray-500">Contract Details</span>
+      <div class="timeline" id="timeline">
+        <div class="line"></div>
+        <!-- items injected here -->
       </div>
 
-      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
-
-      <div class="flex flex-col items-center w-full">
-        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
-        <span class="text-xs mt-2 text-gray-500">Financing Structure</span>
-      </div>
-
-      <div class="h-[2px] bg-gray-300 w-full -mt-6"></div>
-
-      <div class="flex flex-col items-center w-full">
-        <div class="h-9 w-9 rounded-full bg-gray-200 border text-gray-400 flex items-center justify-center">○</div>
-        <span class="text-xs mt-2 text-gray-500">Review & Submit</span>
+      <div class="footer-note">
+        Metadata is intentionally minimal: <code class="inline">remark</code> and (only for invoice/doc) <code class="inline">entityId</code>.
       </div>
     </div>
+  </div>
 
-    <!-- Divider Line Under Progress -->
-    <div class="border-t mb-8"></div>
+  <script>
+    // ---- Demo data shape matches your backend table columns ----
+    // Only invoice + document may include metadata.entityId
+    const items = [
+      {
+        id: "1",
+        event_type: "APPLICATION_CREATED",
+        portal: "issuer",
+        review_cycle: 1,
+        metadata: null,
+        created_at: "2026-02-20T10:30:00Z",
+        actor_name: "Nur Hidayah"
+      },
+      {
+        id: "2",
+        event_type: "APPLICATION_SUBMITTED",
+        portal: "issuer",
+        review_cycle: 1,
+        metadata: null,
+        created_at: "2026-02-21T09:15:00Z",
+        actor_name: "Nur Hidayah"
+      },
+      {
+        id: "3",
+        event_type: "CONTRACT_AMENDMENT_REQUESTED",
+        portal: "admin",
+        review_cycle: 1,
+        metadata: { remark: "Contract number missing. Please update and re-upload signed copy." },
+        created_at: "2026-02-22T14:05:00Z",
+        actor_name: "Admin Team"
+      },
+      {
+        id: "4",
+        event_type: "APPLICATION_RESUBMITTED",
+        portal: "issuer",
+        review_cycle: 2,
+        metadata: { remark: "Updated contract number and re-uploaded signed contract." },
+        created_at: "2026-02-24T12:10:00Z",
+        actor_name: "Nur Hidayah"
+      },
+      {
+        id: "5",
+        event_type: "INVOICE_REJECTED",
+        portal: "admin",
+        review_cycle: 2,
+        metadata: { entityId: "INV-001", remark: "Invoice amount mismatch vs contract. Please correct invoice and re-upload." },
+        created_at: "2026-02-25T08:40:00Z",
+        actor_name: "Admin Team"
+      },
+      {
+        id: "6",
+        event_type: "DOCUMENT_AMENDMENT_REQUESTED",
+        portal: "admin",
+        review_cycle: 2,
+        metadata: { entityId: "SSM_CERT", remark: "SSM document expired. Upload latest company profile." },
+        created_at: "2026-02-25T09:00:00Z",
+        actor_name: "Admin Team"
+      },
+      {
+        id: "7",
+        event_type: "APPLICATION_APPROVED",
+        portal: "admin",
+        review_cycle: 2,
+        metadata: null,
+        created_at: "2026-02-26T16:25:00Z",
+        actor_name: "Admin Team"
+      }
+    ];
 
-    <!-- Category 1 -->
-    <div class="mb-8">
+    // ---- Helpers ----
+    function eventLabel(eventType){
+      const map = {
+        APPLICATION_CREATED: "Application Created",
+        APPLICATION_SUBMITTED: "Application Submitted",
+        APPLICATION_RESUBMITTED: "Application Resubmitted",
+        APPLICATION_APPROVED: "Application Approved",
+        APPLICATION_REJECTED: "Application Rejected",
 
-      <button onclick="toggleCategory('cat1')" 
-        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
-        <span>Invoice Financing (3)</span>
-        <span>▾</span>
-      </button>
+        FIRST_STAGE_APPROVED: "First Stage Approved",
+        FIRST_STAGE_AMENDMENT_REQUESTED: "First Stage Amendment Requested",
 
-      <div id="cat1" class="space-y-4">
+        CONTRACT_APPROVED: "Contract Approved",
+        CONTRACT_REJECTED: "Contract Rejected",
+        CONTRACT_AMENDMENT_REQUESTED: "Contract Amendment Requested",
 
-        <!-- Selected Product -->
-        <div class="border-2 border-red-600 rounded-xl p-5 bg-white shadow-sm">
-          <div class="flex justify-between">
-            <div>
-              <h3 class="font-semibold text-lg">Account Receivable (AR) Financing</h3>
-              <p class="text-sm text-gray-500 mt-1">
-                Get funding against your issued invoices under Islamic financing principles
-              </p>
+        INVOICE_APPROVED: "Invoice Approved",
+        INVOICE_REJECTED: "Invoice Rejected",
+        INVOICE_AMENDMENT_REQUESTED: "Invoice Amendment Requested",
+
+        DOCUMENT_APPROVED: "Document Approved",
+        DOCUMENT_REJECTED: "Document Rejected",
+        DOCUMENT_AMENDMENT_REQUESTED: "Document Amendment Requested",
+      };
+      if (map[eventType]) return map[eventType];
+      return eventType.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function dotType(eventType){
+      const t = eventType.toUpperCase();
+      if (t.includes("APPROVED")) return { cls: "approved", icon: "✓" };
+      if (t.includes("REJECTED")) return { cls: "rejected", icon: "✕" };
+      if (t.includes("AMENDMENT")) return { cls: "amend", icon: "!" };
+      if (t.includes("SUBMITTED") || t.includes("RESUBMITTED")) return { cls: "submitted", icon: "→" };
+      return { cls: "default", icon: "•" };
+    }
+
+    function isInvoiceEvent(eventType){ return eventType.startsWith("INVOICE_"); }
+    function isDocEvent(eventType){ return eventType.startsWith("DOCUMENT_"); }
+
+    function fmtDate(iso){
+      // simple readable format (keep it standalone)
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+    }
+
+    // ---- Render ----
+    const timeline = document.getElementById("timeline");
+    const countEl = document.getElementById("count");
+
+    function render(){
+      countEl.textContent = `${items.length} event${items.length === 1 ? "" : "s"}`;
+
+      if (!items.length){
+        timeline.innerHTML = `<div class="line"></div><div class="empty">No activity yet.</div>`;
+        return;
+      }
+
+      // clear existing (keep line)
+      timeline.innerHTML = `<div class="line"></div>`;
+
+      items
+        .slice() // copy
+        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at)) // newest first
+        .forEach((it) => {
+          const { cls, icon } = dotType(it.event_type);
+
+          const portalChip = it.portal === "admin"
+            ? `<span class="chip admin">Admin</span>`
+            : `<span class="chip issuer">Issuer</span>`;
+
+          const cycleChip = it.review_cycle > 1
+            ? `<span class="chip cycle">Review Cycle ${it.review_cycle}</span>`
+            : "";
+
+          // entity label only for invoice/doc item-level
+          let entityLine = "";
+          const entityId = it.metadata?.entityId;
+          if (entityId && isInvoiceEvent(it.event_type)) {
+            entityLine = `<div class="kv"><div class="k">Invoice</div><div class="v">${escapeHtml(entityId)}</div></div>`;
+          }
+          if (entityId && isDocEvent(it.event_type)) {
+            entityLine = `<div class="kv"><div class="k">Document</div><div class="v">${escapeHtml(entityId)}</div></div>`;
+          }
+
+          const remark = it.metadata?.remark ? String(it.metadata.remark) : "";
+          const hasDetails = Boolean(entityLine || remark);
+
+          const toggleBtn = hasDetails
+            ? `<button class="details-toggle" data-toggle="${it.id}">
+                 <span>View details</span>
+               </button>`
+            : "";
+
+          const detailsBlock = hasDetails
+            ? `<div class="details" id="details-${it.id}">
+                 ${entityLine ? `<p class="label">Context</p>${entityLine}` : ""}
+                 ${remark ? `<p class="label" style="margin-top:${entityLine? "12px":"0"}">Remark</p>
+                            <div class="remark ${cls}">${escapeHtml(remark)}</div>` : ""}
+               </div>`
+            : "";
+
+          const el = document.createElement("div");
+          el.className = "item";
+          el.innerHTML = `
+            <div class="dot ${cls}">${icon}</div>
+            <div class="content">
+              <div class="row-top">
+                <p class="event">${escapeHtml(eventLabel(it.event_type))}</p>
+                ${portalChip}
+                ${cycleChip}
+              </div>
+
+              <div class="meta">
+                <span>${escapeHtml(it.actor_name || "Unknown")}</span>
+                <span class="sep">•</span>
+                <span>${escapeHtml(fmtDate(it.created_at))}</span>
+              </div>
+
+              ${toggleBtn}
+              ${detailsBlock}
             </div>
-            <div class="h-6 w-6 bg-red-600 text-white flex items-center justify-center rounded">✓</div>
-          </div>
-        </div>
+          `;
 
-        <!-- Product -->
-        <div class="border rounded-xl p-5 bg-white hover:border-gray-300 cursor-pointer">
-          <h3 class="font-semibold text-lg">Purchase Order (PO) Financing</h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Receive funds to fulfill your customers’ purchase orders
-          </p>
-        </div>
+          timeline.appendChild(el);
+        });
 
-        <!-- Product -->
-        <div class="border rounded-xl p-5 bg-white hover:border-gray-300 cursor-pointer">
-          <h3 class="font-semibold text-lg">Short-term Murabaha</h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Finance your short-term needs under Islamic Murabaha principle
-          </p>
-        </div>
+      // wire toggles
+      document.querySelectorAll(".details-toggle").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-toggle");
+          const panel = document.getElementById(`details-${id}`);
+          const isOpen = panel.classList.contains("show");
+          panel.classList.toggle("show", !isOpen);
+          btn.querySelector("span").textContent = isOpen ? "View details" : "Hide details";
+        });
+      });
+    }
 
-      </div>
-    </div>
+    function escapeHtml(str){
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
 
-    <!-- Category 2 -->
-    <div class="mb-8">
-      <button onclick="toggleCategory('cat2')" 
-        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
-        <span>Working Capital (2)</span>
-        <span>▸</span>
-      </button>
-
-      <div id="cat2" class="hidden space-y-4">
-        <div class="border rounded-xl p-5 bg-white">
-          <h3 class="font-semibold text-lg">Revolving Credit</h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Flexible short-term working capital financing
-          </p>
-        </div>
-
-        <div class="border rounded-xl p-5 bg-white">
-          <h3 class="font-semibold text-lg">Term Financing</h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Structured term-based working capital
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Category 3 -->
-    <div class="mb-10">
-      <button onclick="toggleCategory('cat3')" 
-        class="w-full flex justify-between items-center text-left font-semibold text-gray-800 mb-4">
-        <span>Expansion Financing (2)</span>
-        <span>▸</span>
-      </button>
-
-      <div id="cat3" class="hidden space-y-4">
-        <div class="border rounded-xl p-5 bg-white">
-          <h3 class="font-semibold text-lg">Asset Financing</h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Finance purchase of business assets
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Save Button -->
-    <div class="flex justify-end">
-      <button class="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg">
-        Save and continue →
-      </button>
-    </div>
-
-  </main>
-
-</div>
-
+    render();
+  </script>
 </body>
 </html>
