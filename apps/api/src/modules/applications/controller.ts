@@ -9,7 +9,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityLevel, ActivityTarget, ActivityAction } from "./logs/types";
+import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
 
 /**
  * Get authenticated user ID from request
@@ -45,7 +45,7 @@ async function createApplication(req: Request, res: Response, next: NextFunction
           (Array.isArray(req.headers["user-agent"])
             ? req.headers["user-agent"][0]
             : req.headers["user-agent"]) ?? undefined,
-        portal: "ISSUER",
+        portal: ActivityPortal.ISSUER,
       });
     } catch {
       // swallow errors
@@ -216,7 +216,7 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: "ISSUER",
+          portal: ActivityPortal.ISSUER
         });
       }
 
@@ -234,7 +234,7 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: "ADMIN",
+          portal: ActivityPortal.ADMIN
         });
       }
     } catch {

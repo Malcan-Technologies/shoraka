@@ -21,6 +21,11 @@ export enum ActivityAction {
   REQUESTED_AMENDMENT = "REQUESTED_AMENDMENT",
 }
 
+export enum ActivityPortal {
+  ISSUER = "ISSUER",
+  ADMIN = "ADMIN"
+}
+
 export type CreateApplicationLogParams = {
   userId: string
   applicationId?: string
@@ -33,6 +38,6 @@ export type CreateApplicationLogParams = {
   ipAddress?: string
   userAgent?: string
   deviceInfo?: string
-  portal?: string
+  portal?: ActivityPortal
 }
 
