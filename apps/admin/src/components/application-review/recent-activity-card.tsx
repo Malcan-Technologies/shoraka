@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { Card } from "@/components/ui/card";
 import { format } from "date-fns";
 import AdminActivityTimeline from "@/components/admin-activity-timeline";
 
@@ -52,13 +51,6 @@ export function RecentActivityCard({ events, remarks, organizationId }: RecentAc
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <ClipboardDocumentCheckIcon className="h-5 w-5 text-primary" />
-          <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
         {organizationId ? (
           <AdminActivityTimeline organizationId={organizationId} />
         ) : recentActivity.length === 0 ? (
@@ -86,7 +78,6 @@ export function RecentActivityCard({ events, remarks, organizationId }: RecentAc
             ))}
           </div>
         )}
-      </CardContent>
     </Card>
   );
 }

@@ -20,6 +20,7 @@ import {
   UserIcon,
   GlobeAltIcon,
   ComputerDesktopIcon,
+  ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
 
 interface AdminActivityTimelineProps {
@@ -118,7 +119,10 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
     <Card className="rounded-2xl flex flex-col h-full overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Activity Timeline</CardTitle>
+          <div className="flex items-center gap-2">
+            <ClipboardDocumentCheckIcon className="h-5 w-5 text-destructive" />
+            <CardTitle className="text-base font-semibold">Activity Timeline</CardTitle>
+          </div>
           {totalCount > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
               {totalCount}
@@ -130,7 +134,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
         </p>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-hidden pt-0 px-0">
+      <CardContent className="flex-1 overflow-hidden">
         {isLoading && (
           <div className="px-6 pb-4">
             <TimelineSkeleton />
@@ -161,6 +165,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
                     const eventType = log.event_type;
                     const isFirst = index === 0;
                     const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const metadata = log.metadata as Record<string, unknown> | null;
 
                     return (
@@ -192,16 +197,16 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
                               <UserIcon className="h-3 w-3" />
                               {actorName}
                             </span>
-                            {log.portalType && (
+                            {((metadata && (metadata.portal || metadata.portalType)) || undefined) && (
                               <span className="inline-flex items-center gap-0.5">
                                 <GlobeAltIcon className="h-3 w-3" />
-                                {log.portalType}
+                                {String((metadata && (metadata.portal || metadata.portalType)) || "")}
                               </span>
                             )}
-                            {log.device_info && (
+                            {((metadata && (metadata.device_type || metadata.device_info)) || undefined) && (
                               <span className="inline-flex items-center gap-0.5">
                                 <ComputerDesktopIcon className="h-3 w-3" />
-                                {log.device_info}
+                                {String((metadata && (metadata.device_type || metadata.device_info)) || "")}
                               </span>
                             )}
                           </div>
