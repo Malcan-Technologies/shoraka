@@ -6,8 +6,7 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
-import { useS3ViewUrl } from "@/hooks/use-s3";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ProductImagePreview } from "@/app/applications/components/product-image-preview";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { formLabelClassName } from "@/app/applications/components/form-control";
@@ -68,10 +67,10 @@ interface ReviewAndSubmitStepProps {
  * Matching: business-details-step, contract-details-step patterns
  */
 // Centralized layout/class tokens (aligned with Branding.mdc)
-const pageWrapperClassName = "mx-auto max-w-7xl px-6 py-10 md:py-12";
+const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
-const sectionHeaderClassName = "text-xl md:text-2xl font-semibold";
+const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
@@ -143,7 +142,6 @@ export function ReviewAndSubmitStep({
 
   // Get the product image S3 key from config
   const productImageS3Key = financingTypeConfig?.image?.s3_key || "";
-  const { data: productImageUrl, isLoading: isLoadingProductImage } = useS3ViewUrl(productImageS3Key || null);
 
 
   /**
@@ -263,7 +261,7 @@ export function ReviewAndSubmitStep({
     (isLoadingApp || (contractId ? isLoadingContract : (application as any)?.contract == null));
 
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
-  const financingLoading = showFinancingDetails && (isLoadingProducts || isLoadingProductImage);
+  const financingLoading = showFinancingDetails && isLoadingProducts;
   const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
   const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
@@ -333,40 +331,21 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Financing details</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
 
             {financingTypeConfig ? (
               financingLoading || debugSkeletonMode ? (
                 <ReviewFinancingSkeleton />
               ) : (
-                <div className="[&_[role=button]>div]:!bg-[#fafbfa] [&_[role=button]]:pointer-events-none [&_[role=button]]:cursor-default [&_[role=button]>div]:hover:border-border">
-                  <SelectionCard
-                    title={financingTypeConfig.name}
-                    description={financingTypeConfig.description}
-                    isSelected={false}
-                    onClick={() => { }}
-                    leading={
-                      <div className="h-14 w-14 rounded-md border border-border bg-white flex items-center justify-center overflow-hidden">
-                        {isLoadingProductImage ? (
-                          <Skeleton className="h-full w-full rounded-md" />
-                        ) : productImageUrl ? (
-                          <img
-                            src={productImageUrl}
-                            alt={financingTypeConfig.name || "Product"}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <div className="text-muted-foreground text-[9px] text-center px-1 leading-tight">
-                            Image
-                            <br />
-                            512x512
-                          </div>
-                        )}
-                      </div>
-                    }
-                  />
-                </div>
+                <SelectionCard
+                  title={financingTypeConfig.name}
+                  description={financingTypeConfig.description}
+                  isSelected={false}
+                  onClick={() => {}}
+                  disabled={true}
+                  leading={<ProductImagePreview s3Key={productImageS3Key} alt={financingTypeConfig.name || "Product"} />}
+                />
               )
             ) : (
               <div className="text-sm text-muted-foreground italic">
@@ -381,7 +360,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Contract</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {contractLoading || debugSkeletonMode ? (
               <ReviewContractSkeleton />
@@ -432,7 +411,7 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Invoices</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {invoiceLoading || debugSkeletonMode ? (
               <ReviewInvoiceSkeleton />
@@ -569,7 +548,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Company Info</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewCompanySkeleton />
@@ -600,7 +579,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -652,7 +631,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Banking Details</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -671,7 +650,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Address</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -690,7 +669,7 @@ export function ReviewAndSubmitStep({
             <section className={sectionSpacingClassName}>
               <div>
                 <h3 className={sectionHeaderClassName}>Contact Person</h3>
-                <div className="mt-2 h-px bg-border" />
+                <div className="border-b border-border mt-2 mb-4" />
               </div>
               {companyLoading || debugSkeletonMode ? (
                 <ReviewBusinessSkeleton />
@@ -718,12 +697,12 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Legal Docs</h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
             {supportingLoading || debugSkeletonMode ? (
               <ReviewSupportingDocsSkeleton />
             ) : (
-              <div className="space-y-4 px-3">
+              <div className="space-y-3 px-3">
                 {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
                   <div key={i} className="flex justify-between items-center py-2">
                     <span className={labelClassName}>{doc.title}</span>

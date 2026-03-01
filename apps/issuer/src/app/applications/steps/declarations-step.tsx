@@ -203,7 +203,7 @@ export function DeclarationsStep({
    */
   if (declarations.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <p className="text-muted-foreground text-center py-8">
           No declarations required for this application.
         </p>
@@ -226,7 +226,7 @@ return (
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
       <div className="rounded-xl border border-border bg-background p-4 sm:p-5 h-fit">
-        <div className="space-y-4">
+        <div className="space-y-3">
           {declarations.map((declaration: string, index: number) => {
             const isChecked = checkedDeclarations[index] || false;
 
@@ -256,10 +256,10 @@ return (
 
       {/* ================= WHAT HAPPENS NEXT ================= */}
       <div className="rounded-xl border border-border bg-background p-6">
-        <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground mb-3">
+        <h3 className="text-base font-semibold text-foreground mb-3">
           What happens next?
         </h3>
-        <div className="mt-2 h-px bg-border" />
+        <div className="border-b border-border mt-2 mb-4" />
 
         <ul className="list-disc pl-5 space-y-3 text-sm md:text-base leading-6 text-foreground mt-4">
           <li>After submission, your application will be reviewed by our team.</li>

@@ -825,12 +825,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
       <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
         {/* ================= Contract ================= */}
         {!isInvoiceOnly && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+              <h3 className="text-base font-semibold text-foreground">
                 Contract
               </h3>
-              <div className="mt-2 h-px bg-border" />
+              <div className="border-b border-border mt-2 mb-4" />
             </div>
 
             <div className="space-y-3 mt-4 px-3">
@@ -900,10 +900,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || debugSkeletonMode ? null : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base sm:text-lg md:text-xl font-semibold">
+                <h3 className="text-base font-semibold text-foreground">
                   Invoice details
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -916,7 +916,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
               </Button>
             </div>
 
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
 
             {/* ================= Table ================= */}
             <div className="mt-4 px-3">

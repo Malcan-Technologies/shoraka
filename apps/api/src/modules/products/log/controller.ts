@@ -1,12 +1,12 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requireRole } from "../../lib/auth/middleware";
+import { requireRole } from "../../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
-import { AppError } from "../../lib/http/error-handler";
-import { productService } from "./service";
+import { AppError } from "../../../lib/http/error-handler";
+import { productService } from "../service";
 import {
   getProductLogsQuerySchema,
   exportProductLogsQuerySchema,
-} from "./schemas";
+} from "../schemas";
 
 const router = Router();
 
@@ -178,3 +178,4 @@ router.get(
 );
 
 export const productLogRouter = router;
+

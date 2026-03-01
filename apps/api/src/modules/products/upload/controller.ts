@@ -4,10 +4,10 @@
  * S3 key version (v1, v2, ...) is per file/slot and separate from product version.
  */
 import { Router, Request, Response, NextFunction } from "express";
-import { AppError } from "../../lib/http/error-handler";
-import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, parseProductS3Key } from "../../lib/s3/client";
-import type { ProductRepository } from "./repository";
-import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "./schemas";
+import { AppError } from "../../../lib/http/error-handler";
+import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, parseProductS3Key } from "../../../lib/s3/client";
+import type { ProductRepository } from "../repository";
+import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "../schemas";
 
 const PRODUCT_S3_KEY_PREFIX = "products/";
 
@@ -126,3 +126,4 @@ export function createProductUploadsRouter(productRepository: ProductRepository)
 
   return router;
 }
+

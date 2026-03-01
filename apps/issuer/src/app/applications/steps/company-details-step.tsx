@@ -609,10 +609,10 @@ export function CompanyDetailsStep({
           </div>
         )}
         {/* Company Info Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Company info</h3>
-            <div className="mt-2 h-px bg-border" />
+          <h3 className={sectionHeaderClassName}>Company info</h3>
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -681,7 +681,7 @@ export function CompanyDetailsStep({
         </div>
 
         {/* Address Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h3 className={sectionHeaderClassName}>Address</h3>
             <Button
@@ -697,7 +697,7 @@ export function CompanyDetailsStep({
               <PencilIcon className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-2 h-px bg-border" />
+          <div className="border-b border-border mt-2 mb-4" />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
             <div className={labelClassName}>Business address</div>
@@ -717,10 +717,10 @@ export function CompanyDetailsStep({
         </div>
 
         {/* Directors & Shareholders Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -759,10 +759,10 @@ export function CompanyDetailsStep({
         </div>
 
         {/* Banking Details Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Banking details</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -836,10 +836,10 @@ export function CompanyDetailsStep({
         </div>
 
         {/* Contact Person Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Contact Person</h3>
-            <div className="mt-2 h-px bg-border" />
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
@@ -1036,9 +1036,9 @@ function EditAddressDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-8 py-4">
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h4 className="text-base font-semibold">Business address</h4>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="business-line1" className={formLabelClassName}>Address line 1</Label>
                 <Input
@@ -1111,7 +1111,7 @@ function EditAddressDialog({
               </div>
             </div>
           </div>
-          <div className="border-t border-border pt-6 space-y-4">
+          <div className="border-t border-border pt-6 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-base font-semibold">Registered address</h4>
               <div className="flex items-center gap-2">
@@ -1127,7 +1127,7 @@ function EditAddressDialog({
               </div>
             </div>
             {!registeredAddressSameAsBusiness && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="registered-line1" className={formLabelClassName}>Address line 1</Label>
                   <Input
