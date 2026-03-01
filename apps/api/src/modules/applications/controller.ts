@@ -173,7 +173,7 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"]),
 });
 
 /**
@@ -188,12 +188,15 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
 
     const result = await applicationService.updateApplicationStatus(id, status, userId);
 
-    // If submitted, write application submitted audit log
-    if (status === "SUBMITTED") {
+    // If submitted or resubmitted, write application audit log
+    if (status === "SUBMITTED" || status === "RESUBMITTED") {
       try {
-        await createApplicationLog(req, "APPLICATION_SUBMITTED", result, {
-          correlationId: res.locals.correlationId || null,
-        });
+        await createApplicationLog(
+          req,
+          status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
+          result,
+          { correlationId: res.locals.correlationId || null }
+        );
       } catch {
         // ignore
       }

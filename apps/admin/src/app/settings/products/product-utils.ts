@@ -6,6 +6,11 @@ export type WorkflowStepShape = {
   id: string;
   name: string;
   config?: unknown;
+  /**
+   * Optional: review section metadata stored in workflow.
+   * Kept as string to avoid coupling product settings utilities with review module internals.
+   */
+  reviewSection?: string;
 };
 
 /** Default workflow: all 9 steps in APPLICATION_STEP_KEYS order, id = `${key}_1`, name from STEP_KEY_DISPLAY. */
@@ -32,6 +37,7 @@ export function normalizeWorkflowSteps(raw: unknown[] | null | undefined): Workf
       id: s?.id ?? "",
       name: name !== "—" ? name : "Step",
       config: s?.config,
+      reviewSection: typeof s?.reviewSection === "string" ? s.reviewSection : undefined,
     };
   }).filter((s) => s.id);
   return steps.length ? steps : getDefaultWorkflowSteps();

@@ -361,6 +361,162 @@ export class ApiClient {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
   }
 
+  async approveReviewSection(
+    applicationId: string,
+    section: string,
+    remark?: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/approve`,
+      remark ? { remark } : {}
+    );
+  }
+
+  async rejectReviewSection(
+    applicationId: string,
+    section: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reject`,
+      { remark }
+    );
+  }
+
+  async requestAmendmentReviewSection(
+    applicationId: string,
+    section: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/request-amendment`,
+      { remark }
+    );
+  }
+
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reset-to-pending`,
+      {}
+    );
+  }
+
+  async approveReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    remark?: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/approve`,
+      remark ? { itemType, itemId, remark } : { itemType, itemId }
+    );
+  }
+
+  async rejectReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/reject`,
+      { itemType, itemId, remark }
+    );
+  }
+
+  async requestAmendmentReviewItem(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/request-amendment`,
+      { itemType, itemId, remark }
+    );
+  }
+
+  async resetItemReviewToPending(
+    applicationId: string,
+    itemType: "invoice" | "document",
+    itemId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/items/reset-to-pending`,
+      { itemType, itemId }
+    );
+  }
+
+  async addPendingAmendment(
+    applicationId: string,
+    params: {
+      scope: "section" | "item";
+      scopeKey?: string;
+      remark: string;
+      itemType?: "invoice" | "document";
+      itemId?: string;
+    }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments`,
+      params
+    );
+  }
+
+  async listPendingAmendments(applicationId: string): Promise<
+    | ApiResponse<
+        {
+          id: string;
+          scope: string;
+          scope_key: string;
+          remark: string;
+          item_type: string | null;
+          item_id: string | null;
+          author: { first_name: string; last_name: string };
+        }[]
+      >
+    | ApiError
+  > {
+    return this.get<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments`
+    );
+  }
+
+  async updatePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    remark: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
+      { remark }
+    );
+  }
+
+  async removePendingAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.delete<any>(
+      `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`
+    );
+  }
+
+  async submitAmendmentRequest(applicationId: string): Promise<
+    ApiResponse<any> | ApiError
+  > {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/submit-amendment-request`,
+      {}
+    );
+  }
+
   // Request redo onboarding for an application
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<

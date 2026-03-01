@@ -28,6 +28,7 @@ COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 
 RUN pnpm --filter @cashsouk/api prisma generate
+RUN pnpm --filter @cashsouk/types build
 
 # Build-time environment variables for portal URLs
 ARG NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com
