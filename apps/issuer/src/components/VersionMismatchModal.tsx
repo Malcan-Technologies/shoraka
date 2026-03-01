@@ -20,16 +20,12 @@ import {
 } from "@/components/ui/dialog";
 import { useArchiveApplication } from "@/hooks/use-applications";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 
 interface VersionMismatchModalProps {
   open: boolean;
-  blockReason?: "PRODUCT_DELETED" | "PRODUCT_INACTIVE" | "PRODUCT_VERSION_CHANGED" | null;
-  applicationId?: string;
+  blockReason?: "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null;
+  applicationId: string;
   onOpenChange?: (open: boolean) => void;
-  // optional primary action (used by /new to refresh products instead of archive)
-  primaryLabel?: string;
-  onPrimary?: () => Promise<void> | void;
 }
 
 export function VersionMismatchModal({
@@ -37,34 +33,17 @@ export function VersionMismatchModal({
   blockReason,
   applicationId,
   onOpenChange,
-  primaryLabel,
-  onPrimary,
 }: VersionMismatchModalProps) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const archiveMutation = useArchiveApplication();
 
   const handleRestart = async () => {
-    if (!applicationId) return;
     try {
       await archiveMutation.mutateAsync(applicationId);
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
       router.replace("/applications/new");
     } catch {
       toast.error("Unable to restart. Please try again.");
     }
-  };
-
-  const handlePrimary = async () => {
-    if (onPrimary) {
-      try {
-        await onPrimary();
-      } catch {
-        toast.error("Action failed. Please try again.");
-      }
-      return;
-    }
-    await handleRestart();
   };
 
   return (
@@ -74,8 +53,6 @@ export function VersionMismatchModal({
           <DialogTitle>
             {blockReason === "PRODUCT_DELETED"
               ? "Product No Longer Available"
-              : blockReason === "PRODUCT_INACTIVE"
-              ? "Product Inactive"
               : "Product Updated"}
           </DialogTitle>
           <DialogDescription>
@@ -84,12 +61,6 @@ export function VersionMismatchModal({
                 The financing product used for this application has been removed
                 and is no longer available. To continue, please start a new
                 application with a different product.
-              </>
-            ) : blockReason === "PRODUCT_INACTIVE" ? (
-              <>
-                The financing product used for this application is no longer
-                active. To continue, please start a new application with an
-                active product.
               </>
             ) : (
               <>
@@ -100,17 +71,17 @@ export function VersionMismatchModal({
             )}
           </DialogDescription>
         </DialogHeader>
-          <DialogFooter>
-            <Button
-              onClick={handlePrimary}
-              className="w-full"
-              disabled={archiveMutation.isPending && !onPrimary}
-            >
-              {archiveMutation.isPending && !onPrimary
-                ? "Working..."
-                : primaryLabel || "Start New Application"}
-            </Button>
-          </DialogFooter>
+        <DialogFooter>
+          <Button
+            onClick={handleRestart}
+            className="w-full"
+            disabled={archiveMutation.isPending}
+          >
+            {archiveMutation.isPending
+              ? "Restarting..."
+              : "Start New Application"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
