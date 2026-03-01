@@ -1,14 +1,17 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useQuery } from "@tanstack/react-query";
-import type { GetProductsParams } from "@cashsouk/types";
+import { useQuery, UseQueryOptions } from "@tanstack/react-query";
+import type { GetProductsParams, GetProductsResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useProducts(params: GetProductsParams & { activeOnly?: boolean }) {
+export function useProducts(
+  params: GetProductsParams & { activeOnly?: boolean },
+  queryOptions?: any
+) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
-  return useQuery({
+  return useQuery<GetProductsResponse>({
     queryKey: ["products", params.page, params.pageSize, params.search, params.activeOnly],
     queryFn: async () => {
       const response = await apiClient.getProducts({
@@ -22,7 +25,8 @@ export function useProducts(params: GetProductsParams & { activeOnly?: boolean }
       }
       return response.data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes (default)
+    ...(queryOptions || {}),
   });
 }
 

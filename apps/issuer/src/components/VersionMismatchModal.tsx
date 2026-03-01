@@ -24,7 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 interface VersionMismatchModalProps {
   open: boolean;
-  blockReason?: "PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null;
+  blockReason?: "PRODUCT_DELETED" | "PRODUCT_INACTIVE" | "PRODUCT_VERSION_CHANGED" | null;
   applicationId?: string;
   onOpenChange?: (open: boolean) => void;
   // optional primary action (used by /new to refresh products instead of archive)
@@ -74,6 +74,8 @@ export function VersionMismatchModal({
           <DialogTitle>
             {blockReason === "PRODUCT_DELETED"
               ? "Product No Longer Available"
+              : blockReason === "PRODUCT_INACTIVE"
+              ? "Product Inactive"
               : "Product Updated"}
           </DialogTitle>
           <DialogDescription>
@@ -82,6 +84,12 @@ export function VersionMismatchModal({
                 The financing product used for this application has been removed
                 and is no longer available. To continue, please start a new
                 application with a different product.
+              </>
+            ) : blockReason === "PRODUCT_INACTIVE" ? (
+              <>
+                The financing product used for this application is no longer
+                active. To continue, please start a new application with an
+                active product.
               </>
             ) : (
               <>
