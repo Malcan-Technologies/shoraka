@@ -116,7 +116,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
   const totalCount = data?.pages[0]?.pagination.total ?? 0;
 
   return (
-    <Card className="rounded-2xl flex flex-col overflow-hidden">
+    <Card className="ounded-2xl flex flex-col overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
         </p>
       </CardHeader>
 
-      <CardContent className="overflow-hidden min-h-0">
+      <CardContent className="overflow-hidden min-h-0 !px-0 ">
         {isLoading && (
           <div className="px-6 pb-12">
             <TimelineSkeleton />
@@ -156,7 +156,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
         {!isLoading && logs.length > 0 && (
           <>
             <ScrollArea className="overflow-auto">
-              <div className="">
+              <div className="px-6 ">
                 <div className="relative">
                   {/* Vertical timeline line */}
                   <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
