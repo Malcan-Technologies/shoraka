@@ -4,11 +4,9 @@
  * Also: helpers for the controller to find S3 keys to delete on update/delete.
  */
 
-import { Request } from "express";
-import { logger } from "../../lib/logger";
-import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
-import { productLogRepository } from "./repository";
-import type { ProductEventType } from "./schemas";
+import { logger } from "../../../lib/logger";
+import { productLogRepository } from "../repository";
+import type { ProductEventType } from "../schemas";
 
 const PRODUCT_S3_PREFIX = "products/";
 const SUPPORTING_CATEGORIES = ["financial_docs", "legal_docs", "compliance_docs", "others"];
@@ -46,22 +44,24 @@ export function buildProductLogMetadata(
 // --- Write one log row ---
 
 /** Save one product_log. If it fails we only log a warning (don't break the request). */
-export async function createProductLog(
-  req: Request,
-  eventType: ProductEventType,
+export async function createProductLogEntry(
+  userId: string | null,
   productId: string | null,
+  eventType: ProductEventType,
+  ipAddress?: string | null,
+  userAgent?: string | null,
+  deviceInfo?: string | null,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  const userId = req.user?.user_id ?? null;
   if (!userId) return;
   try {
     await productLogRepository.create({
       userId,
       productId,
       eventType,
-      ipAddress: getClientIp(req) ?? null,
-      userAgent: req.headers["user-agent"] ?? null,
-      deviceInfo: getDeviceInfo(req),
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+      deviceInfo: deviceInfo ?? null,
       metadata: metadata ?? null,
     });
   } catch (err) {
@@ -125,7 +125,7 @@ export function getReplacedProductS3Keys(oldWorkflow: unknown[], newWorkflow: un
   const oldImg = oldC.image as { s3_key?: string } | undefined;
   const newImg = newC.image as { s3_key?: string } | undefined;
   const oldKey = (oldImg?.s3_key ?? (oldC.s3_key as string))?.trim();
-  const newKey = (newImg?.s3_key ?? (newC.s3_key as string))?.trim();
+  const newKey = (newImg?.s3_key ?? (newC.s3_key as string))?.trim() ?? "";
   if (oldKey && oldKey !== newKey && oldKey.startsWith(PRODUCT_S3_PREFIX)) {
     keys.add(oldKey);
   }
@@ -151,3 +151,4 @@ export function getReplacedProductS3Keys(oldWorkflow: unknown[], newWorkflow: un
   }
   return [...keys];
 }
+

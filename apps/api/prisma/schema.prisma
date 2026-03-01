@@ -651,7 +651,11 @@ model Product {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   workflow   Json
-  version    Int      @default(1)
+  category_display_order Int?
+  product_display_order Int?
+
+  status     ProductStatus @default(ACTIVE)
+  deleted_at DateTime?
 
   @@map("products")
 }
@@ -900,3 +904,11 @@ enum NotificationPriority {
   WARNING
   CRITICAL
 }
+
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
