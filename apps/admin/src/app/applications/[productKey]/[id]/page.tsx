@@ -4,15 +4,45 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
+import {
+  useApproveReviewSection,
+  useRejectReviewSection,
+  useResetSectionReviewToPending,
+  useResetItemReviewToPending,
+  useApproveReviewItem,
+  useRejectReviewItem,
+  useAddPendingAmendment,
+  useListPendingAmendments,
+  useRemovePendingAmendment,
+  useSubmitAmendmentRequest,
+} from "@/hooks/use-application-review-actions";
+import {
+  ApplicationReviewTabs,
+  ApplicationReviewTabContent,
+} from "@/components/application-review-tabs";
+import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
+import {
+  SectionContent,
+  ReviewSummaryCard,
+  RecentActivityCard,
+  AmendmentReviewModal,
+  type ReviewSectionId,
+} from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
+import {
+  getReviewTabDescriptorsFromWorkflow,
+  getReviewTabLabel,
+  getTabUnlockTooltip,
+  isTabUnlocked,
+} from "@/components/application-review/review-registry";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -25,44 +55,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  BuildingOffice2Icon,
-  DocumentTextIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  BanknotesIcon,
   ArrowLeftIcon,
-  ClipboardDocumentCheckIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  PencilSquareIcon,
   XCircleIcon,
-  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
-import { formatCurrency } from "@cashsouk/config";
-
-function DetailRow({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  if (value === null || value === undefined || value === "") return null;
-
-  return (
-    <div className="flex items-start gap-3 py-2">
-      {Icon && (
-        <div className="flex h-5 w-5 items-center justify-center text-muted-foreground shrink-0 mt-0.5">
-          <Icon className="h-4 w-4" />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-sm font-medium break-words">{value}</div>
-      </div>
-    </div>
-  );
-}
+import { formatCurrency, useAuthToken } from "@cashsouk/config";
+import { ApplicationStatusBadge } from "@/components/application-review";
 
 function PageSkeleton() {
   return (
@@ -99,6 +101,254 @@ export default function DynamicApplicationDetailPage() {
     isOpen: boolean;
   }>({ type: "APPROVE", isOpen: false });
 
+  const approveSection = useApproveReviewSection();
+  const rejectSection = useRejectReviewSection();
+  const resetSectionToPending = useResetSectionReviewToPending();
+  const resetItemToPending = useResetItemReviewToPending();
+  const addPendingAmendment = useAddPendingAmendment();
+  const approveItem = useApproveReviewItem();
+  const rejectItem = useRejectReviewItem();
+  const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
+  const removePendingAmendment = useRemovePendingAmendment();
+  const submitAmendmentRequest = useSubmitAmendmentRequest();
+  const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
+
+  const [noteDialog, setNoteDialog] = React.useState<
+    | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
+    | { open: boolean; action: "reject" | "amend"; itemType: "invoice" | "document"; itemId: string }
+    | { open: boolean; action: "approve"; section: ReviewSectionId }
+    | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
+  >({ open: false, action: "reject", section: "financial" });
+
+  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
+  const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
+  const { getAccessToken } = useAuthToken();
+  const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+
+  const handleViewDocument = React.useCallback(
+    async (s3Key: string) => {
+      try {
+        setViewDocumentPending(true);
+        const token = await getAccessToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify({ s3Key }),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error?.message || "Failed to get view URL");
+        const viewUrl = result.data?.viewUrl;
+        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
+        else toast.error("Failed to open document");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to open document");
+      } finally {
+        setViewDocumentPending(false);
+      }
+    },
+    [getAccessToken]
+  );
+
+  const tabDescriptors = React.useMemo(
+    () => getReviewTabDescriptorsFromWorkflow(currentProduct?.workflow),
+    [currentProduct?.workflow]
+  );
+
+  const reviewSections = React.useMemo(() => {
+    const reviewItems =
+      (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
+    const baseSections =
+      app?.application_reviews?.length
+        ? (app.application_reviews as { section: string; status: string }[]).map((r) => ({
+            section: r.section,
+            status: r.status,
+          }))
+        : tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+
+    const sectionWithAmendmentFromItems = new Set<string>();
+    for (const item of reviewItems) {
+      if (item.status === "AMENDMENT_REQUESTED") {
+        const section =
+          item.item_type === "invoice" ? "invoice_details" : "supporting_documents";
+        sectionWithAmendmentFromItems.add(section);
+      }
+    }
+
+    return baseSections.map((s) => {
+      const fromItems = sectionWithAmendmentFromItems.has(s.section);
+      const status = fromItems ? "AMENDMENT_REQUESTED" : s.status;
+      return { section: s.section, status };
+    });
+  }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
+
+  const sectionStatusMap = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of reviewSections) {
+      m.set(s.section, s.status);
+    }
+    return m;
+  }, [reviewSections]);
+  const requiredReviewSections = React.useMemo(() => {
+    const fromApi = (app as { required_review_sections?: unknown } | undefined)?.required_review_sections;
+    if (Array.isArray(fromApi)) {
+      const normalized = fromApi.filter((s): s is string => typeof s === "string");
+      if (normalized.length > 0) return normalized;
+    }
+    return tabDescriptors.map((d) => d.reviewSection);
+  }, [app, tabDescriptors]);
+  const allSectionsApproved = React.useMemo(
+    () =>
+      requiredReviewSections.length > 0 &&
+      requiredReviewSections.every((section) => sectionStatusMap.get(section) === "APPROVED"),
+    [requiredReviewSections, sectionStatusMap]
+  );
+
+  const hasRejectedSection = React.useMemo(
+    () => requiredReviewSections.some((section) => sectionStatusMap.get(section) === "REJECTED"),
+    [requiredReviewSections, sectionStatusMap]
+  );
+  const availableReviewSections = React.useMemo(
+    () => new Set(tabDescriptors.map((d) => d.reviewSection)),
+    [tabDescriptors]
+  );
+
+  const handleApproveSection = (section: string) => {
+    setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
+  };
+
+  const handleRejectItem = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("itemType" in d)) return;
+    try {
+      await rejectItem.mutateAsync({
+        applicationId,
+        itemType: d.itemType,
+        itemId: d.itemId,
+        remark,
+      });
+      toast.success("Item rejected");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject");
+      throw err;
+    }
+  };
+
+  const handleAddPendingAmendmentItem = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("itemType" in d)) return;
+    try {
+      await addPendingAmendment.mutateAsync({
+        applicationId,
+        scope: "item",
+        remark,
+        itemType: d.itemType,
+        itemId: d.itemId,
+      });
+      toast.success("Added to amendment list");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add amendment");
+      throw err;
+    }
+  };
+
+  const handleAddPendingAmendmentSection = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("section" in d)) return;
+    try {
+      await addPendingAmendment.mutateAsync({
+        applicationId,
+        scope: "section",
+        scopeKey: d.section,
+        remark,
+      });
+      toast.success("Added to amendment list");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add amendment");
+      throw err;
+    }
+  };
+
+  const handleNoteDialogConfirm = async (remark: string) => {
+    const d = noteDialog;
+    if (!d) return;
+    if ("section" in d) {
+      if (d.action === "approve") {
+        try {
+          await approveSection.mutateAsync({
+            applicationId,
+            section: d.section,
+            remark: remark || undefined,
+          });
+          toast.success("Section approved");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to approve");
+          throw err;
+        }
+      } else if (d.action === "reject") {
+        await rejectSection.mutateAsync({ applicationId, section: d.section, remark });
+        toast.success("Section rejected");
+      } else {
+        await handleAddPendingAmendmentSection(remark);
+      }
+    } else if ("itemType" in d) {
+      if (d.action === "approve") {
+        try {
+          await approveItem.mutateAsync({
+            applicationId,
+            itemType: d.itemType,
+            itemId: d.itemId,
+            remark: remark || undefined,
+          });
+          toast.success("Item approved");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to approve");
+          throw err;
+        }
+      } else if (d.action === "reject") {
+        await handleRejectItem(remark);
+      } else {
+        await handleAddPendingAmendmentItem(remark);
+      }
+    }
+  };
+
+  const noteDialogIsSection = noteDialog && "section" in noteDialog;
+  const noteDialogIsApprove = noteDialog?.action === "approve";
+  const sectionLabel = noteDialogIsSection ? getReviewTabLabel(noteDialog.section) : "";
+  const noteDialogTitle = noteDialogIsApprove
+    ? noteDialogIsSection
+      ? `Approve ${sectionLabel}?`
+      : "Approve item?"
+    : noteDialogIsSection
+      ? noteDialog.action === "reject"
+        ? `Reject ${sectionLabel}?`
+        : `Request Amendment for ${sectionLabel}?`
+      : noteDialog?.action === "reject"
+        ? "Reject item?"
+        : "Request amendment?";
+  const noteDialogDescription = noteDialogIsApprove
+    ? "Add an optional remark to record your review decision."
+    : noteDialogIsSection
+      ? noteDialog.action === "reject"
+        ? "This will reject the section. A remark is required."
+        : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
+      : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
+  const noteDialogSubmitLabel = noteDialogIsApprove
+    ? "Approve"
+    : noteDialog?.action === "reject"
+      ? "Reject"
+      : "Add to List";
+  const noteDialogPending =
+    approveSection.isPending ||
+    approveItem.isPending ||
+    rejectSection.isPending ||
+    addPendingAmendment.isPending ||
+    rejectItem.isPending;
+
   const handleUpdateStatus = async (status: string) => {
     try {
       await updateStatus.mutateAsync({ id: applicationId, status });
@@ -109,51 +359,22 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "SUBMITTED":
-        return (
-          <Badge className="bg-blue-500 text-white">
-            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 mr-1" />
-            Submitted for Review
-          </Badge>
-        );
-      case "APPROVED":
-        return (
-          <Badge className="bg-emerald-500 text-white">
-            <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-            Approved
-          </Badge>
-        );
-      case "REJECTED":
-        return (
-          <Badge className="bg-red-500 text-white">
-            <XCircleIcon className="h-3.5 w-3.5 mr-1" />
-            Rejected
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="secondary">
-            <ClockIcon className="h-3.5 w-3.5 mr-1" />
-            {status}
-          </Badge>
-        );
-    }
-  };
-
   const requestedAmount = React.useMemo(() => {
     if (!app) return 0;
     if (app.invoices && app.invoices.length > 0) {
-      return app.invoices.reduce((sum: number, inv: any) => {
-        const details = inv.details as any;
-        const invoiceValue = parseFloat(details?.value || 0);
-        const financingRatio = parseFloat(details?.financing_ratio_percent || 80);
-        return sum + (invoiceValue * financingRatio) / 100;
-      }, 0);
-    } else if (app.contract?.contract_details) {
-      const contractDetails = app.contract.contract_details as any;
-      return parseFloat(contractDetails?.value || contractDetails?.approved_facility || 0);
+      return (app.invoices as { details?: Record<string, unknown> }[]).reduce(
+        (sum: number, inv) => {
+          const details = inv.details as Record<string, unknown> | undefined;
+          const invoiceValue = parseFloat(String(details?.value ?? 0));
+          const financingRatio = parseFloat(String(details?.financing_ratio_percent ?? 80));
+          return sum + (invoiceValue * financingRatio) / 100;
+        },
+        0
+      );
+    }
+    if (app.contract?.contract_details) {
+      const cd = app.contract.contract_details as Record<string, unknown>;
+      return parseFloat(String(cd?.value ?? cd?.approved_facility ?? 0));
     }
     return 0;
   }, [app]);
@@ -182,7 +403,7 @@ export default function DynamicApplicationDetailPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 space-y-6">
+        <div className="w-full px-4 md:px-6 lg:px-8 py-10 md:py-12 space-y-6">
           {isLoading && <PageSkeleton />}
 
           {error && (
@@ -193,28 +414,10 @@ export default function DynamicApplicationDetailPage() {
           )}
 
           {app && (
-            <>
-              {/* Header Card */}
-              <Card className="rounded-2xl">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                        <BanknotesIcon className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-xl font-bold">
-                            {app.financing_type?.product_name || "Financing Product"}
-                          </h2>
-                          {getStatusBadge(app.status)}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Submitted by {app.issuer_organization.name}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div>
                       <div className="text-xs text-muted-foreground uppercase tracking-wider">
                         Requested Facility
                       </div>
@@ -222,185 +425,289 @@ export default function DynamicApplicationDetailPage() {
                         {formatCurrency(requestedAmount)}
                       </div>
                     </div>
+                    <ApplicationStatusBadge status={app.status} size="lg" />
                   </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
-                      <div className="text-sm font-medium">{app.id}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Submitted At</div>
-                      <div className="text-sm font-medium">
-                        {app.submitted_at ? format(new Date(app.submitted_at), "PPP p") : "Not submitted"}
+                  {isReviewable && (
+                    <TooltipProvider>
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        {(app.status === "APPROVED" || app.status === "REJECTED" || app.status === "AMENDMENT_REQUESTED") && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  variant="outline"
+                                  size="default"
+                                  className="gap-2"
+                                  onClick={async () => {
+                                    try {
+                                      await updateStatus.mutateAsync({ id: applicationId, status: "UNDER_REVIEW" });
+                                      toast.success("Application reset to under review");
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : "Failed to reset status");
+                                    }
+                                  }}
+                                >
+                                  <ArrowPathIcon className="h-4 w-4" />
+                                  Reset to Under Review
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                              Clear application status so it can be reviewed again
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0 ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                variant="outline"
+                                size="default"
+                                className="gap-2 border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
+                                disabled={app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0}
+                                onClick={() => setAmendmentModalOpen(true)}
+                              >
+                                <PencilSquareIcon className="h-4 w-4" />
+                                Request Amendment
+                                {pendingAmendments.length > 0 && (
+                                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
+                                    {pendingAmendments.length}
+                                  </Badge>
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "AMENDMENT_REQUESTED"
+                              ? "Amendment already requested; issuer must respond first"
+                              : pendingAmendments.length === 0
+                                ? "Request amendment on at least one section first"
+                                : "Review and send amendment request to issuer"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                variant="outline"
+                                size="default"
+                                className="gap-2 border-red-500/30 bg-red-500/10 text-red-800 hover:bg-red-500/20 hover:text-red-900 dark:text-red-200 dark:hover:text-red-100"
+                                disabled={app.status === "REJECTED" || allSectionsApproved || !hasRejectedSection}
+                                onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                              >
+                                <XCircleIcon className="h-4 w-4" />
+                                Reject
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "REJECTED"
+                              ? "Application already rejected"
+                              : allSectionsApproved
+                                ? "Cannot reject when all sections are approved"
+                                : !hasRejectedSection
+                                  ? "Reject at least one section first"
+                                  : "Reject the application and notify the issuer"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={app.status === "APPROVED" || !allSectionsApproved ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                              <Button
+                                variant="outline"
+                                size="default"
+                                className="gap-2 border-green-500/30 bg-green-500/10 text-green-800 hover:bg-green-500/20 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
+                                disabled={app.status === "APPROVED" || !allSectionsApproved}
+                                onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
+                              >
+                                <CheckCircleIcon className="h-4 w-4" />
+                                Approve
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+                            {app.status === "APPROVED"
+                              ? "Application already approved"
+                              : !allSectionsApproved
+                                ? "Approve all sections first"
+                                : "Approve the application and move to the next stage"}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Updated</div>
-                      <div className="text-sm font-medium">{format(new Date(app.updated_at), "PPP p")}</div>
-                    </div>
-                  </div>
-
-                  {app.status === "SUBMITTED" && (
-                    <div className="flex items-center gap-3 pt-2">
-                      <Button
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                        onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                      >
-                        <CheckCircleIcon className="h-4 w-4" />
-                        Approve Application
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-2 border-red-200"
-                        onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
-                      >
-                        <XCircleIcon className="h-4 w-4" />
-                        Reject Application
-                      </Button>
-                    </div>
+                    </TooltipProvider>
                   )}
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Financing Structure Section */}
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <BanknotesIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Financing Structure</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-                        <DetailRow
-                          label="Structure Type"
-                          value={app.contract_id ? "Contract Financing" : "Invoice Financing"}
-                        />
-                        <DetailRow
-                          label="Product"
-                          value={app.financing_type?.product_name || "Financing Product"}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Issuer Information */}
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <BuildingOffice2Icon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Issuer Information</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-                        <DetailRow label="Organization" value={app.issuer_organization.name} />
-                        <DetailRow
-                          label="Owner Name"
-                          value={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}
-                        />
-                        <DetailRow label="Email Address" value={app.issuer_organization.owner.email} />
-                        <DetailRow label="Organization ID" value={app.issuer_organization_id} />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Invoices or Contract Details */}
-                  {app.invoices && app.invoices.length > 0 ? (
-                    <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                          <DocumentTextIcon className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-base font-semibold">Invoice Details</CardTitle>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="divide-y">
-                          {app.invoices.map((inv: any, idx: number) => {
-                            const details = inv.details as any;
-                            return (
-                              <div key={inv.id} className="py-4 first:pt-0 last:pb-0">
-                                <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-medium text-sm">Invoice #{details?.number || idx + 1}</h4>
-                                  <Badge variant="outline">{formatCurrency(parseFloat(details?.value || 0))}</Badge>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Customer</span>
-                                    {details?.customer_name || "N/A"}
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Financing Ratio</span>
-                                    {details?.financing_ratio_percent || 80}%
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs">Due Date</span>
-                                    {details?.due_date ? format(new Date(details.due_date), "dd MMM yyyy") : "N/A"}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : app.contract ? (
-                    <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                          <DocumentTextIcon className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-base font-semibold">Contract Details</CardTitle>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {(() => {
-                          const details = app.contract.contract_details as any;
-                          return (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                              <DetailRow label="Contract Number" value={details?.number || "N/A"} />
-                              <DetailRow label="Contract Value" value={details?.value ? formatCurrency(details.value) : "N/A"} />
-                              <DetailRow label="Start Date" value={details?.start_date ? format(new Date(details.start_date), "dd MMM yyyy") : "N/A"} />
-                              <DetailRow label="End Date" value={details?.end_date ? format(new Date(details.end_date), "dd MMM yyyy") : "N/A"} />
-                              <DetailRow label="Description" value={details?.description} />
-                            </div>
-                          );
-                        })()}
-                      </CardContent>
-                    </Card>
-                  ) : null}
-                </div>
-
-                <div className="space-y-6">
-                  {/* Status & Compliance */}
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheckIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base font-semibold">Compliance & Audit</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <DetailRow label="Internal Status" value={app.status} />
-                      <DetailRow label="Product Version" value={`v${app.product_version}`} />
-                      <DetailRow label="Last Completed Step" value={app.last_completed_step} />
-                      <Separator />
-                      <div className="text-[10px] text-muted-foreground leading-relaxed">
-                        By approving this application, you confirm that all KYC/KYB documents have been verified and the
-                        requested facility is within the organization's approved limits.
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
               </div>
-            </>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
+                <div className="min-w-0 space-y-6">
+                  <Card className="rounded-2xl">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Organization</div>
+                        <div className="text-sm font-medium">{app.issuer_organization.name}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Owner</div>
+                        <div className="text-sm font-medium">
+                          {app.issuer_organization.owner.first_name} {app.issuer_organization.owner.last_name}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Email</div>
+                        <div className="text-sm font-medium">{app.issuer_organization.owner.email}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
+                        <div className="text-sm font-medium">{app.id}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Submitted At</div>
+                        <div className="text-sm font-medium">
+                          {app.submitted_at ? format(new Date(app.submitted_at), "PPP p") : "Not submitted"}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Updated</div>
+                        <div className="text-sm font-medium">{format(new Date(app.updated_at), "PPP p")}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <ApplicationReviewTabs
+                  sections={reviewSections}
+                  tabDescriptors={tabDescriptors}
+                  defaultTabId={tabDescriptors[0]?.id}
+                >
+                  {tabDescriptors.map((descriptor) => {
+                    const actionLocked = !isTabUnlocked(
+                      descriptor.reviewSection,
+                      sectionStatusMap,
+                      availableReviewSections
+                    );
+                    const actionLockTooltip = actionLocked
+                      ? getTabUnlockTooltip(
+                          descriptor.reviewSection,
+                          sectionStatusMap,
+                          availableReviewSections
+                        )
+                      : undefined;
+                    const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
+                    return (
+                    <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
+                      <SectionContent
+                        descriptor={descriptor}
+                        app={app}
+                        isReviewable={!!isReviewable}
+                        approveSectionPending={approveSection.isPending}
+                        approveItemPending={approveItem.isPending}
+                        viewDocumentPending={viewDocumentPending}
+                        isActionLocked={actionLocked}
+                        actionLockTooltip={actionLockTooltip}
+                        sectionStatus={sectionStatus}
+                        onResetSectionToPending={async (section) => {
+                          try {
+                            await resetSectionToPending.mutateAsync({ applicationId, section });
+                            toast.success("Section reset to pending");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to reset section");
+                          }
+                        }}
+                        onApproveSection={handleApproveSection}
+                        onRejectSection={(s) => setNoteDialog({ open: true, action: "reject", section: s })}
+                        onRequestAmendmentSection={(s) => setNoteDialog({ open: true, action: "amend", section: s })}
+                        onViewDocument={handleViewDocument}
+                        onApproveItem={async (itemId, itemType) => {
+                          setNoteDialog({
+                            open: true,
+                            action: "approve",
+                            itemType,
+                            itemId,
+                          });
+                        }}
+                        onRejectItem={(itemId, itemType) =>
+                          setNoteDialog({
+                            open: true,
+                            action: "reject",
+                            itemType,
+                            itemId,
+                          })
+                        }
+                        onRequestAmendmentItem={(itemId, itemType) =>
+                          setNoteDialog({
+                            open: true,
+                            action: "amend",
+                            itemType,
+                            itemId,
+                          })
+                        }
+                        onResetItemToPending={async (itemId, itemType) => {
+                          try {
+                            await resetItemToPending.mutateAsync({ applicationId, itemType, itemId });
+                            toast.success("Item reset to pending");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to reset item");
+                          }
+                        }}
+                      />
+                    </ApplicationReviewTabContent>
+                  );
+                  })}
+                </ApplicationReviewTabs>
+              </div>
+
+              <div className="space-y-6">
+                <ReviewSummaryCard
+                  sections={reviewSections}
+                  reviewItems={(app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []}
+                />
+
+                <RecentActivityCard
+                  events={(app.application_review_events as { event_type: string; scope_key: string | null; new_status: string; remark: string | null; created_at: string }[]) ?? []}
+                  remarks={(app.application_review_remarks as { scope_key: string; action_type: string; remark: string; created_at: string }[]) ?? []}
+                />
+              </div>
+            </div>
+            </div>
           )}
         </div>
       </div>
+
+      <ApplicationReviewRemarkDialog
+        open={noteDialog.open}
+        onOpenChange={(open) =>
+          setNoteDialog((prev) =>
+            prev ? { ...prev, open } : { open: false, action: "reject", section: "financial" }
+          )
+        }
+        title={noteDialogTitle}
+        description={noteDialogDescription}
+        submitLabel={noteDialogSubmitLabel}
+        variant={noteDialog?.action === "reject" ? "destructive" : "default"}
+        optional={noteDialog?.action === "approve"}
+        onConfirm={handleNoteDialogConfirm}
+        isPending={noteDialogPending}
+      />
+
+      <AmendmentReviewModal
+        open={amendmentModalOpen}
+        onOpenChange={setAmendmentModalOpen}
+        items={pendingAmendments}
+        onRemove={async (scope, scopeKey) => {
+          await removePendingAmendment.mutateAsync({ applicationId, scope, scopeKey });
+        }}
+        onSubmit={async () => {
+          await submitAmendmentRequest.mutateAsync({ applicationId });
+          toast.success("Amendment request sent to issuer");
+          setAmendmentModalOpen(false);
+        }}
+        isRemovePending={removePendingAmendment.isPending}
+        isSubmitPending={submitAmendmentRequest.isPending}
+      />
 
       <AlertDialog open={confirmAction.isOpen} onOpenChange={(open) => setConfirmAction((prev) => ({ ...prev, isOpen: open }))}>
         <AlertDialogContent className="rounded-2xl">
@@ -418,7 +725,9 @@ export default function DynamicApplicationDetailPage() {
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className={`rounded-xl ${
-                confirmAction.type === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
+                confirmAction.type === "APPROVE"
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                  : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               }`}
               onClick={() => handleUpdateStatus(confirmAction.type === "APPROVE" ? "APPROVED" : "REJECTED")}
             >

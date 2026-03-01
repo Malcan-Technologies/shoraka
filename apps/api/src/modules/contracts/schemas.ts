@@ -37,7 +37,7 @@ export const createContractSchema = z.object({
 export const updateContractSchema = z.object({
   contract_details: contractDetailsSchema.optional(),
   customer_details: customerDetailsSchema.optional(),
-  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"]).optional(),
+  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "AMENDMENT_REQUESTED"]).optional(),
 });
 
 export const contractIdParamSchema = z.object({

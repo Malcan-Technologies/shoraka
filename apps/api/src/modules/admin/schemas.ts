@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole, AdminRole, ApplicationStatus } from "@prisma/client";
+import { UserRole, AdminRole, ApplicationStatus, ReviewSection } from "@prisma/client";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -256,3 +256,50 @@ export const updateApplicationStatusSchema = z.object({
 });
 
 export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;
+
+export const reviewSectionSchema = z.nativeEnum(ReviewSection);
+
+export const reviewSectionApproveSchema = z.object({
+  remark: z.string().optional(),
+});
+
+export const reviewSectionRejectSchema = z.object({
+  remark: z.string().min(1, "Remark is required for rejection"),
+});
+export const reviewSectionRequestAmendmentSchema = z.object({
+  remark: z.string().min(1, "Remark is required for amendment request"),
+});
+
+export const reviewItemActionSchema = z.object({
+  itemType: z.enum(["invoice", "document"]),
+  itemId: z.string().min(1),
+});
+export const reviewItemApproveSchema = reviewItemActionSchema.extend({
+  remark: z.string().optional(),
+});
+export const reviewItemRejectSchema = reviewItemActionSchema.extend({
+  remark: z.string().min(1, "Remark is required for rejection"),
+});
+export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
+  remark: z.string().min(1, "Remark is required for amendment request"),
+});
+
+export const addPendingAmendmentSchema = z
+  .object({
+    scope: z.enum(["section", "item"]),
+    scopeKey: z.string().min(1).optional(),
+    remark: z.string().min(1, "Remark is required"),
+    itemType: z.enum(["invoice", "document"]).optional(),
+    itemId: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.scope === "section") return !!data.scopeKey;
+      return !!(data.itemType && data.itemId);
+    },
+    { message: "scopeKey required for section; itemType and itemId required for item" }
+  );
+
+export const updatePendingAmendmentSchema = z.object({
+  remark: z.string().min(1, "Remark is required"),
+});
