@@ -14,10 +14,10 @@ export interface RecentActivityCardProps {
     created_at: string;
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
-  organizationId?: string | null;
+  applicationId?: string | null;
 }
 
-export function RecentActivityCard({ events, remarks, organizationId }: RecentActivityCardProps) {
+export function RecentActivityCard({ events, remarks, applicationId }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -49,8 +49,8 @@ export function RecentActivityCard({ events, remarks, organizationId }: RecentAc
     return combined.slice(0, 8);
   }, [events, remarks]);
 
-  if (organizationId) {
-    return <AdminActivityTimeline organizationId={organizationId} />;
+  if (applicationId) {
+    return <AdminActivityTimeline applicationId={applicationId} />;
   }
 
   return (
