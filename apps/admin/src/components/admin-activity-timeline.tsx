@@ -116,7 +116,7 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
   const totalCount = data?.pages[0]?.pagination.total ?? 0;
 
   return (
-    <Card className="rounded-2xl flex flex-col h-full overflow-hidden">
+    <Card className="rounded-2xl flex flex-col overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -134,127 +134,128 @@ export function AdminActivityTimeline({ organizationId }: AdminActivityTimelineP
         </p>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-hidden">
+      <CardContent className="overflow-hidden min-h-0">
         {isLoading && (
-          <div className="px-6 pb-4">
+          <div className="px-6 pb-12">
             <TimelineSkeleton />
           </div>
         )}
 
         {error && (
-          <div className="px-6 pb-4 text-sm text-destructive">
+          <div className="px-6 pb-12 text-sm text-destructive">
             Failed to load activity logs
           </div>
         )}
 
         {!isLoading && !error && logs.length === 0 && (
-          <div className="px-6 pb-4 text-sm text-muted-foreground text-center py-8">
+          <div className="px-6 pb-12 text-sm text-muted-foreground text-center py-8">
             No activity logs found
           </div>
         )}
 
         {!isLoading && logs.length > 0 && (
-          <ScrollArea className="h-full">
-            <div className="px-6 pb-4">
-              <div className="relative">
-                {/* Vertical timeline line */}
-                <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
+          <>
+            <ScrollArea className="overflow-auto">
+              <div className="">
+                <div className="relative">
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
 
-                <div className="space-y-5">
-                  {logs.map((log, index) => {
-                    const eventType = log.event_type;
-                    const isFirst = index === 0;
-                    const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const metadata = log.metadata as Record<string, unknown> | null;
+                  <div className="space-y-5">
+                    {logs.map((log, index) => {
+                      const eventType = log.event_type;
+                      const isFirst = index === 0;
+                      const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const metadata = log.metadata as Record<string, unknown> | null;
 
-                    return (
-                      <div key={log.id} className="relative flex gap-3 pl-0">
-                        {/* Dot indicator */}
-                        <div
-                          className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
-                        />
+                      return (
+                        <div key={log.id} className="relative flex gap-3 pl-0">
+                          {/* Dot indicator */}
+                          <div
+                            className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
+                          />
 
-                        <div className="flex-1 min-w-0 -mt-0.5">
-                          {/* Event label and icon */}
-                          <div className="flex items-center gap-1.5">
-                            {getEventIcon(eventType)}
-                            <span className="text-sm font-medium leading-tight">
-                              {getEventLabel(eventType)}
-                            </span>
-                          </div>
-
-                          {/* Activity text */}
-                          {log.activity && (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                              {log.activity}
-                            </p>
-                          )}
-
-                          {/* Actor + context row */}
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
-                            <span className="inline-flex items-center gap-0.5">
-                              <UserIcon className="h-3 w-3" />
-                              {actorName}
-                            </span>
-                            {((metadata && (metadata.portal || metadata.portalType)) || undefined) && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <GlobeAltIcon className="h-3 w-3" />
-                                {String((metadata && (metadata.portal || metadata.portalType)) || "")}
+                          <div className="flex-1 min-w-0 -mt-0.5">
+                            {/* Event label and icon */}
+                            <div className="flex items-center gap-1.5">
+                              {getEventIcon(eventType)}
+                              <span className="text-sm font-medium leading-tight">
+                                {getEventLabel(eventType)}
                               </span>
+                            </div>
+
+                            {/* Activity text */}
+                            {log.activity && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                {log.activity}
+                              </p>
                             )}
-                            {((metadata && (metadata.device_type || metadata.device_info)) || undefined) && (
+
+                            {/* Actor + context row */}
+                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
                               <span className="inline-flex items-center gap-0.5">
-                                <ComputerDesktopIcon className="h-3 w-3" />
-                                {String((metadata && (metadata.device_type || metadata.device_info)) || "")}
+                                <UserIcon className="h-3 w-3" />
+                                {actorName}
                               </span>
+                              {((metadata && (metadata.portal || metadata.portalType)) || undefined) && (
+                                <span className="inline-flex items-center gap-0.5">
+                                  <GlobeAltIcon className="h-3 w-3" />
+                                  {String((metadata && (metadata.portal || metadata.portalType)) || "")}
+                                </span>
+                              )}
+                              {((metadata && (metadata.device_type || metadata.device_info)) || undefined) && (
+                                <span className="inline-flex items-center gap-0.5">
+                                  <ComputerDesktopIcon className="h-3 w-3" />
+                                  {String((metadata && (metadata.device_type || metadata.device_info)) || "")}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* IP address */}
+                            {log.ip_address && (
+                              <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
+                                {log.ip_address}
+                              </p>
                             )}
-                          </div>
 
-                          {/* IP address */}
-                          {log.ip_address && (
-                            <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                              {log.ip_address}
+                            {/* Timestamp */}
+                            <p
+                              className="text-[11px] text-muted-foreground/70 mt-1"
+                              title={format(new Date(log.created_at), "PPpp")}
+                            >
+                              {formatDistanceToNow(new Date(log.created_at), {
+                                addSuffix: true,
+                              })}
                             </p>
-                          )}
-
-                          {/* Timestamp */}
-                          <p
-                            className="text-[11px] text-muted-foreground/70 mt-1"
-                            title={format(new Date(log.created_at), "PPpp")}
-                          >
-                            {formatDistanceToNow(new Date(log.created_at), {
-                              addSuffix: true,
-                            })}
-                          </p>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
+            </ScrollArea>
 
-              {/* Load More */}
-              {hasNextPage && (
-                <div className="mt-4 flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {isFetchingNextPage ? (
-                      <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ChevronDownIcon className="h-3.5 w-3.5" />
-                    )}
-                    {isFetchingNextPage ? "Loading..." : "Load more"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+            {hasNextPage && (
+              <div className="px-6 py-3 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {isFetchingNextPage ? (
+                    <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                  )}
+                  {isFetchingNextPage ? "Loading..." : "Load more"}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

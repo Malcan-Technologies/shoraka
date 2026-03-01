@@ -49,35 +49,37 @@ export function RecentActivityCard({ events, remarks, organizationId }: RecentAc
     return combined.slice(0, 8);
   }, [events, remarks]);
 
+  if (organizationId) {
+    return <AdminActivityTimeline organizationId={organizationId} />;
+  }
+
   return (
     <Card className="rounded-2xl">
-        {organizationId ? (
-          <AdminActivityTimeline organizationId={organizationId} />
-        ) : recentActivity.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No review activity yet.</p>
-        ) : (
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {recentActivity.map((a, i) => (
-              <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                <div className="font-medium">{a.type}</div>
-                <div className="text-muted-foreground truncate" title={a.key}>
-                  {a.key}
-                </div>
-                {a.status && (
-                  <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
-                    {a.status}
-                  </span>
-                )}
-                {a.remark && (
-                  <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
-                )}
-                <div className="mt-1 text-[10px] text-muted-foreground">
-                  {format(new Date(a.created_at), "dd MMM HH:mm")}
-                </div>
+      {recentActivity.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No review activity yet.</p>
+      ) : (
+        <div className="space-y-2 max-h-40 overflow-y-auto">
+          {recentActivity.map((a, i) => (
+            <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
+              <div className="font-medium">{a.type}</div>
+              <div className="text-muted-foreground truncate" title={a.key}>
+                {a.key}
               </div>
-            ))}
-          </div>
-        )}
+              {a.status && (
+                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
+                  {a.status}
+                </span>
+              )}
+              {a.remark && (
+                <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
+              )}
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {format(new Date(a.created_at), "dd MMM HH:mm")}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
