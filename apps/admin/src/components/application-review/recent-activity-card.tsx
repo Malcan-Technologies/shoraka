@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
+import AdminActivityTimeline from "@/components/admin-activity-timeline";
 
 export interface RecentActivityCardProps {
   events: {
@@ -14,9 +15,10 @@ export interface RecentActivityCardProps {
     created_at: string;
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
+  organizationId?: string | null;
 }
 
-export function RecentActivityCard({ events, remarks }: RecentActivityCardProps) {
+export function RecentActivityCard({ events, remarks, organizationId }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -57,7 +59,9 @@ export function RecentActivityCard({ events, remarks }: RecentActivityCardProps)
         </div>
       </CardHeader>
       <CardContent>
-        {recentActivity.length === 0 ? (
+        {organizationId ? (
+          <AdminActivityTimeline organizationId={organizationId} />
+        ) : recentActivity.length === 0 ? (
           <p className="text-sm text-muted-foreground">No review activity yet.</p>
         ) : (
           <div className="space-y-2 max-h-40 overflow-y-auto">
