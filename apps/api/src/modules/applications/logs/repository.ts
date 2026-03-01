@@ -16,7 +16,8 @@ export async function createApplicationLog(params: CreateApplicationLogParams) {
       ip_address: params.ipAddress ?? null,
       user_agent: params.userAgent ?? null,
       device_info: params.deviceInfo ?? null,
-    },
+      portal: params.portal ?? null,
+    } as any,
   });
 }
 

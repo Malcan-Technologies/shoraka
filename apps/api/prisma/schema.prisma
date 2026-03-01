@@ -646,6 +646,7 @@ model ApplicationLog {
   entity_id      String?
 
   remark         String?
+  portal         String?    // ISSUER | ADMIN
 
   created_at     DateTime @default(now())
 
@@ -657,6 +658,7 @@ model ApplicationLog {
   @@index([application_id, review_cycle])
   @@index([level])
   @@index([action])
+  @@index([portal])
   @@map("application_logs")
 }
 

@@ -33,5 +33,6 @@ export type CreateApplicationLogParams = {
   ipAddress?: string
   userAgent?: string
   deviceInfo?: string
+  portal?: string
 }
 

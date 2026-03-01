@@ -30,24 +30,23 @@ async function createApplication(req: Request, res: Response, next: NextFunction
   try {
     const input = createApplicationSchema.parse(req.body);
     const application = await applicationService.createApplication(input);
-    // Log for issuers only; do not break flow on failure
+    // Log application creation (issuer flow). Do not break main flow on failure.
     try {
       const callerUserId = getUserId(req);
-      if ((req.user?.roles ?? []).includes("ISSUER")) {
-        await logApplicationActivity({
-          userId: callerUserId,
-          applicationId: application.id,
-          level: ActivityLevel.APPLICATION,
-          target: ActivityTarget.APPLICATION,
-          action: ActivityAction.CREATED,
-          reviewCycle: 1,
-          ipAddress: req.ip ?? undefined,
-          userAgent:
-            (Array.isArray(req.headers["user-agent"])
-              ? req.headers["user-agent"][0]
-              : req.headers["user-agent"]) ?? undefined,
-        });
-      }
+      await logApplicationActivity({
+        userId: callerUserId,
+        applicationId: application.id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.CREATED,
+        reviewCycle: 1,
+        ipAddress: req.ip ?? undefined,
+        userAgent:
+          (Array.isArray(req.headers["user-agent"])
+            ? req.headers["user-agent"][0]
+            : req.headers["user-agent"]) ?? undefined,
+        portal: "ISSUER",
+      });
     } catch {
       // swallow errors
     }
@@ -202,7 +201,9 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
     const result = await applicationService.updateApplicationStatus(id, status, userId);
     try {
       const callerUserId = getUserId(req);
-      if ((req.user?.roles ?? []).includes("ISSUER") && (status === "SUBMITTED" || status === "RESUBMITTED")) {
+
+      // Issuer flows
+      if (status === "SUBMITTED" || status === "RESUBMITTED") {
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
@@ -215,6 +216,25 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
+          portal: "ISSUER",
+        });
+      }
+
+      // Admin flows
+      if (status === "APPROVED" || status === "REJECTED") {
+        await logApplicationActivity({
+          userId: callerUserId,
+          applicationId: result.id,
+          level: ActivityLevel.APPLICATION,
+          target: ActivityTarget.APPLICATION,
+          action: status === "APPROVED" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+          reviewCycle: (result as any)?.review_cycle ?? undefined,
+          ipAddress: req.ip ?? undefined,
+          userAgent:
+            (Array.isArray(req.headers["user-agent"])
+              ? req.headers["user-agent"][0]
+              : req.headers["user-agent"]) ?? undefined,
+          portal: "ADMIN",
         });
       }
     } catch {
