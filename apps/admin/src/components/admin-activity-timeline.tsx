@@ -241,6 +241,10 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                       const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const metadata = log.metadata as ActivityMetadata | null;
+                      // Prefer canonical top-level fields only.
+                      // Server stores remark/entity_id at top-level. Do NOT read from metadata.
+                      const remark = (log as any).remark;
+                      const entityId = (log as any).entityId ?? undefined;
 
                       return (
                         <div key={log.id} className="relative flex gap-3 pl-0">
@@ -303,7 +307,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 })}
                               </p>
 
-                              {(metadata?.remark || metadata?.entityId) && (
+                              {(remark || entityId) && (
                                 <button
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
@@ -317,7 +321,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
   <div className="mt-3 rounded-xl border p-3 text-sm space-y-3">
     
     {/* Entity context (invoice/doc only) */}
-    {metadata?.entityId && (
+    {entityId && (
       <div>
         <p className="text-xs font-semibold mb-1 text-foreground">
           {log.event_type.startsWith("INVOICE_")
@@ -327,13 +331,13 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
             : "Entity"}
         </p>
         <div className="text-xs text-muted-foreground">
-          {String(metadata.entityId)}
+          {String(entityId)}
         </div>
       </div>
     )}
 
     {/* Remark */}
-    {metadata?.remark && (
+    {remark && (
       <div>
         <p className="text-xs font-semibold mb-1 text-foreground">
           Remark
@@ -343,7 +347,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
             log.event_type
           )}`}
         >
-          {String(metadata.remark)}
+          {String(remark)}
         </div>
       </div>
     )}

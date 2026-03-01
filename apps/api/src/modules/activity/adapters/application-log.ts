@@ -105,19 +105,36 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   }
 
   transform(record: ApplicationLog): UnifiedActivity {
-    return {
+    const baseMetadata = (record.metadata as Record<string, unknown> | null) || {};
+    // Create a temporary metadata object for description that includes top-level remark/entity_id.
+    const mdForDescription: Record<string, unknown> = {
+      ...baseMetadata,
+      ...(record.remark ? { remark: record.remark } : {}),
+      ...(record.entity_id ? { entityId: record.entity_id } : {}),
+    };
+
+    const activityText = this.buildDescription(record.event_type, mdForDescription);
+
+    // Return metadata as stored (do not copy top-level fields into metadata).
+    const unified: any = {
       id: record.id,
       user_id: record.user_id,
       category: this.category,
       event_type: record.event_type,
-      activity: this.buildDescription(record.event_type, record.metadata as Record<string, unknown>),
-      metadata: record.metadata as Record<string, unknown>,
+      activity: activityText,
+      metadata: baseMetadata,
       ip_address: record.ip_address,
       user_agent: record.user_agent,
       device_info: record.device_info,
       created_at: record.created_at,
       source_table: "application_logs",
     };
+
+    // Expose canonical top-level fields so frontend reads remark/entityId easily.
+    if (record.remark) unified.remark = record.remark;
+    if (record.entity_id) unified.entityId = record.entity_id;
+
+    return unified as UnifiedActivity;
   }
 
   buildDescription(eventType: string, metadata?: Record<string, unknown>): string {
