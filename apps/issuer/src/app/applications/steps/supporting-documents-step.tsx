@@ -458,7 +458,7 @@ export function SupportingDocumentsStep({
 
   if (categories.length === 0) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <p className="text-muted-foreground text-center py-8">No documents required for this application.</p>
       </div>
     );
@@ -477,10 +477,10 @@ export function SupportingDocumentsStep({
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
         return (
-          <section key={categoryIndex} className="space-y-3">
+          <section key={categoryIndex} className="space-y-4">
             {/* Section header */}
             <div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -489,26 +489,33 @@ export function SupportingDocumentsStep({
                       [categoryIndex]: !isExpanded,
                     }))
                   }
-                  className="w-full flex items-center justify-between cursor-pointer text-left"
+                  className="
+    w-full
+    flex items-center justify-between
+    cursor-pointer
+    text-left
+  "
                 >
                   {/* Left side: chevron + title */}
-                  <div className="flex items-center gap-3 min-w-0 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <ChevronDownIcon
-                      className={`h-5 w-5 text-foreground transition-transform duration-200 ${expandedCategories[categoryIndex] ? "rotate-180" : ""}`}
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"
+                        }`}
                     />
-                    <h2 className="text-base font-semibold text-foreground truncate">
+                    <h2 className="text-xl font-semibold text-foreground truncate">
                       {category.name}
                     </h2>
                   </div>
 
                   {/* Right side: file counter */}
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  <span className="text-xl text-muted-foreground whitespace-nowrap">
                     {status.uploadedCount}/{status.totalCount} files required
                   </span>
                 </button>
+
               </div>
 
-              <div className="border-b border-border" />
+              <div className="mt-2 h-px bg-border" />
             </div>
 
             {/* Section content */}

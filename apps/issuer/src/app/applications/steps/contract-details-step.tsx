@@ -443,7 +443,6 @@ export function ContractDetailsStep({
      ================================================================ */
 
   const isInitializedRef = React.useRef(false);
-  const initialSnapshotRef = React.useRef<Record<string, any> | null>(null);
 
   React.useEffect(() => {
     // Only initialize once per applicationId
@@ -492,38 +491,41 @@ export function ContractDetailsStep({
       },
     };
 
-  // Format display dates into d/M/yyyy if ISO present so displayed values match parent expectations.
-  const formatDisplayDate = (raw?: string) => {
-    if (!raw) return "";
-    try {
-      const p = parseISO(raw);
-      if (isValid(p)) return format(p, "d/M/yyyy");
-    } catch {
-      // fallthrough
+    setFormData(initialData);
+
+    // Hydrate display dates: convert ISO to d/M/yyyy if present
+    if (initialData.contract.start_date) {
+      try {
+        const parsed = parseISO(initialData.contract.start_date);
+        if (isValid(parsed)) {
+          setFormData((prev) => ({
+            ...prev,
+            contract: {
+              ...prev.contract,
+              start_date: format(parsed, "d/M/yyyy"),
+            },
+          }));
+        }
+      } catch (e) {
+        // ignore, keep raw
+      }
     }
-    // Fallback: try parsing as d/M/yyyy and return as-is if valid; otherwise keep raw
-    try {
-      const p2 = parse(raw, "d/M/yyyy", new Date());
-      if (isValid(p2)) return format(p2, "d/M/yyyy");
-    } catch {
-      // ignore
+    if (initialData.contract.end_date) {
+      try {
+        const parsed = parseISO(initialData.contract.end_date);
+        if (isValid(parsed)) {
+          setFormData((prev) => ({
+            ...prev,
+            contract: {
+              ...prev.contract,
+              end_date: format(parsed, "d/M/yyyy"),
+            },
+          }));
+        }
+      } catch (e) {
+        // ignore
+      }
     }
-    return raw;
-  };
-
-  const displayedInitialData = {
-    ...initialData,
-    contract: {
-      ...initialData.contract,
-      start_date: formatDisplayDate(initialData.contract.start_date),
-      end_date: formatDisplayDate(initialData.contract.end_date),
-    },
-  };
-
-  setFormData(displayedInitialData);
-
-  // Track an immutable snapshot of the initially hydrated/displayed values for change detection
-  initialSnapshotRef.current = displayedInitialData;
 
     // Track S3 keys for versioning
     const contractDoc = contractDetails.document as FileMetadata | undefined;
@@ -804,58 +806,8 @@ export function ContractDetailsStep({
 
   React.useEffect(() => {
     if (!onDataChange) return;
-    // Determine whether form values differ from the initially hydrated snapshot.
-    const hasFormChanged = () => {
-      const initial = initialSnapshotRef.current;
-      if (!initial) return false;
 
-      const ic = initial.contract || {};
-      const cc = formData.contract || {};
-      const iu = initial.customer || {};
-      const cu = formData.customer || {};
-
-      const simpleContractFields: (keyof typeof cc)[] = [
-        "title",
-        "description",
-        "number",
-        "value",
-        "financing",
-        "start_date",
-        "end_date",
-      ];
-      for (const f of simpleContractFields) {
-        const a = (ic as any)[f] ?? "";
-        const b = (cc as any)[f] ?? "";
-        if (String(a) !== String(b)) return true;
-      }
-
-      const initialContractDocKey = ic.document?.s3_key || ic.document?.file_name || "";
-      const currentContractDocKey = cc.document?.s3_key || cc.document?.file_name || "";
-      if (initialContractDocKey !== currentContractDocKey) return true;
-      if (pendingFiles.contract) return true;
-
-      const simpleCustomerFields: (keyof typeof cu)[] = [
-        "name",
-        "entity_type",
-        "ssm_number",
-        "country",
-        "is_related_party",
-      ];
-      for (const f of simpleCustomerFields) {
-        const a = (iu as any)[f] ?? "";
-        const b = (cu as any)[f] ?? "";
-        if (String(a) !== String(b)) return true;
-      }
-
-      const initialConsentDocKey = iu.document?.s3_key || iu.document?.file_name || "";
-      const currentConsentDocKey = cu.document?.s3_key || cu.document?.file_name || "";
-      if (initialConsentDocKey !== currentConsentDocKey) return true;
-      if (pendingFiles.consent) return true;
-
-      return false;
-    };
-
-    const hasFormChanges = hasFormChanged();
+    const hasFormChanges = Object.keys(pendingFiles).length > 0;
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
 
@@ -942,17 +894,17 @@ export function ContractDetailsStep({
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = formInputClassName;
-  const sectionHeaderClassName = "text-base font-semibold text-foreground";
+  const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
     <>
       <div className="space-y-10 px-3">
         {/* Contract Details Section */}
-        <section className="space-y-3">
+        <section className="space-y-4">
           <div>
             <h3 className={sectionHeaderClassName}>Contract details</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="mt-2 h-px bg-border" />
           </div>
 
           <div className={sectionGridClassName}>
@@ -1104,10 +1056,10 @@ export function ContractDetailsStep({
         </section>
 
         {/* Customer Details Section */}
-        <section className="space-y-3">
+        <section className="space-y-4">
           <div>
             <h3 className={sectionHeaderClassName}>Customer details</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="mt-2 h-px bg-border" />
           </div>
 
           <div className={sectionGridClassName}>

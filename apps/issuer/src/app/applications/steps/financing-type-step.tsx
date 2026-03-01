@@ -1,10 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useProducts, useProduct } from "@/hooks/use-products";
+import { useProducts } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
-import { SelectionCard } from "../components/selection-card";
-import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 
@@ -35,24 +33,15 @@ export function FinancingTypeStep({
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   
   // Load all products
-  // If initialProductId is present (edit flow), fetch only that product.
-  const { data: productsData, isLoading: isLoadingProducts } = initialProductId
-    ? { data: undefined, isLoading: false }
-    : useProducts({
-        page: 1,
-        pageSize: 100,
-        activeOnly: true,
-      } as any);
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+    page: 1,
+    pageSize: 100,
+  });
 
-  const singleProductQuery = useProduct(initialProductId || "");
-  const products = initialProductId ? (singleProductQuery?.data ? { products: [singleProductQuery.data] } : { products: [] }) : productsData || { products: [] };
-
-  const isLoading = initialProductId ? singleProductQuery?.isLoading : isLoadingProducts;
+  const products = productsData?.products || [];
 
   // Track which product is selected
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-
-  // Use shared ProductImagePreview for image consistency
 
   /**
    * Initialize with product from database
@@ -64,13 +53,13 @@ export function FinancingTypeStep({
     if (initialProductId && !selectedProductId) {
       setSelectedProductId(initialProductId);
 
-      // Tell parent this step already has valid data
+      //  Tell parent this step already has valid data
       if (onDataChange) {
-        const savedProduct = products.products?.find((p: any) => p.id === initialProductId) ?? singleProductQuery?.data;
+        const savedProduct = products.find(p => p.id === initialProductId);
         onDataChange({
           product_id: initialProductId,
           product_version: savedProduct?.version,
-          hasPendingChanges: false,
+          hasPendingChanges: false
         });
       }
     }
@@ -90,7 +79,7 @@ export function FinancingTypeStep({
     setSelectedProductId(productId);
 
     // Find the selected product to include its version
-    const selectedProduct = (products.products || []).find((p: any) => p.id === productId) ?? singleProductQuery?.data;
+    const selectedProduct = products.find(p => p.id === productId);
 
     // Pass data to parent for saving
     if (onDataChange) {
@@ -103,7 +92,7 @@ export function FinancingTypeStep({
   };
 
   // Show loading state
-  if (isLoading || debugSkeletonMode) {
+  if (isLoadingProducts || debugSkeletonMode) {
     return (
       <>
         <FinancingTypeSkeleton />
@@ -111,9 +100,9 @@ export function FinancingTypeStep({
       </>
     );
   }
+
   // Show empty state
-  const productList = products.products || [];
-  if (productList.length === 0) {
+  if (products.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         No financing products available
@@ -124,39 +113,12 @@ export function FinancingTypeStep({
   return (
     <>
     <div className="px-3">
-      {initialProductId ? (
-        // Edit mode: show category header and only the selected product (read-only)
-        productList.map((p: any) => {
-          const category = (p.workflow?.[0]?.config?.category as string) || "Uncategorized";
-          return (
-          <section key={p.id}>
-          <div className="flex items-center justify-between cursor-pointer">
-              <h2 className="text-base font-semibold text-foreground">{category}</h2>
-              <span className="text-xs text-muted-foreground">{1} option</span>
-            </div>
-            <div className="border-b border-border mt-2 mb-4" />
-
-            <div>
-              <SelectionCard
-                title={p.workflow?.[0]?.config?.name || "Unnamed Product"}
-                description={p.workflow?.[0]?.config?.description || ""}
-                isSelected={true}
-                onClick={() => {}}
-                disabled={true}
-                leading={<ProductImagePreview s3Key={p.workflow?.[0]?.config?.image?.s3_key || ""} alt={p.workflow?.[0]?.config?.name || ""} />}
-              />
-            </div>
-          </section>
-          );
-        })
-      ) : (
-        <ProductList
-          products={products.products}
-          selectedProductId={selectedProductId}
-          onProductSelect={handleProductSelect}
+      <ProductList
+        products={products}
+        selectedProductId={selectedProductId}
+        onProductSelect={handleProductSelect}
           isLoading={isLoadingProducts}
-        />
-      )}
+      />
     </div>
     <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

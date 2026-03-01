@@ -185,22 +185,18 @@ export function FinancingTypeConfig({
           />
           {hasPreview ? (
             <div className="flex min-w-0 flex-col gap-3 animate-in fade-in-0 duration-200 sm:flex-row sm:items-center sm:gap-4">
-              <div>
+              <div className="w-14 h-14 shrink-0 rounded-md border border-border bg-background overflow-hidden flex items-center justify-center">
                 {previewLoading ? (
-                  <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0"><Skeleton className="w-full h-full"/></div>
+                  <Skeleton className="w-full h-full" />
                 ) : previewSrc ? (
-                  <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
-                    <img
-                      src={previewSrc}
-                      alt=""
-                      className="w-full h-full object-contain"
-                      onError={() => setImgError(true)}
-                    />
-                  </div>
+                  <img
+                    src={previewSrc}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    onError={() => setImgError(true)}
+                  />
                 ) : (
-                  <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
-                    <PhotoIcon className="h-6 w-6 text-muted-foreground" />
-                  </div>
+                  <PhotoIcon className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
               <div className="min-w-0 flex-1 sm:basis-0 sm:overflow-hidden">

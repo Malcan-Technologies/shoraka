@@ -25,7 +25,7 @@ export function useProductVersionGuard(applicationId: string) {
 
   const [isMismatch, setIsMismatch] = React.useState(false);
   const [isChecking, setIsChecking] = React.useState(false);
-  const [blockReason, setBlockReason] = React.useState<"PRODUCT_DELETED" | "PRODUCT_INACTIVE" | "PRODUCT_VERSION_CHANGED" | null>(null);
+  const [blockReason, setBlockReason] = React.useState<"PRODUCT_DELETED" | "PRODUCT_VERSION_CHANGED" | null>(null);
 
   const checkNow = React.useCallback(async (): Promise<boolean> => {
     setIsChecking(true);
@@ -51,22 +51,6 @@ export function useProductVersionGuard(applicationId: string) {
         // Product not found -> mismatch (deleted)
         setIsMismatch(true);
         setBlockReason("PRODUCT_DELETED");
-        setIsChecking(false);
-        return true;
-      }
-
-      // Use product.status lifecycle: DELETED -> INACTIVE -> version comparison
-      const status = (latestProduct as any).status as string | undefined;
-      if (status === "DELETED") {
-        setIsMismatch(true);
-        setBlockReason("PRODUCT_DELETED");
-        setIsChecking(false);
-        return true;
-      }
-
-      if (status === "INACTIVE") {
-        setIsMismatch(true);
-        setBlockReason("PRODUCT_INACTIVE");
         setIsChecking(false);
         return true;
       }

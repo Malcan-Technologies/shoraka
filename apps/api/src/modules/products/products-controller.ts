@@ -3,17 +3,18 @@ import { AppError } from "../../lib/http/error-handler";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import { ProductRepository } from "./repository";
-import { createProductUploadsRouter } from "./upload/controller";
+import { createProductUploadsRouter } from "./product-uploads-controller";
 import {
   getProductsListQuerySchema,
   createProductBodySchema,
   updateProductBodySchema,
 } from "./schemas";
-import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
+  createProductLog,
+  buildProductLogMetadata,
   getProductS3KeysFromWorkflow,
   getReplacedProductS3Keys,
-} from "./log/service";
+} from "./product-log";
 
 const router = Router();
 const productRepository = new ProductRepository();
@@ -23,13 +24,12 @@ const productRepository = new ProductRepository();
  * List products with pagination and optional search (admin only).
  */
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
-  try {
+    try {
       const validated = getProductsListQuerySchema.parse(req.query);
       const { products, total } = await productRepository.findAll({
         page: validated.page,
         pageSize: validated.pageSize,
         search: validated.search,
-        activeOnly: validated.active === true,
       });
 
       const pageSize = validated.pageSize;
@@ -42,8 +42,6 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             id: p.id,
             version: p.version,
             workflow: p.workflow as unknown[],
-            category_display_order: (p as any).category_display_order ?? null,
-            product_display_order: (p as any).product_display_order ?? null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),
@@ -73,13 +71,11 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = createProductBodySchema.parse(req.body);
-    const userId = req.user?.user_id ?? null;
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
-    const deviceInfo = (req as any).deviceInfo ?? null;
-    const product = await productRepository.create(
-      { workflow: validated.workflow },
-      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
-    );
+    const product = await productRepository.create({
+      workflow: validated.workflow,
+    });
+    const workflowArr = (product.workflow as unknown[]) ?? [];
+    await createProductLog(req, "PRODUCT_CREATED", product.id, buildProductLogMetadata(workflowArr, product.version, product.created_at, product.updated_at));
     res.status(201).json({
       success: true,
       data: {
@@ -146,17 +142,13 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         ? getReplacedProductS3Keys(oldWorkflow, validated.workflow)
         : [];
 
-    const userId = req.user?.user_id ?? null;
-    const ip = getClientIp(req) ?? null;
-    const deviceInfo = getDeviceInfo(req) ?? null;
-    const product = await productRepository.update(
-      id,
-      {
-        workflow: validated.workflow,
-        completeCreate: validated.completeCreate,
-      },
-      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
-    );
+    const product = await productRepository.update(id, {
+      workflow: validated.workflow,
+      completeCreate: validated.completeCreate,
+    });
+
+    const newWorkflow = (product.workflow as unknown[]) ?? [];
+    await createProductLog(req, "PRODUCT_UPDATED", id, buildProductLogMetadata(newWorkflow, product.version, product.created_at, product.updated_at));
 
     for (const key of keysToDelete) {
       try {
@@ -202,26 +194,18 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
     }
     const workflow = (product.workflow as unknown[]) ?? [];
     const keysToDelete = getProductS3KeysFromWorkflow(workflow);
-    // keysToDelete intentionally preserved for manual cleanup reference
-    void keysToDelete;
 
-    const userId = req.user?.user_id ?? null;
-    const ip = getClientIp(req) ?? null;
-    const deviceInfo = getDeviceInfo(req) ?? null;
-    await productRepository.delete(id, { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo });
+    await createProductLog(req, "PRODUCT_DELETED", id, buildProductLogMetadata(workflow, product.version, product.created_at, product.updated_at));
 
-    // NOTE: products are soft-deleted now. Do NOT delete S3 assets as part of DELETE API.
-    // The following S3 cleanup is intentionally commented out and preserved for manual/emergency use only.
-    //
-    // HARD DELETE S3 CLEANUP (NOT USED)
-    // ⚠ WARNING: This removes S3 objects and should NOT be executed as part of normal delete flow.
-    // for (const key of keysToDelete) {
-    //   try {
-    //     await deleteS3Object(key);
-    //   } catch (err) {
-    //     logger.warn({ err, key }, "Failed to delete product file from S3 during HARD DELETE cleanup");
-    //   }
-    // }
+    await productRepository.delete(id);
+
+    for (const key of keysToDelete) {
+      try {
+        await deleteS3Object(key);
+      } catch (err) {
+        logger.warn({ err, key }, "Failed to delete product file from S3 after product delete");
+      }
+    }
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -229,4 +213,3 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
 });
 
 export const productsRouter = router;
-
