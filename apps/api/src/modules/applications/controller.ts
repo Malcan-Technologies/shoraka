@@ -8,7 +8,8 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
-import { createApplicationLog } from "./application-log";
+import { logApplicationActivity } from "./logs/service";
+import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
 
 /**
  * Get authenticated user ID from request
@@ -29,14 +30,25 @@ async function createApplication(req: Request, res: Response, next: NextFunction
   try {
     const input = createApplicationSchema.parse(req.body);
     const application = await applicationService.createApplication(input);
-
-    // Audit log: APPLICATION_CREATED
+    // Log application creation (issuer flow). Do not break main flow on failure.
     try {
-      await createApplicationLog(req, "APPLICATION_CREATED", application, {
-        correlationId: res.locals.correlationId || null,
+      const callerUserId = getUserId(req);
+      await logApplicationActivity({
+        userId: callerUserId,
+        applicationId: application.id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.CREATED,
+        reviewCycle: 1,
+        ipAddress: req.ip ?? undefined,
+        userAgent:
+          (Array.isArray(req.headers["user-agent"])
+            ? req.headers["user-agent"][0]
+            : req.headers["user-agent"]) ?? undefined,
+        portal: ActivityPortal.ISSUER,
       });
     } catch {
-      // ignore
+      // swallow errors
     }
 
     res.status(201).json({
@@ -187,19 +199,46 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
     const userId = getUserId(req);
 
     const result = await applicationService.updateApplicationStatus(id, status, userId);
+    try {
+      const callerUserId = getUserId(req);
 
-    // If submitted or resubmitted, write application audit log
-    if (status === "SUBMITTED" || status === "RESUBMITTED") {
-      try {
-        await createApplicationLog(
-          req,
-          status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
-          result,
-          { correlationId: res.locals.correlationId || null }
-        );
-      } catch {
-        // ignore
+      // Issuer flows
+      if (status === "SUBMITTED" || status === "RESUBMITTED") {
+        await logApplicationActivity({
+          userId: callerUserId,
+          applicationId: result.id,
+          level: ActivityLevel.APPLICATION,
+          target: ActivityTarget.APPLICATION,
+          action: status === "RESUBMITTED" ? ActivityAction.RESUBMITTED : ActivityAction.SUBMITTED,
+          reviewCycle: (result as any)?.review_cycle ?? undefined,
+          ipAddress: req.ip ?? undefined,
+          userAgent:
+            (Array.isArray(req.headers["user-agent"])
+              ? req.headers["user-agent"][0]
+              : req.headers["user-agent"]) ?? undefined,
+          portal: ActivityPortal.ISSUER
+        });
       }
+
+      // Admin flows
+      if (status === "APPROVED" || status === "REJECTED") {
+        await logApplicationActivity({
+          userId: callerUserId,
+          applicationId: result.id,
+          level: ActivityLevel.APPLICATION,
+          target: ActivityTarget.APPLICATION,
+          action: status === "APPROVED" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+          reviewCycle: (result as any)?.review_cycle ?? undefined,
+          ipAddress: req.ip ?? undefined,
+          userAgent:
+            (Array.isArray(req.headers["user-agent"])
+              ? req.headers["user-agent"][0]
+              : req.headers["user-agent"]) ?? undefined,
+          portal: ActivityPortal.ADMIN
+        });
+      }
+    } catch {
+      // swallow errors
     }
 
     res.json({

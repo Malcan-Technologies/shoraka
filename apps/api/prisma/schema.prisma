@@ -637,12 +637,28 @@ model ApplicationLog {
   user_agent     String?
   device_info    String?
   metadata       Json?
+  review_cycle   Int?
+
+  level          ActivityLevel?
+  target         ActivityTarget?
+  action         ActivityAction?
+
+  entity_id      String?
+
+  remark         String?
+  portal         String?    // ISSUER | ADMIN
+
   created_at     DateTime @default(now())
 
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([application_id])
+  @@index([application_id, review_cycle])
+  @@index([level])
+  @@index([action])
+  @@index([portal])
   @@map("application_logs")
 }
 
@@ -897,6 +913,29 @@ enum InvoiceStatus {
   SUBMITTED
   APPROVED
   REJECTED
+}
+
+enum ActivityLevel {
+  APPLICATION
+  TAB
+  ITEM
+}
+
+enum ActivityTarget {
+  APPLICATION
+  FINANCIAL
+  CONTRACT
+  INVOICE
+  SUPPORTING_DOCUMENT
+}
+
+enum ActivityAction {
+  CREATED
+  SUBMITTED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+  REQUESTED_AMENDMENT
 }
 
 enum NotificationCategory {

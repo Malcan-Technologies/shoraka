@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { Card } from "@/components/ui/card";
 import { format } from "date-fns";
+import AdminActivityTimeline from "@/components/admin-activity-timeline";
 
 export interface RecentActivityCardProps {
   events: {
@@ -14,9 +14,10 @@ export interface RecentActivityCardProps {
     created_at: string;
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
+  applicationId?: string | null;
 }
 
-export function RecentActivityCard({ events, remarks }: RecentActivityCardProps) {
+export function RecentActivityCard({ events, remarks, applicationId }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -48,41 +49,37 @@ export function RecentActivityCard({ events, remarks }: RecentActivityCardProps)
     return combined.slice(0, 8);
   }, [events, remarks]);
 
+  if (applicationId) {
+    return <AdminActivityTimeline applicationId={applicationId} />;
+  }
+
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <ClipboardDocumentCheckIcon className="h-5 w-5 text-primary" />
-          <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {recentActivity.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No review activity yet.</p>
-        ) : (
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {recentActivity.map((a, i) => (
-              <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                <div className="font-medium">{a.type}</div>
-                <div className="text-muted-foreground truncate" title={a.key}>
-                  {a.key}
-                </div>
-                {a.status && (
-                  <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
-                    {a.status}
-                  </span>
-                )}
-                {a.remark && (
-                  <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
-                )}
-                <div className="mt-1 text-[10px] text-muted-foreground">
-                  {format(new Date(a.created_at), "dd MMM HH:mm")}
-                </div>
+      {recentActivity.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No review activity yet.</p>
+      ) : (
+        <div className="space-y-2 max-h-40 overflow-y-auto">
+          {recentActivity.map((a, i) => (
+            <div key={i} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
+              <div className="font-medium">{a.type}</div>
+              <div className="text-muted-foreground truncate" title={a.key}>
+                {a.key}
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
+              {a.status && (
+                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px]">
+                  {a.status}
+                </span>
+              )}
+              {a.remark && (
+                <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
+              )}
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {format(new Date(a.created_at), "dd MMM HH:mm")}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
