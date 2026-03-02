@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { FunnelIcon } from "@heroicons/react/24/outline"
 
 /* ============================================================
    Mock Application Data (Application Level)
@@ -106,10 +107,8 @@ export function FinancingSection() {
           >
             {/* APPLICATION HEADER */}
             <div
-              onClick={() =>
-                setOpenApplicationId(isOpen ? null : app.id)
-              }
-              className="flex items-center justify-between p-6 cursor-pointer select-none"
+              onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
+              className="flex items-center justify-between p-6 cursor-pointer select-none border-b border-muted"
             >
               <div className="flex items-center gap-3">
                 <FileText className="h-5 w-5 text-muted-foreground" />
@@ -131,7 +130,7 @@ export function FinancingSection() {
               <div className="px-6 pb-6 space-y-10">
 
                 {/* CONTRACT SECTION */}
-                <CollapsibleCategory title="Contract financing">
+                <CollapsibleCategory title="Contract financing" filters={["Status", "Date", "Customer"]} >
                   {app.contracts.map((c) => (
                     <Card
                       key={c.id}
@@ -173,7 +172,7 @@ export function FinancingSection() {
                 </CollapsibleCategory>
 
                 {/* INVOICE SECTION */}
-                <CollapsibleCategory title="Invoice financing">
+                <CollapsibleCategory title="Invoice financing" filters={["Status", "Submission date"]}>
                   {app.invoices.map((inv) => (
                     <Card
                       key={inv.id}
@@ -245,28 +244,67 @@ export function FinancingSection() {
 function CollapsibleCategory({
   title,
   children,
+  filters,
 }: {
   title: string
   children: React.ReactNode
+  filters?: string[]
 }) {
   const [open, setOpen] = useState(true)
 
   return (
     <div className="space-y-4">
-      <div
-        onClick={() => setOpen(!open)}
-        className="flex items-center justify-between cursor-pointer"
-      >
-        <h4 className="text-base font-semibold">{title}</h4>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
+      {/* HEADER (no underline) */}
+      <div className="flex items-center justify-between">
+        {/* LEFT: Title */}
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+
+        {/* RIGHT: Filters + Separator + Chevron */}
+        <div className="flex items-center">
+          {/* Filters (do not toggle collapse) */}
+          {filters && (
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              {filters.map((filter) => (
+                <FilterButton key={filter} label={filter} />
+              ))}
+            </div>
+          )}
+
+          {/* Vertical Separator */}
+          <div className="mx-3 h-6 w-px bg-border" />
+
+          {/* Chevron (toggles collapse) */}
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition"
+          >
+            {open ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       </div>
 
+      {/* BODY */}
       {open && <div className="space-y-4">{children}</div>}
     </div>
+  )
+}
+
+
+function FilterButton({ label }: { label: string }) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-8 text-xs font-medium gap-1 px-3"
+    >
+      <FunnelIcon className="h-3.5 w-3.5" />
+      {label}
+    </Button>
   )
 }
 // "use client"
