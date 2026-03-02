@@ -12,6 +12,14 @@ import { ReviewStepStatusBadge } from "@/components/application-review/review-st
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import {
   Table,
   TableBody,
   TableCell,
@@ -20,12 +28,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+
 interface InvoiceReviewListProps {
   invoices: { id: string; details?: unknown }[];
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument: (s3Key: string) => void;
   isViewDocumentPending: boolean;
+  invoiceRatioLimits: { min: number; max: number };
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -45,14 +56,7 @@ interface InvoiceDetails {
   };
 }
 
-const FUTURE_PLACEHOLDER_VALUES = {
-  offeredFinancingRatio: "TBD",
-  offeredFinancingAmount: "TBD",
-  profitRate: "TBD",
-  estimatedProfit: "TBD",
-  estDisbursementDate: "TBD",
-  estPeriodDays: "TBD",
-} as const;
+const PLACEHOLDER = { estDisbursementDate: "TBD", estPeriodDays: "TBD" } as const;
 
 function getItemStatus(
   reviewItems: { item_type: string; item_id: string; status: string }[],
@@ -75,12 +79,15 @@ function formatDateValue(value: string | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : format(parsed, "dd MMM yyyy");
 }
 
+type OfferedState = { ratio: number; profitRate: number };
+
 export function InvoiceList({
   invoices,
   reviewItems,
   isReviewable,
   onViewDocument,
   isViewDocumentPending,
+  invoiceRatioLimits,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -88,10 +95,30 @@ export function InvoiceList({
   isItemActionPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const [offeredByInvoice, setOfferedByInvoice] = React.useState<Record<string, OfferedState>>({});
 
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
+
+  const setOffered = React.useCallback((invoiceId: string, updates: Partial<OfferedState>) => {
+    setOfferedByInvoice((prev) => {
+      const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
+      return { ...prev, [invoiceId]: { ...current, ...updates } };
+    });
+  }, [invoiceRatioLimits.min]);
+
+  const getOffered = React.useCallback(
+    (invoiceId: string, issuerRatio: number | null): OfferedState => {
+      const stored = offeredByInvoice[invoiceId];
+      if (stored) return stored;
+      const ratio = issuerRatio != null
+        ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
+        : invoiceRatioLimits.min;
+      return { ratio, profitRate: 12 };
+    },
+    [offeredByInvoice, invoiceRatioLimits]
+  );
 
   return (
     <div className="rounded-xl border bg-card">
@@ -201,12 +228,12 @@ export function InvoiceList({
                                 </div>
                               </div>
                               <div>
-                                <p className="text-xs text-muted-foreground">Est. disbursement date</p>
-                                <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.estDisbursementDate}</p>
+                                <p className="text-xs text-muted-foreground">Estimated disbursement date</p>
+                                <p className="text-sm font-medium">{PLACEHOLDER.estDisbursementDate}</p>
                               </div>
                               <div>
-                                <p className="text-xs text-muted-foreground">Est. period (Days)</p>
-                                <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.estPeriodDays}</p>
+                                <p className="text-xs text-muted-foreground">Estimated period (Days)</p>
+                                <p className="text-sm font-medium">{PLACEHOLDER.estPeriodDays}</p>
                               </div>
                             </div>
                             </div>
@@ -231,28 +258,79 @@ export function InvoiceList({
                               </div>
                             </div>
 
-                            <div className="md:pl-3">
+                            <div className="md:pl-3 space-y-3">
                               <p className="text-sm font-semibold text-foreground">
                                 Offered by CashSouk
                               </p>
-                              <div className="mt-2 space-y-2">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Financing ratio</p>
-                                  <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.offeredFinancingRatio}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Financing amount</p>
-                                  <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.offeredFinancingAmount}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Profit rate</p>
-                                  <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.profitRate}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Estimated profit</p>
-                                  <p className="text-sm font-medium">{FUTURE_PLACEHOLDER_VALUES.estimatedProfit}</p>
-                                </div>
-                              </div>
+                              {(() => {
+                                const offered = getOffered(inv.id, financingRatio);
+                                const offeredAmount =
+                                  invoiceValue !== null
+                                    ? (invoiceValue * offered.ratio) / 100
+                                    : null;
+                                const estimatedProfit =
+                                  offeredAmount !== null
+                                    ? (offeredAmount * (offered.profitRate / 100))
+                                    : null;
+                                return (
+                                  <>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">Financing ratio</p>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium tabular-nums w-10">
+                                          {offered.ratio}%
+                                        </span>
+                                        <Slider
+                                          min={invoiceRatioLimits.min}
+                                          max={invoiceRatioLimits.max}
+                                          step={1}
+                                          value={[offered.ratio]}
+                                          onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
+                                          disabled={!isReviewable}
+                                          className="flex-1 max-w-[140px]
+                                            [&_[data-orientation=horizontal]]:h-1.5
+                                            [&_[data-orientation=horizontal]>span]:bg-primary
+                                            [&_[role=slider]]:h-4
+                                            [&_[role=slider]]:w-4
+                                            [&_[role=slider]]:border-2
+                                            [&_[role=slider]]:border-primary"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Financing amount</p>
+                                      <p className="text-sm font-medium tabular-nums">
+                                        {offeredAmount !== null ? formatCurrency(offeredAmount) : REVIEW_EMPTY_LABEL}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">Profit rate</p>
+                                      <Select
+                                        value={String(offered.profitRate)}
+                                        onValueChange={(v) => setOffered(inv.id, { profitRate: parseInt(v, 10) })}
+                                        disabled={!isReviewable}
+                                      >
+                                        <SelectTrigger className="h-8 w-full max-w-[100px]">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[200px]">
+                                          {PROFIT_RATE_OPTIONS.map((p) => (
+                                            <SelectItem key={p} value={String(p)}>
+                                              {p}%
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Estimated profit</p>
+                                      <p className="text-sm font-medium tabular-nums">
+                                        {estimatedProfit !== null ? formatCurrency(estimatedProfit) : REVIEW_EMPTY_LABEL}
+                                      </p>
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>

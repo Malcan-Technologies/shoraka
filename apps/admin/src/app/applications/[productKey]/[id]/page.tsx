@@ -96,6 +96,18 @@ export default function DynamicApplicationDetailPage() {
   const currentProduct = productsData?.products.find(p => p.id === productKey);
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
+  const invoiceRatioLimits = React.useMemo(() => {
+    const workflow = (currentProduct as { workflow?: { id?: string; config?: Record<string, unknown> }[] })?.workflow ?? [];
+    const invoiceStep = workflow.find(
+      (s: { id?: string; name?: string }) =>
+        s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
+    );
+    const config = invoiceStep?.config ?? {};
+    const min = typeof config.min_financing_ratio_percent === "number" ? config.min_financing_ratio_percent : 60;
+    const max = typeof config.max_financing_ratio_percent === "number" ? config.max_financing_ratio_percent : 80;
+    return { min: Math.min(min, max), max: Math.max(min, max) };
+  }, [currentProduct]);
+
   const [confirmAction, setConfirmAction] = React.useState<{
     type: "APPROVE" | "REJECT";
     isOpen: boolean;
@@ -659,6 +671,7 @@ export default function DynamicApplicationDetailPage() {
                             toast.error(err instanceof Error ? err.message : "Failed to reset item");
                           }
                         }}
+                        invoiceRatioLimits={invoiceRatioLimits}
                       />
                     </ApplicationReviewTabContent>
                   );

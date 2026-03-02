@@ -61,6 +61,8 @@ export interface SectionContentProps {
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
   onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
+  /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
+  invoiceRatioLimits?: { min: number; max: number };
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -83,6 +85,7 @@ export function SectionContent({
   onRejectItem,
   onRequestAmendmentItem,
   onResetItemToPending,
+  invoiceRatioLimits,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -197,6 +200,7 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
+          invoiceRatioLimits={invoiceRatioLimits}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
