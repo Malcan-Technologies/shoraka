@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { useRouter } from "next/navigation";
 
 /* ============================================================
    Mock Data
@@ -353,6 +354,8 @@ function CollapsibleCategory({
 ============================================================ */
 
 function ContractCard({ item }: { item: ContractItem }) {
+  const router = useRouter();
+
   return (
     <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
@@ -454,7 +457,11 @@ function ContractCard({ item }: { item: ContractItem }) {
             </div>
 
             <div className="flex justify-end">
-              <button className="text-xs font-medium text-primary hover:underline">
+              <button
+                type="button"
+                onClick={() => router.push(`/financing/contracts/${item.id}`)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 View details →
               </button>
             </div>
@@ -467,7 +474,7 @@ function ContractCard({ item }: { item: ContractItem }) {
   )
 }
 
-function InvoiceCard({ item }: { item: InvoiceItem }) {
+export function InvoiceCard({ item }: { item: InvoiceItem }) {
   return (
     <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
@@ -616,7 +623,7 @@ function ChevronButton({ isOpen }: { isOpen: boolean }) {
   );
 }
 
-function FilterButton({ label }: { label: string }) {
+export function FilterButton({ label }: { label: string }) {
   return (
     <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
       <FunnelIcon className="h-3.5 w-3.5" />
