@@ -159,7 +159,7 @@ export function DocumentList({
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground">{label}</span>
                         {status !== "PENDING" && (
-                          <ReviewStepStatusBadge status={status} />
+                          <ReviewStepStatusBadge status={status} size="sm" />
                         )}
                       </div>
                       <div className="flex items-center gap-2">

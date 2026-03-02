@@ -195,6 +195,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onViewDocument={onViewDocument}
+          viewDocumentPending={viewDocumentPending}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}

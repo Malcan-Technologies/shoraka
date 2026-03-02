@@ -544,7 +544,7 @@ export default function DynamicApplicationDetailPage() {
                   )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(240px,300px)] xl:grid-cols-[1fr_minmax(260px,320px)] gap-6">
                 <div className="min-w-0 space-y-6">
                   <Card className="rounded-2xl">
                   <CardContent className="pt-6">
@@ -666,7 +666,7 @@ export default function DynamicApplicationDetailPage() {
                 </ApplicationReviewTabs>
               </div>
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <ReviewSummaryCard
                   sections={reviewSections}
                   reviewItems={(app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []}

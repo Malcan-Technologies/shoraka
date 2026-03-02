@@ -11,6 +11,7 @@ import {
 
 interface ReviewStepStatusBadgeProps {
   status: string;
+  size?: "sm" | "md";
 }
 
 const STATUS_CONFIG: Record<
@@ -36,8 +37,8 @@ const STATUS_CONFIG: Record<
     label: "Amendment Requested",
   },
   PENDING: {
-    badgeClass: "border-blue-500/30 bg-blue-500/10 text-foreground",
-    iconClass: "text-blue-600",
+    badgeClass: "border-muted-foreground/30 bg-muted/60 text-muted-foreground",
+    iconClass: "text-muted-foreground",
     Icon: ClockIcon,
     label: "Pending",
   },
@@ -51,19 +52,22 @@ function toLabel(status: string): string {
     .join(" ");
 }
 
-export function ReviewStepStatusBadge({ status }: ReviewStepStatusBadgeProps) {
+export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusBadgeProps) {
   const config = STATUS_CONFIG[status] ?? {
     ...STATUS_CONFIG.PENDING,
     label: toLabel(status),
   };
   const Icon = config.Icon;
+  const isCompact = size === "sm";
+  const iconSize = isCompact ? "h-3 w-3" : "h-3.5 w-3.5";
+  const sizeClass = isCompact ? "text-[11px] px-1.5 py-0 shrink-0" : "";
 
   return (
     <Badge
       variant="outline"
-      className={config.badgeClass}
+      className={`${config.badgeClass} ${sizeClass}`}
     >
-      <Icon className={`h-3.5 w-3.5 mr-1 ${config.iconClass}`} />
+      <Icon className={`${iconSize} mr-1 shrink-0 ${config.iconClass}`} />
       {config.label}
     </Badge>
   );

@@ -20,6 +20,8 @@ export interface InvoiceSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onViewDocument: (s3Key: string) => void;
+  viewDocumentPending: boolean;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -39,6 +41,8 @@ export function InvoiceSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onViewDocument,
+  viewDocumentPending,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -72,6 +76,8 @@ export function InvoiceSection({
             invoices={invoices}
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
+            onViewDocument={onViewDocument}
+            isViewDocumentPending={viewDocumentPending}
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}
