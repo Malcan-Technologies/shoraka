@@ -180,7 +180,13 @@ export default function DynamicApplicationDetailPage() {
 
     return baseSections.map((s) => {
       const fromItems = sectionWithAmendmentFromItems.has(s.section);
-      const status = fromItems ? "AMENDMENT_REQUESTED" : s.status;
+      // Section-level APPROVED/REJECTED takes precedence over item-level amendment
+      const status =
+        s.status === "APPROVED" || s.status === "REJECTED"
+          ? s.status
+          : fromItems
+            ? "AMENDMENT_REQUESTED"
+            : s.status;
       return { section: s.section, status };
     });
   }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
