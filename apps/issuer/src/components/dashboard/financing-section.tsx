@@ -1,22 +1,55 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import {
-  ChevronDown,
-  ChevronUp,
-  MoreVertical,
-  FileText,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
-import { FunnelIcon } from "@heroicons/react/24/outline"
+import React, { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { FunnelIcon } from "@heroicons/react/24/outline";
 
 /* ============================================================
-   Mock Application Data (Application Level)
+   Mock Data
 ============================================================ */
 
-const mockApplications = [
+type InvoiceStatus = "Draft" | "In progress" | "Funded" | "Completed" | "Unsuccessful";
+
+type ContractItem = {
+  id: string;
+  title: string;
+  customer: string;
+  period: string;
+  utilised: string;
+  approved: string;
+  utilisationPct: number; // 0..100
+  status: "Active" | "Amendment required";
+  activeNotes?: number;
+};
+
+type InvoiceItem = {
+  id: string;
+  invoiceNo: string;
+  status: InvoiceStatus;
+  noteNo?: string;
+  submissionDate: string;
+  fundingDeadline?: string;
+  maturityDate: string;
+  invoiceValue: string;
+  financingAmount: string;
+  progress: number; // 0..100
+  fundingLabel: string;
+  customer?: string;
+};
+
+type Application = {
+  id: string;
+  title: string;
+  status: "Active" | "Inactive";
+  contracts: ContractItem[];
+  invoices: InvoiceItem[];
+};
+
+const mockApplications: Application[] = [
   {
     id: "app1",
     title: "Mining Rig Repair 12654",
@@ -29,6 +62,20 @@ const mockApplications = [
         period: "01/01/2026 to 31/12/2026",
         utilised: "RM 10,000",
         approved: "RM 50,000",
+        utilisationPct: 20,
+        status: "Active",
+        activeNotes: 3,
+      },
+      {
+        id: "c2",
+        title: "Development of Gate Valve",
+        customer: "Petronas Chemical Bhd",
+        period: "01/01/2026 to 31/12/2026",
+        utilised: "RM 10,000",
+        approved: "RM 50,000",
+        utilisationPct: 20,
+        status: "Amendment required",
+        activeNotes: 3,
       },
     ],
     invoices: [
@@ -41,243 +88,188 @@ const mockApplications = [
         invoiceValue: "RM 40,000",
         financingAmount: "RM 30,000",
         progress: 0,
+        fundingLabel: "Funding status (Not yet started)",
+        customer: "Berjaya Group Bhd",
       },
       {
         id: "i2",
         invoiceNo: "INV-11109",
         status: "In progress",
         submissionDate: "03/01/2026",
+        fundingDeadline: "15/02/2026",
         maturityDate: "31/06/2026",
         invoiceValue: "RM 20,000",
         financingAmount: "RM 15,000",
         progress: 75,
+        fundingLabel: "Funding status: (75%)",
+        customer: "Berjaya Group Bhd",
+      },
+      {
+        id: "i3",
+        invoiceNo: "INV-11108",
+        status: "Funded",
+        noteNo: "54754",
+        submissionDate: "03/01/2026",
+        fundingDeadline: "31/01/2026",
+        maturityDate: "31/06/2026",
+        invoiceValue: "RM 20,000",
+        financingAmount: "RM 15,000",
+        progress: 80,
+        fundingLabel: "Funding status: 80% funded (RM 12,000)",
+        customer: "Berjaya Group Bhd",
       },
     ],
   },
-]
+];
 
 /* ============================================================
-   Status Badge Helpers
+   Badge helpers
 ============================================================ */
 
-function contractBadge(status: string) {
-  return (
-    <Badge className="bg-green-100 text-green-700">
-      {status}
-    </Badge>
-  )
+function applicationBadge(status: Application["status"]) {
+  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{status}</Badge>;
 }
 
-function invoiceBadge(status: string) {
+function contractBadge(status: ContractItem["status"]) {
+  if (status === "Amendment required") {
+    return (
+      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>
+    );
+  }
+  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>;
+}
+
+function invoiceBadge(status: InvoiceStatus) {
   switch (status) {
     case "Draft":
-      return <Badge variant="secondary">Draft</Badge>
+      return <Badge variant="secondary">Draft</Badge>;
     case "In progress":
-      return <Badge className="bg-green-100 text-green-700">In progress</Badge>
+      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">In progress</Badge>;
     case "Funded":
-      return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
+      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Funded</Badge>;
     case "Completed":
-      return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
+      return (
+        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>
+      );
     case "Unsuccessful":
-      return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
-    default:
-      return null
+      return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
   }
 }
 
 /* ============================================================
-   Main Component
+   Main
 ============================================================ */
 
 export function FinancingSection() {
-  const [openApplicationId, setOpenApplicationId] = useState<string | null>(
-    mockApplications[0].id
-  )
+  const [openApplicationId, setOpenApplicationId] = useState<string | null>(mockApplications[0]?.id);
 
   return (
     <div className="space-y-6">
-
       {mockApplications.map((app) => {
-        const isOpen = openApplicationId === app.id
+        const isOpen = openApplicationId === app.id;
 
         return (
-          <Card
-            key={app.id}
-            className="rounded-xl border border-gray-200 shadow-sm"
-          >
-            {/* APPLICATION HEADER */}
-            <div
+          <Card key={app.id} className="rounded-xl border border-gray-200 shadow-sm">
+            {/* APPLICATION HEADER (divider only here) */}
+            <button
+              type="button"
               onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
-              className="flex items-center justify-between p-6 cursor-pointer select-none border-b border-muted"
+              className="w-full text-left"
             >
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <h3 className="font-semibold text-base">
-                  {app.title}
-                </h3>
-                {contractBadge(app.status)}
+              <div className="flex items-center justify-between px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="font-semibold text-[15px] leading-6">{app.title}</h3>
+                  {applicationBadge(app.status)}
+                </div>
+
+                <ChevronButton isOpen={isOpen} />
               </div>
 
-              {isOpen ? (
-                <ChevronUp className="h-5 w-5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-muted-foreground" />
-              )}
-            </div>
+              <div className="px-6">
+                <div className="h-px w-full bg-border/70" />
+              </div>
+            </button>
 
-            {/* APPLICATION BODY */}
+            {/* BODY */}
             {isOpen && (
-              <div className="px-6 pb-6 space-y-10">
-
-                {/* CONTRACT SECTION */}
-                <CollapsibleCategory title="Contract financing" filters={["Status", "Date", "Customer"]} >
-                  {app.contracts.map((c) => (
-                    <Card
-                      key={c.id}
-                      className="p-6 rounded-xl border border-gray-200"
-                    >
-                      <div className="flex justify-between">
-                        <div className="space-y-3">
-                          <p className="text-sm font-semibold">
-                            Contract : {c.title}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Customer : {c.customer}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Contract period : {c.period}
-                          </p>
-                        </div>
-
-                        <div className="w-[320px] space-y-3">
-                          <div className="h-2 bg-gray-200 rounded-full">
-                            <div className="h-2 bg-black rounded-full w-[40%]" />
-                          </div>
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>{c.utilised}</span>
-                            <span>{c.approved}</span>
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full h-9 w-9 ml-4"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
+              <div className="px-6 py-6 space-y-8">
+                <CollapsibleCategory
+                  title="Contract financing"
+                  defaultOpen
+                  filters={
+                    <>
+                      <FilterButton label="Status" />
+                      <FilterButton label="Date" />
+                      <FilterButton label="Customer" />
+                    </>
+                  }
+                >
+                  <div className="space-y-4">
+                    {app.contracts.map((c) => (
+                      <ContractCard key={c.id} item={c} />
+                    ))}
+                  </div>
                 </CollapsibleCategory>
 
-                {/* INVOICE SECTION */}
-                <CollapsibleCategory title="Invoice financing" filters={["Status", "Submission date"]}>
-                  {app.invoices.map((inv) => (
-                    <Card
-                      key={inv.id}
-                      className="p-6 rounded-xl border border-gray-200"
-                    >
-                      <div className="flex justify-between">
-                        <div className="space-y-4 flex-1">
-                          <div className="flex items-center gap-3">
-                            <p className="text-sm font-medium">
-                              Invoice no :{" "}
-                              <span className="font-semibold">
-                                {inv.invoiceNo}
-                              </span>
-                            </p>
-                            {invoiceBadge(inv.status)}
-                          </div>
-
-                          <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">
-                              Invoice value : {inv.invoiceValue}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Financing amount : {inv.financingAmount}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="w-[320px] space-y-3">
-                          <p className="text-sm text-muted-foreground">
-                            Submission date: {inv.submissionDate}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Maturity date: {inv.maturityDate}
-                          </p>
-
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-2 bg-black rounded-full"
-                              style={{ width: `${inv.progress}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full h-9 w-9 ml-4"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
+                <CollapsibleCategory
+                  title="Invoice financing"
+                  defaultOpen
+                  filters={
+                    <>
+                      <FilterButton label="Status" />
+                      <FilterButton label="Date" />
+                      <FilterButton label="Customer" />
+                    </>
+                  }
+                >
+                  <div className="space-y-4">
+                    {app.invoices.map((inv) => (
+                      <InvoiceCard key={inv.id} item={inv} />
+                    ))}
+                  </div>
                 </CollapsibleCategory>
-
               </div>
             )}
           </Card>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /* ============================================================
-   Collapsible Category Component
+   Category header: filters + separator + chevron far right
 ============================================================ */
 
 function CollapsibleCategory({
   title,
   children,
+  defaultOpen = true,
   filters,
 }: {
-  title: string
-  children: React.ReactNode
-  filters?: string[]
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  filters?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className="space-y-4">
-      {/* HEADER (no underline) */}
-      <div className="flex items-center justify-between">
-        {/* LEFT: Title */}
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-[15px] font-semibold">{title}</h4>
 
-        {/* RIGHT: Filters + Separator + Chevron */}
-        <div className="flex items-center">
-          {/* Filters (do not toggle collapse) */}
-          {filters && (
-            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              {filters.map((filter) => (
-                <FilterButton key={filter} label={filter} />
-              ))}
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">{filters}</div>
 
-          {/* Vertical Separator */}
-          <div className="mx-3 h-6 w-px bg-border" />
+          <Separator orientation="vertical" className="mx-1 h-6" />
 
-          {/* Chevron (toggles collapse) */}
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted"
+            aria-label={open ? "Collapse" : "Expand"}
           >
             {open ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -288,25 +280,520 @@ function CollapsibleCategory({
         </div>
       </div>
 
-      {/* BODY */}
-      {open && <div className="space-y-4">{children}</div>}
+      {open && <div>{children}</div>}
     </div>
+  );
+}
+
+/* ============================================================
+   Cards: grid layout -> content | right column | action column
+============================================================ */
+
+function ContractCard({ item }: { item: ContractItem }) {
+  return (
+    <Card className="relative rounded-xl border border-gray-200 shadow-sm">
+      <div className="px-6 py-5 space-y-5">
+
+        {/* TOP ROW (Title + 3 Dot) */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-medium">
+              Contract : <span className="font-semibold">{item.title}</span>
+            </p>
+            {contractBadge(item.status)}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full h-9 w-9"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* BODY (2 COLUMN GRID starts perfectly aligned) */}
+        <div className="grid grid-cols-[1fr_320px] gap-6">
+
+          {/* LEFT */}
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Customer : <span className="text-foreground font-medium">{item.customer}</span>
+            </p>
+            <p>
+              Contract period :{" "}
+              <span className="text-foreground font-medium">{item.period}</span>
+            </p>
+            {item.activeNotes !== undefined && (
+              <p>Active notes : {item.activeNotes}</p>
+            )}
+          </div>
+
+          {/* RIGHT (starts same vertical height as left) */}
+  <div className="space-y-3">
+  <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+    <div
+      className="h-2 bg-black rounded-full"
+      style={{ width: `${item.utilisationPct}%` }}
+    />
+  </div>
+
+  <div className="flex justify-between">
+    <div>
+      <p className="text-sm font-medium text-foreground">
+        {item.utilised}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        (Utilised facility)
+      </p>
+    </div>
+
+    <div className="text-right">
+      <p className="text-sm font-medium text-foreground">
+        {item.approved}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        (Approved facility)
+      </p>
+    </div>
+  </div>
+
+  <div className="flex justify-end">
+    <button className="text-xs font-medium text-primary hover:underline">
+      View details →
+    </button>
+  </div>
+</div>
+
+        </div>
+      </div>
+    </Card>
   )
 }
 
+function InvoiceCard({ item }: { item: InvoiceItem }) {
+  return (
+    <Card className="relative rounded-xl border border-gray-200 shadow-sm">
+      <div className="px-6 py-5 space-y-5">
+
+        {/* TOP ROW */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-medium">
+              Invoice no : <span className="font-semibold">{item.invoiceNo}</span>
+            </p>
+            {invoiceBadge(item.status)}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full h-9 w-9"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* BODY GRID */}
+        <div className="grid grid-cols-[1fr_340px] gap-6">
+
+          {/* LEFT */}
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Note no : <span className="text-foreground font-medium">{item.noteNo ?? "-"}</span>
+            </p>
+            {item.customer && (
+              <p>
+                Customer : <span className="text-foreground font-medium">{item.customer}</span>
+              </p>
+            )}
+
+            <div className="space-y-1">
+              <p>
+                Invoice value :{" "}
+                <span className="text-foreground font-medium">{item.invoiceValue}</span>
+              </p>
+              <p>
+                Financing amount :{" "}
+                <span className="text-foreground font-medium">{item.financingAmount}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* RIGHT */}
+          <div className="space-y-3">
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>
+                Submission date:{" "}
+                <span className="text-foreground font-medium">{item.submissionDate}</span>
+              </p>
+              <p>
+                Funding deadline:{" "}
+                <span className="text-foreground font-medium">
+                  {item.fundingDeadline ?? "NA"}
+                </span>
+              </p>
+              <p>
+                Maturity date:{" "}
+                <span className="text-foreground font-medium">{item.maturityDate}</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-2 bg-black rounded-full"
+                  style={{ width: `${item.progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{item.fundingLabel}</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+/* ============================================================
+   Bits
+============================================================ */
+
+function ChevronButton({ isOpen }: { isOpen: boolean }) {
+  return (
+    <span className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted">
+      {isOpen ? (
+        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+      ) : (
+        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+      )}
+    </span>
+  );
+}
 
 function FilterButton({ label }: { label: string }) {
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="h-8 text-xs font-medium gap-1 px-3"
-    >
+    <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
       <FunnelIcon className="h-3.5 w-3.5" />
       {label}
     </Button>
-  )
+  );
 }
+// "use client"
+
+// import { useState } from "react"
+// import {
+//   ChevronDown,
+//   ChevronUp,
+//   MoreVertical,
+//   FileText,
+// } from "lucide-react"
+// import { Button } from "@/components/ui/button"
+// import { Badge } from "@/components/ui/badge"
+// import { Card } from "@/components/ui/card"
+// import { FunnelIcon } from "@heroicons/react/24/outline"
+
+// /* ============================================================
+//    Mock Application Data (Application Level)
+// ============================================================ */
+
+// const mockApplications = [
+//   {
+//     id: "app1",
+//     title: "Mining Rig Repair 12654",
+//     status: "Active",
+//     contracts: [
+//       {
+//         id: "c1",
+//         title: "Mining Rig Repair 12654",
+//         customer: "Petronas Chemical Bhd",
+//         period: "01/01/2026 to 31/12/2026",
+//         utilised: "RM 10,000",
+//         approved: "RM 50,000",
+//       },
+//     ],
+//     invoices: [
+//       {
+//         id: "i1",
+//         invoiceNo: "INV-11110",
+//         status: "Draft",
+//         submissionDate: "03/02/2026",
+//         maturityDate: "31/07/2026",
+//         invoiceValue: "RM 40,000",
+//         financingAmount: "RM 30,000",
+//         progress: 0,
+//       },
+//       {
+//         id: "i2",
+//         invoiceNo: "INV-11109",
+//         status: "In progress",
+//         submissionDate: "03/01/2026",
+//         maturityDate: "31/06/2026",
+//         invoiceValue: "RM 20,000",
+//         financingAmount: "RM 15,000",
+//         progress: 75,
+//       },
+//     ],
+//   },
+// ]
+
+// /* ============================================================
+//    Status Badge Helpers
+// ============================================================ */
+
+// function contractBadge(status: string) {
+//   return (
+//     <Badge className="bg-green-100 text-green-700">
+//       {status}
+//     </Badge>
+//   )
+// }
+
+// function invoiceBadge(status: string) {
+//   switch (status) {
+//     case "Draft":
+//       return <Badge variant="secondary">Draft</Badge>
+//     case "In progress":
+//       return <Badge className="bg-green-100 text-green-700">In progress</Badge>
+//     case "Funded":
+//       return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
+//     case "Completed":
+//       return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
+//     case "Unsuccessful":
+//       return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
+//     default:
+//       return null
+//   }
+// }
+
+// /* ============================================================
+//    Main Component
+// ============================================================ */
+
+// export function FinancingSection() {
+//   const [openApplicationId, setOpenApplicationId] = useState<string | null>(
+//     mockApplications[0].id
+//   )
+
+//   return (
+//     <div className="space-y-6">
+
+//       {mockApplications.map((app) => {
+//         const isOpen = openApplicationId === app.id
+
+//         return (
+//           <Card
+//             key={app.id}
+//             className="rounded-xl border border-gray-200 shadow-sm"
+//           >
+//             {/* APPLICATION HEADER */}
+//             <div
+//               onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
+//               className="flex items-center justify-between p-6 cursor-pointer select-none border-b border-muted"
+//             >
+//               <div className="flex items-center gap-3">
+//                 <FileText className="h-5 w-5 text-muted-foreground" />
+//                 <h3 className="font-semibold text-base">
+//                   {app.title}
+//                 </h3>
+//                 {contractBadge(app.status)}
+//               </div>
+
+//               {isOpen ? (
+//                 <ChevronUp className="h-5 w-5 text-muted-foreground" />
+//               ) : (
+//                 <ChevronDown className="h-5 w-5 text-muted-foreground" />
+//               )}
+//             </div>
+
+//             {/* APPLICATION BODY */}
+//             {isOpen && (
+//               <div className="px-6 pb-6 space-y-10">
+
+//                 {/* CONTRACT SECTION */}
+//                 <CollapsibleCategory title="Contract financing" filters={["Status", "Date", "Customer"]} >
+//                   {app.contracts.map((c) => (
+//                     <Card
+//                       key={c.id}
+//                       className="p-6 rounded-xl border border-gray-200"
+//                     >
+//                       <div className="flex justify-between">
+//                         <div className="space-y-3">
+//                           <p className="text-sm font-semibold">
+//                             Contract : {c.title}
+//                           </p>
+//                           <p className="text-sm text-muted-foreground">
+//                             Customer : {c.customer}
+//                           </p>
+//                           <p className="text-sm text-muted-foreground">
+//                             Contract period : {c.period}
+//                           </p>
+//                         </div>
+
+//                         <div className="w-[320px] space-y-3">
+//                           <div className="h-2 bg-gray-200 rounded-full">
+//                             <div className="h-2 bg-black rounded-full w-[40%]" />
+//                           </div>
+//                           <div className="flex justify-between text-sm text-muted-foreground">
+//                             <span>{c.utilised}</span>
+//                             <span>{c.approved}</span>
+//                           </div>
+//                         </div>
+
+//                         <Button
+//                           variant="ghost"
+//                           size="icon"
+//                           className="rounded-full h-9 w-9 ml-4"
+//                         >
+//                           <MoreVertical className="h-4 w-4" />
+//                         </Button>
+//                       </div>
+//                     </Card>
+//                   ))}
+//                 </CollapsibleCategory>
+
+//                 {/* INVOICE SECTION */}
+//                 <CollapsibleCategory title="Invoice financing" filters={["Status", "Submission date"]}>
+//                   {app.invoices.map((inv) => (
+//                     <Card
+//                       key={inv.id}
+//                       className="p-6 rounded-xl border border-gray-200"
+//                     >
+//                       <div className="flex justify-between">
+//                         <div className="space-y-4 flex-1">
+//                           <div className="flex items-center gap-3">
+//                             <p className="text-sm font-medium">
+//                               Invoice no :{" "}
+//                               <span className="font-semibold">
+//                                 {inv.invoiceNo}
+//                               </span>
+//                             </p>
+//                             {invoiceBadge(inv.status)}
+//                           </div>
+
+//                           <div className="space-y-1">
+//                             <p className="text-sm text-muted-foreground">
+//                               Invoice value : {inv.invoiceValue}
+//                             </p>
+//                             <p className="text-sm text-muted-foreground">
+//                               Financing amount : {inv.financingAmount}
+//                             </p>
+//                           </div>
+//                         </div>
+
+//                         <div className="w-[320px] space-y-3">
+//                           <p className="text-sm text-muted-foreground">
+//                             Submission date: {inv.submissionDate}
+//                           </p>
+//                           <p className="text-sm text-muted-foreground">
+//                             Maturity date: {inv.maturityDate}
+//                           </p>
+
+//                           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+//                             <div
+//                               className="h-2 bg-black rounded-full"
+//                               style={{ width: `${inv.progress}%` }}
+//                             />
+//                           </div>
+//                         </div>
+
+//                         <Button
+//                           variant="ghost"
+//                           size="icon"
+//                           className="rounded-full h-9 w-9 ml-4"
+//                         >
+//                           <MoreVertical className="h-4 w-4" />
+//                         </Button>
+//                       </div>
+//                     </Card>
+//                   ))}
+//                 </CollapsibleCategory>
+
+//               </div>
+//             )}
+//           </Card>
+//         )
+//       })}
+//     </div>
+//   )
+// }
+
+// /* ============================================================
+//    Collapsible Category Component
+// ============================================================ */
+
+// function CollapsibleCategory({
+//   title,
+//   children,
+//   filters,
+// }: {
+//   title: string
+//   children: React.ReactNode
+//   filters?: string[]
+// }) {
+//   const [open, setOpen] = useState(true)
+
+//   return (
+//     <div className="space-y-4">
+//       {/* HEADER (no underline) */}
+//       <div className="flex items-center justify-between">
+//         {/* LEFT: Title */}
+//         <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+
+//         {/* RIGHT: Filters + Separator + Chevron */}
+//         <div className="flex items-center">
+//           {/* Filters (do not toggle collapse) */}
+//           {filters && (
+//             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+//               {filters.map((filter) => (
+//                 <FilterButton key={filter} label={filter} />
+//               ))}
+//             </div>
+//           )}
+
+//           {/* Vertical Separator */}
+//           <div className="mx-3 h-6 w-px bg-border" />
+
+//           {/* Chevron (toggles collapse) */}
+//           <button
+//             type="button"
+//             onClick={() => setOpen(!open)}
+//             className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition"
+//           >
+//             {open ? (
+//               <ChevronUp className="h-4 w-4 text-muted-foreground" />
+//             ) : (
+//               <ChevronDown className="h-4 w-4 text-muted-foreground" />
+//             )}
+//           </button>
+//         </div>
+//       </div>
+
+//       {/* BODY */}
+//       {open && <div className="space-y-4">{children}</div>}
+//     </div>
+//   )
+// }
+
+
+// function FilterButton({ label }: { label: string }) {
+//   return (
+//     <Button
+//       variant="outline"
+//       size="sm"
+//       className="h-8 text-xs font-medium gap-1 px-3"
+//     >
+//       <FunnelIcon className="h-3.5 w-3.5" />
+//       {label}
+//     </Button>
+//   )
+// }
+
+
+
 // "use client"
 
 // import { useState } from "react"
