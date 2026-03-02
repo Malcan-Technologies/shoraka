@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { FunnelIcon } from "@heroicons/react/24/outline";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 /* ============================================================
    Mock Data
@@ -304,9 +311,28 @@ function ContractCard({ item }: { item: ContractItem }) {
             {contractBadge(item.status)}
           </div>
 
-          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="rounded-full h-9 w-9"
+    >
+      <MoreVertical className="h-4 w-4" />
+    </Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent align="end" className="w-44">
+    <DropdownMenuItem>View contract</DropdownMenuItem>
+    <DropdownMenuItem>Request amendment</DropdownMenuItem>
+
+    <DropdownMenuSeparator />
+
+    <DropdownMenuItem className="text-red-600">
+      Archive
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
         </div>
 
         {/* BODY */}
@@ -393,9 +419,29 @@ function InvoiceCard({ item }: { item: InvoiceItem }) {
             {invoiceBadge(item.status)}
           </div>
 
-          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
+    <DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="rounded-full h-9 w-9"
+    >
+      <MoreVertical className="h-4 w-4" />
+    </Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent align="end" className="w-44">
+    <DropdownMenuItem>View details</DropdownMenuItem>
+    <DropdownMenuItem>Edit</DropdownMenuItem>
+    <DropdownMenuItem>Download</DropdownMenuItem>
+
+    <DropdownMenuSeparator />
+
+    <DropdownMenuItem className="text-red-600">
+      Delete
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu> 
         </div>
 
         {/* BODY */}
