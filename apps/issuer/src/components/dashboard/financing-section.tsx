@@ -291,10 +291,10 @@ function CollapsibleCategory({
 
 function ContractCard({ item }: { item: ContractItem }) {
   return (
-    <Card className="relative rounded-xl border border-gray-200 shadow-sm">
+    <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
 
-        {/* TOP ROW (Title + 3 Dot) */}
+        {/* HEADER */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -304,67 +304,72 @@ function ContractCard({ item }: { item: ContractItem }) {
             {contractBadge(item.status)}
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full h-9 w-9"
-          >
+          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* BODY (2 COLUMN GRID starts perfectly aligned) */}
-        <div className="grid grid-cols-[1fr_320px] gap-6">
+        {/* BODY */}
+        <div className="grid grid-cols-[1fr_380px] gap-6 items-start">
 
           {/* LEFT */}
-          <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              Customer : <span className="text-foreground font-medium">{item.customer}</span>
+              Customer :{" "}
+              <span className="text-foreground font-medium">
+                {item.customer}
+              </span>
             </p>
+
             <p>
               Contract period :{" "}
-              <span className="text-foreground font-medium">{item.period}</span>
+              <span className="text-foreground font-medium">
+                {item.period}
+              </span>
             </p>
+
             {item.activeNotes !== undefined && (
               <p>Active notes : {item.activeNotes}</p>
             )}
           </div>
 
-          {/* RIGHT (starts same vertical height as left) */}
-  <div className="space-y-3">
-  <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-    <div
-      className="h-2 bg-black rounded-full"
-      style={{ width: `${item.utilisationPct}%` }}
-    />
-  </div>
+          {/* RIGHT */}
+          <div className="space-y-3">
 
-  <div className="flex justify-between">
-    <div>
-      <p className="text-sm font-medium text-foreground">
-        {item.utilised}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        (Utilised facility)
-      </p>
-    </div>
+            <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-2 bg-black rounded-full"
+                style={{ width: `${item.utilisationPct}%` }}
+              />
+            </div>
 
-    <div className="text-right">
-      <p className="text-sm font-medium text-foreground">
-        {item.approved}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        (Approved facility)
-      </p>
-    </div>
-  </div>
+            <div className="flex justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {item.utilised}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  (Utilised facility)
+                </p>
+              </div>
 
-  <div className="flex justify-end">
-    <button className="text-xs font-medium text-primary hover:underline">
-      View details →
-    </button>
-  </div>
-</div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-foreground">
+                  {item.approved}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  (Approved facility)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button className="text-xs font-medium text-primary hover:underline">
+                View details →
+              </button>
+            </div>
+
+          </div>
 
         </div>
       </div>
@@ -374,70 +379,86 @@ function ContractCard({ item }: { item: ContractItem }) {
 
 function InvoiceCard({ item }: { item: InvoiceItem }) {
   return (
-    <Card className="relative rounded-xl border border-gray-200 shadow-sm">
+    <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
 
-        {/* TOP ROW */}
+        {/* HEADER */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">
-              Invoice no : <span className="font-semibold">{item.invoiceNo}</span>
+              Invoice no :{" "}
+              <span className="font-semibold">{item.invoiceNo}</span>
             </p>
             {invoiceBadge(item.status)}
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full h-9 w-9"
-          >
+          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* BODY GRID */}
-        <div className="grid grid-cols-[1fr_340px] gap-6">
+        {/* BODY */}
+        <div className="grid grid-cols-[1fr_380px] gap-6 items-start">
 
           {/* LEFT */}
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              Note no : <span className="text-foreground font-medium">{item.noteNo ?? "-"}</span>
+              Note no :{" "}
+              <span className="text-foreground font-medium">
+                {item.noteNo ?? "-"}
+              </span>
             </p>
+
             {item.customer && (
               <p>
-                Customer : <span className="text-foreground font-medium">{item.customer}</span>
+                Customer :{" "}
+                <span className="text-foreground font-medium">
+                  {item.customer}
+                </span>
               </p>
             )}
 
             <div className="space-y-1">
               <p>
                 Invoice value :{" "}
-                <span className="text-foreground font-medium">{item.invoiceValue}</span>
+                <span className="text-foreground font-medium">
+                  {item.invoiceValue}
+                </span>
               </p>
+
               <p>
                 Financing amount :{" "}
-                <span className="text-foreground font-medium">{item.financingAmount}</span>
+                <span className="text-foreground font-medium">
+                  {item.financingAmount}
+                </span>
               </p>
             </div>
           </div>
 
           {/* RIGHT */}
           <div className="space-y-3">
+
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>
                 Submission date:{" "}
-                <span className="text-foreground font-medium">{item.submissionDate}</span>
+                <span className="text-foreground font-medium">
+                  {item.submissionDate}
+                </span>
               </p>
+
               <p>
                 Funding deadline:{" "}
                 <span className="text-foreground font-medium">
                   {item.fundingDeadline ?? "NA"}
                 </span>
               </p>
+
               <p>
                 Maturity date:{" "}
-                <span className="text-foreground font-medium">{item.maturityDate}</span>
+                <span className="text-foreground font-medium">
+                  {item.maturityDate}
+                </span>
               </p>
             </div>
 
@@ -448,8 +469,12 @@ function InvoiceCard({ item }: { item: InvoiceItem }) {
                   style={{ width: `${item.progress}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">{item.fundingLabel}</p>
+
+              <p className="text-xs text-muted-foreground">
+                {item.fundingLabel}
+              </p>
             </div>
+
           </div>
 
         </div>
