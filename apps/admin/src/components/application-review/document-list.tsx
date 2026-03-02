@@ -103,6 +103,8 @@ export interface DocumentListProps {
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
   isViewDocumentPending?: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
 }
 
 export function DocumentList({
@@ -116,6 +118,8 @@ export function DocumentList({
   onResetItemToPending,
   isItemActionPending,
   isViewDocumentPending,
+  isActionLocked,
+  actionLockTooltip,
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
@@ -180,6 +184,8 @@ export function DocumentList({
                             itemId={key}
                             status={status}
                             isPending={isItemActionPending}
+                            isActionLocked={isActionLocked}
+                            actionLockTooltip={actionLockTooltip}
                             onApprove={onApproveItem}
                             onReject={onRejectItem}
                             onRequestAmendment={onRequestAmendmentItem}

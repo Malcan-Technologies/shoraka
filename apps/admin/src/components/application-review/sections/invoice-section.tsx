@@ -80,7 +80,9 @@ export function InvoiceSection({
             isReviewable={!!isReviewable}
             onViewDocument={onViewDocument}
             isViewDocumentPending={viewDocumentPending}
-            invoiceRatioLimits={invoiceRatioLimits}
+            invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}

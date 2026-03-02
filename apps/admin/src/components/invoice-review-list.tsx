@@ -37,6 +37,8 @@ interface InvoiceReviewListProps {
   onViewDocument: (s3Key: string) => void;
   isViewDocumentPending: boolean;
   invoiceRatioLimits: { min: number; max: number };
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -88,6 +90,8 @@ export function InvoiceList({
   onViewDocument,
   isViewDocumentPending,
   invoiceRatioLimits,
+  isActionLocked,
+  actionLockTooltip,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -183,6 +187,8 @@ export function InvoiceList({
                         itemId={inv.id}
                         status={status}
                         isPending={isItemActionPending}
+                        isActionLocked={isActionLocked}
+                        actionLockTooltip={actionLockTooltip}
                         onApprove={onApproveItem}
                         onReject={onRejectItem}
                         onRequestAmendment={onRequestAmendmentItem}

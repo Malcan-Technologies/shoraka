@@ -83,6 +83,8 @@ export function DocumentsSection({
             onResetItemToPending={onResetItemToPending}
             isItemActionPending={approvePending}
             isViewDocumentPending={viewDocumentPending}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
           />
         ) : (
           <p className="text-sm text-muted-foreground">No supporting documents submitted.</p>
