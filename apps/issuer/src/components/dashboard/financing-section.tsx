@@ -28,9 +28,13 @@ type ContractItem = {
   period: string;
   utilised: string;
   approved: string;
-  utilisationPct: number; // 0..100
+  utilisationPct: number;
   status: "Active" | "Amendment required";
+
   activeNotes?: number;
+
+  // NEW
+  offerStatus?: "Offer received" | "Offer expired";
 };
 
 type InvoiceItem = {
@@ -43,9 +47,12 @@ type InvoiceItem = {
   maturityDate: string;
   invoiceValue: string;
   financingAmount: string;
-  progress: number; // 0..100
+  progress: number;
   fundingLabel: string;
   customer?: string;
+
+  // NEW
+  offerStatus?: "Offer received" | "Offer expired";
 };
 
 type Application = {
@@ -171,6 +178,45 @@ function invoiceBadge(status: InvoiceStatus) {
     case "Unsuccessful":
       return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
   }
+}
+
+function offerBadge(offerStatus?: "Offer received" | "Offer expired") {
+  if (!offerStatus) return null;
+
+  if (offerStatus === "Offer expired") {
+    return (
+      <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
+        Offer expired
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+      Offer received
+    </Badge>
+  );
+}
+
+function ReviewOfferButton({
+  show,
+  onClick,
+}: {
+  show: boolean;
+  onClick?: () => void;
+}) {
+  if (!show) return null;
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      className="h-8 rounded-md px-3 text-xs font-medium"
+      onClick={onClick}
+    >
+      Review offer
+    </Button>
+  );
 }
 
 /* ============================================================
@@ -312,37 +358,45 @@ function ContractCard({ item }: { item: ContractItem }) {
       <div className="px-6 py-5 space-y-5">
 
         {/* HEADER */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium truncate">
               Contract : <span className="font-semibold">{item.title}</span>
             </p>
             {contractBadge(item.status)}
+            {offerBadge(item.offerStatus)}
           </div>
 
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button
-      variant="ghost"
-      size="icon"
-      className="rounded-full h-9 w-9"
-    >
-      <MoreVertical className="h-4 w-4" />
-    </Button>
-  </DropdownMenuTrigger>
+          <div className="flex items-center gap-2 shrink-0">
+            <ReviewOfferButton
+              show={item.offerStatus === "Offer received" || true}
+              onClick={() => console.log("Review offer contract", item.id)}
+            />
 
-  <DropdownMenuContent align="end" className="w-44">
-    <DropdownMenuItem>View contract</DropdownMenuItem>
-    <DropdownMenuItem>Request amendment</DropdownMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full h-9 w-9"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
 
-    <DropdownMenuSeparator />
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem>View contract</DropdownMenuItem>
+                <DropdownMenuItem>Request amendment</DropdownMenuItem>
 
-    <DropdownMenuItem className="text-red-600">
-      Archive
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem className="text-red-600">
+                  Archive
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* BODY */}
@@ -419,39 +473,46 @@ function InvoiceCard({ item }: { item: InvoiceItem }) {
       <div className="px-6 py-5 space-y-5">
 
         {/* HEADER */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              Invoice no :{" "}
-              <span className="font-semibold">{item.invoiceNo}</span>
+            <p className="text-sm font-medium truncate">
+              Invoice no : <span className="font-semibold">{item.invoiceNo}</span>
             </p>
             {invoiceBadge(item.status)}
+            {offerBadge(item.offerStatus)}
           </div>
 
-    <DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button
-      variant="ghost"
-      size="icon"
-      className="rounded-full h-9 w-9"
-    >
-      <MoreVertical className="h-4 w-4" />
-    </Button>
-  </DropdownMenuTrigger>
+          <div className="flex items-center gap-2 shrink-0">
+            <ReviewOfferButton
+              show={item.offerStatus === "Offer received" || true}
+              onClick={() => console.log("Review offer invoice", item.id)}
+            />
 
-  <DropdownMenuContent align="end" className="w-44">
-    <DropdownMenuItem>View details</DropdownMenuItem>
-    <DropdownMenuItem>Edit</DropdownMenuItem>
-    <DropdownMenuItem>Download</DropdownMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full h-9 w-9"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
 
-    <DropdownMenuSeparator />
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem>View details</DropdownMenuItem>
+                <DropdownMenuItem>Edit</DropdownMenuItem>
+                <DropdownMenuItem>Download</DropdownMenuItem>
 
-    <DropdownMenuItem className="text-red-600">
-      Delete
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu> 
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem className="text-red-600">
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* BODY */}
@@ -563,6 +624,8 @@ function FilterButton({ label }: { label: string }) {
     </Button>
   );
 }
+
+
 // "use client"
 
 // import { useState } from "react"
