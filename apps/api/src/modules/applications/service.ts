@@ -171,6 +171,20 @@ export class ApplicationService {
 
   }
 
+  async getApplicationLogs(id: string, userId: string) {
+  // Make sure user has access
+  await this.verifyApplicationAccess(id, userId);
+
+  return prisma.applicationLog.findMany({
+    where: {
+      application_id: id,
+    },
+    orderBy: {
+      created_at: "desc",
+    },
+  });
+}
+
   /**
    * Update a specific step in the application
    */

@@ -251,6 +251,23 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
   }
 }
 
+async function getApplicationLogsHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+
+    const logs = await applicationService.getApplicationLogs(id, userId);
+
+    res.json({
+      success: true,
+      data: logs,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Create router for application routes
  */
@@ -271,7 +288,9 @@ export function createApplicationRouter(): Router {
   router.post("/:id/archive", requireAuth, archiveApplication);
 
   // Parameterized route comes last
-  router.get("/:id", requireAuth, getApplication);
+  
+  router.get("/:id/logs", requireAuth, getApplicationLogsHandler);
+router.get("/:id", requireAuth, getApplication);
 
   return router;
 }
