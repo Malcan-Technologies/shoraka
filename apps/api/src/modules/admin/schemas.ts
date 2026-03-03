@@ -284,21 +284,11 @@ export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
   remark: z.string().min(1, "Remark is required for amendment request"),
 });
 
-export const addPendingAmendmentSchema = z
-  .object({
-    scope: z.enum(["section", "item"]),
-    scopeKey: z.string().min(1).optional(),
-    remark: z.string().min(1, "Remark is required"),
-    itemType: z.enum(["invoice", "document"]).optional(),
-    itemId: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.scope === "section") return !!data.scopeKey;
-      return !!(data.itemType && data.itemId);
-    },
-    { message: "scopeKey required for section; itemType and itemId required for item" }
-  );
+export const addPendingAmendmentSchema = z.object({
+  scope: z.enum(["section", "item"]),
+  scopeKey: z.string().min(1, "scopeKey is required"),
+  remark: z.string().min(1, "Remark is required"),
+});
 
 export const updatePendingAmendmentSchema = z.object({
   remark: z.string().min(1, "Remark is required"),

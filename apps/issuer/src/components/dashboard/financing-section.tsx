@@ -15,147 +15,22 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation";
+import { useOrganization } from "@cashsouk/config";
+import { useOrganizationApplications } from "@/hooks/use-applications";
 
 /* ============================================================
-   Mock Data
+   Real data (applications for active organization)
 ============================================================ */
-
-type InvoiceStatus = "Draft" | "In progress" | "Funded" | "Completed" | "Unsuccessful";
-
-type ContractItem = {
-  id: string;
-  title: string;
-  customer: string;
-  period: string;
-  utilised: string;
-  approved: string;
-  utilisationPct: number;
-  status: "Active" | "Amendment required";
-
-  activeNotes?: number;
-
-  // NEW
-  offerStatus?: "Offer received" | "Offer expired";
-};
-
-type InvoiceItem = {
-  id: string;
-  invoiceNo: string;
-  status: InvoiceStatus;
-  noteNo?: string;
-  submissionDate: string;
-  fundingDeadline?: string;
-  maturityDate: string;
-  invoiceValue: string;
-  financingAmount: string;
-  progress: number;
-  fundingLabel: string;
-  customer?: string;
-
-  // NEW
-  offerStatus?: "Offer received" | "Offer expired";
-};
-
-type Application = {
-  id: string;
-  title: string;
-  status: "Active" | "Inactive";
-  contracts: ContractItem[];
-  invoices: InvoiceItem[];
-};
-
-const mockApplications: Application[] = [
-  {
-    id: "app1",
-    title: "Mining Rig Repair 12654",
-    status: "Active",
-    contracts: [
-      {
-        id: "c1",
-        title: "Mining Rig Repair 12654",
-        customer: "Petronas Chemical Bhd",
-        period: "01/01/2026 to 31/12/2026",
-        utilised: "RM 10,000",
-        approved: "RM 50,000",
-        utilisationPct: 20,
-        status: "Active",
-        activeNotes: 3,
-      },
-    ],
-    invoices: [
-      {
-        id: "i1",
-        invoiceNo: "INV-11110",
-        status: "Draft",
-        submissionDate: "03/02/2026",
-        maturityDate: "31/07/2026",
-        invoiceValue: "RM 40,000",
-        financingAmount: "RM 30,000",
-        progress: 0,
-        fundingLabel: "Funding status (Not yet started)",
-        customer: "Berjaya Group Bhd",
-      },
-    ],
-  },
-
-  {
-    id: "app2",
-    title: "Offshore Pipeline Maintenance 98321",
-    status: "Active",
-    contracts: [
-      {
-        id: "c2",
-        title: "Pipeline Maintenance Phase 1",
-        customer: "Shell Malaysia",
-        period: "01/03/2026 to 31/12/2026",
-        utilised: "RM 80,000",
-        approved: "RM 120,000",
-        utilisationPct: 66,
-        status: "Active",
-        activeNotes: 5,
-      },
-    ],
-    invoices: [
-      {
-        id: "i2",
-        invoiceNo: "INV-20231",
-        status: "Funded",
-        noteNo: "77821",
-        submissionDate: "10/02/2026",
-        fundingDeadline: "20/02/2026",
-        maturityDate: "31/08/2026",
-        invoiceValue: "RM 150,000",
-        financingAmount: "RM 120,000",
-        progress: 100,
-        fundingLabel: "Funding status: Fully funded",
-        customer: "Shell Malaysia",
-      },
-      {
-        id: "i3",
-        invoiceNo: "INV-20232",
-        status: "In progress",
-        submissionDate: "12/02/2026",
-        fundingDeadline: "25/02/2026",
-        maturityDate: "30/09/2026",
-        invoiceValue: "RM 90,000",
-        financingAmount: "RM 70,000",
-        progress: 45,
-        fundingLabel: "Funding status: 45% funded",
-        customer: "Shell Malaysia",
-      },
-    ],
-  },
-]
 
 /* ============================================================
    Badge helpers
 ============================================================ */
 
-function applicationBadge(status: Application["status"]) {
+function applicationBadge(status: any) {
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{status}</Badge>;
 }
 
-function contractBadge(status: ContractItem["status"]) {
+function contractBadge(status: any) {
   if (status === "Amendment required") {
     return (
       <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>
@@ -164,7 +39,7 @@ function contractBadge(status: ContractItem["status"]) {
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>;
 }
 
-function invoiceBadge(status: InvoiceStatus) {
+function invoiceBadge(status: any) {
   switch (status) {
     case "Draft":
       return <Badge variant="secondary">Draft</Badge>;
@@ -225,11 +100,19 @@ function ReviewOfferButton({
 ============================================================ */
 
 export function FinancingSection() {
-  const [openApplicationId, setOpenApplicationId] = useState<string | null>(mockApplications[0]?.id);
+  const { activeOrganization } = useOrganization();
+  const { data: applications = [], isLoading } = useOrganizationApplications(activeOrganization?.id);
+  const [openApplicationId, setOpenApplicationId] = useState<string | null>(applications[0]?.id ?? null);
+
+  React.useEffect(() => {
+    if (applications && applications.length > 0 && !openApplicationId) {
+      setOpenApplicationId(applications[0].id);
+    }
+  }, [applications, openApplicationId]);
 
   return (
     <div className="space-y-6">
-      {mockApplications.map((app) => {
+      {applications.map((app: any) => {
         const isOpen = openApplicationId === app.id;
 
         return (
@@ -243,7 +126,9 @@ export function FinancingSection() {
               <div className="flex items-center justify-between px-6 py-5">
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="font-semibold text-[15px] leading-6">{app.title}</h3>
+                  <h3 className="font-semibold text-[15px] leading-6">
+                    {app.contract?.contract_details?.title ?? `Application ${app.id}`}
+                  </h3>
                   {applicationBadge(app.status)}
                 </div>
 
@@ -270,9 +155,7 @@ export function FinancingSection() {
                   }
                 >
                   <div className="space-y-4">
-                    {app.contracts.map((c) => (
-                      <ContractCard key={c.id} item={c} />
-                    ))}
+                    {app.contract ? <ContractCard key={app.contract.id} item={app.contract} /> : null}
                   </div>
                 </CollapsibleCategory>
 
@@ -288,7 +171,7 @@ export function FinancingSection() {
                   }
                 >
                   <div className="space-y-4">
-                    {app.invoices.map((inv) => (
+                    {app.invoices?.map((inv: any) => (
                       <InvoiceCard key={inv.id} item={inv} />
                     ))}
                   </div>
@@ -353,128 +236,84 @@ function CollapsibleCategory({
    Cards: grid layout -> content | right column | action column
 ============================================================ */
 
-function ContractCard({ item }: { item: ContractItem }) {
+function ContractCard({ item }: { item: any }) {
   const router = useRouter();
+  const details = item.contract_details ?? {};
+  const customer = item.customer_details?.name ?? details?.customer ?? "-";
+  const start = details?.start_date;
+  const end = details?.end_date;
+  const approved = details?.approved_facility ?? 0;
+  const utilised = details?.utilized_facility ?? 0;
+  const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
 
   return (
     <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
-
-        {/* HEADER */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium truncate">
-              Contract : <span className="font-semibold">{item.title}</span>
+              Contract : <span className="font-semibold">{details?.title ?? item.id}</span>
             </p>
             {contractBadge(item.status)}
             {offerBadge(item.offerStatus)}
           </div>
-
           <div className="flex items-center gap-2 shrink-0">
-            <ReviewOfferButton
-              show={item.offerStatus === "Offer received" || true}
-              onClick={() => console.log("Review offer contract", item.id)}
-            />
-
+            <ReviewOfferButton show={item.offerStatus === "Offer received" || true} onClick={() => console.log("Review offer contract", item.id)} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-9 w-9"
-                >
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem>View contract</DropdownMenuItem>
                 <DropdownMenuItem>Request amendment</DropdownMenuItem>
-
                 <DropdownMenuSeparator />
-
-                <DropdownMenuItem className="text-red-600">
-                  Archive
-                </DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600">Archive</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        {/* BODY */}
         <div className="grid grid-cols-[1fr_380px] gap-6 items-start">
-
-          {/* LEFT */}
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              Customer :{" "}
-              <span className="text-foreground font-medium">
-                {item.customer}
-              </span>
+              Customer : <span className="text-foreground font-medium">{customer}</span>
             </p>
-
             <p>
-              Contract period :{" "}
-              <span className="text-foreground font-medium">
-                {item.period}
-              </span>
+              Contract period : <span className="text-foreground font-medium">{start && end ? `${start} to ${end}` : "-"}</span>
             </p>
-
-            {item.activeNotes !== undefined && (
-              <p>Active notes : {item.activeNotes}</p>
-            )}
+            {item.activeNotes !== undefined && <p>Active notes : {item.activeNotes}</p>}
           </div>
 
-          {/* RIGHT */}
           <div className="space-y-3">
-
             <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-2 bg-black rounded-full"
-                style={{ width: `${item.utilisationPct}%` }}
-              />
+              <div className="h-2 bg-black rounded-full" style={{ width: `${utilisationPct}%` }} />
             </div>
-
             <div className="flex justify-between">
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  {item.utilised}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  (Utilised facility)
-                </p>
+                <p className="text-sm font-medium text-foreground">{utilised}</p>
+                <p className="text-xs text-muted-foreground">(Utilised facility)</p>
               </div>
-
               <div className="text-right">
-                <p className="text-sm font-medium text-foreground">
-                  {item.approved}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  (Approved facility)
-                </p>
+                <p className="text-sm font-medium text-foreground">{approved}</p>
+                <p className="text-xs text-muted-foreground">(Approved facility)</p>
               </div>
             </div>
-
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => router.push(`/financing/contracts/${item.id}`)}
-                className="text-xs font-medium text-primary hover:underline"
-              >
+              <button type="button" onClick={() => router.push(`/financing/contracts/${item.id}`)} className="text-xs font-medium text-primary hover:underline">
                 View details →
               </button>
             </div>
-
           </div>
-
         </div>
       </div>
     </Card>
-  )
+  );
 }
 
-export function InvoiceCard({ item }: { item: InvoiceItem }) {
+export function InvoiceCard({ item }: { item: any }) {
   return (
     <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
@@ -484,7 +323,7 @@ export function InvoiceCard({ item }: { item: InvoiceItem }) {
           <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium truncate">
-              Invoice no : <span className="font-semibold">{item.invoiceNo}</span>
+              Invoice no : <span className="font-semibold">{item.details?.number ?? item.id}</span>
             </p>
             {invoiceBadge(item.status)}
             {offerBadge(item.offerStatus)}
@@ -545,17 +384,10 @@ export function InvoiceCard({ item }: { item: InvoiceItem }) {
 
             <div className="space-y-1">
               <p>
-                Invoice value :{" "}
-                <span className="text-foreground font-medium">
-                  {item.invoiceValue}
-                </span>
+                Invoice value : <span className="text-foreground font-medium">{item.details?.value ?? "-"}</span>
               </p>
-
               <p>
-                Financing amount :{" "}
-                <span className="text-foreground font-medium">
-                  {item.financingAmount}
-                </span>
+                Financing amount : <span className="text-foreground font-medium">{item.details?.financing_amount ?? "-"}</span>
               </p>
             </div>
           </div>

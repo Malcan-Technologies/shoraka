@@ -4,6 +4,8 @@ import { MoreVertical, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { useOrganization } from "@cashsouk/config";
+import { useOrganizationApplications } from "@/hooks/use-applications";
 
 type Status =
   | "Draft"
@@ -12,81 +14,22 @@ type Status =
   | "Completed"
   | "Unsuccessful"
 
-interface FinancingItem {
-  id: string
-  invoiceNo: string
-  status: Status
-  noteNo?: string
-  submissionDate: string
-  fundingDeadline?: string
-  maturityDate: string
-  invoiceValue: string
-  financingAmount: string
-  fundingProgress: number
-  fundingLabel: string
-}
+ 
 
-const mockData: FinancingItem[] = [
-  {
-    id: "1",
-    invoiceNo: "INV-11110",
-    status: "Draft",
-    submissionDate: "03/02/2026",
-    maturityDate: "31/07/2026",
-    invoiceValue: "RM 40,000",
-    financingAmount: "RM 30,000",
-    fundingProgress: 0,
-    fundingLabel: "Funding status (Not yet started)",
-  },
-  {
-    id: "2",
-    invoiceNo: "INV-11109",
-    status: "In progress",
-    submissionDate: "03/01/2026",
-    fundingDeadline: "15/02/2026",
-    maturityDate: "31/06/2026",
-    invoiceValue: "RM 20,000",
-    financingAmount: "RM 15,000",
-    fundingProgress: 75,
-    fundingLabel: "Funding status: (75%)",
-  },
-  {
-    id: "3",
-    invoiceNo: "INV-11108",
-    status: "Funded",
-    noteNo: "54754",
-    submissionDate: "03/01/2026",
-    fundingDeadline: "31/01/2026",
-    maturityDate: "31/06/2026",
-    invoiceValue: "RM 20,000",
-    financingAmount: "RM 15,000",
-    fundingProgress: 80,
-    fundingLabel: "Funding status: 80% funded (RM 12,000)",
-  },
-  {
-    id: "4",
-    invoiceNo: "INV-11107",
-    status: "Completed",
-    noteNo: "54754",
-    submissionDate: "03/02/2026",
-    maturityDate: "31/07/2026",
-    invoiceValue: "RM 20,000",
-    financingAmount: "RM 15,000",
-    fundingProgress: 80,
-    fundingLabel: "Funding status: 80% funded (RM 12,000)",
-  },
-  {
-    id: "5",
-    invoiceNo: "INV-11106",
-    status: "Unsuccessful",
-    submissionDate: "01/06/2026",
-    maturityDate: "31/12/2026",
-    invoiceValue: "RM 20,000",
-    financingAmount: "RM 15,000",
-    fundingProgress: 20,
-    fundingLabel: "Funding status: 20% funded (RM 3000)",
-  },
-]
+// Gather invoices from applications for the active organization
+function useOrgInvoiceList() {
+  const { activeOrganization } = useOrganization();
+  const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
+  const invoices = (applications || []).flatMap((app: any) =>
+    (app.invoices || []).map((inv: any) => ({
+      ...inv,
+      invoiceNo: inv.details?.number ?? inv.id,
+      invoiceValue: inv.details?.value ?? null,
+      financingAmount: inv.details?.financing_amount ?? null,
+    }))
+  );
+  return invoices;
+}
 
 function getStatusBadge(status: Status) {
   switch (status) {
@@ -104,12 +47,13 @@ function getStatusBadge(status: Status) {
 }
 
 export function FinancingRequestsList() {
+  const invoices = useOrgInvoiceList();
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold">Invoices</h3>
 
       <div className="space-y-4">
-        {mockData.map((item) => (
+        {invoices.map((item: any) => (
           <Card
             key={item.id}
             className="p-6 rounded-xl border border-gray-200 shadow-sm"

@@ -22,6 +22,23 @@ export function useInvoicesByApplication(applicationId?: string) {
   });
 }
 
+export function useInvoicesByContract(contractId?: string) {
+  const { getAccessToken } = useAuthToken();
+
+  return useQuery({
+    queryKey: ["invoices", "contract", contractId],
+    enabled: !!contractId,
+    queryFn: async () => {
+      const api = createApiClient(API_URL, getAccessToken);
+      const resp: any = await api.getInvoicesByContract(contractId!);
+      if (!resp.success) {
+        throw new Error("Failed to load invoices by contract");
+      }
+      return resp.data;
+    },
+  });
+}
+
 // import { createApiClient, useAuthToken } from "@cashsouk/config";
 // import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // import type { InvoiceDetails } from "@cashsouk/types";

@@ -171,6 +171,62 @@ export class ApplicationService {
 
   }
 
+  /**
+   * List applications for an issuer organization (used by issuer dashboard).
+   */
+  async listByOrganization(organizationId: string, userId: string) {
+    // Verify membership
+    const member = await this.organizationRepository.getOrganizationMember(
+      organizationId,
+      userId,
+      "issuer"
+    );
+    if (!member) {
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
+    }
+
+    return this.repository.listByOrganization(organizationId);
+  }
+
+  /**
+   * Get amendment context for an application (for issuer edit page).
+   * Returns application, review_cycle, and active remarks for the current review_cycle.
+   */
+  async getAmendmentContext(id: string, userId: string) {
+    await this.verifyApplicationAccess(id, userId);
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const reviewCycle = (application as any).review_cycle ?? 1;
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: ( {
+        application_id: id,
+        review_cycle: reviewCycle,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any ),
+      orderBy: { created_at: "asc" },
+    });
+
+    // Parse scope_keys
+    const { parseScopeKey } = require("@cashsouk/types");
+    const parsed = remarks.map((r) => {
+      try {
+        return { ...r, parsed: parseScopeKey(r.scope_key) };
+      } catch (err) {
+        return { ...r, parsed: null };
+      }
+    });
+
+    return {
+      application,
+      review_cycle: reviewCycle,
+      remarks: parsed,
+    };
+  }
+
   async getApplicationLogs(id: string, userId: string) {
   // Make sure user has access
   await this.verifyApplicationAccess(id, userId);
@@ -216,6 +272,51 @@ export class ApplicationService {
 
 
       return this.repository.update(id, updateData);
+    }
+
+    // Enforce amendment boundaries when application is in AMENDMENT_REQUESTED
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      // Load active remarks for the current review_cycle
+      const currentCycle = (application as any).review_cycle ?? 1;
+      const remarks = await prisma.applicationReviewRemark.findMany({
+        where: ( {
+          application_id: id,
+          review_cycle: currentCycle,
+          action_type: "REQUEST_AMENDMENT",
+        } as any ),
+      });
+
+      // Parse scope_keys
+      const { parseScopeKey } = require("@cashsouk/types");
+      const allowedTabs = new Set<string>();
+      const allowedFieldTabs = new Set<string>();
+      for (const r of remarks) {
+        try {
+          const p = parseScopeKey(r.scope_key);
+          if (p.kind === "TAB") allowedTabs.add(p.tab);
+          else if (p.kind === "FIELD") allowedFieldTabs.add(p.tab);
+        } catch {
+          // ignore malformed here; admin endpoints validated at creation time
+        }
+      }
+
+      // If tab is not flagged at all, reject
+      if (!allowedTabs.has(fieldName) && !allowedFieldTabs.has(fieldName)) {
+        throw new AppError(
+          403,
+          "AMENDMENT_BOUNDARY",
+          `Attempt to update non-flagged tab: ${fieldName}`
+        );
+      }
+
+      // If only field-level allowed for this tab, but not tab-level, then updating whole tab is forbidden
+      if (allowedFieldTabs.has(fieldName) && !allowedTabs.has(fieldName)) {
+        throw new AppError(
+          403,
+          "AMENDMENT_BOUNDARY",
+          `Whole-tab update forbidden for field-level amendment: ${fieldName}`
+        );
+      }
     }
 
     if (fieldName === "company_details") {
@@ -470,35 +571,134 @@ export class ApplicationService {
 
     // Resubmit flow: increment review_cycle, create revision for new cycle, then reset statuses.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      const previousCycle = (application as any).review_cycle ?? 1;
+      // RESUBMIT validation: verify all active remarks for current review_cycle are satisfied
+      const currentCycle = (application as any).review_cycle ?? 1;
+      const remarks = await prisma.applicationReviewRemark.findMany({
+        where: ( {
+          application_id: id,
+          review_cycle: currentCycle,
+          action_type: "REQUEST_AMENDMENT",
+        } as any ),
+      });
+
+      // Load previous revision snapshot for currentCycle (snapshot to compare against)
+      const prevRevision = await (prisma as any).applicationRevision.findUnique({
+        where: { application_id_review_cycle: { application_id: id, review_cycle: currentCycle } },
+      });
+
+      // Build current snapshot of relevant data to compare
+      const appFullCurrent = await prisma.application.findUnique({
+        where: { id },
+        include: { contract: true, invoices: true },
+      });
+
+      const currentSnapshot = appFullCurrent
+        ? {
+            application: {
+              financing_type: appFullCurrent.financing_type,
+              financing_structure: appFullCurrent.financing_structure,
+              company_details: appFullCurrent.company_details,
+              business_details: appFullCurrent.business_details,
+              supporting_documents: appFullCurrent.supporting_documents,
+              declarations: appFullCurrent.declarations,
+              review_and_submit: appFullCurrent.review_and_submit,
+              last_completed_step: appFullCurrent.last_completed_step,
+              contract_id: appFullCurrent.contract_id,
+            },
+            contract: appFullCurrent.contract ?? null,
+            invoices: appFullCurrent.invoices ?? [],
+          }
+        : null;
+
+      const unsatisfied: string[] = [];
+      const { parseScopeKey } = require("@cashsouk/types");
+
+      for (const r of remarks) {
+        try {
+          const parsed = parseScopeKey(r.scope_key);
+          let satisfied = false;
+          if (!prevRevision || !currentSnapshot) {
+            // If no previous revision, cannot validate - treat as satisfied per spec
+            satisfied = true;
+          } else if (parsed.kind === "TAB") {
+            const tab = parsed.tab;
+            if (tab === "contract_details") {
+              satisfied = JSON.stringify(prevRevision.snapshot.contract || null) !== JSON.stringify(currentSnapshot.contract || null);
+            } else if (tab === "invoice_details") {
+              satisfied = JSON.stringify(prevRevision.snapshot.invoices || []) !== JSON.stringify(currentSnapshot.invoices || []);
+            } else {
+              // compare application field
+              const prevVal = (prevRevision.snapshot.application as any)?.[tab] ?? null;
+              const currVal = (currentSnapshot.application as any)?.[tab] ?? null;
+              satisfied = JSON.stringify(prevVal) !== JSON.stringify(currVal);
+            }
+          } else {
+            // FIELD-level
+            const tab = parsed.tab;
+            const idx = parsed.index;
+            const field = parsed.field;
+            if (tab === "invoice_details") {
+              const prevInv = ((prevRevision.snapshot as any).invoices || [])[idx];
+              const currInv = ((currentSnapshot as any).invoices || [])[idx];
+              const prevVal = prevInv ? (prevInv.details ? prevInv.details[field] : undefined) : undefined;
+              const currVal = currInv ? (currInv.details ? currInv.details[field] : undefined) : undefined;
+              satisfied = prevVal !== currVal;
+            } else if (tab === "supporting_documents") {
+              const category = (parsed as any).category;
+              const prevDocs = (prevRevision.snapshot as any).application?.supporting_documents ?? {};
+              const currDocs = (currentSnapshot as any).application?.supporting_documents ?? {};
+              const prevItem = prevDocs?.[category]?.[idx];
+              const currItem = currDocs?.[category]?.[idx];
+              const prevVal = prevItem ? prevItem[field] : undefined;
+              const currVal = currItem ? currItem[field] : undefined;
+              satisfied = prevVal !== currVal;
+            } else {
+              // generic application array/object field compare
+              const prevVal = (prevRevision.snapshot as any).application?.[tab]?.[idx]?.[field];
+              const currVal = (currentSnapshot as any).application?.[tab]?.[idx]?.[field];
+              satisfied = prevVal !== currVal;
+            }
+          }
+
+          if (!satisfied) {
+            unsatisfied.push(r.scope_key);
+          }
+        } catch (err) {
+          // Treat parse errors as unsatisfied
+          unsatisfied.push(r.scope_key);
+        }
+      }
+
+      if (unsatisfied.length > 0) {
+        throw new AppError(400, "UNSATISFIED_REMARKS", `The following amendment scope_keys are unsatisfied: ${unsatisfied.join(", ")}`);
+      }
+
+      // Validation passed — proceed to increment cycle, create revision, and reset statuses
+      const previousCycle = currentCycle;
       const newCycle = previousCycle + 1;
 
-      // Update application review_cycle immediately
+      // Update application review_cycle
       await prisma.application.update({
         where: { id },
         data: ({ review_cycle: newCycle } as any),
       });
 
       // Create revision snapshot for the new cycle
-      const appFull = await prisma.application.findUnique({
-        where: { id },
-        include: { contract: true, invoices: true },
-      });
-      if (appFull) {
+      if (appFullCurrent) {
         const snapshot = {
           application: {
-            financing_type: appFull.financing_type,
-            financing_structure: appFull.financing_structure,
-            company_details: appFull.company_details,
-            business_details: appFull.business_details,
-            supporting_documents: appFull.supporting_documents,
-            declarations: appFull.declarations,
-            review_and_submit: appFull.review_and_submit,
-            last_completed_step: appFull.last_completed_step,
-            contract_id: appFull.contract_id,
+            financing_type: appFullCurrent.financing_type,
+            financing_structure: appFullCurrent.financing_structure,
+            company_details: appFullCurrent.company_details,
+            business_details: appFullCurrent.business_details,
+            supporting_documents: appFullCurrent.supporting_documents,
+            declarations: appFullCurrent.declarations,
+            review_and_submit: appFullCurrent.review_and_submit,
+            last_completed_step: appFullCurrent.last_completed_step,
+            contract_id: appFullCurrent.contract_id,
           },
-          contract: appFull.contract ?? null,
-          invoices: appFull.invoices ?? [],
+          contract: appFullCurrent.contract ?? null,
+          invoices: appFullCurrent.invoices ?? [],
         };
         await (prisma as any).applicationRevision.create({
           data: {

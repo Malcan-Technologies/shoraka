@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { FunnelIcon } from "@heroicons/react/24/outline";
 import { FileText, MoreVertical } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import { useContract } from "@/hooks/use-contracts";
+import { useInvoicesByContract } from "@/hooks/use-invoices";
 import { FilterButton } from "@/components/dashboard/financing-section";
 
 /* ============================================================
@@ -15,6 +17,17 @@ import { FilterButton } from "@/components/dashboard/financing-section";
 
 export default function ContractDetailsPage() {
   const router = useRouter();
+  const params = useParams();
+  const contractId = params.id as string;
+
+  const { data: contract, isLoading: isLoadingContract } = useContract(contractId);
+  const { data: invoices = [] } = useInvoicesByContract(contractId);
+
+  const contractDetails: any = (contract as any)?.contract_details ?? {};
+  const customerDetails: any = (contract as any)?.customer_details ?? {};
+  const approved = contractDetails.approved_facility ?? 0;
+  const utilised = contractDetails.utilized_facility ?? 0;
+  const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
 
   return (
     <div className="flex-1 px-8 pt-6 pb-12 space-y-8">
@@ -29,12 +42,10 @@ export default function ContractDetailsPage() {
               <FileText className="h-5 w-5 text-muted-foreground" />
               <p className="text-[15px] font-medium">
                 Contract :{" "}
-                <span className="font-semibold">
-                  Mining Rig Repair 12654
-                </span>
+                <span className="font-semibold">{contractDetails.title ?? `Contract ${contractId}`}</span>
               </p>
               <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                Active
+                {contract?.status ?? "DRAFT"}
               </Badge>
             </div>
 
@@ -49,21 +60,15 @@ export default function ContractDetailsPage() {
             {/* LEFT */}
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
-                Product :{" "}
-                <span className="text-foreground font-medium">
-                  Contract Financing
-                </span>
+                Product : <span className="text-foreground font-medium">Contract Financing</span>
               </p>
               <p>
-                Customer :{" "}
-                <span className="text-foreground font-medium">
-                  Petronas Chemical Bhd
-                </span>
+                Customer : <span className="text-foreground font-medium">{customerDetails.name ?? "-"}</span>
               </p>
               <p>
                 Contract period :{" "}
                 <span className="text-foreground font-medium">
-                  01/01/2026 to 31/12/2026
+                  {contractDetails.start_date && contractDetails.end_date ? `${contractDetails.start_date} to ${contractDetails.end_date}` : "-"}
                 </span>
               </p>
             </div>
@@ -72,26 +77,23 @@ export default function ContractDetailsPage() {
             <div className="space-y-4">
 
               <p className="text-xs text-right text-muted-foreground">
-                Available facility : RM 40,000
+                Available facility : {contractDetails.available_facility ?? "-"}
               </p>
 
               <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-2 bg-black rounded-full"
-                  style={{ width: "20%" }}
-                />
+                <div className="h-2 bg-black rounded-full" style={{ width: `${utilisationPct}%` }} />
               </div>
 
               <div className="flex justify-between text-sm">
                 <div>
-                  <p className="font-medium text-foreground">RM 10,000</p>
+                  <p className="font-medium text-foreground">{utilised}</p>
                   <p className="text-xs text-muted-foreground">
                     (Utilized facility)
                   </p>
                 </div>
 
                 <div className="text-right">
-                  <p className="font-medium text-foreground">RM 50,000</p>
+                  <p className="font-medium text-foreground">{approved}</p>
                   <p className="text-xs text-muted-foreground">
                     (Approved facility)
                   </p>
@@ -108,14 +110,12 @@ export default function ContractDetailsPage() {
 
             {/* TOTAL + METRIC CARDS */}
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">
-                Total no. of invoices : 15
-              </p>
+              <p className="text-sm font-medium text-foreground">Total no. of invoices : {invoices.length}</p>
 
               <div className="grid grid-cols-3 gap-4">
-                <MetricBox label="Approved" value="10" />
-                <MetricBox label="Rejected" value="2" />
-                <MetricBox label="Unfinanced" value="3" />
+                <MetricBox label="Approved" value={`${invoices.filter((i: any) => i.status === "APPROVED").length}`} />
+                <MetricBox label="Rejected" value={`${invoices.filter((i: any) => i.status === "REJECTED").length}`} />
+                <MetricBox label="Unfinanced" value={`${invoices.filter((i: any) => i.status !== "APPROVED" && i.status !== "REJECTED").length}`} />
               </div>
             </div>
 
@@ -126,11 +126,11 @@ export default function ContractDetailsPage() {
               </p>
 
               <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-xs text-muted-foreground">
-                <BreakdownItem label="Funding in progress" value="2" />
-                <BreakdownItem label="Active notes" value="4" />
-                <BreakdownItem label="Completed notes" value="1" />
-                <BreakdownItem label="Unsuccessful raise" value="2" />
-                <BreakdownItem label="Disputed notes" value="1" />
+                <BreakdownItem label="Funding in progress" value={`${invoices.filter((i: any) => i.status === "SUBMITTED").length}`} />
+                <BreakdownItem label="Active notes" value="0" />
+                <BreakdownItem label="Completed notes" value={`${invoices.filter((i: any) => i.status === "APPROVED").length}`} />
+                <BreakdownItem label="Unsuccessful raise" value={`${invoices.filter((i: any) => i.status === "REJECTED").length}`} />
+                <BreakdownItem label="Disputed notes" value="0" />
               </div>
             </div>
 

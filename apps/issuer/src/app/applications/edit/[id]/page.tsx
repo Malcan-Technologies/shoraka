@@ -25,6 +25,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import {
@@ -169,10 +170,68 @@ export default function EditApplicationPage() {
     // Allow staying during active submit flow
     if (isSubmittingRef.current) return;
 
-    if (application.status !== "DRAFT") {
+    // Allow editing for DRAFT and AMENDMENT_REQUESTED only
+    if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
       router.replace("/");
     }
   }, [application, router]);
+
+  /* ================================================================
+     AMENDMENT CONTEXT LOADING (when application is in AMENDMENT_REQUESTED)
+     ================================================================
+  */
+  const { getAccessToken } = useAuthToken();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const [amendmentContext, setAmendmentContext] = React.useState<{
+    review_cycle: number;
+    remarks: any[];
+  } | null>(null);
+
+  React.useEffect(() => {
+    if (!application) return;
+    if (application.status !== "AMENDMENT_REQUESTED") return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const resp = await fetch(`${API_URL}/v1/applications/${applicationId}/amendment-context`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await resp.json();
+        if (!mounted) return;
+        if (!json.success) {
+          // ignore silently; backend enforcement is authoritative
+          return;
+        }
+        setAmendmentContext({ review_cycle: json.data.review_cycle, remarks: json.data.remarks });
+      } catch {
+        // ignore network errors here
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [application, applicationId, getAccessToken, API_URL]);
+
+  const flaggedTabs = React.useMemo(() => {
+    if (!amendmentContext) return new Set<string>();
+    const s = new Set<string>();
+    for (const r of amendmentContext.remarks || []) {
+      const p = (r as any).parsed;
+      if (p && p.tab) s.add(p.tab);
+    }
+    return s;
+  }, [amendmentContext]);
+
+  React.useEffect(() => {
+    // Dev trace: show flagged tabs when amendment context loads
+    if (flaggedTabs && flaggedTabs.size > 0) {
+      // eslint-disable-next-line no-console
+      console.debug("[AMENDMENT] flaggedTabs", Array.from(flaggedTabs));
+    }
+  }, [flaggedTabs]);
 
 
   /* ================================================================

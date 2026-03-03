@@ -119,3 +119,21 @@ export function useArchiveApplication() {
     },
   });
 }
+
+export function useOrganizationApplications(organizationId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["applications", organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const response = await apiClient.get(`/v1/applications?organizationId=${encodeURIComponent(organizationId)}`);
+      if (!response.success) {
+        throw new Error((response as any).error?.message || "Failed to list applications");
+      }
+      return response.data as any[];
+    },
+    enabled: !!organizationId,
+  });
+}

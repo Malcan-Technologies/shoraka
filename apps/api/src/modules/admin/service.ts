@@ -4468,36 +4468,38 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    // Validate strict scope_key format
+    let parsed;
+    try {
+      // import parseScopeKey via package exports
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { parseScopeKey } = require("@cashsouk/types");
+      parsed = parseScopeKey(scopeKey);
+    } catch (err: any) {
+      throw new AppError(400, "INVALID_SCOPE_KEY", err?.message ?? "Invalid scope_key");
+    }
 
-    if (scope === "section") {
+    if (parsed.kind === "TAB") {
       const validSections = REVIEW_SECTION_ORDER;
-      if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
-        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
+      if (!validSections.includes(parsed.tab as (typeof REVIEW_SECTION_ORDER)[number])) {
+        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${parsed.tab}`);
       }
       await repository.updateSectionReviewStatus(
         applicationId,
-        scopeKey as ReviewSection,
+        parsed.tab as ReviewSection,
         ReviewStepStatus.AMENDMENT_REQUESTED,
         reviewerUserId
       );
-      if (scopeKey === "contract_details" && application.contract_id) {
+      if (parsed.tab === "contract_details" && application.contract_id) {
         await prisma.contract.update({
           where: { id: application.contract_id },
           data: { status: "AMENDMENT_REQUESTED" },
         });
       }
     } else {
-      if (!itemType || !itemId) {
-        throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
-      }
-      this.validateReviewItemExists(application, itemType, itemId);
-      await repository.upsertItemReviewStatus(
-        applicationId,
-        itemType,
-        itemId,
-        ReviewStepStatus.AMENDMENT_REQUESTED,
-        reviewerUserId
-      );
+      // Field-level amendment: do not require itemType/itemId here.
+      // We persist the draft remark scoped to the review cycle.
+      // Optionally, if a corresponding item exists and mapping is available, callers may create application_review_items separately.
     }
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId, (application as any).review_cycle ?? 1);
