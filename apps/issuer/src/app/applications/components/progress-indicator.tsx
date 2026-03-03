@@ -111,12 +111,12 @@ export function ProgressIndicator({
           /** Completed steps stay normal. Red only for flagged non-completed steps. */
           const showFlaggedStyle = isFlagged && !(isCompleted || isDisabled);
 
-          /** Connector before step turns red when step is flagged (current or acknowledged). */
+          /** Connector before step turns red only when we've reached that step (not when Back to earlier step). */
           const connectorIsRed =
             index !== 0 &&
             isAmendmentMode &&
             isFlagged &&
-            (isActive || isAcknowledged);
+            (isCompleted || isActive);
 
           // For disabled steps, always show as completed (locked)
           const displayCompleted = isCompleted || isDisabled;
