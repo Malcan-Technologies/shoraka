@@ -807,30 +807,33 @@ export default function EditApplicationPage() {
         const returnedData = await saveFunctionFromData();
         delete (dataToSave as Record<string, unknown>).saveFunction;
 
-        if (returnedData) {
-          if (
-            typeof returnedData === "object" &&
-            returnedData !== null &&
-            "isValid" in returnedData
-          ) {
-            delete (returnedData as Record<string, unknown>).isValid;
-          }
+          if (returnedData) {
+            if (
+              typeof returnedData === "object" &&
+              returnedData !== null &&
+              "isValid" in returnedData
+            ) {
+              delete (returnedData as Record<string, unknown>).isValid;
+            }
 
-          if (currentStepKey === "supporting_documents") {
-            dataToSave = { supporting_documents: returnedData };
-          } else if (
-            currentStepKey === "invoice_details" &&
-            (returnedData as Record<string, unknown>)?.supporting_documents
-          ) {
-            dataToSave = {
-              supporting_documents: (returnedData as Record<string, unknown>)
-                .supporting_documents,
-            };
-          } else {
-            // Merge returned data with remaining dataToSave
-            dataToSave = { ...dataToSave, ...returnedData };
+            if (currentStepKey === "supporting_documents") {
+              // The supporting documents step returns the object shape that should be
+              // stored directly on the `supporting_documents` column. Avoid wrapping
+              // it a second time (which caused `supporting_documents.supporting_documents`).
+              dataToSave = returnedData as Record<string, unknown>;
+            } else if (
+              currentStepKey === "invoice_details" &&
+              (returnedData as Record<string, unknown>)?.supporting_documents
+            ) {
+              dataToSave = {
+                supporting_documents: (returnedData as Record<string, unknown>)
+                  .supporting_documents,
+              };
+            } else {
+              // Merge returned data with remaining dataToSave
+              dataToSave = { ...dataToSave, ...returnedData };
+            }
           }
-        }
       }
 
       // Remove frontend-only properties AFTER saveFunction completes
