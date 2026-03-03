@@ -4584,11 +4584,11 @@ export class AdminService {
     const existing =
       scope === "section"
         ? (application.application_reviews as { section: string; status: string }[] | undefined)?.find(
-            (r) => r.section === scopeKey
-          )?.status
+          (r) => r.section === scopeKey
+        )?.status
         : (application.application_review_items as { item_type: string; item_id: string; status: string }[] | undefined)?.find(
-            (r) => r.item_type === itemType && r.item_id === itemId
-          )?.status;
+          (r) => r.item_type === itemType && r.item_id === itemId
+        )?.status;
     const oldStatus = existing ?? "PENDING";
     if (oldStatus !== "AMENDMENT_REQUESTED") {
       await this.logReviewActivity(

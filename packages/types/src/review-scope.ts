@@ -87,19 +87,36 @@ export function getSectionSortIndex(sectionKey: string): number {
   return i === -1 ? REVIEW_SECTION_ORDER.length : i;
 }
 
-/** Extract human-readable display name from item scope_key (slug part for documents). */
+/** Title-case a slug for display (e.g. "p2p_declaration" -> "P2P Declaration"). */
+function toDisplayName(slug: string): string {
+  return slug
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((word) =>
+      word.length > 1 && word === word.toUpperCase()
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(" ");
+}
+
+/**
+ * Extract human-readable display name from item scope_key.
+ * - Invoice: "Invoice 12345"
+ * - Document: "P2P Declaration" (slug part, title-cased)
+ * Supports legacy formats: document:..., invoice:... (from migrations).
+ */
 export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
+  if (!scopeKey || typeof scopeKey !== "string") return "Item";
+
+  const parts = scopeKey.split(":");
+  const lastPart = parts[parts.length - 1];
+
   if (scopeKey.startsWith("invoice_details:")) {
-    const parts = scopeKey.split(":");
-    const num = parts[parts.length - 1];
-    return num ? `Invoice ${num}` : "Invoice";
+    return lastPart ? `Invoice ${lastPart}` : "Invoice";
   }
-  if (isDocumentScopeKey(scopeKey)) {
-    const parts = scopeKey.split(":");
-    const slug = parts[parts.length - 1];
-    if (slug) {
-      return slug.replace(/_/g, " ");
-    }
+  if (scopeKey.startsWith("supporting_documents:")) {
+    if (lastPart) return toDisplayName(lastPart);
   }
   return "Item";
 }

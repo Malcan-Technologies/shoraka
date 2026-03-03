@@ -52,7 +52,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
-import { getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -63,6 +62,39 @@ type ActivityMetadata = {
   device_type?: string;
   device_info?: string;
 };
+
+function formatItemLabelFromScopeKey(scopeKey: string): string {
+  if (!scopeKey) return "Item";
+
+  const parts = scopeKey.split(":");
+  const lastPart = parts[parts.length - 1] ?? "";
+
+  if (
+    scopeKey.startsWith("invoice_details:") ||
+    scopeKey.startsWith("invoice:")
+  ) {
+    return lastPart ? `Invoice ${lastPart}` : "Invoice";
+  }
+
+  if (
+    scopeKey.startsWith("supporting_documents:") ||
+    scopeKey.startsWith("document:")
+  ) {
+    if (!lastPart) return "Document";
+    return lastPart
+      .replace(/_/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((word) =>
+        word.length > 1 && word === word.toUpperCase()
+          ? word
+          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      )
+      .join(" ");
+  }
+
+  return "Item";
+}
 
 /**
  * Component props
@@ -149,7 +181,8 @@ function getEventLabel(
       return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
     }
     if (eventType.startsWith("ITEM_REVIEWED_")) {
-      const itemName = entityId ? getItemDisplayNameFromScopeKey(entityId) : "";
+      const scopeKey = (entityId ?? metadata?.scope_key) as string | undefined;
+      const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
       return itemName ? `${itemName} ${actionLabel}` : actionLabel;
     }
     return actionLabel;
@@ -381,22 +414,6 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
 
                           {expanded[log.id] && remark && (
                             <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">
-
-                              {/* Entity context (invoice/doc only) */}
-                              {entityId && (
-                                <div className="space-y-1">
-                                  <p className="text-[11px] font-semibold text-foreground">
-                                    {entityId.startsWith("invoice_details")
-                                      ? "Invoice"
-                                      : entityId.startsWith("supporting_documents")
-                                      ? "Document"
-                                      : "Entity"}
-                                  </p>
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {String(entityId)}
-                                  </div>
-                                </div>
-                              )}
 
                               {/* Remark */}
                               <div className="space-y-2">
