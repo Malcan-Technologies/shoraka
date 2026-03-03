@@ -34,7 +34,7 @@ export function ApplicationReviewRemarkDialog({
   title,
   description,
   remarkLabel,
-  remarkPlaceholder = "Enter your remark or requested changes...",
+  remarkPlaceholder = "Enter one amendment per line. Each line will appear as a bullet point.",
   submitLabel,
   variant = "destructive",
   optional = false,
@@ -70,7 +70,7 @@ export function ApplicationReviewRemarkDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-md">
+      <DialogContent className="rounded-2xl sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -88,9 +88,12 @@ export function ApplicationReviewRemarkDialog({
                 setRemark(e.target.value);
                 setError(null);
               }}
-              className="min-h-[100px] rounded-xl resize-none"
+              className="min-h-[160px] rounded-xl resize-y"
               disabled={isPending}
             />
+            <p className="text-xs text-muted-foreground">
+              One item per line (e.g. Missing contract number)
+            </p>
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         </div>
