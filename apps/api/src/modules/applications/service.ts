@@ -435,8 +435,82 @@ export class ApplicationService {
       updated_at: new Date(),
     };
 
-    // Resubmission after amendment: reset all section/item statuses for full re-review
+    // Create revision on initial submit (DRAFT -> SUBMITTED)
+    if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      const appFull = await prisma.application.findUnique({
+        where: { id },
+        include: { contract: true, invoices: true },
+      });
+      if (appFull) {
+        const snapshot = {
+          application: {
+            financing_type: appFull.financing_type,
+            financing_structure: appFull.financing_structure,
+            company_details: appFull.company_details,
+            business_details: appFull.business_details,
+            supporting_documents: appFull.supporting_documents,
+            declarations: appFull.declarations,
+            review_and_submit: appFull.review_and_submit,
+            last_completed_step: appFull.last_completed_step,
+            contract_id: appFull.contract_id,
+          },
+          contract: appFull.contract ?? null,
+          invoices: appFull.invoices ?? [],
+        };
+        await (prisma as any).applicationRevision.create({
+          data: {
+            application_id: id,
+            review_cycle: (appFull as any).review_cycle ?? 1,
+            snapshot,
+            submitted_at: new Date(),
+          },
+        });
+      }
+    }
+
+    // Resubmit flow: increment review_cycle, create revision for new cycle, then reset statuses.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
+      const previousCycle = (application as any).review_cycle ?? 1;
+      const newCycle = previousCycle + 1;
+
+      // Update application review_cycle immediately
+      await prisma.application.update({
+        where: { id },
+        data: ({ review_cycle: newCycle } as any),
+      });
+
+      // Create revision snapshot for the new cycle
+      const appFull = await prisma.application.findUnique({
+        where: { id },
+        include: { contract: true, invoices: true },
+      });
+      if (appFull) {
+        const snapshot = {
+          application: {
+            financing_type: appFull.financing_type,
+            financing_structure: appFull.financing_structure,
+            company_details: appFull.company_details,
+            business_details: appFull.business_details,
+            supporting_documents: appFull.supporting_documents,
+            declarations: appFull.declarations,
+            review_and_submit: appFull.review_and_submit,
+            last_completed_step: appFull.last_completed_step,
+            contract_id: appFull.contract_id,
+          },
+          contract: appFull.contract ?? null,
+          invoices: appFull.invoices ?? [],
+        };
+        await (prisma as any).applicationRevision.create({
+          data: {
+            application_id: id,
+            review_cycle: newCycle,
+            snapshot,
+            submitted_at: new Date(),
+          },
+        });
+      }
+
+      // Reset review statuses and remove pending draft amendments for the previous cycle only
       await prisma.applicationReview.updateMany({
         where: { application_id: id },
         data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
@@ -446,11 +520,12 @@ export class ApplicationService {
         data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
       });
       await prisma.applicationReviewRemark.deleteMany({
-        where: {
+        where: ( {
           application_id: id,
+          review_cycle: previousCycle,
           action_type: "REQUEST_AMENDMENT",
           submitted_at: null,
-        },
+        } as any ),
       });
       if (application.contract_id) {
         await prisma.contract.updateMany({

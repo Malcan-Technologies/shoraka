@@ -108,3 +108,66 @@ export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
   }
   return "Item";
 }
+
+/**
+ * Parser for strict scope_key format described in the Amendment Lifecycle spec.
+ *
+ * Allowed formats:
+ * - Tab-level: "contract_details"
+ * - Field-level no category: "tab:index:field"
+ * - Field-level with category: "tab:category:index:field" (tab must be "supporting_documents")
+ */
+export type ParsedScopeKey =
+  | { kind: "TAB"; tab: string; raw: string }
+  | { kind: "FIELD"; tab: string; index: number; field: string; raw: string; category?: string };
+
+const ALLOWED_TABS = [
+  "contract_details",
+  "invoice_details",
+  "supporting_documents",
+  "business_details",
+] as const;
+
+export function parseScopeKey(raw: string): ParsedScopeKey {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error("Invalid scope_key: must be a non-empty string");
+  }
+  const parts = raw.split(":");
+
+  if (parts.length === 1) {
+    const tab = parts[0];
+    if (!ALLOWED_TABS.includes(tab as any)) {
+      throw new Error(`Invalid tab-level scope_key: ${tab}`);
+    }
+    return { kind: "TAB", tab, raw };
+  }
+
+  if (parts.length === 3) {
+    const [tab, idxStr, field] = parts;
+    if (!tab || !idxStr || !field) {
+      throw new Error(`Invalid field-level scope_key: ${raw}`);
+    }
+    const index = Number(idxStr);
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`Invalid index in scope_key: ${idxStr}`);
+    }
+    return { kind: "FIELD", tab, index, field, raw };
+  }
+
+  if (parts.length === 4) {
+    const [tab, category, idxStr, field] = parts;
+    if (tab !== "supporting_documents") {
+      throw new Error(`Invalid tab for category scope_key: ${tab}`);
+    }
+    if (!category || !idxStr || !field) {
+      throw new Error(`Invalid category field-level scope_key: ${raw}`);
+    }
+    const index = Number(idxStr);
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`Invalid index in scope_key: ${idxStr}`);
+    }
+    return { kind: "FIELD", tab, category, index, field, raw };
+  }
+
+  throw new Error(`Invalid scope_key format: ${raw}`);
+}

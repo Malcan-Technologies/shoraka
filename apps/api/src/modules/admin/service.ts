@@ -4085,7 +4085,8 @@ export class AdminService {
         section,
         "APPROVE",
         remarkValue,
-        reviewerUserId
+        reviewerUserId,
+        (application as any).review_cycle ?? 1
       );
     }
     await repository.createReviewEvent(
@@ -4217,7 +4218,8 @@ export class AdminService {
       section,
       "REJECT",
       remark,
-      reviewerUserId
+      reviewerUserId,
+      (application as any).review_cycle ?? 1
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4268,7 +4270,8 @@ export class AdminService {
       section,
       "REQUEST_AMENDMENT",
       remark,
-      reviewerUserId
+      reviewerUserId,
+      (application as any).review_cycle ?? 1
     );
     if (section === "contract_details" && application.contract_id) {
       await prisma.contract.update({
@@ -4328,7 +4331,8 @@ export class AdminService {
         buildItemScopeKey(itemType, itemId),
         "APPROVE",
         remarkValue,
-        reviewerUserId
+        reviewerUserId,
+        (application as any).review_cycle ?? 1
       );
     }
     await repository.createReviewEvent(
@@ -4379,7 +4383,8 @@ export class AdminService {
       buildItemScopeKey(itemType, itemId),
       "REJECT",
       remark,
-      reviewerUserId
+      reviewerUserId,
+      (application as any).review_cycle ?? 1
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4429,7 +4434,8 @@ export class AdminService {
       buildItemScopeKey(itemType, itemId),
       "REQUEST_AMENDMENT",
       remark,
-      reviewerUserId
+      reviewerUserId,
+      (application as any).review_cycle ?? 1
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4494,7 +4500,7 @@ export class AdminService {
       );
     }
 
-    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
+    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId, (application as any).review_cycle ?? 1);
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
     return repository.getApplicationById(applicationId);
@@ -4512,7 +4518,7 @@ export class AdminService {
     if (!this.isReviewable(application.status as ApplicationStatus)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
-    const rows = await repository.listPendingAmendments(applicationId);
+    const rows = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
     return rows.map((r) => {
       const base = {
         id: r.id,
@@ -4551,7 +4557,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
     }
     logger.info({ applicationId, scope, scopeKey }, "Pending amendment updated");
-    return repository.listPendingAmendments(applicationId);
+    return repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
   }
 
   /**
@@ -4592,7 +4598,7 @@ export class AdminService {
       );
     }
 
-    const remaining = await repository.listPendingAmendments(applicationId);
+    const remaining = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
     const sectionStillHasAmendments = remaining.some((p) => {
       const s = getSectionForPendingAmendment(p.scope, p.scope_key);
       return s === affectedSection;
@@ -4619,7 +4625,7 @@ export class AdminService {
       }
     }
 
-    return repository.listPendingAmendments(applicationId);
+    return repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
   }
 
   /**
@@ -4630,7 +4636,7 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
 
-    const pending = await repository.listPendingAmendments(applicationId);
+    const pending = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
     if (pending.length === 0) {
       throw new AppError(400, "EMPTY_LIST", "No pending amendments to submit");
     }
@@ -4643,6 +4649,7 @@ export class AdminService {
       await tx.applicationReviewRemark.updateMany({
         where: {
           application_id: applicationId,
+          review_cycle: (application as any).review_cycle ?? 1,
           action_type: "REQUEST_AMENDMENT",
           submitted_at: null,
         },

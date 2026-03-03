@@ -317,6 +317,7 @@ model Application {
   id                         String                    @id @default(cuid())
   issuer_organization_id     String
   product_version            Int
+  review_cycle               Int                       @default(1)
   status                     ApplicationStatus         @default(DRAFT)
   last_completed_step        Int                       @default(0)
   financing_type             Json?
@@ -330,6 +331,7 @@ model Application {
   business_details           Json?
   contract_id                String?
   submitted_at               DateTime?
+  application_revisions      ApplicationRevision[]
   application_review_events       ApplicationReviewEvent[]
   application_review_items        ApplicationReviewItem[]
   application_review_remarks      ApplicationReviewRemark[]
@@ -339,6 +341,21 @@ model Application {
   invoices                   Invoice[]
 
   @@map("applications")
+}
+
+model ApplicationRevision {
+  id              String   @id @default(cuid())
+  application_id  String
+  review_cycle    Int
+  snapshot        Json
+  submitted_at    DateTime
+  created_at      DateTime @default(now())
+
+  application     Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@unique([application_id, review_cycle])
+  @@index([application_id])
+  @@map("application_revisions")
 }
 
 model ApplicationReview {
@@ -378,6 +395,7 @@ model ApplicationReviewItem {
 model ApplicationReviewRemark {
   id             String      @id(map: "application_review_notes_pkey") @default(cuid())
   application_id String
+  review_cycle   Int
   scope          String
   scope_key      String
   action_type    String
@@ -389,8 +407,8 @@ model ApplicationReviewRemark {
   application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade, map: "application_review_notes_application_id_fkey")
   author         User        @relation(fields: [author_user_id], references: [user_id], onDelete: Restrict)
 
-  @@unique([application_id, scope, scope_key], map: "application_review_remarks_application_id_scope_scope_key_key")
-  @@index([application_id], map: "application_review_notes_application_id_idx")
+  @@unique([application_id, review_cycle, scope_key], map: "application_review_remarks_uniq")
+  @@index([application_id, review_cycle], map: "application_review_notes_application_id_review_cycle_idx")
   @@index([application_id, scope_key], map: "application_review_notes_application_id_scope_key_idx")
   @@index([application_id, submitted_at])
   @@map("application_review_remarks")
