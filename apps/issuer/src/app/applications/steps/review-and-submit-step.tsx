@@ -344,7 +344,7 @@ export function ReviewAndSubmitStep({
                   isSelected={false}
                   onClick={() => {}}
                   disabled={true}
-                  leading={<ProductImagePreview s3Key={productImageS3Key} alt={financingTypeConfig.name || "Product"} />}
+                  leading={<ProductImagePreview s3Key={productImageS3Key} alt={financingTypeConfig.name || "Product"} forceBgWhite={true} />}
                 />
               )
             ) : (

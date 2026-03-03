@@ -9,6 +9,15 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/** Disabled card styles
+ *
+ * What: Visual tokens applied when a SelectionCard is disabled.
+ * Why: In review/read-only contexts we want the card to look muted
+ *       and remove interactive affordances (no hover / no focus ring).
+ * Data: Tailwind class strings.
+ */
+const cardDisabledClassName = "border-sidebar-border bg-sidebar text-sidebar-foreground";
+
 /** Helpers
  *
  * What: Shared classnames derived from brand + screenshots.
@@ -83,6 +92,19 @@ export function SelectionCard({
   className,
   disabled = false,
 }: SelectionCardProps) {
+  // Derive wrapper classes depending on disabled state.
+  const wrapperClass = disabled ? "block w-full" : "block w-full cursor-pointer";
+  // Only show focus ring when interactive.
+  const focusClass = disabled ? "" : cardFocusClassName;
+
+  // When disabled we use a muted visual token instead of hover/opacity tricks.
+  const innerClass = cn(
+    cardBaseClassName,
+    cardPaddingClassName,
+    isSelected ? cardSelectedClassName : disabled ? cardDisabledClassName : cardUnselectedClassName,
+    "min-h-[80px] flex items-center"
+  );
+
   return (
     <div
       role="button"
@@ -96,16 +118,9 @@ export function SelectionCard({
           onClick();
         }
       }}
-      className={cn("block w-full cursor-pointer", cardFocusClassName, className)}
+      className={cn(wrapperClass, focusClass, className)}
     >
-      <div
-        className={cn(
-          cardBaseClassName,
-          cardPaddingClassName,
-          isSelected ? cardSelectedClassName : cardUnselectedClassName,
-          "min-h-[80px] flex items-center"
-        )}
-      >
+      <div className={innerClass}>
         <div className="flex w-full justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {leading ? <div className="shrink-0">{leading}</div> : null}

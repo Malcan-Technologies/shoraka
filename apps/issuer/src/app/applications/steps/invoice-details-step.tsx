@@ -55,6 +55,7 @@ import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
   formLabelClassName,
@@ -162,6 +163,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
   React.useEffect(() => {
@@ -654,6 +656,27 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
     setDeletedInvoices({});
 
     // Return persisted invoices for application-level persistence
+    /**
+     * Sync with React Query cache so other views (Review step) pick up
+     * newly created invoices immediately.
+     *
+     * What: Invalidate invoices queries for this application (and contract when present).
+     * Why: Invoice creation/updates in this step use direct API calls. React Query
+     *      cache is not aware unless we invalidate to trigger a refetch.
+     * Data: Query keys: ["invoices", applicationId] and ["invoices","contract",contractId]
+     */
+    try {
+      queryClient.invalidateQueries({ queryKey: ["invoices", applicationId] });
+      if (application?.contract_id) {
+        queryClient.invalidateQueries({ queryKey: ["invoices", "contract", application.contract_id] });
+      }
+      // Also refresh application summary that may include invoice totals.
+      queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+    } catch (err) {
+      // Non-fatal: continue returning persisted snapshot even if invalidation fails.
+      console.error("Failed to invalidate invoice queries", err);
+    }
+
     return {
       invoices: invoices.filter((inv) => !isRowEmpty(inv)),
       totalFinancingAmount,
