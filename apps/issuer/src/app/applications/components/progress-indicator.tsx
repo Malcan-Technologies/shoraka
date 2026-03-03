@@ -78,6 +78,10 @@ export function ProgressIndicator({
   }
 
 
+  if (process.env.NODE_ENV !== "production" && (amendmentSteps?.length ?? 0) > 0) {
+    console.debug("[AMENDMENT][STEPPER] amendmentSteps:", amendmentSteps, "currentStep:", currentStep, "steps:", steps);
+  }
+
   return (
     <div className="mt-3">
       <div className="relative flex items-start justify-between min-h-[80px]">
@@ -88,6 +92,10 @@ export function ProgressIndicator({
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);
           const isAmendment = (amendmentSteps || []).includes(stepNumber);
+
+          if (process.env.NODE_ENV !== "production" && (amendmentSteps?.length ?? 0) > 0 && isAmendment) {
+            console.debug("[AMENDMENT][STEPPER] Step flagged:", { label, stepNumber, workflowId: label });
+          }
 
           // For disabled steps, always show as completed (locked)
           const displayCompleted = isCompleted || isDisabled;

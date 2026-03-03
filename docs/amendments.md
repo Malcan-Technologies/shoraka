@@ -10,7 +10,7 @@ Key concepts
 Endpoints
 - GET /v1/applications/:id/amendment-context
   - Returns active REQUEST_AMENDMENT remarks for the application (no review_cycle filter).
-  - Remarks include both legacy parsed (`parseScopeKey`) and amend-parsed (`parseAmendScopeKey`) payloads.
+  - Remarks are returned raw (scope, scope_key). No parsing.
 
 - POST /v1/applications/:id/acknowledge-workflow
   - Body: { workflowId }
@@ -27,5 +27,5 @@ Endpoints
 
 Utilities
 - `packages/types/src/review-scope.ts`
-  - `parseAmendScopeKey(scopeKey)` — best-effort parser mapping admin scope_key to workflow identity and entity id.
+  - Simple string comparison: section scope_key, item tab = scope_key.split(":")[0].
 

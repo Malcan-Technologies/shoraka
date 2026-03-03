@@ -395,8 +395,9 @@ interface ContractDetailsStepProps {
   workflow: Record<string, unknown>[];
   onDataChange?: (data: Record<string, unknown>) => void;
   isAmendmentMode?: boolean;
-  flaggedTabs?: Set<string>;
-  remarks?: any[];
+  flaggedSections?: Set<string>;
+  flaggedItems?: Map<string, Set<string>>;
+  remarks?: { scope?: string; scope_key?: string; remark?: string }[];
   readOnly?: boolean;
 }
 
@@ -405,7 +406,8 @@ export function ContractDetailsStep({
   workflow,
   onDataChange,
   isAmendmentMode,
-  flaggedTabs,
+  flaggedSections,
+  flaggedItems,
   remarks,
   readOnly = false,
 }: ContractDetailsStepProps) {
@@ -967,9 +969,8 @@ export function ContractDetailsStep({
   const stepIsEditable = React.useMemo(() => {
     if (readOnly) return false;
     if (!isAmendmentMode) return true;
-    if (!flaggedTabs) return false;
-    return flaggedTabs.has("contract_details");
-  }, [readOnly, isAmendmentMode, flaggedTabs]);
+    return flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0;
+  }, [readOnly, isAmendmentMode, flaggedSections, flaggedItems]);
 
   /* ================================================================
      HANDLERS
@@ -1024,7 +1025,16 @@ export function ContractDetailsStep({
     );
   }
 
-  const stepIsFlagged = isAmendmentMode && flaggedTabs?.has("contract_details");
+  const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
+
+  if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
+    console.debug("[AMENDMENT][LOCKING] Contract details:", {
+      stepKey: "contract_details",
+      flaggedSections: flaggedSections ? Array.from(flaggedSections) : [],
+      stepIsFlagged,
+      stepIsEditable,
+    });
+  }
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
@@ -1041,7 +1051,11 @@ export function ContractDetailsStep({
               <h4 className="font-semibold text-destructive">Amendment required</h4>
             <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
               {remarks
-                .filter((r) => (r.parsedAmend || r.parsed)?.tab === "contract_details")
+                .filter((r) => {
+                  const rem = r as { scope?: string; scope_key?: string };
+                  return (rem.scope === "section" && rem.scope_key === "contract_details") ||
+                    (rem.scope === "item" && rem.scope_key?.split(":")[0] === "contract_details");
+                })
                 .map((r, i) =>
                   (r.remark || r?.remark || "").split("\n").map((line: string, idx: number) => (
                     <li key={`${i}-${idx}`}>{line}</li>

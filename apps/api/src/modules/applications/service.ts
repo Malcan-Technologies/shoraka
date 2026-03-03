@@ -209,24 +209,15 @@ export class ApplicationService {
       orderBy: { created_at: "asc" },
     });
 
-    // Parse scope_keys
-    const { parseAmendScopeKey, parseScopeKey } = require("@cashsouk/types");
-    const parsed = remarks.map((r) => {
-      let legacy = null;
-      let amend = null;
-      try {
-        legacy = parseScopeKey(r.scope_key);
-      } catch {}
-      try {
-        amend = parseAmendScopeKey(r.scope_key);
-      } catch {}
-      return { ...r, parsed: legacy, parsedAmend: amend };
-    });
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[AMENDMENT][API] Application ID:", id);
+      console.log("[AMENDMENT][API] Raw remarks from DB:", JSON.stringify(remarks, null, 2));
+    }
 
     return {
       application,
       review_cycle: (application as any).review_cycle ?? 1,
-      remarks: parsed,
+      remarks,
     };
   }
 
@@ -293,25 +284,28 @@ export class ApplicationService {
       } as any,
     });
 
-    // Derive required workflowIds from remarks
-    const { parseAmendScopeKey } = require("@cashsouk/types");
-    const requiredWorkflowIds = new Set<string>();
+    /** Simple: section scope_key or item tab (first colon-segment) */
+    const requiredSectionKeys = new Set<string>();
     for (const r of remarks) {
-      try {
-        const parsed = parseAmendScopeKey(r.scope_key);
-        if (parsed && parsed.workflowId) requiredWorkflowIds.add(parsed.workflowId);
-      } catch {
-        // ignore malformed
+      if (r.scope === "section") {
+        requiredSectionKeys.add(r.scope_key);
+      } else if (r.scope === "item") {
+        requiredSectionKeys.add(r.scope_key.split(":")[0]);
       }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[AMENDMENT][RESUBMIT] requiredSectionKeys:", Array.from(requiredSectionKeys));
+      console.log("[AMENDMENT][RESUBMIT] acknowledgedWorkflowIds:", (application as any).amendment_acknowledged_workflow_ids);
     }
 
     const acknowledged: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
     const missing: string[] = [];
-    for (const req of requiredWorkflowIds) {
+    for (const req of requiredSectionKeys) {
       if (!acknowledged.includes(req)) missing.push(req);
     }
     if (missing.length > 0) {
-      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "Missing acknowledgements for workflows: " + missing.join(", "));
+      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "Missing acknowledgements for sections: " + missing.join(", "));
     }
 
     // Prepare snapshot data
@@ -361,19 +355,20 @@ export class ApplicationService {
       const contract = appFullCurrent?.contract ?? null;
       const contractApproved = contract && (contract as any).status === "APPROVED";
 
-      // Build set of invoice IDs that have REQUEST_AMENDMENT remarks
+      /** Simple: section scope_key=invoice_details -> all invoices; item scope_key invoice_details:N:... -> invoice at index N */
       const amendmentRemarks = remarks;
       const invoiceIdsToDelete = new Set<string>();
+      const invoices = appFullCurrent?.invoices ?? [];
       for (const r of amendmentRemarks) {
-        try {
-          const p = parseAmendScopeKey(r.scope_key);
-          if (p.kind === "tab" && p.workflowId && p.workflowId.startsWith("invoice")) {
-            for (const inv of appFullCurrent?.invoices ?? []) invoiceIdsToDelete.add(inv.id);
-          } else if (p.kind === "invoice" && p.entityId) {
-            invoiceIdsToDelete.add(p.entityId);
+        if (r.scope === "section" && r.scope_key === "invoice_details") {
+          for (const inv of invoices) invoiceIdsToDelete.add(inv.id);
+        } else if (r.scope === "item") {
+          const parts = r.scope_key.split(":");
+          const tab = parts[0];
+          if (tab === "invoice_details" && parts.length >= 2) {
+            const idx = parseInt(parts[1], 10);
+            if (!Number.isNaN(idx) && invoices[idx]) invoiceIdsToDelete.add(invoices[idx].id);
           }
-        } catch {
-          // ignore malformed
         }
       }
 
@@ -479,18 +474,12 @@ export class ApplicationService {
         } as any,
       });
 
-      // Parse scope_keys
-      const { parseScopeKey } = require("@cashsouk/types");
+      /** Simple: section scope_key or item tab (first colon-segment) */
       const allowedTabs = new Set<string>();
       const allowedFieldTabs = new Set<string>();
       for (const r of remarks) {
-        try {
-          const p = parseScopeKey(r.scope_key);
-          if (p.kind === "TAB") allowedTabs.add(p.tab);
-          else if (p.kind === "FIELD") allowedFieldTabs.add(p.tab);
-        } catch {
-          // ignore malformed here; admin endpoints validated at creation time
-        }
+        if (r.scope === "section" && r.scope_key) allowedTabs.add(r.scope_key);
+        else if (r.scope === "item" && r.scope_key) allowedFieldTabs.add(r.scope_key.split(":")[0]);
       }
 
       // If tab is not flagged at all, reject (409 = conflict with amendment lock)

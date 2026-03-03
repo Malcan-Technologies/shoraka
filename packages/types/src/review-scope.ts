@@ -193,44 +193,41 @@ export function parseAmendScopeKey(scopeKey: string): ParsedAmendScope {
     throw new Error("Invalid scopeKey");
   }
 
+  let parsed: ParsedAmendScope;
+
   // Tab-level: exact matches to allowed tabs
   if (ALLOWED_TABS.includes(scopeKey as any)) {
-    return { workflowId: scopeKey, kind: "tab" };
-  }
-
-  // Document/item formats
-  if (isDocumentScopeKey(scopeKey)) {
+    parsed = { workflowId: scopeKey, kind: "tab" };
+  } else if (isDocumentScopeKey(scopeKey)) {
     const itemId = getItemIdFromScopeKey(scopeKey);
-    // workflowId: supporting_documents (tab-level)
-    return { workflowId: "supporting_documents", kind: "supporting_doc", entityId: itemId };
-  }
-
-  // Invoice formats: 'invoice:<invoiceId>' or 'invoice:...'
-  if (scopeKey.startsWith("invoice:") || scopeKey.startsWith("invoice_details")) {
+    parsed = { workflowId: "supporting_documents", kind: "supporting_doc", entityId: itemId };
+  } else if (scopeKey.startsWith("invoice:") || scopeKey.startsWith("invoice_details")) {
     const parts = scopeKey.split(":");
     if (parts.length >= 2 && parts[1]) {
-      return { workflowId: "invoice_details", kind: "invoice", entityId: parts.slice(1).join(":") };
+      parsed = { workflowId: "invoice_details", kind: "invoice", entityId: parts.slice(1).join(":") };
+    } else {
+      parsed = { workflowId: "invoice_details", kind: "invoice" };
     }
-    return { workflowId: "invoice_details", kind: "invoice" };
+  } else if (scopeKey.startsWith("contract") || scopeKey === "contract_details") {
+    parsed = { workflowId: "contract_details", kind: "contract" };
+  } else {
+    try {
+      const scopeParsed = parseScopeKey(scopeKey);
+      if (scopeParsed.kind === "TAB") {
+        parsed = { workflowId: scopeParsed.tab, kind: "tab" };
+      } else if (scopeParsed.kind === "FIELD") {
+        parsed = { workflowId: scopeParsed.tab, kind: scopeParsed.tab === "invoice_details" ? "invoice" : "unknown", entityId: String(scopeParsed.index) };
+      } else {
+        parsed = { workflowId: "unknown", kind: "unknown" };
+      }
+    } catch {
+      parsed = { workflowId: "unknown", kind: "unknown" };
+    }
   }
 
-  // Contract related
-  if (scopeKey.startsWith("contract") || scopeKey === "contract_details") {
-    return { workflowId: "contract_details", kind: "contract" };
+  if (typeof process !== "undefined" && process.env?.NODE_ENV !== "production") {
+    console.debug("[AMENDMENT][PARSE] scopeKey:", scopeKey, "parsed:", parsed);
   }
 
-  // Field-level patterns like 'tab:idx:field' -> derive tab as workflowId
-  try {
-    const parsed = parseScopeKey(scopeKey);
-    if (parsed.kind === "TAB") {
-      return { workflowId: parsed.tab, kind: "tab" };
-    }
-    if (parsed.kind === "FIELD") {
-      return { workflowId: parsed.tab, kind: parsed.tab === "invoice_details" ? "invoice" : "unknown", entityId: String(parsed.index) };
-    }
-  } catch {
-    // fallthrough
-  }
-
-  return { workflowId: "unknown", kind: "unknown" };
+  return parsed;
 }

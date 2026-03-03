@@ -188,48 +188,18 @@ export default function EditApplicationPage() {
   } | null>(null);
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
-  /** Mock amendment data for DEV preview - same shape as backend /amendment-context */
+  /** Mock amendment data for DEV preview - raw remarks (scope + scope_key only) */
   const getMockAmendmentContext = React.useCallback(() => ({
-    review_cycle: application?.review_cycle ?? 1,
+    review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
     remarks: [
-      {
-        scope_key: "contract_details",
-        remark: "Missing contract number\nCustomer name mismatch",
-        parsed: { kind: "TAB", tab: "contract_details" },
-        parsedAmend: { workflowId: "contract_details", kind: "tab", tab: "contract_details" },
-      },
-      {
-        scope_key: "invoice_details",
-        remark: "Invoice amount does not match document\nMissing supplier signature",
-        parsed: { kind: "TAB", tab: "invoice_details" },
-        parsedAmend: { workflowId: "invoice_details", kind: "tab", tab: "invoice_details" },
-      },
-      {
-        scope_key: "invoice_details:0:Invoice",
-        remark: "Invoice amount does not match document\nMissing supplier signature",
-        parsed: { kind: "FIELD", tab: "invoice_details", index: 0, field: "invoice" },
-        parsedAmend: { workflowId: "invoice_details", kind: "invoice", tab: "invoice_details", index: 0, entityId: "invoice:0" },
-      },
-      {
-        scope_key: "supporting_documents",
-        remark: "Upload missing Company Secretary Letter.",
-        parsed: { kind: "TAB", tab: "supporting_documents" },
-        parsedAmend: { workflowId: "supporting_documents", kind: "tab", tab: "supporting_documents" },
-      },
-      {
-        scope_key: "doc:financial_docs:0:Latest_Management_Account",
-        remark: "Wrong document uploaded",
-        parsed: { kind: "FIELD", tab: "supporting_documents", category: "financial_docs", index: 0, field: "document" },
-        parsedAmend: { workflowId: "supporting_documents", kind: "supporting_doc", entityId: "doc:financial_docs:0:Latest_Management_Account" },
-      },
-      {
-        scope_key: "doc:legal_docs:0:Deed_of_Assignment",
-        remark: "Document date expired",
-        parsed: { kind: "FIELD", tab: "supporting_documents", category: "legal_docs", index: 0, field: "document" },
-        parsedAmend: { workflowId: "supporting_documents", kind: "supporting_doc", entityId: "doc:legal_docs:0:Deed_of_Assignment" },
-      },
+      { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nCustomer name mismatch" },
+      { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
+      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "Invoice amount does not match document\nMissing supplier signature" },
+      { scope: "section", scope_key: "supporting_documents", remark: "Upload missing Company Secretary Letter." },
+      { scope: "item", scope_key: "supporting_documents:doc:financial_docs:0:Latest_Management_Account", remark: "Wrong document uploaded" },
+      { scope: "item", scope_key: "supporting_documents:doc:legal_docs:0:Deed_of_Assignment", remark: "Document date expired" },
     ],
-  }), [application?.review_cycle]);
+  }), [(application as { review_cycle?: number })?.review_cycle]);
 
   React.useEffect(() => {
     if (!application) return;
@@ -265,23 +235,31 @@ export default function EditApplicationPage() {
     };
   }, [application, applicationId, getAccessToken, API_URL, devPreviewAmendment, getMockAmendmentContext]);
 
-  const flaggedTabs = React.useMemo(() => {
+  /** Section-level: scope_key where scope === "section" */
+  const flaggedSections = React.useMemo(() => {
     if (!amendmentContext) return new Set<string>();
     const s = new Set<string>();
     for (const r of amendmentContext.remarks || []) {
-      const p = (r as any).parsedAmend || (r as any).parsed;
-      if (p && p.tab) s.add(p.tab);
+      const rem = r as { scope?: string; scope_key?: string };
+      if (rem.scope === "section" && rem.scope_key) s.add(rem.scope_key);
     }
     return s;
   }, [amendmentContext]);
 
-  React.useEffect(() => {
-    // Dev trace: show flagged tabs when amendment context loads
-    if (flaggedTabs && flaggedTabs.size > 0) {
-      // eslint-disable-next-line no-console
-      console.debug("[AMENDMENT] flaggedTabs", Array.from(flaggedTabs));
+  /** Item-level: tab (split(":")[0]) -> Set of full scope_key */
+  const flaggedItems = React.useMemo(() => {
+    if (!amendmentContext) return new Map<string, Set<string>>();
+    const m = new Map<string, Set<string>>();
+    for (const r of amendmentContext.remarks || []) {
+      const rem = r as { scope?: string; scope_key?: string };
+      if (rem.scope === "item" && rem.scope_key) {
+        const tab = rem.scope_key.split(":")[0];
+        if (!m.has(tab)) m.set(tab, new Set());
+        m.get(tab)!.add(rem.scope_key);
+      }
     }
-  }, [flaggedTabs]);
+    return m;
+  }, [amendmentContext]);
 
 
   /* ================================================================
@@ -636,13 +614,12 @@ export default function EditApplicationPage() {
      RENDER STEP COMPONENT
      ================================================================ */
 
-  // Determine whether current step is flagged for amendment (tab-level)
+  /** Step flagged if section-level or has item-level remarks */
   const isStepFlagged = React.useMemo(() => {
-    if (!isAmendmentModeEffective) return true; // not in amendment mode => editable
-    if (!flaggedTabs) return false;
+    if (!isAmendmentModeEffective) return true;
     if (!currentStepKey) return false;
-    return flaggedTabs.has(currentStepKey);
-  }, [isAmendmentModeEffective, flaggedTabs, currentStepKey]);
+    return flaggedSections.has(currentStepKey) || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
+  }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
 
   const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
 
@@ -685,7 +662,7 @@ export default function EditApplicationPage() {
 
     if (currentStepKey === "supporting_documents") {
       return (
-        <SupportingDocumentsStep
+          <SupportingDocumentsStep
           applicationId={applicationId}
           stepConfig={
             (currentStepConfig as Record<string, unknown>) ||
@@ -695,7 +672,8 @@ export default function EditApplicationPage() {
           readOnly={stepReadOnly}
           amendmentRemarks={amendmentContext?.remarks ?? []}
           isAmendmentMode={isAmendmentModeEffective}
-          flaggedTabs={flaggedTabs}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
         />
       );
     }
@@ -713,7 +691,8 @@ export default function EditApplicationPage() {
           workflow={effectiveWorkflow}
           onDataChange={handleDataChange}
           isAmendmentMode={isAmendmentModeEffective}
-          flaggedTabs={flaggedTabs}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
           remarks={amendmentContext?.remarks ?? []}
           readOnly={stepReadOnly}
         />
@@ -727,7 +706,8 @@ export default function EditApplicationPage() {
           onDataChange={handleDataChange}
           readOnly={stepReadOnly}
           isAmendmentMode={isAmendmentModeEffective}
-          flaggedTabs={flaggedTabs}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
           remarks={amendmentContext?.remarks ?? []}
         />
       );
@@ -1138,12 +1118,12 @@ export default function EditApplicationPage() {
               for (let i = 0; i < effectiveWorkflow.length; i++) {
                 const step = effectiveWorkflow[i];
                 const key = getStepKeyFromStepId((step.id as string) || "") || "";
-                if ((flaggedTabs.has(key))) {
+                if (flaggedSections.has(key) || (flaggedItems.get(key)?.size ?? 0) > 0) {
                   steps.push(i + 1);
                 }
               }
               return steps;
-            }, [effectiveWorkflow, amendmentContext, flaggedTabs])}
+            }, [effectiveWorkflow, amendmentContext, flaggedSections, flaggedItems])}
           />
         </div>
 

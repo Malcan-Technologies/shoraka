@@ -149,8 +149,9 @@ interface InvoiceDetailsStepProps {
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
   isAmendmentMode?: boolean;
-  flaggedTabs?: Set<string>;
-  remarks?: { scope_key?: string; remark?: string; parsed?: { tab?: string; index?: number }; parsedAmend?: { tab?: string; index?: number } }[];
+  flaggedSections?: Set<string>;
+  flaggedItems?: Map<string, Set<string>>;
+  remarks?: { scope?: string; scope_key?: string; remark?: string }[];
 }
 
 export default function InvoiceDetailsStep({
@@ -158,7 +159,8 @@ export default function InvoiceDetailsStep({
   onDataChange,
   readOnly = false,
   isAmendmentMode = false,
-  flaggedTabs,
+  flaggedSections,
+  flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
   // DEBUG: Toggle skeleton mode
@@ -178,14 +180,16 @@ export default function InvoiceDetailsStep({
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
-  /** Map invoice index -> remark for item-level amendment flags */
+  /** Map invoice index -> remark. Simple: scope_key "invoice_details:N:..." -> index N */
   const flaggedInvoiceRemarks = React.useMemo(() => {
     const map = new Map<number, string>();
     for (const r of remarks) {
-      const p = r.parsedAmend || r.parsed;
-      const idx = p?.index;
-      if (typeof idx === "number" && (r.remark || "").trim()) {
-        map.set(idx, (r.remark || "").trim());
+      const rem = r as { scope?: string; scope_key?: string; remark?: string };
+      if (rem.scope !== "item" || !rem.scope_key?.startsWith("invoice_details:")) continue;
+      const parts = rem.scope_key.split(":");
+      if (parts.length >= 2) {
+        const idx = parseInt(parts[1], 10);
+        if (!Number.isNaN(idx) && (rem.remark || "").trim()) map.set(idx, (rem.remark || "").trim());
       }
     }
     return map;
@@ -949,14 +953,18 @@ export default function InvoiceDetailsStep({
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || debugSkeletonMode ? null : (
           <div className="space-y-3">
-            {isAmendmentMode && flaggedTabs?.has("invoice_details") && remarks.length > 0 ? (
+            {isAmendmentMode && (flaggedSections?.has("invoice_details") || (flaggedItems?.get("invoice_details")?.size ?? 0) > 0) && remarks.length > 0 ? (
               <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
                 <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-semibold text-destructive">Amendment required</h4>
                   <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
                   {remarks
-                    .filter((r) => (r.parsedAmend || r.parsed)?.tab === "invoice_details")
+                    .filter((r) => {
+                      const rem = r as { scope?: string; scope_key?: string };
+                      return (rem.scope === "section" && rem.scope_key === "invoice_details") ||
+                        (rem.scope === "item" && rem.scope_key?.split(":")[0] === "invoice_details");
+                    })
                     .flatMap((r, i) =>
                       (r.remark || "").split("\n").filter(Boolean).map((line, idx) => (
                         <li key={`${i}-${idx}`}>{line}</li>

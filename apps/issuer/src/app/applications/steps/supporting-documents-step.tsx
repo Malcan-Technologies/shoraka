@@ -20,15 +20,17 @@ export function SupportingDocumentsStep({
   readOnly = false,
   amendmentRemarks = [],
   isAmendmentMode = false,
-  flaggedTabs,
+  flaggedSections,
+  flaggedItems,
 }: {
   applicationId: string;
   stepConfig?: any;
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
-  amendmentRemarks?: { scope_key: string; remark: string; parsed?: { tab?: string }; parsedAmend?: { tab?: string } }[];
+  amendmentRemarks?: { scope?: string; scope_key?: string; remark?: string }[];
   isAmendmentMode?: boolean;
-  flaggedTabs?: Set<string>;
+  flaggedSections?: Set<string>;
+  flaggedItems?: Map<string, Set<string>>;
 }) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -107,23 +109,20 @@ export function SupportingDocumentsStep({
    * - Keep UI unchanged
    * - Safely support future workflow changes
    */
-  /** Map "categoryIndex-documentIndex" -> remark text for document-level amendment flags */
+  /** Map full scope_key -> remark. Simple: use flaggedItems for matching. */
   const flaggedDocRemarks = React.useMemo(() => {
     const map = new Map<string, string>();
+    const itemSet = flaggedItems?.get("supporting_documents");
+    if (!itemSet) return map;
     for (const r of amendmentRemarks) {
-      const sk = r.scope_key;
-      if (!sk.startsWith("doc:")) continue;
-      const parts = sk.slice(4).split(":");
-      if (parts.length >= 3) {
-        const [categoryKey, indexStr, ...slugParts] = parts;
-        const docIndex = parseInt(indexStr, 10);
-        if (!Number.isNaN(docIndex)) {
-          map.set(`${categoryKey}:${docIndex}`, (r.remark || r?.remark || "") as string);
-        }
+      const rem = r as { scope?: string; scope_key?: string; remark?: string };
+      if (rem.scope !== "item" || !rem.scope_key) continue;
+      if (itemSet.has(rem.scope_key) && (rem.remark || "").trim()) {
+        map.set(rem.scope_key, (rem.remark || "").trim());
       }
     }
     return map;
-  }, [amendmentRemarks]);
+  }, [amendmentRemarks, flaggedItems]);
 
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
@@ -492,12 +491,11 @@ export function SupportingDocumentsStep({
   }
 
   const stepLevelRemarks = React.useMemo(() => {
-    return amendmentRemarks.filter(
-      (r) =>
-        r.scope_key === "supporting_documents" ||
-        (r as any).parsed?.tab === "supporting_documents" ||
-        (r as any).parsedAmend?.tab === "supporting_documents"
-    );
+    return amendmentRemarks.filter((r) => {
+      const rem = r as { scope?: string; scope_key?: string };
+      return (rem.scope === "section" && rem.scope_key === "supporting_documents") ||
+        (rem.scope === "item" && rem.scope_key?.split(":")[0] === "supporting_documents");
+    });
   }, [amendmentRemarks]);
 
   return (
@@ -510,7 +508,7 @@ export function SupportingDocumentsStep({
         </>
       ) : (
         <>
-          {isAmendmentMode && flaggedTabs?.has("supporting_documents") && stepLevelRemarks.length > 0 ? (
+          {isAmendmentMode && (flaggedSections?.has("supporting_documents") || (flaggedItems?.get("supporting_documents")?.size ?? 0) > 0) && stepLevelRemarks.length > 0 ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
               <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div>
@@ -578,8 +576,9 @@ export function SupportingDocumentsStep({
                     const file = uploadedFiles[key];
                     const templateS3Key = document.template?.s3_key;
                     const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
-                    const docRemarkKey = `${groupKey}:${documentIndex}`;
-                    const docRemark = flaggedDocRemarks.get(docRemarkKey);
+                    const slug = String(document.title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+                    const fullScopeKey = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
+                    const docRemark = flaggedDocRemarks.get(fullScopeKey);
                     const isDocFlagged = Boolean(docRemark);
 
                     return (
