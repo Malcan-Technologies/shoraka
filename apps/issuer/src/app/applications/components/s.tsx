@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@cashsouk/ui";
 
 interface ProgressIndicatorProps {
@@ -11,10 +10,6 @@ interface ProgressIndicatorProps {
   isLoading?: boolean;
   disabledSteps?: number[]; // Steps that are visible but locked (non-clickable)
   onStepClick?: (step: number) => void; // Optional click handler
-  isAmendmentMode?: boolean;
-  amendmentFlaggedStepKeys?: string[];
-  acknowledgedWorkflowIds?: string[]; // Step keys the user has saved (from amendment_acknowledged_workflow_ids)
-  stepKeys?: string[]; // Step key per index (from getStepKeyFromStepId)
 }
 
 export function ProgressIndicator({
@@ -23,10 +18,6 @@ export function ProgressIndicator({
   isLoading = false,
   disabledSteps = [],
   onStepClick,
-  isAmendmentMode = false,
-  amendmentFlaggedStepKeys = [],
-  acknowledgedWorkflowIds = [],
-  stepKeys = [],
 }: ProgressIndicatorProps) {
   if (isLoading) {
     return (
@@ -85,10 +76,6 @@ export function ProgressIndicator({
   }
 
 
-  if (process.env.NODE_ENV !== "production" && isAmendmentMode && amendmentFlaggedStepKeys.length > 0) {
-    console.debug("[AMENDMENT][STEPPER] flagged stepKeys:", amendmentFlaggedStepKeys);
-  }
-
   return (
     <div className="mt-3">
       <div className="relative flex items-start justify-between min-h-[80px]">
@@ -98,32 +85,10 @@ export function ProgressIndicator({
           const isActive = stepNumber === currentStep;
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);
-          const stepKey = stepKeys[index] ?? "";
-          const isFlagged =
-            isAmendmentMode &&
-            amendmentFlaggedStepKeys.includes(stepKey);
-          const isAcknowledged = acknowledgedWorkflowIds.includes(stepKey);
-
-          if (process.env.NODE_ENV !== "production" && isAmendmentMode && isFlagged) {
-            console.debug("[AMENDMENT][STEP STYLE]", stepKey, "isFlagged:", isFlagged, "isAcknowledged:", isAcknowledged);
-          }
-
-          /** Completed steps stay normal. Red only for flagged non-completed steps. */
-          const showFlaggedStyle = isFlagged && !(isCompleted || isDisabled);
-
-          /** Connector before current step turns red when current step is flagged. */
-          const connectorIsRed =
-            index !== 0 &&
-            isAmendmentMode &&
-            isFlagged &&
-            isActive;
 
           // For disabled steps, always show as completed (locked)
           const displayCompleted = isCompleted || isDisabled;
           const displayFilled = isFilled || isDisabled;
-
-          /** Flagged + acknowledged = red circle with white check (saved amendment step). */
-          const showAcknowledgedFlaggedStyle = isFlagged && isAcknowledged && displayCompleted;
 
           const handleClick = () => {
             if (!isDisabled && onStepClick) {
@@ -137,13 +102,10 @@ export function ProgressIndicator({
               className={`relative flex flex-1 flex-col items-center min-w-0 ${isDisabled ? "cursor-not-allowed opacity-50" : onStepClick ? "cursor-pointer" : ""}`}
               onClick={handleClick}
             >
-              {/* Connector — red when leading into current flagged step */}
+              {/* Connector — slightly thinner */}
               {index !== 0 && (
                 <div
-                  className={cn(
-                    "absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out",
-                    connectorIsRed ? "bg-destructive" : displayFilled ? "bg-foreground" : "bg-muted"
-                  )}
+                  className={`absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out ${displayFilled ? "bg-foreground" : "bg-muted"}`}
                   style={{
                     top: "16px",
                     height: "4px",
@@ -156,12 +118,7 @@ export function ProgressIndicator({
                 {isActive && !isDisabled && (
                   <>
                     <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
-                    <div
-                      className={cn(
-                        "absolute inset-0 rounded-full border-2 z-20 transition-all duration-200 ease-out",
-                        showFlaggedStyle ? "border-destructive" : "border-foreground"
-                      )}
-                    />
+                    <div className="absolute inset-0 rounded-full border-2 border-foreground z-20 transition-all duration-200 ease-out" />
                   </>
                 )}
 
@@ -170,13 +127,7 @@ export function ProgressIndicator({
                   className={cn(
                     "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] transition-all duration-200 ease-out",
                     displayFilled
-                      ? showAcknowledgedFlaggedStyle
-                        ? "border-2 border-destructive bg-destructive scale-100"
-                        : showFlaggedStyle
-                        ? "border-2 border-destructive bg-destructive scale-100"
-                        : "border-2 border-foreground bg-foreground scale-100"
-                      : showFlaggedStyle
-                      ? "border-2 border-destructive bg-background scale-95"
+                      ? "border-2 border-foreground bg-foreground scale-100"
                       : "border-2 border-muted bg-background scale-95"
                   )}
                 >
@@ -186,19 +137,7 @@ export function ProgressIndicator({
                   )}
 
                   {displayCompleted ? (
-                    <CheckIcon
-                      className={cn(
-                        "relative h-[20px] w-[20px] translate-y-[0.5px]",
-                        showAcknowledgedFlaggedStyle ? "text-destructive-foreground" : "text-background"
-                      )}
-                    />
-                  ) : showFlaggedStyle ? (
-                    <ExclamationTriangleIcon
-                      className={cn(
-                        "relative h-[14px] w-[14px]",
-                        displayFilled ? "text-destructive-foreground" : "text-destructive"
-                      )}
-                    />
+                    <CheckIcon className="relative h-[20px] w-[20px] text-background translate-y-[0.5px]" />
                   ) : (
                     <div
                       className={cn(
@@ -210,16 +149,12 @@ export function ProgressIndicator({
                 </div>
               </div>
 
-              {/* Label — red when flagged (before or after save); thicker when current */}
+              {/* Label */}
               <span
                 className={cn(
                   "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
-                  isActive && isFlagged && !isDisabled
-                    ? "font-semibold text-destructive"
-                    : isActive && !isDisabled
+                  isActive && !isDisabled
                     ? "font-medium text-foreground"
-                    : showFlaggedStyle || showAcknowledgedFlaggedStyle
-                    ? "text-destructive"
                     : "text-muted-foreground"
                 )}
               >

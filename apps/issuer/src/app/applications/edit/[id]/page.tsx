@@ -262,6 +262,19 @@ export default function EditApplicationPage() {
     return m;
   }, [amendmentContext]);
 
+  /** Step keys that have amendment remarks (section or item). Used by stepper for red styling. */
+  const amendmentFlaggedStepKeys = React.useMemo(() => {
+    const s = new Set<string>();
+    for (const k of flaggedSections) s.add(k);
+    for (const k of flaggedItems.keys()) s.add(k);
+    return Array.from(s);
+  }, [flaggedSections, flaggedItems]);
+
+  /** Step keys the user has acknowledged (saved). Derived from amendment_acknowledged_workflow_ids. */
+  const acknowledgedWorkflowIds = React.useMemo(() => {
+    const ids = (application as { amendment_acknowledged_workflow_ids?: string[] })?.amendment_acknowledged_workflow_ids ?? [];
+    return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
+  }, [application]);
 
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
@@ -1121,18 +1134,13 @@ export default function EditApplicationPage() {
               .map((s: Record<string, unknown>) => (s.name as string))}
             currentStep={stepFromUrl}
             isLoading={isLoading || !effectiveWorkflow.length}
-            amendmentSteps={React.useMemo(() => {
-              if (!amendmentContext) return [];
-              const steps: number[] = [];
-              for (let i = 0; i < effectiveWorkflow.length; i++) {
-                const step = effectiveWorkflow[i];
-                const key = getStepKeyFromStepId((step.id as string) || "") || "";
-                if (flaggedSections.has(key) || (flaggedItems.get(key)?.size ?? 0) > 0) {
-                  steps.push(i + 1);
-                }
-              }
-              return steps;
-            }, [effectiveWorkflow, amendmentContext, flaggedSections, flaggedItems])}
+            isAmendmentMode={application?.status === "AMENDMENT_REQUESTED"}
+            amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
+            acknowledgedWorkflowIds={acknowledgedWorkflowIds}
+            stepKeys={effectiveWorkflow.map(
+              (s: Record<string, unknown>) =>
+                getStepKeyFromStepId((s.id as string) || "") || ""
+            )}
           />
         </div>
 
