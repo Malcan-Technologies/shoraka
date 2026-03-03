@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
+import { useProducts } from "@/hooks/use-products";
 
 /* ============================================================
    Real data (applications for active organization)
@@ -99,16 +100,43 @@ function ReviewOfferButton({
    Main
 ============================================================ */
 
+// Build product name map (batched)
+
 export function FinancingSection() {
   const { activeOrganization } = useOrganization();
-  const { data: applications = [], isLoading } = useOrganizationApplications(activeOrganization?.id);
-  const [openApplicationId, setOpenApplicationId] = useState<string | null>(applications[0]?.id ?? null);
+  const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
+  // undefined = not initialized yet; null = explicitly closed
+  const [openApplicationId, setOpenApplicationId] = useState<string | null | undefined>(undefined);
 
   React.useEffect(() => {
-    if (applications && applications.length > 0 && !openApplicationId) {
+    // Initialize to first application only once (when state is still undefined).
+    if (applications && applications.length > 0 && openApplicationId === undefined) {
       setOpenApplicationId(applications[0].id);
     }
+    // Intentionally do not reset when openApplicationId is null (user closed).
   }, [applications, openApplicationId]);
+
+  // Fetch products (max pageSize 100). If you need >100 products, consider paginating.
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true } as any);
+  const products = (productsData as any)?.products || [];
+
+  const productNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    products.forEach((p: any) => {
+      // Prefer a "Financing Type" workflow step's config.name if present.
+      const financingStep = p.workflow?.find((step: any) =>
+        String(step?.name).toLowerCase().includes("financing type")
+      );
+      const name =
+        financingStep?.config?.name ||
+        p.workflow?.[0]?.config?.name ||
+        p.name ||
+        p.title ||
+        `Product ${p.id}`;
+      map.set(p.id, name);
+    });
+    return map;
+  }, [products]);
 
   return (
     <div className="space-y-6">
@@ -127,7 +155,11 @@ export function FinancingSection() {
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <h3 className="font-semibold text-[15px] leading-6">
-                    {app.contract?.contract_details?.title ?? `Application ${app.id}`}
+                    {(
+                      productNameMap.get(app.financing_type?.product_id ?? "") ||
+                      app.financing_type?.config?.name ||
+                      app.contract?.contract_details?.title
+                    ) ?? `Application ${app.id}`}
                   </h3>
                   {applicationBadge(app.status)}
                 </div>
