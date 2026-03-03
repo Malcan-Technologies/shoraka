@@ -524,7 +524,12 @@ export default function EditApplicationPage() {
     if (!application || isLoadingApp || isLoadingProducts || isMismatch) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
-
+    // Keep review & submit stable: if user is on the review page, do not
+    // auto-advance or redirect when the workflow changes (e.g. a step was removed).
+    // Users expect to stay on the review page and decide next actions manually.
+    if (currentStepKey === "review_and_submit") {
+      return;
+    }
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
 
