@@ -4085,8 +4085,7 @@ export class AdminService {
         section,
         "APPROVE",
         remarkValue,
-        reviewerUserId,
-        (application as any).review_cycle ?? 1
+        reviewerUserId
       );
     }
     await repository.createReviewEvent(
@@ -4218,8 +4217,7 @@ export class AdminService {
       section,
       "REJECT",
       remark,
-      reviewerUserId,
-      (application as any).review_cycle ?? 1
+      reviewerUserId
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4270,8 +4268,7 @@ export class AdminService {
       section,
       "REQUEST_AMENDMENT",
       remark,
-      reviewerUserId,
-      (application as any).review_cycle ?? 1
+      reviewerUserId
     );
     if (section === "contract_details" && application.contract_id) {
       await prisma.contract.update({
@@ -4331,8 +4328,7 @@ export class AdminService {
         buildItemScopeKey(itemType, itemId),
         "APPROVE",
         remarkValue,
-        reviewerUserId,
-        (application as any).review_cycle ?? 1
+        reviewerUserId
       );
     }
     await repository.createReviewEvent(
@@ -4383,8 +4379,7 @@ export class AdminService {
       buildItemScopeKey(itemType, itemId),
       "REJECT",
       remark,
-      reviewerUserId,
-      (application as any).review_cycle ?? 1
+      reviewerUserId
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4434,8 +4429,7 @@ export class AdminService {
       buildItemScopeKey(itemType, itemId),
       "REQUEST_AMENDMENT",
       remark,
-      reviewerUserId,
-      (application as any).review_cycle ?? 1
+      reviewerUserId
     );
     await repository.createReviewEvent(
       applicationId,
@@ -4468,41 +4462,39 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
-    // Validate strict scope_key format
-    let parsed;
-    try {
-      // import parseScopeKey via package exports
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { parseScopeKey } = require("@cashsouk/types");
-      parsed = parseScopeKey(scopeKey);
-    } catch (err: any) {
-      throw new AppError(400, "INVALID_SCOPE_KEY", err?.message ?? "Invalid scope_key");
-    }
 
-    if (parsed.kind === "TAB") {
+    if (scope === "section") {
       const validSections = REVIEW_SECTION_ORDER;
-      if (!validSections.includes(parsed.tab as (typeof REVIEW_SECTION_ORDER)[number])) {
-        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${parsed.tab}`);
+      if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
+        throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
       }
       await repository.updateSectionReviewStatus(
         applicationId,
-        parsed.tab as ReviewSection,
+        scopeKey as ReviewSection,
         ReviewStepStatus.AMENDMENT_REQUESTED,
         reviewerUserId
       );
-      if (parsed.tab === "contract_details" && application.contract_id) {
+      if (scopeKey === "contract_details" && application.contract_id) {
         await prisma.contract.update({
           where: { id: application.contract_id },
           data: { status: "AMENDMENT_REQUESTED" },
         });
       }
     } else {
-      // Field-level amendment: do not require itemType/itemId here.
-      // We persist the draft remark scoped to the review cycle.
-      // Optionally, if a corresponding item exists and mapping is available, callers may create application_review_items separately.
+      if (!itemType || !itemId) {
+        throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
+      }
+      this.validateReviewItemExists(application, itemType, itemId);
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId
+      );
     }
 
-    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId, (application as any).review_cycle ?? 1);
+    await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
     return repository.getApplicationById(applicationId);
@@ -4520,7 +4512,7 @@ export class AdminService {
     if (!this.isReviewable(application.status as ApplicationStatus)) {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
-    const rows = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
+    const rows = await repository.listPendingAmendments(applicationId);
     return rows.map((r) => {
       const base = {
         id: r.id,
@@ -4559,7 +4551,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Pending amendment not found");
     }
     logger.info({ applicationId, scope, scopeKey }, "Pending amendment updated");
-    return repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
+    return repository.listPendingAmendments(applicationId);
   }
 
   /**
@@ -4600,7 +4592,7 @@ export class AdminService {
       );
     }
 
-    const remaining = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
+    const remaining = await repository.listPendingAmendments(applicationId);
     const sectionStillHasAmendments = remaining.some((p) => {
       const s = getSectionForPendingAmendment(p.scope, p.scope_key);
       return s === affectedSection;
@@ -4627,7 +4619,7 @@ export class AdminService {
       }
     }
 
-    return repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
+    return repository.listPendingAmendments(applicationId);
   }
 
   /**
@@ -4638,7 +4630,7 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
 
-    const pending = await repository.listPendingAmendmentsForCycle(applicationId, (application as any).review_cycle ?? 1);
+    const pending = await repository.listPendingAmendments(applicationId);
     if (pending.length === 0) {
       throw new AppError(400, "EMPTY_LIST", "No pending amendments to submit");
     }
@@ -4651,7 +4643,6 @@ export class AdminService {
       await tx.applicationReviewRemark.updateMany({
         where: {
           application_id: applicationId,
-          review_cycle: (application as any).review_cycle ?? 1,
           action_type: "REQUEST_AMENDMENT",
           submitted_at: null,
         },

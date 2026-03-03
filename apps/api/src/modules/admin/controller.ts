@@ -3,7 +3,7 @@ import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
-import { buildItemScopeKey, parseScopeKey } from "@cashsouk/types";
+import { buildItemScopeKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
@@ -2152,19 +2152,18 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = addPendingAmendmentSchema.parse(req.body);
-      // Enforce strict scope_key format
-      try {
-        parseScopeKey(validated.scopeKey);
-      } catch (err: any) {
-        throw new AppError(400, "INVALID_SCOPE_KEY", err?.message ?? "Invalid scope_key");
-      }
-
+      const scopeKey =
+        validated.scope === "section"
+          ? String(validated.scopeKey ?? "")
+          : buildItemScopeKey(validated.itemType ?? "", String(validated.itemId ?? ""));
       const result = await adminService.addPendingAmendment(
         id,
         validated.scope,
-        validated.scopeKey,
+        scopeKey,
         validated.remark,
-        req.user.user_id
+        req.user.user_id,
+        validated.itemType ?? undefined,
+        validated.itemId ?? undefined
       );
 
       res.json({

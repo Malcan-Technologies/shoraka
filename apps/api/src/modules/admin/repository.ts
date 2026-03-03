@@ -2389,13 +2389,11 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string,
-    reviewCycle: number
+    authorUserId: string
   ) {
     return prisma.applicationReviewRemark.create({
       data: {
         application_id: applicationId,
-        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2414,20 +2412,18 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string,
-    reviewCycle: number
+    authorUserId: string
   ) {
     return prisma.applicationReviewRemark.upsert({
       where: {
-        application_id_review_cycle_scope_key: {
+        application_id_scope_scope_key: {
           application_id: applicationId,
-          review_cycle: reviewCycle,
+          scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
-        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2451,21 +2447,18 @@ export class AdminRepository {
     scope: string,
     scopeKey: string,
     remark: string,
-    authorUserId: string,
-    reviewCycle: number
+    authorUserId: string
   ) {
-    // Upsert draft amendment scoped to application_id + review_cycle + scope_key
     return prisma.applicationReviewRemark.upsert({
       where: {
-        application_id_review_cycle_scope_key: {
+        application_id_scope_scope_key: {
           application_id: applicationId,
-          review_cycle: reviewCycle,
+          scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
-        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -2485,26 +2478,9 @@ export class AdminRepository {
    * List pending amendments (draft remarks with submitted_at=null)
    */
   async listPendingAmendments(applicationId: string) {
-    // Returns pending amendments across all review cycles (legacy). Prefer caller to use repository.listPendingAmendmentsForCycle.
     return prisma.applicationReviewRemark.findMany({
       where: {
         application_id: applicationId,
-        action_type: "REQUEST_AMENDMENT",
-        submitted_at: null,
-      },
-      orderBy: { created_at: "asc" },
-      include: { author: { select: { first_name: true, last_name: true } } },
-    });
-  }
-
-  /**
-   * List pending amendments for a specific review cycle.
-   */
-  async listPendingAmendmentsForCycle(applicationId: string, reviewCycle: number) {
-    return prisma.applicationReviewRemark.findMany({
-      where: {
-        application_id: applicationId,
-        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
       },
@@ -2567,7 +2543,6 @@ export class AdminRepository {
    * Mark draft amendments as submitted (set submitted_at)
    */
   async markDraftAmendmentsAsSubmitted(applicationId: string) {
-    // Back-compat: mark drafts across all cycles as submitted.
     return prisma.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,

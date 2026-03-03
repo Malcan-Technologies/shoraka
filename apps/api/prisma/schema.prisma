@@ -395,7 +395,6 @@ model ApplicationReviewItem {
 model ApplicationReviewRemark {
   id             String      @id(map: "application_review_notes_pkey") @default(cuid())
   application_id String
-  review_cycle   Int
   scope          String
   scope_key      String
   action_type    String
@@ -406,9 +405,7 @@ model ApplicationReviewRemark {
   updated_at     DateTime    @updatedAt
   application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade, map: "application_review_notes_application_id_fkey")
   author         User        @relation(fields: [author_user_id], references: [user_id], onDelete: Restrict)
-
-  @@unique([application_id, review_cycle, scope_key], map: "application_review_remarks_uniq")
-  @@index([application_id, review_cycle], map: "application_review_notes_application_id_review_cycle_idx")
+  @@unique([application_id, scope, scope_key], map: "application_review_remarks_application_id_scope_scope_key_key")
   @@index([application_id, scope_key], map: "application_review_notes_application_id_scope_key_idx")
   @@index([application_id, submitted_at])
   @@map("application_review_remarks")
