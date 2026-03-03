@@ -75,6 +75,16 @@ function offerBadge(offerStatus?: "Offer received" | "Offer expired") {
   );
 }
 
+function formatStatus(raw?: string | null) {
+  if (!raw) return "";
+  // Normalize variants like "DRAFT", "IN_PROGRESS", "In progress" -> "In progress"
+  const s = String(raw).replace(/_/g, " ").toLowerCase();
+  return s
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function ReviewOfferButton({
   show,
   onClick,
@@ -204,7 +214,13 @@ export function FinancingSection() {
                 >
                   <div className="space-y-4">
                     {app.invoices?.map((inv: any) => (
-                      <InvoiceCard key={inv.id} item={inv} />
+                      <InvoiceCard
+                        key={inv.id}
+                        item={inv}
+                        applicationSubmittedAt={
+                          app.submitted_at ?? app.submission_date ?? app.created_at ?? null
+                        }
+                      />
                     ))}
                   </div>
                 </CollapsibleCategory>
@@ -286,8 +302,8 @@ function ContractCard({ item }: { item: any }) {
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium truncate">
               Contract : <span className="font-semibold">{details?.title ?? item.id}</span>
+              <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details?.status))}</span>
             </p>
-            {contractBadge(item.status)}
             {offerBadge(item.offerStatus)}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -345,7 +361,32 @@ function ContractCard({ item }: { item: any }) {
   );
 }
 
-export function InvoiceCard({ item }: { item: any }) {
+export function InvoiceCard({
+  item,
+  applicationSubmittedAt,
+}: {
+  item: any;
+  applicationSubmittedAt?: string | null;
+}) {
+  const details = item.details ?? {};
+  const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
+  const invoiceValue = details.value ?? details.invoiceValue ?? null;
+  const financingAmount =
+    details.financing_amount ??
+    details.financingAmount ??
+    (typeof invoiceValue === "number" && typeof details.financing_ratio_percent === "number"
+      ? Math.round((invoiceValue * details.financing_ratio_percent) / 100)
+      : undefined);
+  const maturityDate = details.maturity_date ?? details.maturityDate ?? item.maturityDate ?? null;
+  const submissionDate =
+    details.submission_date ??
+    details.submissionDate ??
+    item.submissionDate ??
+    item.created_at ??
+    applicationSubmittedAt ??
+    null;
+  const status = formatStatus(item.status ?? details.status);
+
   return (
     <Card className="rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-5 space-y-5">
@@ -355,9 +396,9 @@ export function InvoiceCard({ item }: { item: any }) {
           <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium truncate">
-              Invoice no : <span className="font-semibold">{item.details?.number ?? item.id}</span>
+              Invoice no : <span className="font-semibold">{invoiceNumber}</span>
+              <span className="ml-2">{invoiceBadge(status)}</span>
             </p>
-            {invoiceBadge(item.status)}
             {offerBadge(item.offerStatus)}
           </div>
 
@@ -416,10 +457,16 @@ export function InvoiceCard({ item }: { item: any }) {
 
             <div className="space-y-1">
               <p>
-                Invoice value : <span className="text-foreground font-medium">{item.details?.value ?? "-"}</span>
+                Invoice value :{" "}
+                <span className="text-foreground font-medium">
+                  {invoiceValue ?? "-"}
+                </span>
               </p>
               <p>
-                Financing amount : <span className="text-foreground font-medium">{item.details?.financing_amount ?? "-"}</span>
+                Financing amount :{" "}
+                <span className="text-foreground font-medium">
+                  {financingAmount ?? "-"}
+                </span>
               </p>
             </div>
           </div>
@@ -431,7 +478,7 @@ export function InvoiceCard({ item }: { item: any }) {
               <p>
                 Submission date:{" "}
                 <span className="text-foreground font-medium">
-                  {item.submissionDate}
+                  {submissionDate ?? "-"}
                 </span>
               </p>
 
@@ -445,7 +492,7 @@ export function InvoiceCard({ item }: { item: any }) {
               <p>
                 Maturity date:{" "}
                 <span className="text-foreground font-medium">
-                  {item.maturityDate}
+                  {maturityDate ?? "-"}
                 </span>
               </p>
             </div>
