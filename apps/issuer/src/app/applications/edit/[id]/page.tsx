@@ -166,15 +166,20 @@ export default function EditApplicationPage() {
    LOCK EDITING IF NOT DRAFT
    ================================================================ */
 
+  /** Block edit access when status is not DRAFT or AMENDMENT_REQUESTED. */
+  const isEditBlocked =
+    application &&
+    application.status !== "DRAFT" &&
+    application.status !== "AMENDMENT_REQUESTED";
+
   React.useEffect(() => {
     if (!application) return;
-
-    // Allow staying during active submit flow
     if (isSubmittingRef.current) return;
-
-    // Allow editing for DRAFT and AMENDMENT_REQUESTED only
     if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
-      router.replace("/");
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[EDIT GUARD]", "status:", application.status);
+      }
+      router.replace("/applications");
     }
   }, [application, router]);
 
@@ -1099,6 +1104,10 @@ export default function EditApplicationPage() {
   const isLoading = isLoadingApp || isLoadingProducts;
   const showBlockingDialog = Boolean(blockReason);
 
+  if (isEditBlocked) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Main content */}
@@ -1173,7 +1182,7 @@ export default function EditApplicationPage() {
           ) : null}
           {isStepFlagged ? (
             <div className="mb-6">
-              <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro />
+              <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro={false} />
             </div>
           ) : null}
           {renderStepComponent()}

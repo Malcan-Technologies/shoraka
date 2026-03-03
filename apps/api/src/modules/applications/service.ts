@@ -93,6 +93,17 @@ export class ApplicationService {
   }
 
   /**
+   * Throw if application status does not allow editing (only DRAFT or AMENDMENT_REQUESTED).
+   */
+  private verifyApplicationEditable(application: Application | null): void {
+    if (!application) return;
+    const status = (application as any).status as string;
+    if (status !== "DRAFT" && status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
+    }
+  }
+
+  /**
    * Verify that user has access to an application
    * User must be either the owner or a member of the organization that owns the application
    */
@@ -245,6 +256,7 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.verifyApplicationEditable(application);
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Acknowledgement allowed only in AMENDMENT_REQUESTED state");
     }
@@ -443,13 +455,13 @@ export class ApplicationService {
    * Update a specific step in the application
    */
   async updateStep(id: string, input: UpdateApplicationStepInput, userId: string): Promise<Application> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.verifyApplicationEditable(application);
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
     if (!fieldName) {
@@ -623,8 +635,9 @@ export class ApplicationService {
     existingS3Key?: string;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(params.applicationId, params.userId);
+    const application = await this.repository.findById(params.applicationId);
+    this.verifyApplicationEditable(application);
     // Validate file type (PDF only)
     if (params.contentType !== "application/pdf") {
       throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
@@ -688,8 +701,9 @@ export class ApplicationService {
    * Delete an application document from S3
    */
   async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    this.verifyApplicationEditable(application);
     try {
       await deleteS3Object(s3Key);
       logger.info({ s3Key }, "Deleted application document from S3");
@@ -703,13 +717,13 @@ export class ApplicationService {
    * Update application status and perform cleanup
    */
   async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.verifyApplicationEditable(application);
 
     const currentStatus = application.status as string;
     if (status === "RESUBMITTED" && currentStatus !== "AMENDMENT_REQUESTED") {
