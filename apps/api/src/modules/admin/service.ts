@@ -3836,7 +3836,11 @@ export class AdminService {
    * Update AR financing application status.
    * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
    */
-  async updateApplicationStatus(id: string, status: ApplicationStatus) {
+  async updateApplicationStatus(
+    id: string,
+    status: ApplicationStatus,
+    userId: string
+  ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
     if (!application) {
@@ -3874,6 +3878,19 @@ export class AdminService {
     }
 
     const updatedApplication = await repository.updateApplicationStatus(id, status);
+
+    if (status === ApplicationStatus.UNDER_REVIEW) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.RESET,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
+        metadata: { previous_status: currentStatus },
+      });
+    }
 
     logger.info(
       { applicationId: id, newStatus: status },
@@ -4209,7 +4226,7 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending"
+      null
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4244,7 +4261,7 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending"
+      null
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
@@ -4564,6 +4581,27 @@ export class AdminService {
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
 
+    const existing =
+      scope === "section"
+        ? (application.application_reviews as { section: string; status: string }[] | undefined)?.find(
+            (r) => r.section === scopeKey
+          )?.status
+        : (application.application_review_items as { item_type: string; item_id: string; status: string }[] | undefined)?.find(
+            (r) => r.item_type === itemType && r.item_id === itemId
+          )?.status;
+    const oldStatus = existing ?? "PENDING";
+    if (oldStatus !== "AMENDMENT_REQUESTED") {
+      await this.logReviewActivity(
+        applicationId,
+        scope,
+        scopeKey,
+        oldStatus,
+        "AMENDMENT_REQUESTED",
+        reviewerUserId,
+        remark
+      );
+    }
+
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
     return repository.getApplicationById(applicationId);
   }
@@ -4734,6 +4772,18 @@ export class AdminService {
           remark: `${pending.length} amendment(s) sent to issuer`,
         },
       });
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: ActivityLevel.APPLICATION,
+      target: ActivityTarget.APPLICATION,
+      action: ActivityAction.REQUESTED_AMENDMENT,
+      portal: ActivityPortal.ADMIN,
+      eventType: "AMENDMENTS_SUBMITTED",
+      remark: `${pending.length} amendment(s) sent to issuer`,
+      metadata: { count: pending.length },
     });
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");

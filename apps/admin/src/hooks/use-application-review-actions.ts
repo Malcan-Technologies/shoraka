@@ -336,10 +336,13 @@ export function useAddPendingAmendment() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
     },
@@ -463,6 +466,9 @@ export function useSubmitAmendmentRequest() {
       });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
     },
   });
 }
