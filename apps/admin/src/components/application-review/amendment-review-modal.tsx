@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TrashIcon } from "@heroicons/react/24/outline";
+import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "./review-registry";
 import {
   getSectionForScopeKey,
@@ -143,6 +144,18 @@ export function AmendmentReviewModal({
   );
 }
 
+function RemarkBullets({ remark }: { remark: string }) {
+  const lines = formatRemarkAsBullets(remark);
+  if (lines.length === 0) return null;
+  return (
+    <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground leading-relaxed">
+      {lines.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
 function AmendmentRow({
   item,
   getLabel,
@@ -163,9 +176,7 @@ function AmendmentRow({
           {label && (
             <div className="text-sm font-semibold text-foreground">{label}</div>
           )}
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {item.remark}
-          </p>
+          <RemarkBullets remark={item.remark} />
         </div>
         <Button
           variant="ghost"

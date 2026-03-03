@@ -50,6 +50,7 @@ import {
   ComputerDesktopIcon,
   ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
+import { formatRemarkAsBullets } from "@/lib/utils";
 
 type ActivityMetadata = {
   entityId?: string;
@@ -347,7 +348,17 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
             log.event_type
           )}`}
         >
-          {String(remark)}
+          {(() => {
+            const lines = formatRemarkAsBullets(String(remark));
+            if (lines.length === 0) return null;
+            return (
+              <ul className="list-disc pl-4 space-y-1">
+                {lines.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            );
+          })()}
         </div>
       </div>
     )}

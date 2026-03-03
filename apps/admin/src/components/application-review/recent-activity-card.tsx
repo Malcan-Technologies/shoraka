@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card } from "@/components/ui/card";
 import { format } from "date-fns";
 import AdminActivityTimeline from "@/components/admin-activity-timeline";
+import { formatRemarkAsBullets } from "@/lib/utils";
 
 export interface RecentActivityCardProps {
   events: {
@@ -70,9 +71,17 @@ export function RecentActivityCard({ events, remarks, applicationId }: RecentAct
                   {a.status}
                 </span>
               )}
-              {a.remark && (
-                <p className="mt-1 text-muted-foreground line-clamp-2">{a.remark}</p>
-              )}
+              {a.remark && (() => {
+                const lines = formatRemarkAsBullets(a.remark);
+                if (lines.length === 0) return null;
+                return (
+                  <ul className="mt-1 list-disc pl-4 space-y-0.5 text-muted-foreground">
+                    {lines.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                );
+              })()}
               <div className="mt-1 text-[10px] text-muted-foreground">
                 {format(new Date(a.created_at), "dd MMM HH:mm")}
               </div>
