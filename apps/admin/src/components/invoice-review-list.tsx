@@ -60,14 +60,16 @@ interface InvoiceDetails {
 
 const PLACEHOLDER = { estDisbursementDate: "TBD", estPeriodDays: "TBD" } as const;
 
+function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
+  const sanitized = String(invoiceNo).replace(/:/g, "_");
+  return `invoice_details:${idx}:${sanitized}`;
+}
+
 function getItemStatus(
   reviewItems: { item_type: string; item_id: string; status: string }[],
-  itemId: string
+  scopeKey: string
 ): string {
-  return (
-    reviewItems.find((r) => r.item_type === "invoice" && r.item_id === itemId)
-      ?.status ?? "PENDING"
-  );
+  return reviewItems.find((r) => r.item_id === scopeKey)?.status ?? "PENDING";
 }
 
 function toNumber(value: unknown): number | null {
@@ -141,9 +143,10 @@ export function InvoiceList({
         <TableBody>
           {invoices.map((inv, idx) => {
             const details = inv.details as InvoiceDetails | undefined;
-            const status = getItemStatus(reviewItems, inv.id);
-            const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceNo = details?.number ?? idx + 1;
+            const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
+            const status = getItemStatus(reviewItems, scopeKey);
+            const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
             const issuerFinancingAmount =
@@ -184,7 +187,7 @@ export function InvoiceList({
                   <TableCell className="text-center">
                     {isReviewable ? (
                       <ItemActionDropdown
-                        itemId={inv.id}
+                        itemId={scopeKey}
                         status={status}
                         isPending={isItemActionPending}
                         isActionLocked={isActionLocked}

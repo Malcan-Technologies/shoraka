@@ -44,8 +44,8 @@ import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
-  buildItemScopeKey,
   getSectionForPendingAmendment,
+  getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
@@ -3899,19 +3899,39 @@ export class AdminService {
   }
 
   /**
-   * Validate that an invoice item exists in the application
+   * Validate that an invoice item exists in the application.
+   * Expects format invoice_details:<index>:<invoice_number>
    */
-  private validateInvoiceExists(application: { invoices: { id: string }[] }, itemId: string): void {
-    const exists = application.invoices?.some((inv) => inv.id === itemId);
-    if (!exists) {
+  private validateInvoiceExists(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    itemId: string
+  ): void {
+    if (!itemId.startsWith("invoice_details:")) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
+    }
+    const parts = itemId.split(":");
+    if (parts.length < 3) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
+    }
+    const idx = parseInt(parts[1], 10);
+    if (!Number.isFinite(idx) || idx < 0) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice index: ${itemId}`);
+    }
+    const invoices = application.invoices ?? [];
+    if (idx >= invoices.length) {
+      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
+    }
+    const inv = invoices[idx];
+    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const keyNum = parts.slice(2).join(":");
+    if (expectedNum !== keyNum) {
       throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
     }
   }
 
   /**
    * Validate that a document item exists in the application.
-   * Ensures supporting_documents exists and itemId format is valid (doc:...).
-   * Full key resolution matches frontend buildCategoryGroups logic.
+   * Expects format supporting_documents:<category>:<index>:<name>
    */
   private validateDocumentExists(
     application: { supporting_documents?: unknown },
@@ -3921,7 +3941,7 @@ export class AdminService {
     if (!docs || typeof docs !== "object") {
       throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
     }
-    if (!itemId.startsWith("doc:")) {
+    if (!itemId.startsWith("supporting_documents:")) {
       throw new AppError(400, "INVALID_ITEM", `Invalid document item ID: ${itemId}`);
     }
     const docKeys = this.collectDocumentKeys(docs);
@@ -3930,13 +3950,15 @@ export class AdminService {
     }
   }
 
-  /** Collect document keys from supporting_documents structure (matches frontend key generation). */
+  /** Collect document keys from supporting_documents structure (matches frontend document-list). */
   private collectDocumentKeys(docs: unknown): Set<string> {
     const keys = new Set<string>();
     const raw = (docs as Record<string, unknown>)?.supporting_documents ?? docs;
     if (Array.isArray(raw)) {
       raw.forEach((d: Record<string, unknown>, i: number) => {
-        keys.add(`doc:${i}:${String(d?.name ?? d?.title ?? "document")}`);
+        const name = String(d?.name ?? d?.title ?? "document");
+        const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+        keys.add(`supporting_documents:others:${i}:${slug}`);
       });
       return keys;
     }
@@ -3948,7 +3970,9 @@ export class AdminService {
       if (val == null) continue;
       const arr = Array.isArray(val) ? val : [val];
       arr.forEach((d: Record<string, unknown>, i: number) => {
-        keys.add(`doc:${catKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`);
+        const name = String(d?.name ?? d?.title ?? "doc");
+        const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+        keys.add(`supporting_documents:${catKey}:${i}:${slug}`);
       });
     }
     const cats = obj.categories;
@@ -3968,7 +3992,7 @@ export class AdminService {
           const label =
             String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
           const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-          keys.add(`doc:${categoryKey}:${docIndex}:${slug}`);
+          keys.add(`supporting_documents:${categoryKey}:${docIndex}:${slug}`);
         });
       });
     }
@@ -4009,19 +4033,16 @@ export class AdminService {
   }
 
   /**
-   * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
-   * Canonical format is buildItemScopeKey(itemType, itemId)
+   * Clear pending item amendment drafts for the given item.
+   * itemId is the scope_key (e.g. supporting_documents:..., invoice_details:...).
    */
   private async clearItemDraftAmendments(
     repository: AdminRepository,
     applicationId: string,
-    itemType: "invoice" | "document",
+    _itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId)]);
-    if (itemType === "document" || itemType === "invoice") {
-      scopeKeys.add(itemId);
-    }
+    const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
         repository.removeDraftAmendment(applicationId, "item", scopeKey)
@@ -4036,10 +4057,10 @@ export class AdminService {
   private async clearItemRemarks(
     repository: AdminRepository,
     applicationId: string,
-    itemType: "invoice" | "document",
+    _itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId), itemId]);
+    const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
         repository.removeReviewRemark(applicationId, "item", scopeKey)
@@ -4325,7 +4346,7 @@ export class AdminService {
       await repository.upsertReviewRemark(
         applicationId,
         "item",
-        buildItemScopeKey(itemType, itemId),
+        itemId,
         "APPROVE",
         remarkValue,
         reviewerUserId
@@ -4376,7 +4397,7 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      buildItemScopeKey(itemType, itemId),
+      itemId,
       "REJECT",
       remark,
       reviewerUserId
@@ -4426,7 +4447,7 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      buildItemScopeKey(itemType, itemId),
+      itemId,
       "REQUEST_AMENDMENT",
       remark,
       reviewerUserId
@@ -4569,11 +4590,7 @@ export class AdminService {
     const affectedSection =
       scope === "section"
         ? scopeKey
-        : scopeKey.startsWith("document:") || scopeKey.startsWith("doc:")
-          ? "supporting_documents"
-          : scopeKey.startsWith("invoice:")
-            ? "invoice_details"
-            : "supporting_documents";
+        : getSectionForScopeKey(scopeKey);
 
     const result = await repository.removeDraftAmendment(applicationId, scope, scopeKey);
     if (result.count === 0) {

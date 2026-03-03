@@ -28,9 +28,11 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
   if (Array.isArray(raw)) {
     const items: DocItem[] = raw.map((d: Record<string, unknown>, i: number) => {
       const file = d?.file as { s3_key?: string } | undefined;
+      const name = String(d?.name ?? d?.title ?? "document");
+      const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
       return {
-        key: `doc:${i}:${String(d?.name ?? d?.title ?? "document")}`,
-        label: String(d?.name ?? d?.title ?? `Document ${i + 1}`),
+        key: `supporting_documents:others:${i}:${slug}`,
+        label: name || `Document ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
       };
     });
@@ -56,7 +58,7 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
           `Document ${docIndex + 1}`;
         const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
         return {
-          key: `doc:${categoryKey}:${docIndex}:${slug}`,
+          key: `supporting_documents:${categoryKey}:${docIndex}:${slug}`,
           label,
           s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
         };
@@ -75,9 +77,11 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
     const arr = Array.isArray(val) ? val : [val];
     const items: DocItem[] = arr.map((d: Record<string, unknown>, i: number) => {
       const file = d?.file as { s3_key?: string } | undefined;
+      const name = String(d?.name ?? d?.title ?? "doc");
+      const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
       return {
-        key: `doc:${categoryKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`,
-        label: String(d?.name ?? d?.title ?? `${categoryKey} ${i + 1}`),
+        key: `supporting_documents:${categoryKey}:${i}:${slug}`,
+        label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
       };
     });
@@ -124,7 +128,7 @@ export function DocumentList({
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
   const getItemStatus = (key: string) => {
-    return reviewItems.find((r) => r.item_type === "document" && r.item_id === key)?.status ?? "PENDING";
+    return reviewItems.find((r) => r.item_id === key)?.status ?? "PENDING";
   };
 
   const totalItems = categoryGroups.reduce((acc, g) => acc + g.items.length, 0);
