@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   formInputClassName,
+  formInputDisabledClassName,
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
@@ -152,6 +153,7 @@ function CustomRadio({
   label,
   selectedLabelClass,
   unselectedLabelClass,
+  disabled,
 }: {
   name: string;
   value: string;
@@ -160,9 +162,10 @@ function CustomRadio({
   label: string;
   selectedLabelClass: string;
   unselectedLabelClass: string;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
+    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="radio"
@@ -170,16 +173,29 @@ function CustomRadio({
           value={value}
           checked={checked}
           onChange={onChange}
+          disabled={disabled}
           className="sr-only"
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked ? "bg-primary" : "border-2 border-muted-foreground/50 bg-muted/30"
-            }`}
+          className={cn(
+            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
+            checked
+              ? disabled
+                ? "bg-muted border-2 border-muted-foreground/50"
+                : "bg-primary"
+              : "border-2 border-muted-foreground/50 bg-muted/30"
+          )}
           aria-hidden
         >
           {checked && (
-            <span className="absolute inset-1 rounded-full bg-white" aria-hidden />
+            <span
+              className={cn(
+                "absolute inset-1 rounded-full",
+                disabled ? "bg-muted-foreground/60" : "bg-white"
+              )}
+              aria-hidden
+            />
           )}
           {!checked && (
             <span
@@ -199,9 +215,11 @@ function CustomRadio({
 function YesNoRadioGroup({
   value,
   onValueChange,
+  disabled,
 }: {
   value: YesNo | "";
   onValueChange: (value: YesNo) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex gap-6 items-center">
@@ -209,19 +227,21 @@ function YesNoRadioGroup({
         name="related"
         value="yes"
         checked={value === "yes"}
-        onChange={() => onValueChange("yes")}
+        onChange={() => !disabled && onValueChange("yes")}
         label="Yes"
         selectedLabelClass={radioSelectedLabel}
         unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
       />
       <CustomRadio
         name="related"
         value="no"
         checked={value === "no"}
-        onChange={() => onValueChange("no")}
+        onChange={() => !disabled && onValueChange("no")}
         label="No"
         selectedLabelClass={radioSelectedLabel}
         unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
       />
     </div>
   );
@@ -243,6 +263,7 @@ interface FileUploadAreaProps {
   uploadedFile?: FileMetadata | null;
   pendingFile?: File;
   onRemove?: () => void;
+  disabled?: boolean;
 }
 
 function FileUploadArea({
@@ -251,13 +272,13 @@ function FileUploadArea({
   uploadedFile,
   pendingFile,
   onRemove,
+  disabled,
 }: FileUploadAreaProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleClick = () => {
-    if (!uploadedFile && !pendingFile && !isUploading) {
-      fileInputRef.current?.click();
-    }
+    if (disabled || uploadedFile || pendingFile || isUploading) return;
+    fileInputRef.current?.click();
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,23 +326,30 @@ function FileUploadArea({
             </div>
           </div>
         </div>
+        {!disabled && onRemove ? (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onRemove?.();
+            onRemove();
           }}
           className="p-1 hover:bg-muted rounded-full transition-colors"
         >
           <X className="h-3 w-3 text-muted-foreground" />
         </button>
+        ) : null}
       </div>
     );
   }
 
   return (
     <div
-      onClick={handleClick}
-      className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors bg-card/50"
+      onClick={disabled ? undefined : handleClick}
+      className={cn(
+        "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors",
+        disabled
+          ? "border-muted-foreground/20 bg-muted cursor-not-allowed"
+          : "border-border bg-card/50 cursor-pointer hover:bg-muted/50"
+      )}
     >
       <input
         type="file"
@@ -329,19 +357,26 @@ function FileUploadArea({
         onChange={handleFileChange}
         accept=".pdf,application/pdf"
         className="hidden"
+        disabled={disabled}
       />
       <div className="p-2 rounded-full bg-background border shadow-sm">
         <CloudUpload className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="text-center">
-        <span className="text-base font-semibold text-primary">
-          {isUploading ? "Uploading..." : "Click to upload"}
-        </span>
-        {!isUploading && (
-          <span className="text-base text-muted-foreground"> or drag and drop</span>
+        {disabled ? (
+          <span className="text-sm text-muted-foreground">Locked</span>
+        ) : (
+          <>
+            <span className="text-base font-semibold text-primary">
+              {isUploading ? "Uploading..." : "Click to upload"}
+            </span>
+            {!isUploading && (
+              <span className="text-base text-muted-foreground"> or drag and drop</span>
+            )}
+          </>
         )}
       </div>
-      <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
+      {!disabled && <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>}
     </div>
   );
 }
@@ -360,6 +395,8 @@ interface ContractDetailsStepProps {
   onDataChange?: (data: Record<string, unknown>) => void;
   isAmendmentMode?: boolean;
   flaggedTabs?: Set<string>;
+  remarks?: any[];
+  readOnly?: boolean;
 }
 
 export function ContractDetailsStep({
@@ -368,6 +405,8 @@ export function ContractDetailsStep({
   onDataChange,
   isAmendmentMode,
   flaggedTabs,
+  remarks,
+  readOnly = false,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
@@ -923,12 +962,13 @@ export function ContractDetailsStep({
     // Intentionally omit dependencies that would retrigger this effect too often.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, pendingFiles]);
-  // Determine whether the step is editable in amendment mode
+  // Determine whether the step is editable (amendment mode + flagged, or explicit readOnly override)
   const stepIsEditable = React.useMemo(() => {
+    if (readOnly) return false;
     if (!isAmendmentMode) return true;
     if (!flaggedTabs) return false;
     return flaggedTabs.has("contract_details");
-  }, [isAmendmentMode, flaggedTabs]);
+  }, [readOnly, isAmendmentMode, flaggedTabs]);
 
   /* ================================================================
      HANDLERS
@@ -983,14 +1023,30 @@ export function ContractDetailsStep({
     );
   }
 
+  const stepIsFlagged = isAmendmentMode && flaggedTabs?.has("contract_details");
+
   const labelClassName = cn(formLabelClassName, "font-normal");
-  const inputClassName = formInputClassName;
+  const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
   const sectionHeaderClassName = "text-base font-semibold text-foreground";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
 
   return (
     <>
       <div className="space-y-10 px-3">
+        {stepIsFlagged && remarks && remarks.length > 0 ? (
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+            <h4 className="font-semibold text-destructive">Amendment required</h4>
+            <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
+              {remarks
+                .filter((r) => (r.parsedAmend || r.parsed)?.tab === "contract_details")
+                .map((r, i) =>
+                  (r.remark || r?.remark || "").split("\n").map((line: string, idx: number) => (
+                    <li key={`${i}-${idx}`}>{line}</li>
+                  ))
+                )}
+            </ul>
+          </div>
+        ) : null}
         {/* Contract Details Section */}
         <section className="space-y-3">
           <div>
@@ -1005,7 +1061,7 @@ export function ContractDetailsStep({
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
-              className={inputClassName}
+              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-destructive" : "")}
             />
 
             <Label className={labelClassName}>Contract description</Label>
@@ -1016,7 +1072,7 @@ export function ContractDetailsStep({
               }
               disabled={!stepIsEditable}
               placeholder="eg. Repair and maintenance for 12 mining rigs"
-              className={cn(formTextareaClassName, "min-h-[100px]")}
+              className={cn(formTextareaClassName, "min-h-[100px]", !stepIsEditable && formInputDisabledClassName)}
             />
 
             <Label className={labelClassName}>Contract number</Label>
@@ -1140,18 +1196,17 @@ export function ContractDetailsStep({
             </div>
 
             <Label className={labelClassName}>Upload contract</Label>
-            <div className={!stepIsEditable ? "pointer-events-none opacity-60" : ""}>
-              <FileUploadArea
+            <FileUploadArea
                 onFileSelect={(file) => handleFileUpload("contract", file)}
                 isUploading={isUploading.contract}
                 uploadedFile={formData.contract.document}
                 pendingFile={pendingFiles.contract}
-                onRemove={() => {
+                onRemove={stepIsEditable ? () => {
                   handleInputChange("contract", "document", null);
                   setPendingFiles((prev) => ({ ...prev, contract: undefined }));
-                }}
+                } : undefined}
+                disabled={!stepIsEditable}
               />
-            </div>
           </div>
         </section>
 
@@ -1167,6 +1222,7 @@ export function ContractDetailsStep({
             <Input
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
+              disabled={!stepIsEditable}
               placeholder="eg. Petronas Chemical Bhd"
               className={inputClassName}
             />
@@ -1175,8 +1231,9 @@ export function ContractDetailsStep({
             <Select
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
+              disabled={!stepIsEditable}
             >
-              <SelectTrigger className={formSelectTriggerClassName}>
+              <SelectTrigger className={cn(formSelectTriggerClassName, !stepIsEditable && formInputDisabledClassName)}>
                 <SelectValue placeholder="Select entity type" />
               </SelectTrigger>
               <SelectContent>
@@ -1218,8 +1275,9 @@ export function ContractDetailsStep({
             <Select
               value={formData.customer.country}
               onValueChange={(value) => handleInputChange("customer", "country", value)}
+              disabled={!stepIsEditable}
             >
-              <SelectTrigger className={formSelectTriggerClassName}>
+              <SelectTrigger className={cn(formSelectTriggerClassName, !stepIsEditable && formInputDisabledClassName)}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1252,6 +1310,7 @@ export function ContractDetailsStep({
               <YesNoRadioGroup
                 value={formData.customer.is_related_party}
                 onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
+                disabled={!stepIsEditable}
               />
             </div>
 
@@ -1261,10 +1320,11 @@ export function ContractDetailsStep({
               isUploading={isUploading.consent}
               uploadedFile={formData.customer.document}
               pendingFile={pendingFiles.consent}
-              onRemove={() => {
+              onRemove={stepIsEditable ? () => {
                 handleInputChange("customer", "document", null);
                 setPendingFiles((prev) => ({ ...prev, consent: undefined }));
-              }}
+              } : undefined}
+              disabled={!stepIsEditable}
             />
           </div>
         </section>

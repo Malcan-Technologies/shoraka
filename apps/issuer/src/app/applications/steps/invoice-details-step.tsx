@@ -58,6 +58,7 @@ import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
+  formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
 } from "@/app/applications/components/form-control";
@@ -146,9 +147,10 @@ type LocalInvoice = {
 interface InvoiceDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
-export default function InvoiceDetailsStep({ applicationId, onDataChange }: InvoiceDetailsStepProps) {
+export default function InvoiceDetailsStep({ applicationId, onDataChange, readOnly = false }: InvoiceDetailsStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
@@ -934,7 +936,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                 </p>
               </div>
 
-              <Button onClick={addInvoice} className="bg-primary text-primary-foreground">
+              <Button onClick={addInvoice} disabled={readOnly} className="bg-primary text-primary-foreground">
                 Add invoice
               </Button>
             </div>
@@ -988,14 +990,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratio / 100);
                           const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
-                          const isEditable = inv.status === "DRAFT" || !inv.status;
+                          const isEditable = (inv.status === "DRAFT" || !inv.status) && !readOnly;
 
                           return (
                             <TableRow
                               key={inv.id}
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
-                                isLocked && "opacity-60 grayscale pointer-events-none"
+                                (isLocked || readOnly) && "bg-muted/30"
                               )}
                             >
                               <TableCell className="p-2">
@@ -1004,9 +1006,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                   disabled={!isEditable}
                                   onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
                                   placeholder="Enter invoice"
-                                  className={withFieldError(
-                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                    isRowPartial(inv)
+                                  className={cn(
+                                    withFieldError(
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      isRowPartial(inv)
+                                    ),
+                                    !isEditable && formInputDisabledClassName
                                   )}
                                 />
                               </TableCell>
@@ -1019,7 +1024,8 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 <DateInput
                                   value={inv.maturity_date || ""}
                                   onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
-                                  className={!isEditable ? "opacity-60 pointer-events-none" : ""}
+                                  disabled={!isEditable}
+                                  className={!isEditable ? "bg-muted" : ""}
                                   isInvalid={isRowPartial(inv)}
                                   size="compact"
                                   placeholder="Enter date"
@@ -1032,9 +1038,12 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                   onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
                                   placeholder="Enter value"
                                   disabled={!isEditable}
-                                  inputClassName={withFieldError(
-                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                    isRowPartial(inv)
+                                  inputClassName={cn(
+                                    withFieldError(
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      isRowPartial(inv)
+                                    ),
+                                    !isEditable && formInputDisabledClassName
                                   )}
                                 />
                               </TableCell>
@@ -1064,18 +1073,17 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                       onValueChange={(value) =>
                                         updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
                                       }
-                                      className="
-                                relative
-                                [&_[data-orientation=horizontal]]:h-1.5
-                                [&_[data-orientation=horizontal]]:bg-muted
-                                [&_[data-orientation=horizontal]>span]:bg-primary
-                                [&_[role=slider]]:h-4
-                                [&_[role=slider]]:w-4
-                                [&_[role=slider]]:border-2
-                                [&_[role=slider]]:border-primary
-                                [&_[role=slider]]:bg-background
-                                [&_[role=slider]]:shadow-none
-                              "
+                                      className={cn(
+                                        "relative",
+                                        "[&_[data-orientation=horizontal]]:h-1.5",
+                                        "[&_[data-orientation=horizontal]]:bg-muted",
+                                        "[&_[data-orientation=horizontal]>span]:bg-primary",
+                                        "[&_[role=slider]]:h-4 [&_[role=slider]]:w-4",
+                                        "[&_[role=slider]]:border-2 [&_[role=slider]]:border-primary",
+                                        "[&_[role=slider]]:bg-background [&_[role=slider]]:shadow-none",
+                                        !isEditable &&
+                                          "data-[disabled]:[&_[data-orientation=horizontal]]:bg-muted data-[disabled]:[&_[data-orientation=horizontal]>span]:bg-muted-foreground/60 data-[disabled]:[&_[role=slider]]:border-muted-foreground/50 data-[disabled]:[&_[role=slider]]:bg-muted data-[disabled]:[&_[role=slider]]:opacity-100"
+                                      )}
                                     />
                                   </div>
 
@@ -1092,13 +1100,14 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
 
                               <TableCell className="p-2">
                                 {inv.document ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8">
+                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8 bg-background">
                                     <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
                                       <CheckIconSolid className="h-2 w-2 text-background" />
                                     </div>
-                                    <span className="text-xs font-medium truncate flex-1">
+                                    <span className="text-xs font-medium truncate flex-1 text-foreground">
                                       {inv.document.file_name}
                                     </span>
+                                    {isEditable && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1115,17 +1124,13 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                           return copy;
                                         });
                                       }}
-                                      className={cn(
-                                        "shrink-0",
-                                        isEditable
-                                          ? "text-muted-foreground hover:text-foreground cursor-pointer"
-                                          : "opacity-40 cursor-not-allowed"
-                                      )}
+                                      className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                                     >
                                       <XMarkIcon className="h-3 w-3" />
                                     </button>
+                                    )}
                                   </div>
-                                ) : (
+                                ) : isEditable ? (
                                   <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     <span className="truncate">Upload</span>
@@ -1140,6 +1145,10 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                       }}
                                     />
                                   </label>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground h-8 bg-muted px-2 rounded border border-muted-foreground/20">
+                                    Locked
+                                  </span>
                                 )}
                               </TableCell>
 
@@ -1147,7 +1156,7 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange }: Invo
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  disabled={isLocked}
+                                  disabled={isLocked || readOnly}
                                   onClick={() => deleteInvoice(inv)}
                                   className={cn(
                                     isLocked

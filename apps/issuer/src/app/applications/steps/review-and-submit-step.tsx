@@ -60,6 +60,7 @@ const isValidNumber = (v: any): v is number =>
 interface ReviewAndSubmitStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -76,6 +77,7 @@ const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
+  readOnly = false,
 }: ReviewAndSubmitStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);

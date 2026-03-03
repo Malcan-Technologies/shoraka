@@ -457,15 +457,14 @@ export class ApplicationService {
         updated_at: new Date(),
       };
 
-      if (input.forceRewindToStep !== undefined) {
-  updateData.last_completed_step = input.forceRewindToStep;
-} else {
-  updateData.last_completed_step = Math.max(
-    application.last_completed_step,
-    input.stepNumber
-  );
-}
-
+      // Do not modify last_completed_step during amendment mode
+      if ((application as any).status !== "AMENDMENT_REQUESTED") {
+        if (input.forceRewindToStep !== undefined) {
+          updateData.last_completed_step = input.forceRewindToStep;
+        } else {
+          updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
+        }
+      }
 
       return this.repository.update(id, updateData);
     }
@@ -494,10 +493,10 @@ export class ApplicationService {
         }
       }
 
-      // If tab is not flagged at all, reject
+      // If tab is not flagged at all, reject (409 = conflict with amendment lock)
       if (!allowedTabs.has(fieldName) && !allowedFieldTabs.has(fieldName)) {
         throw new AppError(
-          403,
+          409,
           "AMENDMENT_BOUNDARY",
           `Attempt to update non-flagged tab: ${fieldName}`
         );
@@ -506,7 +505,7 @@ export class ApplicationService {
       // If only field-level allowed for this tab, but not tab-level, then updating whole tab is forbidden
       if (allowedFieldTabs.has(fieldName) && !allowedTabs.has(fieldName)) {
         throw new AppError(
-          403,
+          409,
           "AMENDMENT_BOUNDARY",
           `Whole-tab update forbidden for field-level amendment: ${fieldName}`
         );
@@ -578,14 +577,14 @@ export class ApplicationService {
     }
 
     // Update last_completed_step if this is a new step
-    if (input.forceRewindToStep !== undefined) {
-  updateData.last_completed_step = input.forceRewindToStep;
-} else {
-  updateData.last_completed_step = Math.max(
-    application.last_completed_step,
-    input.stepNumber
-  );
-}
+    // Do not update last_completed_step when in amendment mode
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      if (input.forceRewindToStep !== undefined) {
+        updateData.last_completed_step = input.forceRewindToStep;
+      } else {
+        updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
+      }
+    }
 
     return this.repository.update(id, updateData);
   }

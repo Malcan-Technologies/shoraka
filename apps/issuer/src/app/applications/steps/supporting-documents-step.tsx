@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/applications/components/supporting-documents-skeleton";
@@ -16,10 +17,12 @@ export function SupportingDocumentsStep({
   applicationId,
   stepConfig,
   onDataChange,
+  readOnly = false,
 }: {
   applicationId: string;
   stepConfig?: any;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -580,6 +583,7 @@ export function SupportingDocumentsStep({
                                     </span>
 
                                     {/* remove */}
+                                    {!readOnly && (
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -589,7 +593,10 @@ export function SupportingDocumentsStep({
                                     >
                                       <XMarkIcon className="h-3.5 w-3.5" />
                                     </button>
+                                    )}
                                   </div>
+                                ) : readOnly ? (
+                                  <span className="text-[14px] text-muted-foreground">—</span>
                                 ) : (
                                   <label
                                     htmlFor={`file-${key}`}

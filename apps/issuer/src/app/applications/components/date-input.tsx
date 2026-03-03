@@ -19,6 +19,7 @@ interface DateInputProps {
   defaultCalendarMonth?: Date;
   size?: DateInputSize;
   placeholder?: string;
+  disabled?: boolean;
 }
 
 /** Size presets for responsive DateInput */
@@ -49,6 +50,7 @@ export function DateInput({
   defaultCalendarMonth,
   size = "default",
   placeholder,
+  disabled,
 }: DateInputProps) {
   const [open, setOpen] = React.useState(false);
   const preset = sizePresets[size];
@@ -90,7 +92,8 @@ export function DateInput({
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
-            "relative flex items-center rounded-xl border bg-background transition-colors cursor-text",
+            "relative flex items-center rounded-xl border bg-background transition-colors",
+            disabled ? "cursor-not-allowed bg-muted" : "cursor-text",
             preset.container,
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
             !isInvalid && "border-input focus-within:border-primary",
@@ -99,10 +102,12 @@ export function DateInput({
         >
           <input
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => !disabled && onChange(e.target.value)}
             onBlur={handleBlur}
             placeholder={placeholder ?? "Enter date"}
             maxLength={10}
+            readOnly={disabled}
+            disabled={disabled}
             className={cn(
               "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
               preset.input,
@@ -115,9 +120,11 @@ export function DateInput({
           <button
             type="button"
             onClick={(e) => {
+              if (disabled) return;
               e.stopPropagation();
               setOpen(true);
             }}
+            disabled={disabled}
             className={cn(
               "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
               size === "compact" ? "p-1" : "p-2"
