@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { formatMoney } from "../../components/money";
 import { MoneyInput } from "../../components/money-input";
@@ -8,7 +9,12 @@ import { MoneyInput } from "../../components/money-input";
 export interface InvoiceDetailsConfigShape {
   min_invoice_value?: string | null;
   max_invoice_value?: string | null;
+  min_financing_ratio_percent?: number | null;
+  max_financing_ratio_percent?: number | null;
 }
+
+const DEFAULT_MIN_RATIO = 60;
+const DEFAULT_MAX_RATIO = 80;
 
 function getConfig(
   config: unknown
@@ -28,6 +34,20 @@ function getConfig(
         ? c.max_invoice_value
         : typeof c?.max_invoice_value === "number"
           ? formatMoney(c.max_invoice_value)
+          : null,
+
+    min_financing_ratio_percent:
+      typeof c?.min_financing_ratio_percent === "number"
+        ? c.min_financing_ratio_percent
+        : typeof c?.min_financing_ratio_percent === "string"
+          ? parseInt(c.min_financing_ratio_percent, 10)
+          : null,
+
+    max_financing_ratio_percent:
+      typeof c?.max_financing_ratio_percent === "number"
+        ? c.max_financing_ratio_percent
+        : typeof c?.max_financing_ratio_percent === "string"
+          ? parseInt(c.max_financing_ratio_percent, 10)
           : null,
 
     raw: c ?? {},
@@ -90,6 +110,47 @@ export function InvoiceDetailsConfig({
           Leave blank for no maximum limit.
         </p>
       </div>
+
+      {/* MIN / MAX FINANCING RATIO */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2 min-w-0">
+          <Label className="text-sm font-medium">
+            Min financing ratio (%)
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={current.min_financing_ratio_percent ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              const num = v === "" ? null : parseInt(v, 10);
+              update({ min_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
+            }}
+            placeholder={String(DEFAULT_MIN_RATIO)}
+          />
+        </div>
+        <div className="grid gap-2 min-w-0">
+          <Label className="text-sm font-medium">
+            Max financing ratio (%)
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={current.max_financing_ratio_percent ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              const num = v === "" ? null : parseInt(v, 10);
+              update({ max_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
+            }}
+            placeholder={String(DEFAULT_MAX_RATIO)}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        Used for issuer and admin invoice financing ratio limits. Defaults to 60–80% if blank.
+      </p>
     </div>
   );
 }

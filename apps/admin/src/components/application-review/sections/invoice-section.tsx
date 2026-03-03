@@ -20,6 +20,9 @@ export interface InvoiceSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onViewDocument: (s3Key: string) => void;
+  viewDocumentPending: boolean;
+  invoiceRatioLimits?: { min: number; max: number };
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -39,6 +42,9 @@ export function InvoiceSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onViewDocument,
+  viewDocumentPending,
+  invoiceRatioLimits,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -72,6 +78,11 @@ export function InvoiceSection({
             invoices={invoices}
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
+            onViewDocument={onViewDocument}
+            isViewDocumentPending={viewDocumentPending}
+            invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}

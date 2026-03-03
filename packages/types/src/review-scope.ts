@@ -4,8 +4,8 @@
  *
  * Scope key format:
  * - Section: scope_key = section id (e.g. "supporting_documents")
- * - Item: scope_key = "itemType:itemId" (e.g. "document:doc:legal_docs:0:Deed_of_Assignment")
- *   - itemId may contain colons; split only on first colon
+ * - Supporting documents item: scope_key = "supporting_documents:<category>:<index>:<name>"
+ * - Invoice item: scope_key = "invoice_details:<index>:<invoice_number>"
  */
 
 /** Canonical section order for grouping and display. */
@@ -22,10 +22,10 @@ export type ReviewSection = (typeof REVIEW_SECTION_ORDER)[number];
 
 /** Get the parent section for an item scope_key. */
 export function getSectionForScopeKey(scopeKey: string): ReviewSection {
-  if (scopeKey.startsWith("document:") || scopeKey.startsWith("doc:")) {
+  if (scopeKey.startsWith("supporting_documents:")) {
     return "supporting_documents";
   }
-  if (scopeKey.startsWith("invoice:")) {
+  if (scopeKey.startsWith("invoice_details:")) {
     return "invoice_details";
   }
   return "supporting_documents";
@@ -46,11 +46,20 @@ export function getSectionForPendingAmendment(
   return getSectionForScopeKey(scopeKey);
 }
 
-/** Split item scope_key into itemType and itemId. ItemId may contain colons. */
+/**
+ * Split item scope_key into itemType and itemId.
+ * The full string is itemId; itemType is "document" or "invoice" respectively.
+ */
 export function parseItemScopeKey(scopeKey: string): {
   itemType: string;
   itemId: string;
 } {
+  if (scopeKey.startsWith("supporting_documents:")) {
+    return { itemType: "document", itemId: scopeKey };
+  }
+  if (scopeKey.startsWith("invoice_details:")) {
+    return { itemType: "invoice", itemId: scopeKey };
+  }
   const colonIdx = scopeKey.indexOf(":");
   return {
     itemType: colonIdx >= 0 ? scopeKey.slice(0, colonIdx) : scopeKey,
@@ -58,25 +67,10 @@ export function parseItemScopeKey(scopeKey: string): {
   };
 }
 
-/** Build canonical item scope_key in "itemType:itemId" format. */
-export function buildItemScopeKey(itemType: string, itemId: string): string {
-  return `${itemType}:${itemId}`;
-}
-
 /**
  * Get the document/invoice item id from scope_key for frontend matching.
- * scope_key = "document:doc:cat:0:slug" → "doc:cat:0:slug"
  */
 export function getItemIdFromScopeKey(scopeKey: string): string {
-  if (scopeKey.startsWith("document:")) {
-    return scopeKey.slice("document:".length);
-  }
-  if (scopeKey.startsWith("doc:")) {
-    return scopeKey.slice("doc:".length);
-  }
-  if (scopeKey.startsWith("invoice:")) {
-    return scopeKey.slice("invoice:".length);
-  }
   return scopeKey;
 }
 
@@ -84,7 +78,7 @@ export function getItemIdFromScopeKey(scopeKey: string): string {
  * Check if a scope_key refers to a document item.
  */
 export function isDocumentScopeKey(scopeKey: string): boolean {
-  return scopeKey.startsWith("document:") || scopeKey.startsWith("doc:");
+  return scopeKey.startsWith("supporting_documents:");
 }
 
 /** Get section sort index for ordering. */
@@ -93,18 +87,36 @@ export function getSectionSortIndex(sectionKey: string): number {
   return i === -1 ? REVIEW_SECTION_ORDER.length : i;
 }
 
-/** Extract human-readable display name from item scope_key (slug part for documents). */
+/** Title-case a slug for display (e.g. "p2p_declaration" -> "P2P Declaration"). */
+function toDisplayName(slug: string): string {
+  return slug
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((word) =>
+      word.length > 1 && word === word.toUpperCase()
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(" ");
+}
+
+/**
+ * Extract human-readable display name from item scope_key.
+ * - Invoice: "Invoice 12345"
+ * - Document: "P2P Declaration" (slug part, title-cased)
+ * Supports legacy formats: document:..., invoice:... (from migrations).
+ */
 export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
-  if (scopeKey.startsWith("invoice:")) {
-    return "Invoice";
+  if (!scopeKey || typeof scopeKey !== "string") return "Item";
+
+  const parts = scopeKey.split(":");
+  const lastPart = parts[parts.length - 1];
+
+  if (scopeKey.startsWith("invoice_details:")) {
+    return lastPart ? `Invoice ${lastPart}` : "Invoice";
   }
-  if (isDocumentScopeKey(scopeKey)) {
-    const itemId = getItemIdFromScopeKey(scopeKey);
-    const parts = itemId.split(":");
-    const slug = parts[parts.length - 1];
-    if (slug) {
-      return slug.replace(/_/g, " ");
-    }
+  if (scopeKey.startsWith("supporting_documents:")) {
+    if (lastPart) return toDisplayName(lastPart);
   }
   return "Item";
 }

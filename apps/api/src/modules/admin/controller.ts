@@ -3,7 +3,6 @@ import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
-import { buildItemScopeKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
@@ -1921,9 +1920,14 @@ router.patch(
   requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = updateApplicationStatusSchema.parse(req.body);
-      const result = await adminService.updateApplicationStatus(id, validated.status);
+      const result = await adminService.updateApplicationStatus(
+        id,
+        validated.status,
+        req.user.user_id
+      );
 
       res.json({
         success: true,
@@ -2155,7 +2159,7 @@ router.post(
       const scopeKey =
         validated.scope === "section"
           ? String(validated.scopeKey ?? "")
-          : buildItemScopeKey(validated.itemType ?? "", String(validated.itemId ?? ""));
+          : String(validated.itemId ?? "");
       const result = await adminService.addPendingAmendment(
         id,
         validated.scope,

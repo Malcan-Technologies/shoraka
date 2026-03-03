@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -19,6 +20,8 @@ interface ItemActionDropdownProps {
   itemId: string;
   status: string;
   isPending: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
   onApprove: (itemId: string) => Promise<void>;
   onReject: (itemId: string) => void;
   onRequestAmendment: (itemId: string) => void;
@@ -29,23 +32,44 @@ export function ItemActionDropdown({
   itemId,
   status,
   isPending,
+  isActionLocked = false,
+  actionLockTooltip,
   onApprove,
   onReject,
   onRequestAmendment,
   onResetToPending,
 }: ItemActionDropdownProps) {
+  const button = (
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-lg h-9 gap-1"
+      disabled={isActionLocked || isPending}
+    >
+      Action
+      <ChevronDownIcon className="h-4 w-4" />
+    </Button>
+  );
+
+  if (isActionLocked) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-not-allowed">{button}</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+            {actionLockTooltip ?? "Complete previous sections first"}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-lg h-9 gap-1"
-          disabled={isPending}
-        >
-          Action
-          <ChevronDownIcon className="h-4 w-4" />
-        </Button>
+        {button}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
         <DropdownMenuItem

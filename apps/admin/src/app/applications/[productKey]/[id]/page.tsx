@@ -96,6 +96,18 @@ export default function DynamicApplicationDetailPage() {
   const currentProduct = productsData?.products.find(p => p.id === productKey);
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
+  const invoiceRatioLimits = React.useMemo(() => {
+    const workflow = (currentProduct as { workflow?: { id?: string; config?: Record<string, unknown> }[] })?.workflow ?? [];
+    const invoiceStep = workflow.find(
+      (s: { id?: string; name?: string }) =>
+        s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
+    );
+    const config = invoiceStep?.config ?? {};
+    const min = typeof config.min_financing_ratio_percent === "number" ? config.min_financing_ratio_percent : 60;
+    const max = typeof config.max_financing_ratio_percent === "number" ? config.max_financing_ratio_percent : 80;
+    return { min: Math.min(min, max), max: Math.max(min, max) };
+  }, [currentProduct]);
+
   const [confirmAction, setConfirmAction] = React.useState<{
     type: "APPROVE" | "REJECT";
     isOpen: boolean;
@@ -180,7 +192,13 @@ export default function DynamicApplicationDetailPage() {
 
     return baseSections.map((s) => {
       const fromItems = sectionWithAmendmentFromItems.has(s.section);
-      const status = fromItems ? "AMENDMENT_REQUESTED" : s.status;
+      // Section-level APPROVED/REJECTED takes precedence over item-level amendment
+      const status =
+        s.status === "APPROVED" || s.status === "REJECTED"
+          ? s.status
+          : fromItems
+            ? "AMENDMENT_REQUESTED"
+            : s.status;
       return { section: s.section, status };
     });
   }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
@@ -538,7 +556,7 @@ export default function DynamicApplicationDetailPage() {
                   )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(240px,300px)] xl:grid-cols-[1fr_minmax(260px,320px)] gap-6">
                 <div className="min-w-0 space-y-6">
                   <Card className="rounded-2xl">
                   <CardContent className="pt-6">
@@ -653,6 +671,7 @@ export default function DynamicApplicationDetailPage() {
                             toast.error(err instanceof Error ? err.message : "Failed to reset item");
                           }
                         }}
+                        invoiceRatioLimits={invoiceRatioLimits}
                       />
                     </ApplicationReviewTabContent>
                   );
@@ -660,7 +679,7 @@ export default function DynamicApplicationDetailPage() {
                 </ApplicationReviewTabs>
               </div>
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <ReviewSummaryCard
                   sections={reviewSections}
                   reviewItems={(app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? []}

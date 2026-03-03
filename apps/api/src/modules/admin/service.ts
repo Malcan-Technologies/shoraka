@@ -44,8 +44,8 @@ import { NotificationTypeIds } from "../notification/registry";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
-  buildItemScopeKey,
   getSectionForPendingAmendment,
+  getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
@@ -53,6 +53,13 @@ import {
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
+import { logApplicationActivity } from "../applications/logs/service";
+import {
+  ActivityAction,
+  ActivityLevel,
+  ActivityPortal,
+  ActivityTarget,
+} from "../applications/logs/types";
 import { ProductRepository } from "../products/repository";
 
 export class AdminService {
@@ -3829,7 +3836,11 @@ export class AdminService {
    * Update AR financing application status.
    * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
    */
-  async updateApplicationStatus(id: string, status: ApplicationStatus) {
+  async updateApplicationStatus(
+    id: string,
+    status: ApplicationStatus,
+    userId: string
+  ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
     if (!application) {
@@ -3868,6 +3879,19 @@ export class AdminService {
 
     const updatedApplication = await repository.updateApplicationStatus(id, status);
 
+    if (status === ApplicationStatus.UNDER_REVIEW) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.RESET,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
+        metadata: { previous_status: currentStatus },
+      });
+    }
+
     logger.info(
       { applicationId: id, newStatus: status },
       "AR financing application status updated by admin"
@@ -3899,19 +3923,39 @@ export class AdminService {
   }
 
   /**
-   * Validate that an invoice item exists in the application
+   * Validate that an invoice item exists in the application.
+   * Expects format invoice_details:<index>:<invoice_number>
    */
-  private validateInvoiceExists(application: { invoices: { id: string }[] }, itemId: string): void {
-    const exists = application.invoices?.some((inv) => inv.id === itemId);
-    if (!exists) {
+  private validateInvoiceExists(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    itemId: string
+  ): void {
+    if (!itemId.startsWith("invoice_details:")) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
+    }
+    const parts = itemId.split(":");
+    if (parts.length < 3) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
+    }
+    const idx = parseInt(parts[1], 10);
+    if (!Number.isFinite(idx) || idx < 0) {
+      throw new AppError(400, "INVALID_ITEM", `Invalid invoice index: ${itemId}`);
+    }
+    const invoices = application.invoices ?? [];
+    if (idx >= invoices.length) {
+      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
+    }
+    const inv = invoices[idx];
+    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const keyNum = parts.slice(2).join(":");
+    if (expectedNum !== keyNum) {
       throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
     }
   }
 
   /**
    * Validate that a document item exists in the application.
-   * Ensures supporting_documents exists and itemId format is valid (doc:...).
-   * Full key resolution matches frontend buildCategoryGroups logic.
+   * Expects format supporting_documents:<category>:<index>:<name>
    */
   private validateDocumentExists(
     application: { supporting_documents?: unknown },
@@ -3921,7 +3965,7 @@ export class AdminService {
     if (!docs || typeof docs !== "object") {
       throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
     }
-    if (!itemId.startsWith("doc:")) {
+    if (!itemId.startsWith("supporting_documents:")) {
       throw new AppError(400, "INVALID_ITEM", `Invalid document item ID: ${itemId}`);
     }
     const docKeys = this.collectDocumentKeys(docs);
@@ -3930,13 +3974,15 @@ export class AdminService {
     }
   }
 
-  /** Collect document keys from supporting_documents structure (matches frontend key generation). */
+  /** Collect document keys from supporting_documents structure (matches frontend document-list). */
   private collectDocumentKeys(docs: unknown): Set<string> {
     const keys = new Set<string>();
     const raw = (docs as Record<string, unknown>)?.supporting_documents ?? docs;
     if (Array.isArray(raw)) {
       raw.forEach((d: Record<string, unknown>, i: number) => {
-        keys.add(`doc:${i}:${String(d?.name ?? d?.title ?? "document")}`);
+        const name = String(d?.name ?? d?.title ?? "document");
+        const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+        keys.add(`supporting_documents:others:${i}:${slug}`);
       });
       return keys;
     }
@@ -3948,7 +3994,9 @@ export class AdminService {
       if (val == null) continue;
       const arr = Array.isArray(val) ? val : [val];
       arr.forEach((d: Record<string, unknown>, i: number) => {
-        keys.add(`doc:${catKey}:${i}:${String(d?.name ?? d?.title ?? "doc")}`);
+        const name = String(d?.name ?? d?.title ?? "doc");
+        const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+        keys.add(`supporting_documents:${catKey}:${i}:${slug}`);
       });
     }
     const cats = obj.categories;
@@ -3968,7 +4016,7 @@ export class AdminService {
           const label =
             String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
           const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-          keys.add(`doc:${categoryKey}:${docIndex}:${slug}`);
+          keys.add(`supporting_documents:${categoryKey}:${docIndex}:${slug}`);
         });
       });
     }
@@ -3990,6 +4038,54 @@ export class AdminService {
     }
   }
 
+  private sectionToTarget(section: string): ActivityTarget {
+    const map: Record<string, ActivityTarget> = {
+      financial: ActivityTarget.FINANCIAL,
+      company_details: ActivityTarget.APPLICATION,
+      business_details: ActivityTarget.APPLICATION,
+      supporting_documents: ActivityTarget.SUPPORTING_DOCUMENT,
+      contract_details: ActivityTarget.CONTRACT,
+      invoice_details: ActivityTarget.INVOICE,
+    };
+    return map[section] ?? ActivityTarget.APPLICATION;
+  }
+
+  private statusToAction(newStatus: string): ActivityAction {
+    if (newStatus === "APPROVED") return ActivityAction.APPROVED;
+    if (newStatus === "REJECTED") return ActivityAction.REJECTED;
+    if (newStatus === "AMENDMENT_REQUESTED") return ActivityAction.REQUESTED_AMENDMENT;
+    if (newStatus === "PENDING") return ActivityAction.RESET;
+    return ActivityAction.APPROVED;
+  }
+
+  private async logReviewActivity(
+    applicationId: string,
+    scope: "section" | "item",
+    scopeKey: string,
+    oldStatus: string | null,
+    newStatus: string,
+    reviewerUserId: string | null,
+    remark: string | null
+  ): Promise<void> {
+    if (!reviewerUserId) return;
+    const action = this.statusToAction(newStatus);
+    const isSection = scope === "section";
+    const target = isSection ? this.sectionToTarget(scopeKey) : getSectionForScopeKey(scopeKey) === "invoice_details" ? ActivityTarget.INVOICE : ActivityTarget.SUPPORTING_DOCUMENT;
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: isSection ? ActivityLevel.TAB : ActivityLevel.ITEM,
+      target,
+      action,
+      remark: remark ?? undefined,
+      entityId: isSection ? undefined : scopeKey,
+      portal: ActivityPortal.ADMIN,
+      eventType: isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`,
+      metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
+    });
+  }
+
   /**
    * Load application and validate it is in a reviewable state. Shared by all review actions.
    */
@@ -4009,19 +4105,16 @@ export class AdminService {
   }
 
   /**
-   * Clear pending item amendment drafts for both canonical and legacy scope_key formats.
-   * Canonical format is buildItemScopeKey(itemType, itemId)
+   * Clear pending item amendment drafts for the given item.
+   * itemId is the scope_key (e.g. supporting_documents:..., invoice_details:...).
    */
   private async clearItemDraftAmendments(
     repository: AdminRepository,
     applicationId: string,
-    itemType: "invoice" | "document",
+    _itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId)]);
-    if (itemType === "document" || itemType === "invoice") {
-      scopeKeys.add(itemId);
-    }
+    const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
         repository.removeDraftAmendment(applicationId, "item", scopeKey)
@@ -4036,10 +4129,10 @@ export class AdminService {
   private async clearItemRemarks(
     repository: AdminRepository,
     applicationId: string,
-    itemType: "invoice" | "document",
+    _itemType: "invoice" | "document",
     itemId: string
   ): Promise<void> {
-    const scopeKeys = new Set<string>([buildItemScopeKey(itemType, itemId), itemId]);
+    const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
         repository.removeReviewRemark(applicationId, "item", scopeKey)
@@ -4088,15 +4181,14 @@ export class AdminService {
         reviewerUserId
       );
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue,
-      "section",
-      section
+      remarkValue
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4127,15 +4219,14 @@ export class AdminService {
         data: { status: "SUBMITTED" },
       });
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending",
-      "section",
-      section
+      null
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4163,15 +4254,14 @@ export class AdminService {
     const oldStatus = existing?.status ?? "PENDING";
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending",
-      itemType,
-      itemId
+      null
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
@@ -4219,15 +4309,14 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark,
-      "section",
-      section
+      remark
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4276,15 +4365,14 @@ export class AdminService {
         data: { status: "AMENDMENT_REQUESTED" },
       });
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark,
-      "section",
-      section
+      remark
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4325,21 +4413,20 @@ export class AdminService {
       await repository.upsertReviewRemark(
         applicationId,
         "item",
-        buildItemScopeKey(itemType, itemId),
+        itemId,
         "APPROVE",
         remarkValue,
         reviewerUserId
       );
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue,
-      itemType,
-      itemId
+      remarkValue
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4376,20 +4463,19 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      buildItemScopeKey(itemType, itemId),
+      itemId,
       "REJECT",
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark,
-      itemType,
-      itemId
+      remark
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4426,20 +4512,19 @@ export class AdminService {
     await repository.upsertReviewRemark(
       applicationId,
       "item",
-      buildItemScopeKey(itemType, itemId),
+      itemId,
       "REQUEST_AMENDMENT",
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark,
-      itemType,
-      itemId
+      remark
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4495,6 +4580,27 @@ export class AdminService {
     }
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
+
+    const existing =
+      scope === "section"
+        ? (application.application_reviews as { section: string; status: string }[] | undefined)?.find(
+          (r) => r.section === scopeKey
+        )?.status
+        : (application.application_review_items as { item_type: string; item_id: string; status: string }[] | undefined)?.find(
+          (r) => r.item_type === itemType && r.item_id === itemId
+        )?.status;
+    const oldStatus = existing ?? "PENDING";
+    if (oldStatus !== "AMENDMENT_REQUESTED") {
+      await this.logReviewActivity(
+        applicationId,
+        scope,
+        scopeKey,
+        oldStatus,
+        "AMENDMENT_REQUESTED",
+        reviewerUserId,
+        remark
+      );
+    }
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
     return repository.getApplicationById(applicationId);
@@ -4569,11 +4675,7 @@ export class AdminService {
     const affectedSection =
       scope === "section"
         ? scopeKey
-        : scopeKey.startsWith("document:") || scopeKey.startsWith("doc:")
-          ? "supporting_documents"
-          : scopeKey.startsWith("invoice:")
-            ? "invoice_details"
-            : "supporting_documents";
+        : getSectionForScopeKey(scopeKey);
 
     const result = await repository.removeDraftAmendment(applicationId, scope, scopeKey);
     if (result.count === 0) {
@@ -4670,6 +4772,18 @@ export class AdminService {
           remark: `${pending.length} amendment(s) sent to issuer`,
         },
       });
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: ActivityLevel.APPLICATION,
+      target: ActivityTarget.APPLICATION,
+      action: ActivityAction.REQUESTED_AMENDMENT,
+      portal: ActivityPortal.ADMIN,
+      eventType: "AMENDMENTS_SUBMITTED",
+      remark: `${pending.length} amendment(s) sent to issuer`,
+      metadata: { count: pending.length },
     });
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
