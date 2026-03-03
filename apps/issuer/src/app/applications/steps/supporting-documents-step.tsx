@@ -118,24 +118,17 @@ export function SupportingDocumentsStep({
   const hasItemLevelAmendment =
     isAmendmentMode && supportingDocItemSet.size > 0;
 
-  /** Combined set for remark lookup (supports doc:... admin format). */
-  const combinedItemSet = React.useMemo(() => {
-    const setB = flaggedItems?.get("doc");
-    return new Set<string>([...supportingDocItemSet, ...(setB ?? [])]);
-  }, [flaggedItems, supportingDocItemSet]);
-
-  /** Map scope_key -> remark for item-level amendment text. */
+  /** Map scope_key -> remark for item-level amendment text. Supports both rawKey and rawKeyWithDoc formats. */
   const flaggedDocRemarks = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const r of amendmentRemarks) {
       const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item" || !rem.scope_key) continue;
-      if (combinedItemSet.has(rem.scope_key) && (rem.remark || "").trim()) {
-        map.set(rem.scope_key, (rem.remark || "").trim());
-      }
+      if (rem.scope !== "item" || !rem.scope_key?.startsWith("supporting_documents:")) continue;
+      const text = (rem.remark || "").trim();
+      if (text) map.set(rem.scope_key, text);
     }
     return map;
-  }, [amendmentRemarks, combinedItemSet]);
+  }, [amendmentRemarks]);
 
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
@@ -572,6 +565,9 @@ export function SupportingDocumentsStep({
                     const isItemFlagged =
                       supportingDocItemSet.has(rawKey) ||
                       supportingDocItemSet.has(rawKeyWithDoc);
+                    const itemRemark =
+                      flaggedDocRemarks.get(rawKey) ||
+                      flaggedDocRemarks.get(rawKeyWithDoc);
                     let isEditable = true;
                     if (isAmendmentMode) {
                       if (hasItemLevelAmendment) {
@@ -581,38 +577,28 @@ export function SupportingDocumentsStep({
                       }
                     }
                     isEditable = isEditable && !readOnly;
-                    const rawKeyAlt = `doc:${groupKey}:${documentIndex}:${slug}`;
-                    const docRemark =
-                      flaggedDocRemarks.get(rawKey) ??
-                      flaggedDocRemarks.get(rawKeyWithDoc) ??
-                      flaggedDocRemarks.get(rawKeyAlt);
 
                     if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
-                      console.debug("[AMENDMENT][STRICT][SUPPORTING_DOCS]", {
-                        hasItemLevelAmendment,
-                        rawKey,
-                        isItemFlagged,
-                        isEditable,
-                      });
+                      console.debug("[AMENDMENT][SUPPORTING_DOCS][ROW]", rawKey, "isItemFlagged:", isItemFlagged, "isEditable:", isEditable);
                     }
 
                     return (
                       <div
                         key={documentIndex}
-                        className={cn(
-                          "col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start",
-                          isAmendmentMode && isItemFlagged &&
-                            "rounded-lg border-2 border-destructive bg-destructive/5 p-3",
-                          !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
-                        )}
+                        className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start"
                       >
                         {/* Document title */}
                         <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
                         </div>
 
-                        {/* Action column: template, error text (if flagged), uploaded file */}
-                        <div className="flex justify-end">
+                        {/* Action column: template, uploaded file. Lock when !isEditable. */}
+                        <div
+                          className={cn(
+                            "flex justify-end",
+                            !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
+                          )}
+                        >
                           <div className="flex justify-end items-start flex-wrap gap-3">
                             {/* Download template */}
                               {templateS3Key && (
@@ -641,78 +627,70 @@ export function SupportingDocumentsStep({
                                 </button>
                               )}
 
-                            {/* Error text beside file when flagged */}
-                            {isItemFlagged && docRemark && isUploaded && file && !fileIsUploading ? (
-                              <div className="flex items-center gap-2 text-sm text-destructive shrink-0">
-                                <ExclamationTriangleIcon className="h-4 w-4 shrink-0" />
-                                <span>{docRemark}</span>
-                              </div>
-                            ) : null}
-
                             {/* Separator */}
                             <div className="w-px h-4 bg-border/60" />
 
-                            {/* Upload slot with red outline when flagged */}
-                            <div className="w-[160px]">
-                              {isUploaded && file && !fileIsUploading ? (
-                                <div
-                                  className={cn(
-                                    "inline-flex items-center gap-2 rounded-sm px-2 py-[2px] w-full h-6 min-h-6",
-                                    isAmendmentMode && isItemFlagged
-                                      ? "border-2 border-destructive bg-destructive/5"
-                                      : "border border-border"
-                                  )}
-                                >
-                                  {isAmendmentMode && isItemFlagged ? (
-                                    <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                  ) : (
-                                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                    </div>
-                                  )}
-                                  <span
+                            {/* Upload slot: remark on left when flagged; error icon before filename in badge */}
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isItemFlagged && itemRemark ? (
+                                <p className="text-xs text-destructive shrink-0 max-w-[140px] truncate" title={itemRemark}>
+                                  {itemRemark.split("\n")[0]}
+                                </p>
+                              ) : null}
+                              <div className="w-[160px] min-w-0 shrink-0">
+                                {isUploaded && file && !fileIsUploading ? (
+                                  <div
                                     className={cn(
-                                      "text-[14px] font-medium truncate flex-1",
-                                      isAmendmentMode && isItemFlagged ? "text-destructive" : ""
+                                      "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] w-full h-6 min-h-6",
+                                      isItemFlagged ? "border-destructive" : "border-border"
                                     )}
                                   >
-                                    {file.name}
-                                  </span>
-                                  {isEditable && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRemoveFile(categoryIndex, documentIndex)
+                                    {isItemFlagged ? (
+                                      <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                      </div>
+                                    )}
+                                    <span className="text-[14px] font-medium truncate flex-1">
+                                      {file.name}
+                                    </span>
+                                    {isEditable && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveFile(categoryIndex, documentIndex)
+                                        }
+                                        className="text-muted-foreground hover:text-foreground shrink-0"
+                                      >
+                                        <XMarkIcon className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : !isEditable ? (
+                                  <span className="text-[14px] text-muted-foreground">—</span>
+                                ) : (
+                                  <label
+                                    htmlFor={isEditable ? `file-${key}` : undefined}
+                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                  >
+                                    <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                                    <span className="truncate">
+                                      {fileIsUploading ? "Uploading…" : "Upload file"}
+                                    </span>
+                                    <Input
+                                      id={`file-${key}`}
+                                      type="file"
+                                      accept="application/pdf"
+                                      onChange={(e) =>
+                                        handleFileChange(categoryIndex, documentIndex, e)
                                       }
-                                      className="text-muted-foreground hover:text-foreground shrink-0"
-                                    >
-                                      <XMarkIcon className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              ) : !isEditable ? (
-                                <span className="text-[14px] text-muted-foreground">—</span>
-                              ) : (
-                                <label
-                                  htmlFor={isEditable ? `file-${key}` : undefined}
-                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
-                                >
-                                  <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-                                  <span className="truncate">
-                                    {fileIsUploading ? "Uploading…" : "Upload file"}
-                                  </span>
-                                  <Input
-                                    id={`file-${key}`}
-                                    type="file"
-                                    accept="application/pdf"
-                                    onChange={(e) =>
-                                      handleFileChange(categoryIndex, documentIndex, e)
-                                    }
-                                    className="hidden"
-                                    disabled={fileIsUploading || !isEditable}
-                                  />
-                                </label>
-                              )}
+                                      className="hidden"
+                                      disabled={fileIsUploading || !isEditable}
+                                    />
+                                  </label>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
