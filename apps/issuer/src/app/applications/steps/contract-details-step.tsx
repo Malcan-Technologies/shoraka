@@ -802,8 +802,32 @@ export function ContractDetailsStep({
      NOTIFY PARENT
      ================================================================ */
 
+  /** Stable refs to avoid unnecessary effect re-runs in parent components.
+   *
+   * What: Keeps a stable reference to parent's onDataChange callback.
+   * Why: Prevents parent effects from retriggering when function identity changes.
+   * Data: onDataChange?: (data: Record<string, unknown>) => void
+   */
+  const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
-    if (!onDataChange) return;
+    onDataChangeRef.current = onDataChange;
+  }, [onDataChange]);
+
+  /** Keep a stable ref to the save function so parent can call it without
+   *  being affected by changing function identity on every render.
+   *
+   * What: Ref to the internal save function that performs validation and uploads.
+   * Why: Parent extracts `saveFunction` and invokes it prior to persisting step data.
+   * Data: () => Promise<{ contract_details: ..., customer_details: ... }>
+   */
+  const saveFunctionRef = React.useRef<typeof saveFunction | null>(null);
+  React.useEffect(() => {
+    saveFunctionRef.current = saveFunction;
+  }, [saveFunction]);
+
+  React.useEffect(() => {
+    if (!onDataChangeRef.current) return;
+
     // Determine whether form values differ from the initially hydrated snapshot.
     const hasFormChanged = () => {
       const initial = initialSnapshotRef.current;
@@ -878,14 +902,23 @@ export function ContractDetailsStep({
       !!formData.customer.country &&
       hasConsentDocument;
 
-    onDataChange({
+    /** Send a stable payload to parent.
+     *
+     * What: Emit current form state, validity, pending-change flag and a stable saveFunction.
+     * Why: Parent relies on these fields to enable Save/Continue and to call the save function.
+     * Data: { contract_details, customer_details, isValid, hasPendingChanges, saveFunction }
+     */
+    onDataChangeRef.current({
       contract_details: formData.contract,
       customer_details: formData.customer,
       isValid,
       hasPendingChanges: hasFormChanges,
-      saveFunction,
+      saveFunction: saveFunctionRef.current || undefined,
+      _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-  }, [formData, pendingFiles, saveFunction, onDataChange]);
+    // Intentionally omit dependencies that would retrigger this effect too often.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, pendingFiles]);
 
   /* ================================================================
      HANDLERS
