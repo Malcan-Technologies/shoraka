@@ -171,3 +171,66 @@ export function parseScopeKey(raw: string): ParsedScopeKey {
 
   throw new Error(`Invalid scope_key format: ${raw}`);
 }
+
+/**
+ * ParsedAmendScope - best-effort mapping from admin scope_key to workflow identity.
+ * workflowId: best-effort identifier for the workflow step (usually the tab id or prefix).
+ * kind: 'tab' | 'supporting_doc' | 'invoice' | 'contract' | 'unknown'
+ * entityId: optional id for item-level scopes (invoice id, document id, etc.)
+ */
+export type ParsedAmendScope = {
+  workflowId: string;
+  kind: "tab" | "supporting_doc" | "invoice" | "contract" | "unknown";
+  entityId?: string;
+};
+
+/**
+ * parseAmendScopeKey - stable helper that extracts a workflowId and entity identity from admin scope_key format.
+ * This is best-effort and must not require admin schema changes.
+ */
+export function parseAmendScopeKey(scopeKey: string): ParsedAmendScope {
+  if (!scopeKey || typeof scopeKey !== "string") {
+    throw new Error("Invalid scopeKey");
+  }
+
+  // Tab-level: exact matches to allowed tabs
+  if (ALLOWED_TABS.includes(scopeKey as any)) {
+    return { workflowId: scopeKey, kind: "tab" };
+  }
+
+  // Document/item formats
+  if (isDocumentScopeKey(scopeKey)) {
+    const itemId = getItemIdFromScopeKey(scopeKey);
+    // workflowId: supporting_documents (tab-level)
+    return { workflowId: "supporting_documents", kind: "supporting_doc", entityId: itemId };
+  }
+
+  // Invoice formats: 'invoice:<invoiceId>' or 'invoice:...'
+  if (scopeKey.startsWith("invoice:") || scopeKey.startsWith("invoice_details")) {
+    const parts = scopeKey.split(":");
+    if (parts.length >= 2 && parts[1]) {
+      return { workflowId: "invoice_details", kind: "invoice", entityId: parts.slice(1).join(":") };
+    }
+    return { workflowId: "invoice_details", kind: "invoice" };
+  }
+
+  // Contract related
+  if (scopeKey.startsWith("contract") || scopeKey === "contract_details") {
+    return { workflowId: "contract_details", kind: "contract" };
+  }
+
+  // Field-level patterns like 'tab:idx:field' -> derive tab as workflowId
+  try {
+    const parsed = parseScopeKey(scopeKey);
+    if (parsed.kind === "TAB") {
+      return { workflowId: parsed.tab, kind: "tab" };
+    }
+    if (parsed.kind === "FIELD") {
+      return { workflowId: parsed.tab, kind: parsed.tab === "invoice_details" ? "invoice" : "unknown", entityId: String(parsed.index) };
+    }
+  } catch {
+    // fallthrough
+  }
+
+  return { workflowId: "unknown", kind: "unknown" };
+}

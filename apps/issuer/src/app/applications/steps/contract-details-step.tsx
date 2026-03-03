@@ -358,12 +358,16 @@ interface ContractDetailsStepProps {
   applicationId: string;
   workflow: Record<string, unknown>[];
   onDataChange?: (data: Record<string, unknown>) => void;
+  isAmendmentMode?: boolean;
+  flaggedTabs?: Set<string>;
 }
 
 export function ContractDetailsStep({
   applicationId,
   workflow,
   onDataChange,
+  isAmendmentMode,
+  flaggedTabs,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
@@ -919,6 +923,12 @@ export function ContractDetailsStep({
     // Intentionally omit dependencies that would retrigger this effect too often.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, pendingFiles]);
+  // Determine whether the step is editable in amendment mode
+  const stepIsEditable = React.useMemo(() => {
+    if (!isAmendmentMode) return true;
+    if (!flaggedTabs) return false;
+    return flaggedTabs.has("contract_details");
+  }, [isAmendmentMode, flaggedTabs]);
 
   /* ================================================================
      HANDLERS
@@ -993,6 +1003,7 @@ export function ContractDetailsStep({
             <Input
               value={formData.contract.title}
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
+              disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
               className={inputClassName}
             />
@@ -1003,6 +1014,7 @@ export function ContractDetailsStep({
               onChange={(e) =>
                 handleInputChange("contract", "description", e.target.value)
               }
+              disabled={!stepIsEditable}
               placeholder="eg. Repair and maintenance for 12 mining rigs"
               className={cn(formTextareaClassName, "min-h-[100px]")}
             />
@@ -1011,6 +1023,7 @@ export function ContractDetailsStep({
             <Input
               value={formData.contract.number}
               onChange={(e) => handleInputChange("contract", "number", e.target.value)}
+              disabled={!stepIsEditable}
               placeholder="eg. 20212345678"
               className={inputClassName}
             />
@@ -1020,6 +1033,7 @@ export function ContractDetailsStep({
               <MoneyInput
                 value={formData.contract.value}
                 onValueChange={(value) => handleInputChange("contract", "value", value)}
+                disabled={!stepIsEditable}
                 placeholder={`eg. ${formatMoney(5000000)}`}
                 prefix="RM"
                 inputClassName={inputClassName}
@@ -1031,7 +1045,8 @@ export function ContractDetailsStep({
               <div className="h-11 flex items-center">
                 <MoneyInput
                   value={formData.contract.financing}
-                  onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                disabled={!stepIsEditable}
                   placeholder={`eg. ${formatMoney(1000000)}`}
                   prefix="RM"
                   inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
@@ -1049,6 +1064,7 @@ export function ContractDetailsStep({
               <DateInput
                 value={formData.contract.start_date || ""}
                 onChange={(v) => handleInputChange("contract", "start_date", v)}
+                disabled={!stepIsEditable}
                 isInvalid={isStartInvalid}
                 className={inputClassName}
               />
@@ -1088,6 +1104,7 @@ export function ContractDetailsStep({
               <DateInput
                 value={formData.contract.end_date || ""}
                 onChange={(v) => handleInputChange("contract", "end_date", v)}
+                disabled={!stepIsEditable}
                 isInvalid={isEndInvalid}
                 className={inputClassName}
               />
@@ -1123,16 +1140,18 @@ export function ContractDetailsStep({
             </div>
 
             <Label className={labelClassName}>Upload contract</Label>
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("contract", file)}
-              isUploading={isUploading.contract}
-              uploadedFile={formData.contract.document}
-              pendingFile={pendingFiles.contract}
-              onRemove={() => {
-                handleInputChange("contract", "document", null);
-                setPendingFiles((prev) => ({ ...prev, contract: undefined }));
-              }}
-            />
+            <div className={!stepIsEditable ? "pointer-events-none opacity-60" : ""}>
+              <FileUploadArea
+                onFileSelect={(file) => handleFileUpload("contract", file)}
+                isUploading={isUploading.contract}
+                uploadedFile={formData.contract.document}
+                pendingFile={pendingFiles.contract}
+                onRemove={() => {
+                  handleInputChange("contract", "document", null);
+                  setPendingFiles((prev) => ({ ...prev, contract: undefined }));
+                }}
+              />
+            </div>
           </div>
         </section>
 

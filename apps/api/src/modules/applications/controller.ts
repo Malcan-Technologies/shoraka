@@ -323,6 +323,44 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
   
   router.get("/:id/logs", requireAuth, getApplicationLogsHandler);
 router.get("/:id", requireAuth, getApplication);
+  router.post(
+    "/:id/acknowledge-workflow",
+    requireAuth,
+    async function acknowledgeWorkflowHandler(req, res, next) {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const body = z.object({ workflowId: z.string().min(1) }).parse(req.body);
+        const userId = getUserId(req);
+        const result = await applicationService.acknowledgeWorkflow(id, userId, body.workflowId);
+        res.json({
+          success: true,
+          data: result,
+          correlationId: res.locals.correlationId || "unknown",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/resubmit",
+    requireAuth,
+    async function resubmitHandler(req, res, next) {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const result = await applicationService.resubmitApplication(id, userId);
+        res.json({
+          success: true,
+          data: result,
+          correlationId: res.locals.correlationId || "unknown",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   return router;
 }

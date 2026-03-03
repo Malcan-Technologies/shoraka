@@ -199,30 +199,33 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    const reviewCycle = (application as any).review_cycle ?? 1;
+    // Load all active amendment remarks for this application (admin tables are not versioned)
     const remarks = await prisma.applicationReviewRemark.findMany({
-      where: ( {
+      where: {
         application_id: id,
-        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: { not: null },
-      } as any ),
+      } as any,
       orderBy: { created_at: "asc" },
     });
 
     // Parse scope_keys
-    const { parseScopeKey } = require("@cashsouk/types");
+    const { parseAmendScopeKey, parseScopeKey } = require("@cashsouk/types");
     const parsed = remarks.map((r) => {
+      let legacy = null;
+      let amend = null;
       try {
-        return { ...r, parsed: parseScopeKey(r.scope_key) };
-      } catch (err) {
-        return { ...r, parsed: null };
-      }
+        legacy = parseScopeKey(r.scope_key);
+      } catch {}
+      try {
+        amend = parseAmendScopeKey(r.scope_key);
+      } catch {}
+      return { ...r, parsed: legacy, parsedAmend: amend };
     });
 
     return {
       application,
-      review_cycle: reviewCycle,
+      review_cycle: (application as any).review_cycle ?? 1,
       remarks: parsed,
     };
   }
@@ -240,6 +243,199 @@ export class ApplicationService {
     },
   });
 }
+
+  /**
+   * Acknowledge a workflowId during amendment mode.
+   * Appends workflowId to application's amendment_acknowledged_workflow_ids if missing.
+   */
+  async acknowledgeWorkflow(applicationId: string, userId: string, workflowId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(400, "INVALID_STATE", "Acknowledgement allowed only in AMENDMENT_REQUESTED state");
+    }
+
+    const existing: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
+    const deduped = new Set(existing);
+    deduped.add(workflowId);
+
+    const updated = await this.repository.update(applicationId, {
+      amendment_acknowledged_workflow_ids: Array.from(deduped),
+      updated_at: new Date(),
+    } as any);
+
+    return updated;
+  }
+
+  /**
+   * Resubmit an application after amendments are acknowledged.
+   * Validates acknowledgements, creates revision snapshot, cleans up admin review rows with exceptions, and advances review_cycle.
+   */
+  async resubmitApplication(applicationId: string, userId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
+    }
+
+    // Load all active amendment remarks for this application (admin tables are not versioned)
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any,
+    });
+
+    // Derive required workflowIds from remarks
+    const { parseAmendScopeKey } = require("@cashsouk/types");
+    const requiredWorkflowIds = new Set<string>();
+    for (const r of remarks) {
+      try {
+        const parsed = parseAmendScopeKey(r.scope_key);
+        if (parsed && parsed.workflowId) requiredWorkflowIds.add(parsed.workflowId);
+      } catch {
+        // ignore malformed
+      }
+    }
+
+    const acknowledged: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
+    const missing: string[] = [];
+    for (const req of requiredWorkflowIds) {
+      if (!acknowledged.includes(req)) missing.push(req);
+    }
+    if (missing.length > 0) {
+      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "Missing acknowledgements for workflows: " + missing.join(", "));
+    }
+
+    // Prepare snapshot data
+    const appFullCurrent = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { contract: true, invoices: true, issuer_organization: true },
+    });
+
+    const previousCycle = (application as any).review_cycle ?? 1;
+    const newCycle = previousCycle + 1;
+
+    await prisma.$transaction(async (tx) => {
+      // Create revision snapshot for the new cycle
+      if (appFullCurrent) {
+        const snapshot = {
+          product: {
+            id: (appFullCurrent as any).financing_type?.product_id ?? null,
+            version: (appFullCurrent as any).product_version ?? null,
+          },
+          application: {
+            financing_type: appFullCurrent.financing_type,
+            financing_structure: appFullCurrent.financing_structure,
+            company_details: appFullCurrent.company_details,
+            business_details: appFullCurrent.business_details,
+            supporting_documents: appFullCurrent.supporting_documents,
+            declarations: appFullCurrent.declarations,
+            review_and_submit: appFullCurrent.review_and_submit,
+            last_completed_step: appFullCurrent.last_completed_step,
+            contract_id: appFullCurrent.contract_id,
+          },
+          contract: appFullCurrent.contract ?? null,
+          invoices: appFullCurrent.invoices ?? [],
+          issuer_organization: appFullCurrent.issuer_organization ?? null,
+        };
+
+        await (tx as any).applicationRevision.create({
+          data: {
+            application_id: applicationId,
+            review_cycle: newCycle,
+            snapshot,
+            submitted_at: new Date(),
+          },
+        });
+      }
+
+      // Determine contract-related preservation rules
+      const contract = appFullCurrent?.contract ?? null;
+      const contractApproved = contract && (contract as any).status === "APPROVED";
+
+      // Build set of invoice IDs that have REQUEST_AMENDMENT remarks
+      const amendmentRemarks = remarks;
+      const invoiceIdsToDelete = new Set<string>();
+      for (const r of amendmentRemarks) {
+        try {
+          const p = parseAmendScopeKey(r.scope_key);
+          if (p.kind === "tab" && p.workflowId && p.workflowId.startsWith("invoice")) {
+            for (const inv of appFullCurrent?.invoices ?? []) invoiceIdsToDelete.add(inv.id);
+          } else if (p.kind === "invoice" && p.entityId) {
+            invoiceIdsToDelete.add(p.entityId);
+          }
+        } catch {
+          // ignore malformed
+        }
+      }
+
+      // Delete remarks for this application, with contract preservation exception
+      const remarkDeleteWhere: any = { application_id: applicationId };
+      if (contractApproved) {
+        remarkDeleteWhere.NOT = { OR: [{ scope: "section", scope_key: "contract_details" }, { scope_key: "contract_details" }] };
+      }
+      await tx.applicationReviewRemark.deleteMany({ where: remarkDeleteWhere });
+
+      // Delete invoice review items only for invoices flagged by amendmentRemarks
+      if (invoiceIdsToDelete.size > 0) {
+        await tx.applicationReviewItem.deleteMany({
+          where: { application_id: applicationId, item_type: "invoice", item_id: { in: Array.from(invoiceIdsToDelete) } },
+        });
+      }
+
+      // Delete non-invoice review items for the application (except preserve invoice items tied to approved contract)
+      const nonInvoiceWhere: any = { application_id: applicationId, item_type: { not: "invoice" } };
+      await tx.applicationReviewItem.deleteMany({ where: nonInvoiceWhere });
+
+      // Reset application reviews: if contract approved, preserve contract_details section; else reset all
+      const reviewUpdateWhere: any = { application_id: applicationId };
+      if (contractApproved) {
+        reviewUpdateWhere.NOT = { section: "contract_details" };
+      }
+      await tx.applicationReview.updateMany({
+        where: reviewUpdateWhere,
+        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
+      });
+
+      // Increment application's review_cycle and clear acknowledgements and set status UNDER_REVIEW
+      await tx.application.update({
+        where: { id: applicationId },
+        data: ({ review_cycle: newCycle, amendment_acknowledged_workflow_ids: [], status: "UNDER_REVIEW", updated_at: new Date() } as any),
+      });
+
+      // If contract exists and was in AMENDMENT_REQUESTED, move it back to SUBMITTED
+      if (appFullCurrent?.contract_id) {
+        await tx.contract.updateMany({
+          where: { id: appFullCurrent.contract_id, status: "AMENDMENT_REQUESTED" },
+          data: { status: "SUBMITTED" },
+        });
+      }
+    });
+
+    logger.info({ applicationId }, "Application resubmitted: advanced review_cycle and created revision");
+
+    // Insert ApplicationLog
+    await prisma.applicationLog.create({
+      data: {
+        user_id: userId,
+        application_id: applicationId,
+        event_type: "APPLICATION_RESUBMITTED",
+        review_cycle: newCycle,
+        created_at: new Date(),
+      } as any,
+    });
+
+    const updatedApplication = await this.repository.findById(applicationId);
+    return updatedApplication;
+  }
 
   /**
    * Update a specific step in the application
@@ -276,14 +472,12 @@ export class ApplicationService {
 
     // Enforce amendment boundaries when application is in AMENDMENT_REQUESTED
     if ((application as any).status === "AMENDMENT_REQUESTED") {
-      // Load active remarks for the current review_cycle
-      const currentCycle = (application as any).review_cycle ?? 1;
+      // Load active remarks for this application (admin remarks are not versioned)
       const remarks = await prisma.applicationReviewRemark.findMany({
-        where: ( {
+        where: {
           application_id: id,
-          review_cycle: currentCycle,
           action_type: "REQUEST_AMENDMENT",
-        } as any ),
+        } as any,
       });
 
       // Parse scope_keys
@@ -569,210 +763,11 @@ export class ApplicationService {
       }
     }
 
-    // Resubmit flow: validate, then apply deletion rules and advance review_cycle.
+    // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      // Validate that active REQUEST_AMENDMENT remarks have been satisfied against previous revision
-      const currentCycle = (application as any).review_cycle ?? 1;
-      const remarks = await prisma.applicationReviewRemark.findMany({
-        where: ({
-          application_id: id,
-          review_cycle: currentCycle,
-          action_type: "REQUEST_AMENDMENT",
-        } as any),
-      });
-
-      const prevRevision = await (prisma as any).applicationRevision.findUnique({
-        where: { application_id_review_cycle: { application_id: id, review_cycle: currentCycle } },
-      });
-
-      const appFullCurrent = await prisma.application.findUnique({
-        where: { id },
-        include: { contract: true, invoices: true },
-      });
-
-      const currentSnapshot = appFullCurrent
-        ? {
-            application: {
-              financing_type: appFullCurrent.financing_type,
-              financing_structure: appFullCurrent.financing_structure,
-              company_details: appFullCurrent.company_details,
-              business_details: appFullCurrent.business_details,
-              supporting_documents: appFullCurrent.supporting_documents,
-              declarations: appFullCurrent.declarations,
-              review_and_submit: appFullCurrent.review_and_submit,
-              last_completed_step: appFullCurrent.last_completed_step,
-              contract_id: appFullCurrent.contract_id,
-            },
-            contract: appFullCurrent.contract ?? null,
-            invoices: appFullCurrent.invoices ?? [],
-          }
-        : null;
-
-      const unsatisfied: string[] = [];
-      const { parseScopeKey } = require("@cashsouk/types");
-
-      for (const r of remarks) {
-        try {
-          const parsed = parseScopeKey(r.scope_key);
-          let satisfied = false;
-          if (!prevRevision || !currentSnapshot) {
-            satisfied = true;
-          } else if (parsed.kind === "TAB") {
-            const tab = parsed.tab;
-            if (tab === "contract_details") {
-              satisfied = JSON.stringify(prevRevision.snapshot.contract || null) !== JSON.stringify(currentSnapshot.contract || null);
-            } else if (tab === "invoice_details") {
-              satisfied = JSON.stringify(prevRevision.snapshot.invoices || []) !== JSON.stringify(currentSnapshot.invoices || []);
-            } else {
-              const prevVal = (prevRevision.snapshot.application as any)?.[tab] ?? null;
-              const currVal = (currentSnapshot.application as any)?.[tab] ?? null;
-              satisfied = JSON.stringify(prevVal) !== JSON.stringify(currVal);
-            }
-          } else {
-            const tab = parsed.tab;
-            const idx = parsed.index;
-            const field = parsed.field;
-            if (tab === "invoice_details") {
-              const prevInv = ((prevRevision.snapshot as any).invoices || [])[idx];
-              const currInv = ((currentSnapshot as any).invoices || [])[idx];
-              const prevVal = prevInv ? (prevInv.details ? prevInv.details[field] : undefined) : undefined;
-              const currVal = currInv ? (currInv.details ? currInv.details[field] : undefined) : undefined;
-              satisfied = prevVal !== currVal;
-            } else if (tab === "supporting_documents") {
-              const category = (parsed as any).category;
-              const prevDocs = (prevRevision.snapshot as any).application?.supporting_documents ?? {};
-              const currDocs = (currentSnapshot as any).application?.supporting_documents ?? {};
-              const prevItem = prevDocs?.[category]?.[idx];
-              const currItem = currDocs?.[category]?.[idx];
-              const prevVal = prevItem ? prevItem[field] : undefined;
-              const currVal = currItem ? currItem[field] : undefined;
-              satisfied = prevVal !== currVal;
-            } else {
-              const prevVal = (prevRevision.snapshot as any).application?.[tab]?.[idx]?.[field];
-              const currVal = (currentSnapshot as any).application?.[tab]?.[idx]?.[field];
-              satisfied = prevVal !== currVal;
-            }
-          }
-
-          if (!satisfied) {
-            unsatisfied.push(r.scope_key);
-          }
-        } catch (err) {
-          unsatisfied.push(r.scope_key);
-        }
-      }
-
-      if (unsatisfied.length > 0) {
-        throw new AppError(400, "UNSATISFIED_REMARKS", `The following amendment scope_keys are unsatisfied: ${unsatisfied.join(", ")}`);
-      }
-
-      // Determine contract-related preservation rules
-      const contract = appFullCurrent?.contract ?? null;
-      const contractApproved = contract && (contract as any).status === "APPROVED";
-
-      // Build set of invoice IDs that have REQUEST_AMENDMENT remarks
-      const amendmentRemarks = await prisma.applicationReviewRemark.findMany({
-        where: { application_id: id, action_type: "REQUEST_AMENDMENT" },
-        orderBy: { created_at: "asc" },
-      });
-      const invoiceIdsToDelete = new Set<string>();
-      for (const r of amendmentRemarks) {
-        try {
-          const p = parseScopeKey(r.scope_key);
-          if (p.kind === "TAB" && p.tab === "invoice_details") {
-            // include all invoices
-            for (const inv of appFullCurrent?.invoices ?? []) invoiceIdsToDelete.add(inv.id);
-          } else if (p.kind === "FIELD" && p.tab === "invoice_details") {
-            const idx = p.index;
-            const inv = (appFullCurrent?.invoices || [])[idx];
-            if (inv) invoiceIdsToDelete.add(inv.id);
-          }
-        } catch {
-          // ignore malformed
-        }
-      }
-
-      // (contract-related invoice ids can be derived if needed)
-
-      // Start transaction: apply deletions/resets, increment review_cycle, create revision
-      const previousCycle = currentCycle;
-      const newCycle = previousCycle + 1;
-
-      await prisma.$transaction(async (tx) => {
-        // Delete all remarks for this application, except contract_details if contract is APPROVED
-        const remarkDeleteWhere: any = { application_id: id };
-        if (contractApproved) {
-          remarkDeleteWhere.NOT = { OR: [{ scope: "section", scope_key: "contract_details" }, { scope_key: "contract_details" }] };
-        }
-        await tx.applicationReviewRemark.deleteMany({ where: remarkDeleteWhere });
-
-        // Delete invoice review items only for invoices flagged by amendmentRemarks
-        if (invoiceIdsToDelete.size > 0) {
-          await tx.applicationReviewItem.deleteMany({
-            where: { application_id: id, item_type: "invoice", item_id: { in: Array.from(invoiceIdsToDelete) } },
-          });
-        }
-
-        // Delete non-invoice review items for the application (except preserve invoice items tied to approved contract)
-        const nonInvoiceWhere: any = { application_id: id, item_type: { not: "invoice" } };
-        await tx.applicationReviewItem.deleteMany({ where: nonInvoiceWhere });
-
-        // If contract is NOT approved, also delete invoice items not explicitly preserved (i.e., those not in invoiceIdsToDelete should remain)
-        // (we only deleted invoice items that matched REQUEST_AMENDMENT above)
-
-        // Reset application reviews: if contract approved, preserve contract_details section; else reset all
-        const reviewUpdateWhere: any = { application_id: id };
-        if (contractApproved) {
-          reviewUpdateWhere.NOT = { section: "contract_details" };
-        }
-        await tx.applicationReview.updateMany({
-          where: reviewUpdateWhere,
-          data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
-        });
-
-        // Increment application's review_cycle
-        await tx.application.update({
-          where: { id },
-          data: ({ review_cycle: newCycle } as any),
-        });
-
-        // Create new revision snapshot for the new cycle
-        if (appFullCurrent) {
-          const snapshot = {
-            application: {
-              financing_type: appFullCurrent.financing_type,
-              financing_structure: appFullCurrent.financing_structure,
-              company_details: appFullCurrent.company_details,
-              business_details: appFullCurrent.business_details,
-              supporting_documents: appFullCurrent.supporting_documents,
-              declarations: appFullCurrent.declarations,
-              review_and_submit: appFullCurrent.review_and_submit,
-              last_completed_step: appFullCurrent.last_completed_step,
-              contract_id: appFullCurrent.contract_id,
-            },
-            contract: appFullCurrent.contract ?? null,
-            invoices: appFullCurrent.invoices ?? [],
-          };
-          await (tx as any).applicationRevision.create({
-            data: {
-              application_id: id,
-              review_cycle: newCycle,
-              snapshot,
-              submitted_at: new Date(),
-            },
-          });
-        }
-
-        // If contract exists and was in AMENDMENT_REQUESTED, move it back to SUBMITTED
-        if (appFullCurrent?.contract_id) {
-          await tx.contract.updateMany({
-            where: { id: appFullCurrent.contract_id, status: "AMENDMENT_REQUESTED" },
-            data: { status: "SUBMITTED" },
-          });
-        }
-      });
-
-      logger.info({ applicationId: id, userId }, "Application resubmitted: applied deletion rules, advanced review_cycle");
+      const res = await this.resubmitApplication(id, userId);
+      // return updated application
+      return res as any;
     }
 
     // If submitting, perform cleanup of unused steps

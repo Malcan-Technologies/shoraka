@@ -318,6 +318,7 @@ model Application {
   issuer_organization_id     String
   product_version            Int
   review_cycle               Int                       @default(1)
+  amendment_acknowledged_workflow_ids String[] @default([])
   status                     ApplicationStatus         @default(DRAFT)
   last_completed_step        Int                       @default(0)
   financing_type             Json?

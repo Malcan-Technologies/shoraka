@@ -10,6 +10,7 @@ interface ProgressIndicatorProps {
   isLoading?: boolean;
   disabledSteps?: number[]; // Steps that are visible but locked (non-clickable)
   onStepClick?: (step: number) => void; // Optional click handler
+  amendmentSteps?: number[]; // Steps that are flagged for amendment (show red)
 }
 
 export function ProgressIndicator({
@@ -18,6 +19,7 @@ export function ProgressIndicator({
   isLoading = false,
   disabledSteps = [],
   onStepClick,
+  amendmentSteps = [],
 }: ProgressIndicatorProps) {
   if (isLoading) {
     return (
@@ -85,6 +87,7 @@ export function ProgressIndicator({
           const isActive = stepNumber === currentStep;
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);
+          const isAmendment = (amendmentSteps || []).includes(stepNumber);
 
           // For disabled steps, always show as completed (locked)
           const displayCompleted = isCompleted || isDisabled;
@@ -118,7 +121,9 @@ export function ProgressIndicator({
                 {isActive && !isDisabled && (
                   <>
                     <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
-                    <div className="absolute inset-0 rounded-full border-2 border-foreground z-20 transition-all duration-200 ease-out" />
+                    <div
+                      className={`absolute inset-0 rounded-full z-20 transition-all duration-200 ease-out ${isAmendment ? "border-red-600" : "border-foreground"}`}
+                    />
                   </>
                 )}
 
@@ -126,8 +131,8 @@ export function ProgressIndicator({
                 <div
                   className={cn(
                     "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] transition-all duration-200 ease-out",
-                    displayFilled
-                      ? "border-2 border-foreground bg-foreground scale-100"
+                  displayFilled
+                      ? `${isAmendment ? "border-2 border-red-600 bg-red-600" : "border-2 border-foreground bg-foreground"} scale-100`
                       : "border-2 border-muted bg-background scale-95"
                   )}
                 >
@@ -142,7 +147,7 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "relative h-[8px] w-[8px] rounded-full",
-                        displayFilled ? "bg-background" : "bg-muted-foreground/15"
+                        displayFilled ? (isAmendment ? "bg-background" : "bg-background") : "bg-muted-foreground/15"
                       )}
                     />
                   )}
@@ -155,6 +160,8 @@ export function ProgressIndicator({
                   "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
                   isActive && !isDisabled
                     ? "font-medium text-foreground"
+                    : isAmendment
+                    ? "text-red-600"
                     : "text-muted-foreground"
                 )}
               >

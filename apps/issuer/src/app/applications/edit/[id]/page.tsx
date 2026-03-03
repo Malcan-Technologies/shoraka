@@ -640,6 +640,8 @@ export default function EditApplicationPage() {
           applicationId={applicationId}
           workflow={effectiveWorkflow}
           onDataChange={handleDataChange}
+          isAmendmentMode={application?.status === "AMENDMENT_REQUESTED"}
+          flaggedTabs={flaggedTabs}
         />
       );
     }
@@ -917,6 +919,24 @@ export default function EditApplicationPage() {
         id: applicationId,
         stepData: stepPayload,
       });
+      
+      // In amendment mode: if this step is flagged, acknowledge workflow
+      try {
+        if (application?.status === "AMENDMENT_REQUESTED") {
+          // currentStepId is the workflow step id (e.g. contract_details_1)
+          const token = await getAccessToken();
+          await fetch(`${API_URL}/v1/applications/${applicationId}/acknowledge-workflow`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ workflowId: currentStepId }),
+          });
+        }
+      } catch {
+        // ignore acknowledgement failures - backend enforcement remains authoritative
+      }
 
       // Update local wizard state immediately (source of truth)
       if (wizardState) {
@@ -990,6 +1010,18 @@ export default function EditApplicationPage() {
               .map((s: Record<string, unknown>) => (s.name as string))}
             currentStep={stepFromUrl}
             isLoading={isLoading || !effectiveWorkflow.length}
+            amendmentSteps={React.useMemo(() => {
+              if (!amendmentContext) return [];
+              const steps: number[] = [];
+              for (let i = 0; i < effectiveWorkflow.length; i++) {
+                const step = effectiveWorkflow[i];
+                const key = getStepKeyFromStepId((step.id as string) || "") || "";
+                if ((flaggedTabs.has(key))) {
+                  steps.push(i + 1);
+                }
+              }
+              return steps;
+            }, [effectiveWorkflow, amendmentContext, flaggedTabs])}
           />
         </div>
 
