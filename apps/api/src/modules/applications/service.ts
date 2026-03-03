@@ -670,34 +670,55 @@ export class ApplicationService {
       const contract = appFullCurrent?.contract ?? null;
       const contractApproved = contract && (contract as any).status === "APPROVED";
 
-      // Gather invoice ids belonging to the contract (if needed)
-      let contractInvoiceIds: string[] = [];
-      if (contractApproved && appFullCurrent?.contract_id) {
-        const invs = await prisma.invoice.findMany({ where: { contract_id: appFullCurrent.contract_id }, select: { id: true } });
-        contractInvoiceIds = invs.map((i) => i.id);
+      // Build set of invoice IDs that have REQUEST_AMENDMENT remarks
+      const amendmentRemarks = await prisma.applicationReviewRemark.findMany({
+        where: { application_id: id, action_type: "REQUEST_AMENDMENT" },
+        orderBy: { created_at: "asc" },
+      });
+      const invoiceIdsToDelete = new Set<string>();
+      for (const r of amendmentRemarks) {
+        try {
+          const p = parseScopeKey(r.scope_key);
+          if (p.kind === "TAB" && p.tab === "invoice_details") {
+            // include all invoices
+            for (const inv of appFullCurrent?.invoices ?? []) invoiceIdsToDelete.add(inv.id);
+          } else if (p.kind === "FIELD" && p.tab === "invoice_details") {
+            const idx = p.index;
+            const inv = (appFullCurrent?.invoices || [])[idx];
+            if (inv) invoiceIdsToDelete.add(inv.id);
+          }
+        } catch {
+          // ignore malformed
+        }
       }
+
+      // (contract-related invoice ids can be derived if needed)
 
       // Start transaction: apply deletions/resets, increment review_cycle, create revision
       const previousCycle = currentCycle;
       const newCycle = previousCycle + 1;
 
       await prisma.$transaction(async (tx) => {
-        // Delete all REQUEST_AMENDMENT remarks for this application, except contract_details if contract is APPROVED
-        const remarkDeleteWhere: any = {
-          application_id: id,
-          action_type: "REQUEST_AMENDMENT",
-        };
+        // Delete all remarks for this application, except contract_details if contract is APPROVED
+        const remarkDeleteWhere: any = { application_id: id };
         if (contractApproved) {
-          remarkDeleteWhere.NOT = { scope: "section", scope_key: "contract_details" };
+          remarkDeleteWhere.NOT = { OR: [{ scope: "section", scope_key: "contract_details" }, { scope_key: "contract_details" }] };
         }
         await tx.applicationReviewRemark.deleteMany({ where: remarkDeleteWhere });
 
-        // Delete review items except preserve invoice items tied to approved contract
-        const itemDeleteWhere: any = { application_id: id };
-        if (contractApproved && contractInvoiceIds.length > 0) {
-          itemDeleteWhere.NOT = { AND: [{ item_type: "invoice", item_id: { in: contractInvoiceIds } }] };
+        // Delete invoice review items only for invoices flagged by amendmentRemarks
+        if (invoiceIdsToDelete.size > 0) {
+          await tx.applicationReviewItem.deleteMany({
+            where: { application_id: id, item_type: "invoice", item_id: { in: Array.from(invoiceIdsToDelete) } },
+          });
         }
-        await tx.applicationReviewItem.deleteMany({ where: itemDeleteWhere });
+
+        // Delete non-invoice review items for the application (except preserve invoice items tied to approved contract)
+        const nonInvoiceWhere: any = { application_id: id, item_type: { not: "invoice" } };
+        await tx.applicationReviewItem.deleteMany({ where: nonInvoiceWhere });
+
+        // If contract is NOT approved, also delete invoice items not explicitly preserved (i.e., those not in invoiceIdsToDelete should remain)
+        // (we only deleted invoice items that matched REQUEST_AMENDMENT above)
 
         // Reset application reviews: if contract approved, preserve contract_details section; else reset all
         const reviewUpdateWhere: any = { application_id: id };
