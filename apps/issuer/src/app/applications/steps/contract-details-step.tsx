@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { ContractDetailsSkeleton } from "@/app/applications/components/contract-details-skeleton";
@@ -1044,27 +1043,6 @@ export function ContractDetailsStep({
   return (
     <>
       <div className="space-y-10 px-3">
-        {stepIsFlagged && remarks && remarks.length > 0 ? (
-          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
-            <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-semibold text-destructive">Amendment required</h4>
-            <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
-              {remarks
-                .filter((r) => {
-                  const rem = r as { scope?: string; scope_key?: string };
-                  return (rem.scope === "section" && rem.scope_key === "contract_details") ||
-                    (rem.scope === "item" && rem.scope_key?.split(":")[0] === "contract_details");
-                })
-                .map((r, i) =>
-                  (r.remark || r?.remark || "").split("\n").map((line: string, idx: number) => (
-                    <li key={`${i}-${idx}`}>{line}</li>
-                  ))
-                )}
-            </ul>
-            </div>
-          </div>
-        ) : null}
         {/* Contract Details Section */}
         <section className="space-y-3">
           <div>

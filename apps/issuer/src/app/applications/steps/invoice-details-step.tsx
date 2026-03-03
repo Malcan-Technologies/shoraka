@@ -51,7 +51,7 @@ import { DateInput } from "@/app/applications/components/date-input";
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
@@ -953,27 +953,6 @@ export default function InvoiceDetailsStep({
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || debugSkeletonMode ? null : (
           <div className="space-y-3">
-            {isAmendmentMode && (flaggedSections?.has("invoice_details") || (flaggedItems?.get("invoice_details")?.size ?? 0) > 0) && remarks.length > 0 ? (
-              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
-                <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-semibold text-destructive">Amendment required</h4>
-                  <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
-                  {remarks
-                    .filter((r) => {
-                      const rem = r as { scope?: string; scope_key?: string };
-                      return (rem.scope === "section" && rem.scope_key === "invoice_details") ||
-                        (rem.scope === "item" && rem.scope_key?.split(":")[0] === "invoice_details");
-                    })
-                    .flatMap((r, i) =>
-                      (r.remark || "").split("\n").filter(Boolean).map((line, idx) => (
-                        <li key={`${i}-${idx}`}>{line}</li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </div>
-            ) : null}
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-base font-semibold text-foreground">

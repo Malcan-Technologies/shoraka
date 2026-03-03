@@ -20,7 +20,7 @@ export function SupportingDocumentsStep({
   readOnly = false,
   amendmentRemarks = [],
   isAmendmentMode = false,
-  flaggedSections,
+  flaggedSections: _flaggedSections,
   flaggedItems,
 }: {
   applicationId: string;
@@ -109,20 +109,33 @@ export function SupportingDocumentsStep({
    * - Keep UI unchanged
    * - Safely support future workflow changes
    */
-  /** Map full scope_key -> remark. Simple: use flaggedItems for matching. */
+  /** Item set for supporting_documents tab only (scope_key starts with supporting_documents:). STRICT mode uses this. */
+  const supportingDocItemSet = React.useMemo(() => {
+    return flaggedItems?.get("supporting_documents") ?? new Set<string>();
+  }, [flaggedItems]);
+
+  /** If tab has ANY item-level amendment remark → STRICT single-item editing mode. */
+  const hasItemLevelAmendment =
+    isAmendmentMode && supportingDocItemSet.size > 0;
+
+  /** Combined set for remark lookup (supports doc:... admin format). */
+  const combinedItemSet = React.useMemo(() => {
+    const setB = flaggedItems?.get("doc");
+    return new Set<string>([...supportingDocItemSet, ...(setB ?? [])]);
+  }, [flaggedItems, supportingDocItemSet]);
+
+  /** Map scope_key -> remark for item-level amendment text. */
   const flaggedDocRemarks = React.useMemo(() => {
     const map = new Map<string, string>();
-    const itemSet = flaggedItems?.get("supporting_documents");
-    if (!itemSet) return map;
     for (const r of amendmentRemarks) {
       const rem = r as { scope?: string; scope_key?: string; remark?: string };
       if (rem.scope !== "item" || !rem.scope_key) continue;
-      if (itemSet.has(rem.scope_key) && (rem.remark || "").trim()) {
+      if (combinedItemSet.has(rem.scope_key) && (rem.remark || "").trim()) {
         map.set(rem.scope_key, (rem.remark || "").trim());
       }
     }
     return map;
-  }, [amendmentRemarks, flaggedItems]);
+  }, [amendmentRemarks, combinedItemSet]);
 
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
@@ -490,14 +503,6 @@ export function SupportingDocumentsStep({
     );
   }
 
-  const stepLevelRemarks = React.useMemo(() => {
-    return amendmentRemarks.filter((r) => {
-      const rem = r as { scope?: string; scope_key?: string };
-      return (rem.scope === "section" && rem.scope_key === "supporting_documents") ||
-        (rem.scope === "item" && rem.scope_key?.split(":")[0] === "supporting_documents");
-    });
-  }, [amendmentRemarks]);
-
   return (
     <>
     <div className="space-y-10 px-3">
@@ -508,21 +513,6 @@ export function SupportingDocumentsStep({
         </>
       ) : (
         <>
-          {isAmendmentMode && (flaggedSections?.has("supporting_documents") || (flaggedItems?.get("supporting_documents")?.size ?? 0) > 0) && stepLevelRemarks.length > 0 ? (
-            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
-              <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-destructive">Amendment required</h4>
-                <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
-                  {stepLevelRemarks.flatMap((r, i) =>
-                    (r.remark || "").split("\n").filter(Boolean).map((line, idx) => (
-                      <li key={`${i}-${idx}`}>{line}</li>
-                    ))
-                  )}
-                </ul>
-              </div>
-            </div>
-          ) : null}
           {categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
@@ -577,35 +567,59 @@ export function SupportingDocumentsStep({
                     const templateS3Key = document.template?.s3_key;
                     const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
                     const slug = String(document.title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-                    const fullScopeKey = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
-                    const docRemark = flaggedDocRemarks.get(fullScopeKey);
-                    const isDocFlagged = Boolean(docRemark);
+                    const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
+                    const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
+                    const isItemFlagged =
+                      supportingDocItemSet.has(rawKey) ||
+                      supportingDocItemSet.has(rawKeyWithDoc);
+                    let isEditable = true;
+                    if (isAmendmentMode) {
+                      if (hasItemLevelAmendment) {
+                        isEditable = isItemFlagged;
+                      } else {
+                        isEditable = true;
+                      }
+                    }
+                    isEditable = isEditable && !readOnly;
+                    const rawKeyAlt = `doc:${groupKey}:${documentIndex}:${slug}`;
+                    const docRemark =
+                      flaggedDocRemarks.get(rawKey) ??
+                      flaggedDocRemarks.get(rawKeyWithDoc) ??
+                      flaggedDocRemarks.get(rawKeyAlt);
+
+                    if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
+                      console.debug("[AMENDMENT][STRICT][SUPPORTING_DOCS]", {
+                        hasItemLevelAmendment,
+                        rawKey,
+                        isItemFlagged,
+                        isEditable,
+                      });
+                    }
 
                     return (
                       <div
                         key={documentIndex}
                         className={cn(
                           "col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start",
-                          isDocFlagged && "rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+                          isAmendmentMode && isItemFlagged &&
+                            "rounded-lg border-2 border-destructive bg-destructive/5 p-3",
+                          !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
                         )}
                       >
-                        {/* Document title + optional amendment remark */}
+                        {/* Document title */}
                         <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
-                          {isDocFlagged && docRemark ? (
-                            <p className="mt-1 text-xs text-destructive">{docRemark}</p>
-                          ) : null}
                         </div>
 
-                        {/* FIXED ACTION COLUMN */}
+                        {/* Action column: template, error text (if flagged), uploaded file */}
                         <div className="flex justify-end">
-                          <div className="flex justify-end items-start">
-                            <div className="flex items-center gap-3">
-                              {/* Download template */}
+                          <div className="flex justify-end items-start flex-wrap gap-3">
+                            {/* Download template */}
                               {templateS3Key && (
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6"
+                                  disabled={!isEditable}
+                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={async () => {
                                     const token = await getAccessToken();
                                     const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
@@ -627,25 +641,44 @@ export function SupportingDocumentsStep({
                                 </button>
                               )}
 
-                              {/* Separator */}
-                              <div className="w-px h-4 bg-border/60" />
+                            {/* Error text beside file when flagged */}
+                            {isItemFlagged && docRemark && isUploaded && file && !fileIsUploading ? (
+                              <div className="flex items-center gap-2 text-sm text-destructive shrink-0">
+                                <ExclamationTriangleIcon className="h-4 w-4 shrink-0" />
+                                <span>{docRemark}</span>
+                              </div>
+                            ) : null}
 
-                              {/* FIXED upload slot */}
-                              <div className="w-[160px]">
-                                {isUploaded && file && !fileIsUploading ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
-                                    {/* check */}
+                            {/* Separator */}
+                            <div className="w-px h-4 bg-border/60" />
+
+                            {/* Upload slot with red outline when flagged */}
+                            <div className="w-[160px]">
+                              {isUploaded && file && !fileIsUploading ? (
+                                <div
+                                  className={cn(
+                                    "inline-flex items-center gap-2 rounded-sm px-2 py-[2px] w-full h-6 min-h-6",
+                                    isAmendmentMode && isItemFlagged
+                                      ? "border-2 border-destructive bg-destructive/5"
+                                      : "border border-border"
+                                  )}
+                                >
+                                  {isAmendmentMode && isItemFlagged ? (
+                                    <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                  ) : (
                                     <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
                                       <CheckIconSolid className="h-2.5 w-2.5 text-background" />
                                     </div>
-
-                                    {/* filename (truncate) */}
-                                    <span className="text-[14px] font-medium truncate flex-1">
-                                      {file.name}
-                                    </span>
-
-                                    {/* remove */}
-                                    {!readOnly && (
+                                  )}
+                                  <span
+                                    className={cn(
+                                      "text-[14px] font-medium truncate flex-1",
+                                      isAmendmentMode && isItemFlagged ? "text-destructive" : ""
+                                    )}
+                                  >
+                                    {file.name}
+                                  </span>
+                                  {isEditable && (
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -655,40 +688,33 @@ export function SupportingDocumentsStep({
                                     >
                                       <XMarkIcon className="h-3.5 w-3.5" />
                                     </button>
-                                    )}
-                                  </div>
-                                ) : readOnly ? (
-                                  <span className="text-[14px] text-muted-foreground">—</span>
-                                ) : (
-                                  <label
-                                    htmlFor={`file-${key}`}
+                                  )}
+                                </div>
+                              ) : !isEditable ? (
+                                <span className="text-[14px] text-muted-foreground">—</span>
+                              ) : (
+                                <label
+                                  htmlFor={isEditable ? `file-${key}` : undefined}
                                   className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
-                                  >
-                                    <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-
-                                    <span className="truncate">
-                                      {fileIsUploading ? "Uploading…" : "Upload file"}
-                                    </span>
-
-                                    <Input
-                                      id={`file-${key}`}
-                                      type="file"
-                                      accept="application/pdf"
-                                      onChange={(e) =>
-                                        handleFileChange(categoryIndex, documentIndex, e)
-                                      }
-                                      className="hidden"
-                                      disabled={fileIsUploading}
-                                    />
-                                  </label>
-
-                                )}
-                              </div>
+                                >
+                                  <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                                  <span className="truncate">
+                                    {fileIsUploading ? "Uploading…" : "Upload file"}
+                                  </span>
+                                  <Input
+                                    id={`file-${key}`}
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={(e) =>
+                                      handleFileChange(categoryIndex, documentIndex, e)
+                                    }
+                                    className="hidden"
+                                    disabled={fileIsUploading || !isEditable}
+                                  />
+                                </label>
+                              )}
                             </div>
                           </div>
-
-
-
                         </div>
                       </div>
                     );

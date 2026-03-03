@@ -42,6 +42,7 @@ import {
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
+import { AmendmentRemarkCard } from "../../components/amendment-remark-card";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
@@ -621,6 +622,14 @@ export default function EditApplicationPage() {
     return flaggedSections.has(currentStepKey) || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
   }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
 
+  /** Section-level remarks only for top card. Item-level remarks show beside each file/item. */
+  const currentStepRemarks = React.useMemo(() => {
+    if (!currentStepKey || !amendmentContext?.remarks) return [];
+    return (amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[])
+      .filter((r) => r.scope === "section" && r.scope_key === currentStepKey)
+      .map((r) => r.remark || "");
+  }, [currentStepKey, amendmentContext?.remarks]);
+
   const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
 
   const renderStepComponent = () => {
@@ -1136,6 +1145,11 @@ export default function EditApplicationPage() {
             <p className="text-sm text-muted-foreground mb-4 py-2 px-3 rounded-lg bg-muted/50">
               Read-only — no amendment requested for this step
             </p>
+          ) : null}
+          {isStepFlagged ? (
+            <div className="mb-6">
+              <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro />
+            </div>
           ) : null}
           {renderStepComponent()}
         </div>
