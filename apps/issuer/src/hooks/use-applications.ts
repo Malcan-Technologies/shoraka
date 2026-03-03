@@ -96,6 +96,38 @@ export function useUpdateApplicationStatus() {
   });
 }
 
+export function useResubmitApplication() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_URL}/v1/applications/${id}/resubmit`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await response.json();
+      if (!json.success) {
+        throw new Error(json.error?.message ?? "Failed to resubmit");
+      }
+      return json.data;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to resubmit", {
+        description: error.message,
+      });
+    },
+  });
+}
+
 export function useArchiveApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

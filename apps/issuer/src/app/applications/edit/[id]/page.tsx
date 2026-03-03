@@ -32,6 +32,7 @@ import {
   useApplication,
   useUpdateApplicationStep,
   useUpdateApplicationStatus,
+  useResubmitApplication,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -276,6 +277,21 @@ export default function EditApplicationPage() {
     return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
   }, [application]);
 
+  /** Skip financial when comparing; only check other flagged steps. */
+  const allAmendmentStepsAcknowledged = amendmentFlaggedStepKeys
+    .filter((step) => !step.startsWith("financial"))
+    .every((step) => acknowledgedWorkflowIds.includes(step));
+
+  React.useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && application?.status === "AMENDMENT_REQUESTED") {
+      console.log("[AMENDMENT][RESUBMIT_BUTTON]", {
+        amendmentFlaggedStepKeys,
+        acknowledgedWorkflowIds,
+        allAcknowledged: allAmendmentStepsAcknowledged,
+      });
+    }
+  }, [application?.status, amendmentFlaggedStepKeys, acknowledgedWorkflowIds, allAmendmentStepsAcknowledged]);
+
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
      ================================================================ */
@@ -449,6 +465,7 @@ export default function EditApplicationPage() {
 
   const updateStepMutation = useUpdateApplicationStep();
   const updateStatusMutation = useUpdateApplicationStatus();
+  const resubmitMutation = useResubmitApplication();
 
 
   /* ================================================================
@@ -1179,21 +1196,43 @@ export default function EditApplicationPage() {
             <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
             <Button
               onClick={
-                currentStepKey === "review_and_submit"
+                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                  ? async () => {
+                      try {
+                        if (!applicationId) return;
+                        isSubmittingRef.current = true;
+                        const mismatch = await checkNow();
+                        if (mismatch) return;
+                        await resubmitMutation.mutateAsync(applicationId);
+                        toast.success("Application resubmitted successfully");
+                        router.replace("/");
+                      } catch {
+                        isSubmittingRef.current = false;
+                      }
+                    }
+                  : currentStepKey === "review_and_submit"
                   ? handleSubmitApplication
                   : handleSaveAndContinue
               }
               disabled={
-                updateStepMutation.isPending ||
-                updateStatusMutation.isPending ||
-                isSubmittingRef.current ||
-                !isCurrentStepValid ||
-                !isStepMapped
+                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                  ? resubmitMutation.isPending ||
+                    isSubmittingRef.current ||
+                    !allAmendmentStepsAcknowledged ||
+                    !isCurrentStepValid
+                  : updateStepMutation.isPending ||
+                    updateStatusMutation.isPending ||
+                    isSubmittingRef.current ||
+                    !isCurrentStepValid ||
+                    !isStepMapped
               }
-
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >
-              {currentStepKey === "review_and_submit"
+              {currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                ? resubmitMutation.isPending
+                  ? "Resubmitting..."
+                  : "Resubmit for Review"
+                : currentStepKey === "review_and_submit"
                 ? updateStatusMutation.isPending
                   ? "Submitting..."
                   : "Submit"

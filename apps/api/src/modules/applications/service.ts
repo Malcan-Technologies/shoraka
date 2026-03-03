@@ -294,18 +294,20 @@ export class ApplicationService {
       }
     }
 
+    const acknowledgedRaw: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
+    const acknowledgedStepKeys = new Set(acknowledgedRaw.map((id) => id.replace(/_\d+$/, "")));
+
     if (process.env.NODE_ENV !== "production") {
-      console.log("[AMENDMENT][RESUBMIT] requiredSectionKeys:", Array.from(requiredSectionKeys));
-      console.log("[AMENDMENT][RESUBMIT] acknowledgedWorkflowIds:", (application as any).amendment_acknowledged_workflow_ids);
+      console.debug("[AMENDMENT][RESUBMIT]", { applicationId, acknowledgedWorkflowIds: acknowledgedRaw });
     }
 
-    const acknowledged: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
     const missing: string[] = [];
     for (const req of requiredSectionKeys) {
-      if (!acknowledged.includes(req)) missing.push(req);
+      if (req.startsWith("financial")) continue;
+      if (!acknowledgedStepKeys.has(req)) missing.push(req);
     }
     if (missing.length > 0) {
-      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "Missing acknowledgements for sections: " + missing.join(", "));
+      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "All amendment steps must be completed before resubmitting");
     }
 
     // Prepare snapshot data
@@ -372,17 +374,22 @@ export class ApplicationService {
         }
       }
 
-      // Delete remarks for this application, with contract preservation exception
+      /** Delete remarks for this application. If contract approved, do NOT delete rows where scope_key starts with "contract_details". */
       const remarkDeleteWhere: any = { application_id: applicationId };
       if (contractApproved) {
-        remarkDeleteWhere.NOT = { OR: [{ scope: "section", scope_key: "contract_details" }, { scope_key: "contract_details" }] };
+        remarkDeleteWhere.NOT = { scope_key: { startsWith: "contract_details" } };
       }
       await tx.applicationReviewRemark.deleteMany({ where: remarkDeleteWhere });
 
-      // Delete invoice review items only for invoices flagged by amendmentRemarks
+      /** Only delete invoice review items if status is AMENDMENT_REQUESTED. Otherwise keep them. */
       if (invoiceIdsToDelete.size > 0) {
         await tx.applicationReviewItem.deleteMany({
-          where: { application_id: applicationId, item_type: "invoice", item_id: { in: Array.from(invoiceIdsToDelete) } },
+          where: {
+            application_id: applicationId,
+            item_type: "invoice",
+            item_id: { in: Array.from(invoiceIdsToDelete) },
+            status: "AMENDMENT_REQUESTED",
+          },
         });
       }
 
@@ -400,10 +407,10 @@ export class ApplicationService {
         data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
       });
 
-      // Increment application's review_cycle and clear acknowledgements and set status UNDER_REVIEW
+      /** Increment review_cycle, clear acknowledgements, set status RESUBMITTED */
       await tx.application.update({
         where: { id: applicationId },
-        data: ({ review_cycle: newCycle, amendment_acknowledged_workflow_ids: [], status: "UNDER_REVIEW", updated_at: new Date() } as any),
+        data: ({ review_cycle: newCycle, amendment_acknowledged_workflow_ids: [], status: "RESUBMITTED", updated_at: new Date() } as any),
       });
 
       // If contract exists and was in AMENDMENT_REQUESTED, move it back to SUBMITTED
