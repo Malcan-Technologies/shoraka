@@ -2244,7 +2244,6 @@ export class AdminRepository {
         application_reviews: true,
         application_review_items: true,
         application_review_remarks: { orderBy: { created_at: "desc" } },
-        application_review_events: { orderBy: { created_at: "desc" }, take: 50 },
       },
     });
   }
@@ -2550,33 +2549,6 @@ export class AdminRepository {
         submitted_at: null,
       },
       data: { submitted_at: new Date() },
-    });
-  }
-
-  /**
-   * Create review event (audit trail)
-   */
-  async createReviewEvent(
-    applicationId: string,
-    eventType: string,
-    oldStatus: string | null,
-    newStatus: string,
-    reviewerUserId: string | null,
-    remark: string | null,
-    scope?: string,
-    scopeKey?: string
-  ) {
-    return prisma.applicationReviewEvent.create({
-      data: {
-        application_id: applicationId,
-        event_type: eventType,
-        old_status: oldStatus,
-        new_status: newStatus,
-        reviewer_user_id: reviewerUserId,
-        remark,
-        scope,
-        scope_key: scopeKey,
-      },
     });
   }
 

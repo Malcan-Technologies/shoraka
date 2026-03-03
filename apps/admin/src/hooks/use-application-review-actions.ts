@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApiError } from "@cashsouk/types";
+import { applicationLogsKeys } from "./use-application-logs";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -37,6 +38,9 @@ export function useApproveReviewSection() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
     },
   });
 }
@@ -67,6 +71,9 @@ export function useRejectReviewSection() {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },
   });
@@ -99,6 +106,9 @@ export function useRequestAmendmentReviewSection() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
     },
   });
 }
@@ -127,6 +137,9 @@ export function useResetSectionReviewToPending() {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },
   });
@@ -166,6 +179,9 @@ export function useApproveReviewItem() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
     },
   });
 }
@@ -198,6 +214,9 @@ export function useRejectReviewItem() {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },
   });
@@ -237,6 +256,9 @@ export function useRequestAmendmentReviewItem() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
     },
   });
 }
@@ -271,6 +293,9 @@ export function useResetItemReviewToPending() {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },
   });

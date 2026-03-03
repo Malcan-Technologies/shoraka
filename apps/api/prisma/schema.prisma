@@ -936,6 +936,7 @@ enum ActivityAction {
   APPROVED
   REJECTED
   REQUESTED_AMENDMENT
+  RESET
 }
 
 enum NotificationCategory {

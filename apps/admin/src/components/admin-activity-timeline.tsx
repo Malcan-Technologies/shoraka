@@ -1,6 +1,6 @@
  "use client";
 
-/** 
+/**
  * Imports
  *
  * What this section does:
@@ -12,7 +12,7 @@
  * Data shapes:
  * - Expects activity items with fields: id, event_type, metadata?, created_at, activity?, ip_address?
  */
- 
+
 /**
  * CHANGE SUMMARY
  *
@@ -84,9 +84,19 @@ function getEventIcon(eventType: string) {
     case "ISSUER_SUBMITTED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "APPROVED":
+    case "SECTION_REVIEWED_APPROVED":
+    case "ITEM_REVIEWED_APPROVED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "REJECTED":
+    case "SECTION_REVIEWED_REJECTED":
+    case "ITEM_REVIEWED_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
+    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
+    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+      return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "SECTION_REVIEWED_PENDING":
+    case "ITEM_REVIEWED_PENDING":
+      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "SOPHISTICATED_STATUS_UPDATED":
       return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
     case "FORM_FILLED":
@@ -104,6 +114,14 @@ function getEventLabel(eventType: string): string {
     REJECTED: "Rejected",
     FORM_FILLED: "Form Submitted",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
+    SECTION_REVIEWED_APPROVED: "Section Approved",
+    SECTION_REVIEWED_REJECTED: "Section Rejected",
+    SECTION_REVIEWED_AMENDMENT_REQUESTED: "Amendment Requested (Section)",
+    SECTION_REVIEWED_PENDING: "Section Reset to Pending",
+    ITEM_REVIEWED_APPROVED: "Item Approved",
+    ITEM_REVIEWED_REJECTED: "Item Rejected",
+    ITEM_REVIEWED_AMENDMENT_REQUESTED: "Amendment Requested (Item)",
+    ITEM_REVIEWED_PENDING: "Item Reset to Pending",
   };
   return (
     labels[eventType] ||
@@ -121,9 +139,19 @@ function getEventDotColor(eventType: string): string {
     case "FORM_FILLED":
       return "bg-blue-500";
     case "APPROVED":
+    case "SECTION_REVIEWED_APPROVED":
+    case "ITEM_REVIEWED_APPROVED":
       return "bg-emerald-500";
     case "REJECTED":
+    case "SECTION_REVIEWED_REJECTED":
+    case "ITEM_REVIEWED_REJECTED":
       return "bg-destructive";
+    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
+    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+      return "bg-amber-500";
+    case "SECTION_REVIEWED_PENDING":
+    case "ITEM_REVIEWED_PENDING":
+      return "bg-muted-foreground";
     case "SOPHISTICATED_STATUS_UPDATED":
       return "bg-violet-500";
     default:
@@ -320,7 +348,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
 
 {expanded[log.id] && (
   <div className="mt-3 rounded-xl border p-3 text-sm space-y-3">
-    
+
     {/* Entity context (invoice/doc only) */}
     {entityId && (
       <div>

@@ -53,6 +53,13 @@ import {
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
+import { logApplicationActivity } from "../applications/logs/service";
+import {
+  ActivityAction,
+  ActivityLevel,
+  ActivityPortal,
+  ActivityTarget,
+} from "../applications/logs/types";
 import { ProductRepository } from "../products/repository";
 
 export class AdminService {
@@ -4014,6 +4021,54 @@ export class AdminService {
     }
   }
 
+  private sectionToTarget(section: string): ActivityTarget {
+    const map: Record<string, ActivityTarget> = {
+      financial: ActivityTarget.FINANCIAL,
+      company_details: ActivityTarget.APPLICATION,
+      business_details: ActivityTarget.APPLICATION,
+      supporting_documents: ActivityTarget.SUPPORTING_DOCUMENT,
+      contract_details: ActivityTarget.CONTRACT,
+      invoice_details: ActivityTarget.INVOICE,
+    };
+    return map[section] ?? ActivityTarget.APPLICATION;
+  }
+
+  private statusToAction(newStatus: string): ActivityAction {
+    if (newStatus === "APPROVED") return ActivityAction.APPROVED;
+    if (newStatus === "REJECTED") return ActivityAction.REJECTED;
+    if (newStatus === "AMENDMENT_REQUESTED") return ActivityAction.REQUESTED_AMENDMENT;
+    if (newStatus === "PENDING") return ActivityAction.RESET;
+    return ActivityAction.APPROVED;
+  }
+
+  private async logReviewActivity(
+    applicationId: string,
+    scope: "section" | "item",
+    scopeKey: string,
+    oldStatus: string | null,
+    newStatus: string,
+    reviewerUserId: string | null,
+    remark: string | null
+  ): Promise<void> {
+    if (!reviewerUserId) return;
+    const action = this.statusToAction(newStatus);
+    const isSection = scope === "section";
+    const target = isSection ? this.sectionToTarget(scopeKey) : getSectionForScopeKey(scopeKey) === "invoice_details" ? ActivityTarget.INVOICE : ActivityTarget.SUPPORTING_DOCUMENT;
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: isSection ? ActivityLevel.TAB : ActivityLevel.ITEM,
+      target,
+      action,
+      remark: remark ?? undefined,
+      entityId: isSection ? undefined : scopeKey,
+      portal: ActivityPortal.ADMIN,
+      eventType: isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`,
+      metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
+    });
+  }
+
   /**
    * Load application and validate it is in a reviewable state. Shared by all review actions.
    */
@@ -4109,15 +4164,14 @@ export class AdminService {
         reviewerUserId
       );
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue,
-      "section",
-      section
+      remarkValue
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4148,15 +4202,14 @@ export class AdminService {
         data: { status: "SUBMITTED" },
       });
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending",
-      "section",
-      section
+      "Reset to pending"
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4184,15 +4237,14 @@ export class AdminService {
     const oldStatus = existing?.status ?? "PENDING";
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "PENDING",
       reviewerUserId,
-      "Reset to pending",
-      itemType,
-      itemId
+      "Reset to pending"
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
@@ -4240,15 +4292,14 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark,
-      "section",
-      section
+      remark
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4297,15 +4348,14 @@ export class AdminService {
         data: { status: "AMENDMENT_REQUESTED" },
       });
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "SECTION_REVIEWED",
+      "section",
+      section,
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark,
-      "section",
-      section
+      remark
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4352,15 +4402,14 @@ export class AdminService {
         reviewerUserId
       );
     }
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue,
-      itemType,
-      itemId
+      remarkValue
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4402,15 +4451,14 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark,
-      itemType,
-      itemId
+      remark
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4452,15 +4500,14 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    await repository.createReviewEvent(
+    await this.logReviewActivity(
       applicationId,
-      "ITEM_REVIEWED",
+      "item",
+      itemId,
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark,
-      itemType,
-      itemId
+      remark
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
