@@ -188,64 +188,82 @@ export default function EditApplicationPage() {
   } | null>(null);
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
+  /** Mock amendment data for DEV preview - same shape as backend /amendment-context */
+  const getMockAmendmentContext = React.useCallback(() => ({
+    review_cycle: application?.review_cycle ?? 1,
+    remarks: [
+      {
+        scope_key: "contract_details",
+        remark: "Missing contract number\nCustomer name mismatch",
+        parsed: { kind: "TAB", tab: "contract_details" },
+        parsedAmend: { workflowId: "contract_details", kind: "tab", tab: "contract_details" },
+      },
+      {
+        scope_key: "invoice_details",
+        remark: "Invoice amount does not match document\nMissing supplier signature",
+        parsed: { kind: "TAB", tab: "invoice_details" },
+        parsedAmend: { workflowId: "invoice_details", kind: "tab", tab: "invoice_details" },
+      },
+      {
+        scope_key: "invoice_details:0:Invoice",
+        remark: "Invoice amount does not match document\nMissing supplier signature",
+        parsed: { kind: "FIELD", tab: "invoice_details", index: 0, field: "invoice" },
+        parsedAmend: { workflowId: "invoice_details", kind: "invoice", tab: "invoice_details", index: 0, entityId: "invoice:0" },
+      },
+      {
+        scope_key: "supporting_documents",
+        remark: "Upload missing Company Secretary Letter.",
+        parsed: { kind: "TAB", tab: "supporting_documents" },
+        parsedAmend: { workflowId: "supporting_documents", kind: "tab", tab: "supporting_documents" },
+      },
+      {
+        scope_key: "doc:financial_docs:0:Latest_Management_Account",
+        remark: "Wrong document uploaded",
+        parsed: { kind: "FIELD", tab: "supporting_documents", category: "financial_docs", index: 0, field: "document" },
+        parsedAmend: { workflowId: "supporting_documents", kind: "supporting_doc", entityId: "doc:financial_docs:0:Latest_Management_Account" },
+      },
+      {
+        scope_key: "doc:legal_docs:0:Deed_of_Assignment",
+        remark: "Document date expired",
+        parsed: { kind: "FIELD", tab: "supporting_documents", category: "legal_docs", index: 0, field: "document" },
+        parsedAmend: { workflowId: "supporting_documents", kind: "supporting_doc", entityId: "doc:legal_docs:0:Deed_of_Assignment" },
+      },
+    ],
+  }), [application?.review_cycle]);
+
   React.useEffect(() => {
     if (!application) return;
-    if (application.status !== "AMENDMENT_REQUESTED") return;
+
+    if (devPreviewAmendment) {
+      setAmendmentContext(getMockAmendmentContext() as any);
+      return;
+    }
+
+    if (application.status !== "AMENDMENT_REQUESTED") {
+      setAmendmentContext(null);
+      return;
+    }
 
     let mounted = true;
     (async () => {
       try {
-        // If dev preview is enabled, skip backend call and use client mock
-        if (devPreviewAmendment) {
-          // Provide a realistic-shaped mock similar to backend /amendment-context
-          const mock = {
-            review_cycle: application?.review_cycle ?? 1,
-            remarks: [
-              {
-                scope_key: "contract_details_1",
-                remark: "Please update customer name.\nAttach the signed contract copy.",
-                parsed: { kind: "TAB", tab: "contract_details" },
-                parsedAmend: { workflowId: "contract_details_1", kind: "tab" },
-              },
-              {
-                scope_key: "supporting_documents_1",
-                remark: "Upload missing Company Secretary Letter.",
-                parsed: { kind: "TAB", tab: "supporting_documents" },
-                parsedAmend: { workflowId: "supporting_documents_1", kind: "tab" },
-              },
-              {
-                scope_key: "invoice:fake-inv-1",
-                remark: "Invoice PDF unclear, re-upload.",
-                parsed: { kind: "FIELD", tab: "invoice_details", index: 0, field: "document" },
-                parsedAmend: { workflowId: "invoice_details_1", kind: "invoice", entityId: "fake-inv-1" },
-              },
-            ],
-          };
-          if (!mounted) return;
-          setAmendmentContext(mock as any);
-          return;
-        }
-
         const token = await getAccessToken();
         const resp = await fetch(`${API_URL}/v1/applications/${applicationId}/amendment-context`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const json = await resp.json();
         if (!mounted) return;
-        if (!json.success) {
-          // ignore silently; backend enforcement is authoritative
-          return;
-        }
+        if (!json.success) return;
         setAmendmentContext({ review_cycle: json.data.review_cycle, remarks: json.data.remarks });
       } catch {
-        // ignore network errors here
+        // ignore network errors
       }
     })();
 
     return () => {
       mounted = false;
     };
-  }, [application, applicationId, getAccessToken, API_URL, devPreviewAmendment]);
+  }, [application, applicationId, getAccessToken, API_URL, devPreviewAmendment, getMockAmendmentContext]);
 
   const flaggedTabs = React.useMemo(() => {
     if (!amendmentContext) return new Set<string>();
@@ -675,6 +693,9 @@ export default function EditApplicationPage() {
           }
           onDataChange={handleDataChange}
           readOnly={stepReadOnly}
+          amendmentRemarks={amendmentContext?.remarks ?? []}
+          isAmendmentMode={isAmendmentModeEffective}
+          flaggedTabs={flaggedTabs}
         />
       );
     }
@@ -701,7 +722,14 @@ export default function EditApplicationPage() {
 
     if (currentStepKey === "invoice_details") {
       return (
-        <InvoiceDetailsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+        <InvoiceDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          isAmendmentMode={isAmendmentModeEffective}
+          flaggedTabs={flaggedTabs}
+          remarks={amendmentContext?.remarks ?? []}
+        />
       );
     }
 
@@ -1077,8 +1105,13 @@ export default function EditApplicationPage() {
                         const next = !v;
                         // If enabling preview, force step to 1 immediately
                         if (next) {
-                          // force navigate to step 1
-                          router.replace(`/applications/edit/${applicationId}?step=1`);
+                          const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
+                          const firstFlagged = effectiveWorkflow.findIndex(
+                            (s: Record<string, unknown>) =>
+                              mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
+                          );
+                          const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
+                          router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
                         }
                         return next;
                       });

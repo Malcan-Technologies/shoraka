@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -18,11 +18,17 @@ export function SupportingDocumentsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
+  amendmentRemarks = [],
+  isAmendmentMode = false,
+  flaggedTabs,
 }: {
   applicationId: string;
   stepConfig?: any;
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
+  amendmentRemarks?: { scope_key: string; remark: string; parsed?: { tab?: string }; parsedAmend?: { tab?: string } }[];
+  isAmendmentMode?: boolean;
+  flaggedTabs?: Set<string>;
 }) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -101,6 +107,24 @@ export function SupportingDocumentsStep({
    * - Keep UI unchanged
    * - Safely support future workflow changes
    */
+  /** Map "categoryIndex-documentIndex" -> remark text for document-level amendment flags */
+  const flaggedDocRemarks = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of amendmentRemarks) {
+      const sk = r.scope_key;
+      if (!sk.startsWith("doc:")) continue;
+      const parts = sk.slice(4).split(":");
+      if (parts.length >= 3) {
+        const [categoryKey, indexStr, ...slugParts] = parts;
+        const docIndex = parseInt(indexStr, 10);
+        if (!Number.isNaN(docIndex)) {
+          map.set(`${categoryKey}:${docIndex}`, (r.remark || r?.remark || "") as string);
+        }
+      }
+    }
+    return map;
+  }, [amendmentRemarks]);
+
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
 
@@ -114,14 +138,14 @@ export function SupportingDocumentsStep({
 
       // Convert each group into a UI category
       .map(([groupKey, docs]) => ({
-        // "financial_docs" → "Financial Docs"
+        groupKey,
         name: groupKey
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
         // Convert documents into UI-friendly shape
         documents: (docs as any[]).map((doc) => ({
-          title: doc?.name ?? "—", // if no document name
+          title: doc?.name ?? "—",
           template: doc?.template,
         })),
       }));
@@ -467,6 +491,15 @@ export function SupportingDocumentsStep({
     );
   }
 
+  const stepLevelRemarks = React.useMemo(() => {
+    return amendmentRemarks.filter(
+      (r) =>
+        r.scope_key === "supporting_documents" ||
+        (r as any).parsed?.tab === "supporting_documents" ||
+        (r as any).parsedAmend?.tab === "supporting_documents"
+    );
+  }, [amendmentRemarks]);
+
   return (
     <>
     <div className="space-y-10 px-3">
@@ -475,7 +508,24 @@ export function SupportingDocumentsStep({
           <SupportingDocumentsSkeleton />
           <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
         </>
-      ) : (categories.map((category: any, categoryIndex: number) => {
+      ) : (
+        <>
+          {isAmendmentMode && flaggedTabs?.has("supporting_documents") && stepLevelRemarks.length > 0 ? (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
+              <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-destructive">Amendment required</h4>
+                <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
+                  {stepLevelRemarks.flatMap((r, i) =>
+                    (r.remark || "").split("\n").filter(Boolean).map((line, idx) => (
+                      <li key={`${i}-${idx}`}>{line}</li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+          {categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
@@ -527,12 +577,25 @@ export function SupportingDocumentsStep({
                     const fileIsUploading = uploadingKeys.has(key);
                     const file = uploadedFiles[key];
                     const templateS3Key = document.template?.s3_key;
+                    const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
+                    const docRemarkKey = `${groupKey}:${documentIndex}`;
+                    const docRemark = flaggedDocRemarks.get(docRemarkKey);
+                    const isDocFlagged = Boolean(docRemark);
 
                     return (
-                      <React.Fragment key={documentIndex}>
-                        {/* Document title */}
+                      <div
+                        key={documentIndex}
+                        className={cn(
+                          "col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start",
+                          isDocFlagged && "rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+                        )}
+                      >
+                        {/* Document title + optional amendment remark */}
                         <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
+                          {isDocFlagged && docRemark ? (
+                            <p className="mt-1 text-xs text-destructive">{docRemark}</p>
+                          ) : null}
                         </div>
 
                         {/* FIXED ACTION COLUMN */}
@@ -628,7 +691,7 @@ export function SupportingDocumentsStep({
 
 
                         </div>
-                      </React.Fragment>
+                      </div>
                     );
                   }
                 )}
@@ -636,7 +699,9 @@ export function SupportingDocumentsStep({
             )}
           </section>
         );
-      }))}
+      })}
+        </>
+      )}
     </div>
     <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

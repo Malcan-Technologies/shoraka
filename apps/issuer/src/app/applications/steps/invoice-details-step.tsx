@@ -51,7 +51,7 @@ import { DateInput } from "@/app/applications/components/date-input";
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, CloudArrowUpIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
@@ -148,9 +148,19 @@ interface InvoiceDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
+  isAmendmentMode?: boolean;
+  flaggedTabs?: Set<string>;
+  remarks?: { scope_key?: string; remark?: string; parsed?: { tab?: string; index?: number }; parsedAmend?: { tab?: string; index?: number } }[];
 }
 
-export default function InvoiceDetailsStep({ applicationId, onDataChange, readOnly = false }: InvoiceDetailsStepProps) {
+export default function InvoiceDetailsStep({
+  applicationId,
+  onDataChange,
+  readOnly = false,
+  isAmendmentMode = false,
+  flaggedTabs,
+  remarks = [],
+}: InvoiceDetailsStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
@@ -167,6 +177,19 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange, readOn
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+
+  /** Map invoice index -> remark for item-level amendment flags */
+  const flaggedInvoiceRemarks = React.useMemo(() => {
+    const map = new Map<number, string>();
+    for (const r of remarks) {
+      const p = r.parsedAmend || r.parsed;
+      const idx = p?.index;
+      if (typeof idx === "number" && (r.remark || "").trim()) {
+        map.set(idx, (r.remark || "").trim());
+      }
+    }
+    return map;
+  }, [remarks]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -926,6 +949,23 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange, readOn
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || debugSkeletonMode ? null : (
           <div className="space-y-3">
+            {isAmendmentMode && flaggedTabs?.has("invoice_details") && remarks.length > 0 ? (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
+                <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-destructive">Amendment required</h4>
+                  <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
+                  {remarks
+                    .filter((r) => (r.parsedAmend || r.parsed)?.tab === "invoice_details")
+                    .flatMap((r, i) =>
+                      (r.remark || "").split("\n").filter(Boolean).map((line, idx) => (
+                        <li key={`${i}-${idx}`}>{line}</li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-base font-semibold text-foreground">
@@ -985,35 +1025,43 @@ export default function InvoiceDetailsStep({ applicationId, onDataChange, readOn
 
                       <TableBody>
                         {/* APPLICATION INVOICES */}
-                        {invoices.map((inv) => {
+                        {invoices.map((inv, invIndex) => {
                           const ratio = inv.financing_ratio_percent || 60;
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratio / 100);
                           const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
                           const isEditable = (inv.status === "DRAFT" || !inv.status) && !readOnly;
+                          const invRemark = flaggedInvoiceRemarks.get(invIndex);
+                          const isInvFlagged = Boolean(invRemark);
 
                           return (
                             <TableRow
                               key={inv.id}
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
-                                (isLocked || readOnly) && "bg-muted/30"
+                                (isLocked || readOnly) && "bg-muted/30",
+                                isInvFlagged && "border-l-4 border-l-destructive bg-destructive/5"
                               )}
                             >
                               <TableCell className="p-2">
-                                <Input
-                                  value={inv.number}
-                                  disabled={!isEditable}
-                                  onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                                  placeholder="Enter invoice"
-                                  className={cn(
-                                    withFieldError(
-                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                      isRowPartial(inv)
-                                    ),
-                                    !isEditable && formInputDisabledClassName
-                                  )}
-                                />
+                                <div className="space-y-1">
+                                  <Input
+                                    value={inv.number}
+                                    disabled={!isEditable}
+                                    onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
+                                    placeholder="Enter invoice"
+                                    className={cn(
+                                      withFieldError(
+                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                        isRowPartial(inv)
+                                      ),
+                                      !isEditable && formInputDisabledClassName
+                                    )}
+                                  />
+                                  {isInvFlagged && invRemark ? (
+                                    <p className="text-xs text-destructive">{invRemark.split("\n")[0]}</p>
+                                  ) : null}
+                                </div>
                               </TableCell>
 
                               <TableCell className="p-2">
