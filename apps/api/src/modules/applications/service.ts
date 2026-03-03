@@ -93,6 +93,38 @@ export class ApplicationService {
   }
 
   /**
+   * Load allowed sections from amendment remarks. Only sections/items with REQUEST_AMENDMENT remarks can be updated.
+   */
+  private async getAmendmentAllowedSections(applicationId: string): Promise<{ allowedSections: Set<string>; allowedItemKeys: Set<string> }> {
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any,
+    });
+
+    const allowedSections = new Set<string>();
+    const allowedItemKeys = new Set<string>();
+
+    for (const r of remarks) {
+      if (r.scope === "section" && r.scope_key) {
+        allowedSections.add(r.scope_key);
+      } else if (r.scope === "item" && r.scope_key) {
+        const stepKey = r.scope_key.split(":")[0];
+        allowedSections.add(stepKey);
+        allowedItemKeys.add(r.scope_key);
+      }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[AMENDMENT GUARD]", "allowedSections:", Array.from(allowedSections));
+    }
+
+    return { allowedSections, allowedItemKeys };
+  }
+
+  /**
    * Throw if application status does not allow editing (only DRAFT or AMENDMENT_REQUESTED).
    */
   private verifyApplicationEditable(application: Application | null): void {
@@ -483,40 +515,11 @@ export class ApplicationService {
       return this.repository.update(id, updateData);
     }
 
-    // Enforce amendment boundaries when application is in AMENDMENT_REQUESTED
+    /** Enforce amendment boundaries: only flagged sections/items can be updated. */
     if ((application as any).status === "AMENDMENT_REQUESTED") {
-      // Load active remarks for this application (admin remarks are not versioned)
-      const remarks = await prisma.applicationReviewRemark.findMany({
-        where: {
-          application_id: id,
-          action_type: "REQUEST_AMENDMENT",
-        } as any,
-      });
-
-      /** Simple: section scope_key or item tab (first colon-segment) */
-      const allowedTabs = new Set<string>();
-      const allowedFieldTabs = new Set<string>();
-      for (const r of remarks) {
-        if (r.scope === "section" && r.scope_key) allowedTabs.add(r.scope_key);
-        else if (r.scope === "item" && r.scope_key) allowedFieldTabs.add(r.scope_key.split(":")[0]);
-      }
-
-      // If tab is not flagged at all, reject (409 = conflict with amendment lock)
-      if (!allowedTabs.has(fieldName) && !allowedFieldTabs.has(fieldName)) {
-        throw new AppError(
-          409,
-          "AMENDMENT_BOUNDARY",
-          `Attempt to update non-flagged tab: ${fieldName}`
-        );
-      }
-
-      // If only field-level allowed for this tab, but not tab-level, then updating whole tab is forbidden
-      if (allowedFieldTabs.has(fieldName) && !allowedTabs.has(fieldName)) {
-        throw new AppError(
-          409,
-          "AMENDMENT_BOUNDARY",
-          `Whole-tab update forbidden for field-level amendment: ${fieldName}`
-        );
+      const { allowedSections } = await this.getAmendmentAllowedSections(id);
+      if (!allowedSections.has(fieldName)) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
       }
     }
 
@@ -638,6 +641,14 @@ export class ApplicationService {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
     const application = await this.repository.findById(params.applicationId);
     this.verifyApplicationEditable(application);
+
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      const { allowedSections } = await this.getAmendmentAllowedSections(params.applicationId);
+      if (!allowedSections.has("supporting_documents")) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      }
+    }
+
     // Validate file type (PDF only)
     if (params.contentType !== "application/pdf") {
       throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
@@ -704,6 +715,14 @@ export class ApplicationService {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     this.verifyApplicationEditable(application);
+
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      const { allowedSections } = await this.getAmendmentAllowedSections(applicationId);
+      if (!allowedSections.has("supporting_documents")) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      }
+    }
+
     try {
       await deleteS3Object(s3Key);
       logger.info({ s3Key }, "Deleted application document from S3");
