@@ -173,13 +173,22 @@ export default function DynamicApplicationDetailPage() {
   const reviewSections = React.useMemo(() => {
     const reviewItems =
       (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
-    const baseSections =
-      app?.application_reviews?.length
-        ? (app.application_reviews as { section: string; status: string }[]).map((r) => ({
-            section: r.section,
-            status: r.status,
-          }))
-        : tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+    const reviewSectionStatuses =
+      (app?.application_reviews as { section: string; status: string }[] | undefined) ?? [];
+    const reviewSectionStatusMap = new Map<string, string>();
+    for (const review of reviewSectionStatuses) {
+      reviewSectionStatusMap.set(review.section, review.status);
+    }
+    const orderedSections = tabDescriptors.map((d) => d.reviewSection);
+    for (const review of reviewSectionStatuses) {
+      if (!orderedSections.includes(review.section)) {
+        orderedSections.push(review.section);
+      }
+    }
+    const baseSections = orderedSections.map((section) => ({
+      section,
+      status: reviewSectionStatusMap.get(section) ?? "PENDING",
+    }));
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {
