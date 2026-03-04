@@ -96,6 +96,12 @@ export function ContractSection({
                     ? formatCurrency(cd.value)
                     : formatReviewValue(cd.value)}
                 </div>
+                <Label className={reviewLabelClass}>Contract financing</Label>
+                <div className={reviewValueClass}>
+                  {typeof cd.financing === "number"
+                    ? formatCurrency(cd.financing)
+                    : formatReviewValue(cd.financing)}
+                </div>
                 <Label className={reviewLabelClass}>Contract start date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
                 <Label className={reviewLabelClass}>Contract end date</Label>

@@ -49,6 +49,7 @@ interface BusinessDetailsView {
     platformName: string;
     amountRaised: number | null;
     sameInvoiceUsed: boolean | null;
+    accountingSoftware: string;
   };
   declarationConfirmed: boolean;
 }
@@ -92,6 +93,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
       platformName: str(w?.platform_name ?? w?.platformName) || REVIEW_EMPTY_LABEL,
       amountRaised: num(w?.amount_raised ?? w?.amountRaised),
       sameInvoiceUsed: bool(w?.same_invoice_used ?? w?.sameInvoiceUsed),
+      accountingSoftware: str(w?.accounting_software ?? w?.accountingSoftware) || REVIEW_EMPTY_LABEL,
     },
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
   };
@@ -144,6 +146,8 @@ export function BusinessSection({
               <span className={yesNoScaleWrapper}>
                 <YesNoRadioDisplay value={view.about.singleCustomerOver50Revenue} />
               </span>
+              <Label className={reviewLabelClass}>Which accounting software does the issuer use?</Label>
+              <ReviewValue value={view.whyRaisingFunds.accountingSoftware} />
             </div>
           </ReviewFieldBlock>
 
