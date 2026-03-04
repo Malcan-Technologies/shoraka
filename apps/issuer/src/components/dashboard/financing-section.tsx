@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
@@ -26,10 +25,6 @@ import { useProducts } from "@/hooks/use-products";
 /* ============================================================
    Badge helpers
 ============================================================ */
-
-function applicationBadge(status: any) {
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{status}</Badge>;
-}
 
 function contractBadge(status: any) {
   if (status === "Amendment required") {
@@ -169,33 +164,103 @@ function formatDate(value: any) {
 }
 
 /* ============================================================
-   Main
+   Flatten & group by product
 ============================================================ */
 
-// Build product name map (batched)
+type FlatContract = {
+  id: string;
+  applicationId: string;
+  productId: string;
+  contract: any;
+  applicationStatus: string;
+  submissionDate?: string | null;
+};
+
+type FlatInvoice = {
+  id: string;
+  applicationId: string;
+  productId: string;
+  invoice: any;
+  applicationStatus: string;
+  applicationSubmittedAt?: string | null;
+};
+
+function flattenAndGroupByProduct(applications: any[]) {
+  const contracts: FlatContract[] = [];
+  const invoices: FlatInvoice[] = [];
+
+  for (const app of applications || []) {
+    const productId = app.financing_type?.product_id ?? "";
+    if (!productId) continue;
+    const appStatus = app.status ?? "";
+    const submittedAt = app.submitted_at ?? app.submission_date ?? app.created_at ?? null;
+
+    if (app.contract) {
+      contracts.push({
+        id: app.contract.id,
+        applicationId: app.id,
+        productId,
+        contract: app.contract,
+        applicationStatus: appStatus,
+        submissionDate: submittedAt,
+      });
+    }
+
+    for (const inv of app.invoices || []) {
+      invoices.push({
+        id: inv.id,
+        applicationId: app.id,
+        productId,
+        invoice: inv,
+        applicationStatus: appStatus,
+        applicationSubmittedAt: submittedAt,
+      });
+    }
+  }
+
+  const sortBySubmissionDesc = (a: { submissionDate?: string | null }, b: { submissionDate?: string | null }) => {
+    const da = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+    const db = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+    return db - da;
+  };
+
+  contracts.sort(sortBySubmissionDesc);
+  invoices.sort((a, b) => {
+    const da = a.applicationSubmittedAt ? new Date(a.applicationSubmittedAt).getTime() : 0;
+    const db = b.applicationSubmittedAt ? new Date(b.applicationSubmittedAt).getTime() : 0;
+    return db - da;
+  });
+
+  const productGroups: Record<string, { contracts: FlatContract[]; invoices: FlatInvoice[] }> = {};
+  for (const c of contracts) {
+    if (!productGroups[c.productId]) {
+      productGroups[c.productId] = { contracts: [], invoices: [] };
+    }
+    productGroups[c.productId].contracts.push(c);
+  }
+  for (const inv of invoices) {
+    if (!productGroups[inv.productId]) {
+      productGroups[inv.productId] = { contracts: [], invoices: [] };
+    }
+    productGroups[inv.productId].invoices.push(inv);
+  }
+
+  return productGroups;
+}
+
+/* ============================================================
+   Main
+============================================================ */
 
 export function FinancingSection() {
   const { activeOrganization } = useOrganization();
   const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
-  // undefined = not initialized yet; null = explicitly closed
-  const [openApplicationId, setOpenApplicationId] = useState<string | null | undefined>(undefined);
-
-  React.useEffect(() => {
-    // Initialize to first application only once (when state is still undefined).
-    if (applications && applications.length > 0 && openApplicationId === undefined) {
-      setOpenApplicationId(applications[0].id);
-    }
-    // Intentionally do not reset when openApplicationId is null (user closed).
-  }, [applications, openApplicationId]);
-
-  // Fetch products (max pageSize 100). If you need >100 products, consider paginating.
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true } as any);
   const products = (productsData as any)?.products || [];
 
   const productNameMap = useMemo(() => {
     const map = new Map<string, string>();
     products.forEach((p: any) => {
-      // Prefer a "Financing Type" workflow step's config.name if present.
       const financingStep = p.workflow?.find((step: any) =>
         String(step?.name).toLowerCase().includes("financing type")
       );
@@ -210,84 +275,96 @@ export function FinancingSection() {
     return map;
   }, [products]);
 
+  const productGroups = useMemo(
+    () => flattenAndGroupByProduct(applications),
+    [applications]
+  );
+
+  const productsWithData = useMemo(() => {
+    const fromProducts = products.filter(
+      (p: any) =>
+        (productGroups[p.id]?.contracts?.length ?? 0) + (productGroups[p.id]?.invoices?.length ?? 0) > 0
+    );
+    const productIdsFromProducts = new Set(fromProducts.map((p: any) => p.id));
+    const orphanIds = Object.keys(productGroups).filter(
+      (pid) => !productIdsFromProducts.has(pid) &&
+        ((productGroups[pid]?.contracts?.length ?? 0) + (productGroups[pid]?.invoices?.length ?? 0) > 0)
+    );
+    return [
+      ...fromProducts,
+      ...orphanIds.map((id) => ({ id, name: productNameMap.get(id) ?? `Product ${id}` })),
+    ];
+  }, [products, productGroups, productNameMap]);
+
   return (
     <div className="space-y-6">
-      {applications.map((app: any) => {
-        const isOpen = openApplicationId === app.id;
+      {productsWithData.map((product: any) => {
+        const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
+        const productName = productNameMap.get(product.id) ?? product.name ?? `Product ${product.id}`;
 
         return (
-          <Card key={app.id} className="rounded-xl border border-gray-200 shadow-sm">
-            {/* APPLICATION HEADER (divider only here) */}
-            <button
-              type="button"
-              onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
-              className="w-full text-left"
-            >
-              <div className="flex items-center justify-between px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="font-semibold text-[15px] leading-6">
-                    {(
-                      productNameMap.get(app.financing_type?.product_id ?? "") ||
-                      app.financing_type?.config?.name ||
-                      app.contract?.contract_details?.title
-                    ) ?? `Application ${app.id}`}
-                  </h3>
-                  {applicationBadge(app.status)}
+          <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <h3 className="font-semibold text-[15px] leading-6">{productName}</h3>
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 space-y-8">
+              <CollapsibleCategory
+                title="Contract financing"
+                defaultOpen
+                filters={
+                  <>
+                    <FilterButton label="Status" />
+                    <FilterButton label="Date" />
+                    <FilterButton label="Customer" />
+                  </>
+                }
+              >
+                <div className="space-y-4">
+                  {group.contracts.length > 0 ? (
+                    group.contracts.map((c) => (
+                      <ContractCard
+                        key={c.id}
+                        item={c.contract}
+                        applicationId={c.applicationId}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4">No contract financing</p>
+                  )}
                 </div>
+              </CollapsibleCategory>
 
-                <ChevronButton isOpen={isOpen} />
-              </div>
-
-              <div className="px-6">
-                <div className="h-px w-full bg-border/70" />
-              </div>
-            </button>
-
-            {/* BODY */}
-            {isOpen && (
-              <div className="px-6 py-6 space-y-8">
-                <CollapsibleCategory
-                  title="Contract financing"
-                  defaultOpen
-                  filters={
-                    <>
-                      <FilterButton label="Status" />
-                      <FilterButton label="Date" />
-                      <FilterButton label="Customer" />
-                    </>
-                  }
-                >
-                  <div className="space-y-4">
-                    {app.contract ? <ContractCard key={app.contract.id} item={app.contract} /> : null}
-                  </div>
-                </CollapsibleCategory>
-
-                <CollapsibleCategory
-                  title="Invoice financing"
-                  defaultOpen
-                  filters={
-                    <>
-                      <FilterButton label="Status" />
-                      <FilterButton label="Date" />
-                      <FilterButton label="Customer" />
-                    </>
-                  }
-                >
-                  <div className="space-y-4">
-                    {app.invoices?.map((inv: any) => (
+              <CollapsibleCategory
+                title="Invoice financing"
+                defaultOpen
+                filters={
+                  <>
+                    <FilterButton label="Status" />
+                    <FilterButton label="Date" />
+                    <FilterButton label="Customer" />
+                  </>
+                }
+              >
+                <div className="space-y-4">
+                  {group.invoices.length > 0 ? (
+                    group.invoices.map((inv) => (
                       <InvoiceCard
                         key={inv.id}
-                        item={inv}
-                        applicationSubmittedAt={
-                          app.submitted_at ?? app.submission_date ?? app.created_at ?? null
-                        }
+                        item={inv.invoice}
+                        applicationSubmittedAt={inv.applicationSubmittedAt}
+                        applicationId={inv.applicationId}
                       />
-                    ))}
-                  </div>
-                </CollapsibleCategory>
-              </div>
-            )}
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4">No invoice financing</p>
+                  )}
+                </div>
+              </CollapsibleCategory>
+            </div>
           </Card>
         );
       })}
@@ -346,7 +423,7 @@ function CollapsibleCategory({
    Cards: grid layout -> content | right column | action column
 ============================================================ */
 
-function ContractCard({ item }: { item: any }) {
+function ContractCard({ item, applicationId }: { item: any; applicationId: string }) {
   const router = useRouter();
   const details = item.contract_details ?? {};
   const customer = item.customer_details?.name ?? details?.customer ?? "-";
@@ -383,10 +460,9 @@ function ContractCard({ item }: { item: any }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem>View contract</DropdownMenuItem>
-                <DropdownMenuItem>Request amendment</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">Archive</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}>
+                  Make amendment
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -464,8 +540,12 @@ function ContractCard({ item }: { item: any }) {
 
       {/* BOTTOM ACTION */}
       <div className="flex justify-end pt-4">
-        <button type="button" onClick={() => router.push(`/financing/contracts/${item.id}`)} className="text-xs font-medium text-primary hover:underline">
-          View details →
+        <button
+          type="button"
+          onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Make amendment →
         </button>
       </div>
 
@@ -479,10 +559,13 @@ function ContractCard({ item }: { item: any }) {
 export function InvoiceCard({
   item,
   applicationSubmittedAt,
+  applicationId,
 }: {
   item: any;
   applicationSubmittedAt?: string | null;
+  applicationId?: string;
 }) {
+  const router = useRouter();
   const details = item.details ?? {};
   const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
   const invoiceValue = details.value ?? details.invoiceValue ?? null;
@@ -538,14 +621,10 @@ export function InvoiceCard({
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem>View details</DropdownMenuItem>
-                <DropdownMenuItem>Edit</DropdownMenuItem>
-                <DropdownMenuItem>Download</DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem className="text-red-600">
-                  Delete
+                <DropdownMenuItem
+                  onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
+                >
+                  Make amendment
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -652,18 +731,6 @@ export function InvoiceCard({
 /* ============================================================
    Bits
 ============================================================ */
-
-function ChevronButton({ isOpen }: { isOpen: boolean }) {
-  return (
-    <span className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted">
-      {isOpen ? (
-        <ChevronUp className="h-5 w-5 text-muted-foreground" />
-      ) : (
-        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-      )}
-    </span>
-  );
-}
 
 export function FilterButton({ label }: { label: string }) {
   return (
