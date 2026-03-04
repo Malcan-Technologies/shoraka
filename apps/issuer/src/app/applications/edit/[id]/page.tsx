@@ -28,6 +28,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useApplication,
   useUpdateApplicationStep,
@@ -115,6 +116,7 @@ export default function EditApplicationPage() {
   const stepFromUrl = parseInt(searchParams.get("step") || "1");
 
   /** Load application from DB */
+  const queryClient = useQueryClient();
   const {
     data: application,
     isLoading: isLoadingApp,
@@ -461,6 +463,8 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
+  /** Tracks which step the data belongs to — prevents using stale data when clicking Back then Save. */
+  const stepDataStepKeyRef = React.useRef<string | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
   const isSubmittingRef = React.useRef<boolean>(false);
 
@@ -479,9 +483,8 @@ export default function EditApplicationPage() {
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   React.useEffect(() => {
-    // reset unsaved state when changing steps
     setHasUnsavedChanges(false);
-    stepDataRef.current = null;
+    /** Do not clear stepDataRef — new step overwrites when ready. Clearing caused race: Save before step populated. */
   }, [stepFromUrl]);
 
   // Navigation guard integration
@@ -844,6 +847,7 @@ export default function EditApplicationPage() {
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
     stepDataRef.current = data;
+    stepDataStepKeyRef.current = data ? currentStepKey : null;
 
     if (data && (data.product_id as string | undefined)) {
       setSelectedProductId(data.product_id as string);
@@ -871,7 +875,7 @@ export default function EditApplicationPage() {
         setHasUnsavedChanges(true);
       }
     }
-  }, []);
+  }, [currentStepKey]);
 
   /* ================================================================
      SAVE & CONTINUE HANDLER
@@ -912,9 +916,15 @@ export default function EditApplicationPage() {
       }
 
       const rawData = stepDataRef.current;
-      let dataToSave: Record<string, unknown> | null = rawData
-        ? { ...rawData }
-        : null;
+      /** Guard: data must be from current step. When clicking Back, step repopulates async — avoid saving stale or empty. */
+      if (
+        !rawData ||
+        (stepDataStepKeyRef.current && stepDataStepKeyRef.current !== currentStepKey)
+      ) {
+        toast.error("Please wait for the form to load before saving");
+        return;
+      }
+      let dataToSave: Record<string, unknown> | null = { ...rawData };
 
       const structureChanged =
         currentStepKey === "financing_structure" &&
@@ -1044,7 +1054,6 @@ export default function EditApplicationPage() {
       // In amendment mode: if this step is flagged, acknowledge workflow
       try {
         if (application?.status === "AMENDMENT_REQUESTED") {
-          // currentStepId is the workflow step id (e.g. contract_details_1)
           const token = await getAccessToken();
           await fetch(`${API_URL}/v1/applications/${applicationId}/acknowledge-workflow`, {
             method: "POST",
@@ -1054,6 +1063,7 @@ export default function EditApplicationPage() {
             },
             body: JSON.stringify({ workflowId: currentStepId }),
           });
+          queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
         }
       } catch {
         // ignore acknowledgement failures - backend enforcement remains authoritative
