@@ -613,7 +613,8 @@ export default function EditApplicationPage() {
 
     // SCENARIO 2: Step beyond workflow but within completed steps (allow viewing)
     if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
-      if (stepFromUrl <= wizardState.lastCompletedStep + 1) {
+      // if (stepFromUrl <= wizardState.lastCompletedStep + 1) {
+      if (stepFromUrl < wizardState.lastCompletedStep + 1) {
         return; // Allow viewing completed steps even if workflow changed
       }
       const safeStep = Math.min(maxAllowed, maxStepInWorkflow);
