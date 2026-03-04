@@ -307,7 +307,10 @@ export class ApplicationService {
 
   /**
    * Resubmit an application after amendments are acknowledged.
-   * Validates acknowledgements, creates revision snapshot, cleans up admin review rows with exceptions, and advances review_cycle.
+   * 1. Delete only REQUEST_AMENDMENT review records
+   * 2. Create application revision snapshot
+   * 3. Set status to RESUBMITTED
+   * Does not modify contracts, invoices, documents, or other business data.
    */
   async resubmitApplication(applicationId: string, userId: string) {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -319,7 +322,6 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
 
-    // Load all active amendment remarks for this application (admin tables are not versioned)
     const remarks = await prisma.applicationReviewRemark.findMany({
       where: {
         application_id: applicationId,
@@ -328,7 +330,6 @@ export class ApplicationService {
       } as any,
     });
 
-    /** Simple: section scope_key or item tab (first colon-segment) */
     const requiredSectionKeys = new Set<string>();
     for (const r of remarks) {
       if (r.scope === "section") {
@@ -341,10 +342,6 @@ export class ApplicationService {
     const acknowledgedRaw: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
     const acknowledgedStepKeys = new Set(acknowledgedRaw.map((id) => id.replace(/_\d+$/, "")));
 
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[AMENDMENT][RESUBMIT]", { applicationId, acknowledgedWorkflowIds: acknowledgedRaw });
-    }
-
     const missing: string[] = [];
     for (const req of requiredSectionKeys) {
       if (req.startsWith("financial")) continue;
@@ -354,7 +351,6 @@ export class ApplicationService {
       throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "All amendment steps must be completed before resubmitting");
     }
 
-    // Prepare snapshot data
     const appFullCurrent = await prisma.application.findUnique({
       where: { id: applicationId },
       include: { contract: true, invoices: true, issuer_organization: true },
@@ -364,7 +360,29 @@ export class ApplicationService {
     const newCycle = previousCycle + 1;
 
     await prisma.$transaction(async (tx) => {
-      // Create revision snapshot for the new cycle
+      /** 1. Delete only REQUEST_AMENDMENT records — do not touch APPROVED or REJECTED */
+      await tx.applicationReviewRemark.deleteMany({
+        where: {
+          application_id: applicationId,
+          action_type: "REQUEST_AMENDMENT",
+        } as any,
+      });
+
+      await tx.applicationReviewItem.deleteMany({
+        where: {
+          application_id: applicationId,
+          status: "AMENDMENT_REQUESTED",
+        } as any,
+      });
+
+      await tx.applicationReview.deleteMany({
+        where: {
+          application_id: applicationId,
+          status: "AMENDMENT_REQUESTED",
+        } as any,
+      });
+
+      /** 2. Create application revision snapshot (unchanged) */
       if (appFullCurrent) {
         const snapshot = {
           product: {
@@ -397,78 +415,20 @@ export class ApplicationService {
         });
       }
 
-      // Determine contract-related preservation rules
-      const contract = appFullCurrent?.contract ?? null;
-      const contractApproved = contract && (contract as any).status === "APPROVED";
-
-      /** Simple: section scope_key=invoice_details -> all invoices; item scope_key invoice_details:N:... -> invoice at index N */
-      const amendmentRemarks = remarks;
-      const invoiceIdsToDelete = new Set<string>();
-      const invoices = appFullCurrent?.invoices ?? [];
-      for (const r of amendmentRemarks) {
-        if (r.scope === "section" && r.scope_key === "invoice_details") {
-          for (const inv of invoices) invoiceIdsToDelete.add(inv.id);
-        } else if (r.scope === "item") {
-          const parts = r.scope_key.split(":");
-          const tab = parts[0];
-          if (tab === "invoice_details" && parts.length >= 2) {
-            const idx = parseInt(parts[1], 10);
-            if (!Number.isNaN(idx) && invoices[idx]) invoiceIdsToDelete.add(invoices[idx].id);
-          }
-        }
-      }
-
-      /** Delete remarks for this application. If contract approved, do NOT delete rows where scope_key starts with "contract_details". */
-      const remarkDeleteWhere: any = { application_id: applicationId };
-      if (contractApproved) {
-        remarkDeleteWhere.NOT = { scope_key: { startsWith: "contract_details" } };
-      }
-      await tx.applicationReviewRemark.deleteMany({ where: remarkDeleteWhere });
-
-      /** Only delete invoice review items if status is AMENDMENT_REQUESTED. Otherwise keep them. */
-      if (invoiceIdsToDelete.size > 0) {
-        await tx.applicationReviewItem.deleteMany({
-          where: {
-            application_id: applicationId,
-            item_type: "invoice",
-            item_id: { in: Array.from(invoiceIdsToDelete) },
-            status: "AMENDMENT_REQUESTED",
-          },
-        });
-      }
-
-      // Delete non-invoice review items for the application (except preserve invoice items tied to approved contract)
-      const nonInvoiceWhere: any = { application_id: applicationId, item_type: { not: "invoice" } };
-      await tx.applicationReviewItem.deleteMany({ where: nonInvoiceWhere });
-
-      // Reset application reviews: if contract approved, preserve contract_details section; else reset all
-      const reviewUpdateWhere: any = { application_id: applicationId };
-      if (contractApproved) {
-        reviewUpdateWhere.NOT = { section: "contract_details" };
-      }
-      await tx.applicationReview.updateMany({
-        where: reviewUpdateWhere,
-        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
-      });
-
-      /** Increment review_cycle, clear acknowledgements, set status RESUBMITTED */
+      /** 3. Set status RESUBMITTED, clear acknowledgements */
       await tx.application.update({
         where: { id: applicationId },
-        data: ({ review_cycle: newCycle, amendment_acknowledged_workflow_ids: [], status: "RESUBMITTED", updated_at: new Date() } as any),
+        data: ({
+          review_cycle: newCycle,
+          amendment_acknowledged_workflow_ids: [],
+          status: "RESUBMITTED",
+          updated_at: new Date(),
+        } as any),
       });
-
-      // If contract exists and was in AMENDMENT_REQUESTED, move it back to SUBMITTED
-      if (appFullCurrent?.contract_id) {
-        await tx.contract.updateMany({
-          where: { id: appFullCurrent.contract_id, status: "AMENDMENT_REQUESTED" },
-          data: { status: "SUBMITTED" },
-        });
-      }
     });
 
-    logger.info({ applicationId }, "Application resubmitted: advanced review_cycle and created revision");
+    logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 
-    // Insert ApplicationLog
     await prisma.applicationLog.create({
       data: {
         user_id: userId,
@@ -480,7 +440,7 @@ export class ApplicationService {
     });
 
     const updatedApplication = await this.repository.findById(applicationId);
-    return updatedApplication;
+    return updatedApplication!;
   }
 
   /**
