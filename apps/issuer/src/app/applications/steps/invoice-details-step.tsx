@@ -63,6 +63,7 @@ import {
   withFieldError,
 } from "@/app/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
+import { InvoiceErrorCard } from "../components/invoice-error-card";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/applications/components/invoice-details-skeleton";
@@ -194,6 +195,19 @@ export default function InvoiceDetailsStep({
     }
     return map;
   }, [remarks]);
+
+  /** Item-level invoice errors for InvoiceErrorCard above table */
+  const invoiceErrorLines = React.useMemo(() => {
+    const lines: string[] = [];
+    flaggedInvoiceRemarks.forEach((remark, idx) => {
+      const inv = invoices[idx];
+      const prefix = inv?.number ? `Invoice #${inv.number}: ` : `Invoice #${idx + 1}: `;
+      for (const line of (remark || "").split("\n").filter(Boolean)) {
+        lines.push(prefix + line.trim());
+      }
+    });
+    return lines;
+  }, [flaggedInvoiceRemarks, invoices]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -970,6 +984,11 @@ export default function InvoiceDetailsStep({
 
             <div className="border-b border-border mt-2 mb-4" />
 
+            {/* Item-level invoice errors above table (no space inside table for long errors) */}
+            {invoiceErrorLines.length > 0 && (
+              <InvoiceErrorCard errors={invoiceErrorLines} />
+            )}
+
             {/* ================= Table ================= */}
             <div className="mt-4 px-3">
               {!isLoadingInvoices && (
@@ -1031,24 +1050,19 @@ export default function InvoiceDetailsStep({
                               )}
                             >
                               <TableCell className="p-2">
-                                <div className="space-y-1">
-                                  <Input
-                                    value={inv.number}
-                                    disabled={!isEditable}
-                                    onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                                    placeholder="Enter invoice"
-                                    className={cn(
-                                      withFieldError(
-                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                        isRowPartial(inv)
-                                      ),
-                                      !isEditable && formInputDisabledClassName
-                                    )}
-                                  />
-                                  {isInvFlagged && invRemark ? (
-                                    <p className="text-xs text-destructive">{invRemark.split("\n")[0]}</p>
-                                  ) : null}
-                                </div>
+                                <Input
+                                  value={inv.number}
+                                  disabled={!isEditable}
+                                  onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
+                                  placeholder="Enter invoice"
+                                  className={cn(
+                                    withFieldError(
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      isRowPartial(inv)
+                                    ),
+                                    !isEditable && formInputDisabledClassName
+                                  )}
+                                />
                               </TableCell>
 
                               <TableCell className="p-2">

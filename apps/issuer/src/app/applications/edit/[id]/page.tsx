@@ -197,13 +197,14 @@ export default function EditApplicationPage() {
   } | null>(null);
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
-  /** Mock amendment data for DEV preview - raw remarks (scope + scope_key only) */
+  /** Mock amendment data for DEV preview — shows all error types (tab, supporting doc item, invoice item) */
   const getMockAmendmentContext = React.useCallback(() => ({
     review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
     remarks: [
-      { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nCustomer name mismatch" },
+      { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nError with customer name" },
       { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
-      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "Invoice amount does not match document\nMissing supplier signature" },
+      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document" },
+      { scope: "item", scope_key: "invoice_details:1:Invoice", remark: "missing supplier signature" },
       { scope: "section", scope_key: "supporting_documents", remark: "Upload missing Company Secretary Letter." },
       { scope: "item", scope_key: "supporting_documents:doc:financial_docs:0:Latest_Management_Account", remark: "Wrong document uploaded" },
       { scope: "item", scope_key: "supporting_documents:doc:legal_docs:0:Deed_of_Assignment", remark: "Document date expired" },
@@ -270,13 +271,17 @@ export default function EditApplicationPage() {
     return m;
   }, [amendmentContext]);
 
-  /** Step keys that have amendment remarks (section or item). Used by stepper for red styling. */
+  /** Step keys that have amendment remarks (section or item). Used by stepper for red styling.
+   * Review & Submit is always flagged in amendment mode — issuer must resubmit. */
   const amendmentFlaggedStepKeys = React.useMemo(() => {
     const s = new Set<string>();
     for (const k of flaggedSections) s.add(k);
     for (const k of flaggedItems.keys()) s.add(k);
+    if (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment) {
+      s.add("review_and_submit");
+    }
     return Array.from(s);
-  }, [flaggedSections, flaggedItems]);
+  }, [flaggedSections, flaggedItems, application?.status, devPreviewAmendment]);
 
   /** Step keys the user has acknowledged (saved). Derived from amendment_acknowledged_workflow_ids. */
   const acknowledgedWorkflowIds = React.useMemo(() => {
@@ -284,9 +289,9 @@ export default function EditApplicationPage() {
     return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
   }, [application]);
 
-  /** Skip financial when comparing; only check other flagged steps. */
+  /** Skip financial and review_and_submit — only other flagged steps need acknowledgement before Resubmit. */
   const allAmendmentStepsAcknowledged = amendmentFlaggedStepKeys
-    .filter((step) => !step.startsWith("financial"))
+    .filter((step) => !step.startsWith("financial") && step !== "review_and_submit")
     .every((step) => acknowledgedWorkflowIds.includes(step));
 
   React.useEffect(() => {
@@ -1142,21 +1147,20 @@ export default function EditApplicationPage() {
                 <div className="ml-4">
                   <Button
                     variant="outline"
-                    onClick={async () => {
-                      setDevPreviewAmendment((v) => {
-                        const next = !v;
-                        // If enabling preview, force step to 1 immediately
-                        if (next) {
-                          const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
-                          const firstFlagged = effectiveWorkflow.findIndex(
-                            (s: Record<string, unknown>) =>
-                              mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
-                          );
-                          const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
-                          router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
-                        }
-                        return next;
-                      });
+                    onClick={() => {
+                      const next = !devPreviewAmendment;
+                      setDevPreviewAmendment(next);
+                      if (next) {
+                        const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
+                        const firstFlagged = effectiveWorkflow.findIndex(
+                          (s: Record<string, unknown>) =>
+                            mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
+                        );
+                        const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
+                        queueMicrotask(() =>
+                          router.replace(`/applications/edit/${applicationId}?step=${targetStep}`)
+                        );
+                      }
                     }}
                     className="text-xs px-3 py-1 rounded-md"
                   >
@@ -1175,7 +1179,7 @@ export default function EditApplicationPage() {
             currentStep={stepFromUrl}
             lastCompletedStep={wizardState?.lastCompletedStep}
             isLoading={isLoading || !effectiveWorkflow.length}
-            isAmendmentMode={application?.status === "AMENDMENT_REQUESTED"}
+            isAmendmentMode={isAmendmentModeEffective}
             amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
             acknowledgedWorkflowIds={acknowledgedWorkflowIds}
             stepKeys={effectiveWorkflow.map(

@@ -630,12 +630,13 @@ export function SupportingDocumentsStep({
                             {/* Separator */}
                             <div className="w-px h-4 bg-border/60" />
 
-                            {/* Upload slot: remark on left when flagged; error icon before filename in badge */}
+                            {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
                             <div className="flex items-center gap-2 min-w-0">
                               {isItemFlagged && itemRemark ? (
-                                <p className="text-xs text-destructive shrink-0 max-w-[140px] truncate" title={itemRemark}>
+                                <span className="inline-flex items-center gap-1.5 text-xs text-red-600 shrink-0 max-w-[180px]" title={itemRemark}>
+                                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
                                   {itemRemark.split("\n")[0]}
-                                </p>
+                                </span>
                               ) : null}
                               <div className="w-[160px] min-w-0 shrink-0">
                                 {isUploaded && file && !fileIsUploading ? (

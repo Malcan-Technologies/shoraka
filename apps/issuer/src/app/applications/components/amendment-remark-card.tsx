@@ -28,11 +28,11 @@ export function AmendmentRemarkCard({ remarks, showDefaultIntro = true }: Amendm
   if (lines.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 flex gap-3">
-      <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+    <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex gap-3">
+      <ExclamationTriangleIcon className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
       <div>
-        <h4 className="font-semibold text-destructive">Amendment required</h4>
-        <ul className="mt-2 pl-4 list-disc text-sm text-muted-foreground">
+        <h4 className="font-semibold text-red-600">Amendment required</h4>
+        <ul className="mt-2 pl-4 list-disc text-sm text-red-600">
           {lines.map((line, idx) => (
             <li key={idx}>{line}</li>
           ))}
