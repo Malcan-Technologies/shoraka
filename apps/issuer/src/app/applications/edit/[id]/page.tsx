@@ -622,10 +622,13 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // SCENARIO 3: Step beyond max allowed (skip ahead attempt)
+    // SCENARIO 3: Step beyond max allowed (skip ahead) — redirect to last step (Review and Submit) when beyond workflow
     if (stepFromUrl > maxAllowed) {
       toast.error("Please complete steps in order");
-      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
+      const targetStep = maxStepInWorkflow > 0
+        ? Math.min(maxAllowed, maxStepInWorkflow)
+        : maxAllowed;
+      router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
       return;
     }
 
@@ -1159,6 +1162,7 @@ export default function EditApplicationPage() {
             steps={effectiveWorkflow
               .map((s: Record<string, unknown>) => (s.name as string))}
             currentStep={stepFromUrl}
+            lastCompletedStep={wizardState?.lastCompletedStep}
             isLoading={isLoading || !effectiveWorkflow.length}
             isAmendmentMode={application?.status === "AMENDMENT_REQUESTED"}
             amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}

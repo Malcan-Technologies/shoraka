@@ -8,6 +8,8 @@ import { cn } from "@cashsouk/ui";
 interface ProgressIndicatorProps {
   steps: string[];
   currentStep: number;
+  /** Last step user saved. Steps <= this show as completed when clicking Back. */
+  lastCompletedStep?: number;
   isLoading?: boolean;
   disabledSteps?: number[]; // Steps that are visible but locked (non-clickable)
   onStepClick?: (step: number) => void; // Optional click handler
@@ -20,6 +22,7 @@ interface ProgressIndicatorProps {
 export function ProgressIndicator({
   steps,
   currentStep,
+  lastCompletedStep,
   isLoading = false,
   disabledSteps = [],
   onStepClick,
@@ -94,29 +97,33 @@ export function ProgressIndicator({
       <div className="relative flex items-start justify-between min-h-[80px]">
         {steps.map((label, index) => {
           const stepNumber = index + 1;
-          const isCompleted = stepNumber < currentStep;
-          const isActive = stepNumber === currentStep;
-          const isFilled = isCompleted || isActive;
-          const isDisabled = disabledSteps.includes(stepNumber);
           const stepKey = stepKeys[index] ?? "";
           const isFlagged =
             isAmendmentMode &&
             amendmentFlaggedStepKeys.includes(stepKey);
           const isAcknowledged = acknowledgedWorkflowIds.includes(stepKey);
+          /** Non-flagged: completed if saved or before current. Flagged: only when acknowledged. Review and Submit: never completed until Resubmit. */
+          const isCompleted =
+            isAmendmentMode && stepKey === "review_and_submit"
+              ? false
+              : isAmendmentMode && isFlagged
+                ? isAcknowledged
+                : stepNumber <= (lastCompletedStep ?? currentStep - 1);
+          const isActive = stepNumber === currentStep;
+          const isFilled = isCompleted || isActive;
+          const isDisabled = disabledSteps.includes(stepNumber);
 
           if (process.env.NODE_ENV !== "production" && isAmendmentMode && isFlagged) {
             console.debug("[AMENDMENT][STEP STYLE]", stepKey, "isFlagged:", isFlagged, "isAcknowledged:", isAcknowledged);
           }
 
-          /** Completed steps stay normal. Red only for flagged non-completed steps. */
           const showFlaggedStyle = isFlagged && !(isCompleted || isDisabled);
 
-          /** Connector before step turns red only when we've reached that step (not when Back to earlier step). */
+          /** Connector red when leading to any flagged step (amended or not). */
           const connectorIsRed =
             index !== 0 &&
             isAmendmentMode &&
-            isFlagged &&
-            (isCompleted || isActive);
+            isFlagged;
 
           // For disabled steps, always show as completed (locked)
           const displayCompleted = isCompleted || isDisabled;
@@ -159,7 +166,7 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "absolute inset-0 rounded-full border-2 z-20 transition-all duration-200 ease-out",
-                        showFlaggedStyle ? "border-destructive" : "border-foreground"
+                        isFlagged ? "border-destructive" : "border-foreground"
                       )}
                     />
                   </>
