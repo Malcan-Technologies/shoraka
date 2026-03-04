@@ -1059,8 +1059,8 @@ export default function EditApplicationPage() {
         // ignore acknowledgement failures - backend enforcement remains authoritative
       }
 
-      // Update local wizard state immediately (source of truth)
-      if (wizardState) {
+      /** Do not update wizard state in amendment flow — progress is driven by acknowledgement only. */
+      if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
         setWizardState({
           lastCompletedStep: stepFromUrl,
           allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
