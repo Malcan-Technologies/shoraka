@@ -38,6 +38,7 @@
  import { useApplicationLogs } from "@/hooks/use-application-logs";
  import { formatDistanceToNow, format } from "date-fns";
 import {
+  ChevronDownIcon,
   ClockIcon,
   ArrowPathIcon,
   DocumentTextIcon,
@@ -50,6 +51,7 @@ import {
   ComputerDesktopIcon,
   ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
+import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 
@@ -225,6 +227,8 @@ function getEventDotColor(eventType: string): string {
   }
 }
 
+const ACTIVITY_PAGE_SIZE = 10;
+
 function TimelineSkeleton() {
   return (
     <div className="space-y-6">
@@ -262,6 +266,14 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
   const logs: any[] = React.useMemo(() => data ?? [], [data]) as any[];
 
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [visibleCount, setVisibleCount] = React.useState(ACTIVITY_PAGE_SIZE);
+
+  React.useEffect(() => {
+    setVisibleCount(ACTIVITY_PAGE_SIZE);
+  }, [logs.length]);
+
+  const visibleLogs = logs.slice(0, visibleCount);
+  const hasMore = logs.length > visibleCount;
 
   const toggle = (id: string) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -330,7 +342,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                   <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
 
                   <div className="space-y-5">
-                    {logs.map((log, index) => {
+                    {visibleLogs.map((log, index) => {
                       const eventType = log.event_type;
                       const isFirst = index === 0;
                       const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
@@ -447,6 +459,23 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                       );
                     })}
                   </div>
+                  {hasMore && (
+                    <div className="mt-3 flex justify-center border-t border-border pt-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setVisibleCount((prev) =>
+                            Math.min(prev + ACTIVITY_PAGE_SIZE, logs.length)
+                          )
+                        }
+                      >
+                        <ChevronDownIcon className="mr-1.5 h-4 w-4" aria-hidden />
+                        Show more ({logs.length - visibleCount} remaining)
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
           </ScrollArea>
