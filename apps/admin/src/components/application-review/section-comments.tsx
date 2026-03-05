@@ -2,9 +2,12 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { reviewSectionHeaderClass } from "./review-section-styles";
+
+const COMMENTS_PAGE_SIZE = 5;
 
 export interface SectionCommentItem {
   id: string;
@@ -36,6 +39,14 @@ export function SectionComments({
   const [comment, setComment] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = React.useState(COMMENTS_PAGE_SIZE);
+
+  React.useEffect(() => {
+    setVisibleCount(COMMENTS_PAGE_SIZE);
+  }, [comments.length]);
+
+  const visibleComments = comments.slice(0, visibleCount);
+  const hasMore = comments.length > visibleCount;
 
   const handleSubmit = async () => {
     if (!onSubmitComment || isSubmitting) return;
@@ -82,9 +93,9 @@ export function SectionComments({
       {comments.length === 0 ? (
         <p className="text-sm text-muted-foreground">No comments yet.</p>
       ) : (
-        <div className="rounded-x1 px-4 py-3">
+        <div className="mt-3">
           <div className="space-y-3">
-            {comments.map((entry) => (
+            {visibleComments.map((entry) => (
               <div key={entry.id} className="pt-3 first:pt-0">
                 <div className="mb-1 flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
@@ -103,6 +114,23 @@ export function SectionComments({
               </div>
             ))}
           </div>
+          {hasMore && (
+            <div className="mt-3 flex justify-center border-t border-border pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setVisibleCount((prev) =>
+                    Math.min(prev + COMMENTS_PAGE_SIZE, comments.length)
+                  )
+                }
+              >
+                <ChevronDownIcon className="mr-1.5 h-4 w-4" aria-hidden />
+                Load more ({comments.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
         </div>
       )}
       </div>
