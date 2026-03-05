@@ -172,16 +172,32 @@ export class ApplicationService {
   }
 
   async getApplicationLogs(id: string, userId: string) {
-    // Make sure user has access
     await this.verifyApplicationAccess(id, userId);
 
-    return prisma.applicationLog.findMany({
-      where: {
-        application_id: id,
-      },
-      orderBy: {
-        created_at: "desc",
-      },
+    const logs = await prisma.applicationLog.findMany({
+      where: { application_id: id },
+      orderBy: { created_at: "desc" },
+    });
+
+    const actorIds = [...new Set(logs.map((l) => l.user_id).filter(Boolean))] as string[];
+    let actorNameMap = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const users = await prisma.user.findMany({
+        where: { user_id: { in: actorIds } },
+        select: { user_id: true, first_name: true, last_name: true },
+      });
+      actorNameMap = new Map(
+        users.map((u) => [u.user_id, `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.user_id])
+      );
+    }
+
+    return logs.map((log) => {
+      const meta = (log.metadata as Record<string, unknown>) ?? {};
+      const actorName = log.user_id ? actorNameMap.get(log.user_id) ?? null : null;
+      return {
+        ...log,
+        metadata: actorName ? { ...meta, actorName } : meta,
+      };
     });
   }
 
