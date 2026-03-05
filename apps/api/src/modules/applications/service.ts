@@ -8,6 +8,7 @@ import {
   businessDetailsDataSchema,
   financialStatementsInputSchema,
 } from "./schemas";
+import { calculateFinancialMetrics } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
 import {
@@ -513,47 +514,31 @@ export class ApplicationService {
         const n = Number(String(v).replace(/,/g, ""));
         return Number.isNaN(n) ? 0 : n;
       };
-      const fa = toNum(raw.fixed_assets);
-      const oa = toNum(raw.other_assets);
-      const ca = toNum(raw.current_assets);
-      const nca = toNum(raw.non_current_assets);
-      const cl = toNum(raw.current_liability);
-      const ltl = toNum(raw.long_term_liability);
-      const ncl = toNum(raw.non_current_liability);
-      const paidUp = toNum(raw.paid_up);
-      const turnover = toNum(raw.turnover);
-      const pat = toNum(raw.profit_after_tax);
 
       const inputNormalized = {
         financing_year_end: String(raw.financing_year_end ?? ""),
         balance_sheet_financial_year: String(raw.balance_sheet_financial_year ?? ""),
-        fixed_assets: fa,
-        other_assets: oa,
-        current_assets: ca,
-        non_current_assets: nca,
-        current_liability: cl,
-        long_term_liability: ltl,
-        non_current_liability: ncl,
-        paid_up: paidUp,
-        turnover,
+        fixed_assets: toNum(raw.fixed_assets),
+        other_assets: toNum(raw.other_assets),
+        current_assets: toNum(raw.current_assets),
+        non_current_assets: toNum(raw.non_current_assets),
+        current_liability: toNum(raw.current_liability),
+        long_term_liability: toNum(raw.long_term_liability),
+        non_current_liability: toNum(raw.non_current_liability),
+        paid_up: toNum(raw.paid_up),
+        turnover: toNum(raw.turnover),
         profit_before_tax: toNum(raw.profit_before_tax),
-        profit_after_tax: pat,
+        profit_after_tax: toNum(raw.profit_after_tax),
         minority_interest: toNum(raw.minority_interest),
         net_dividend: toNum(raw.net_dividend),
         profit_and_loss_year: toNum(raw.profit_and_loss_year),
       };
 
+      const computed = calculateFinancialMetrics(inputNormalized);
+
       dataToStore = {
         input: inputNormalized,
-        computed: {
-          total_assets: fa + oa + ca + nca,
-          total_liability: cl + ltl + ncl,
-          turnover_growth: null,
-          profit_margin: turnover !== 0 ? pat / turnover : null,
-          return_of_equity: paidUp !== 0 ? pat / paidUp : null,
-          current_ratio: cl !== 0 ? ca / cl : null,
-          working_capital: ca - cl,
-        },
+        computed: computed as unknown as Prisma.InputJsonValue,
       };
     }
 

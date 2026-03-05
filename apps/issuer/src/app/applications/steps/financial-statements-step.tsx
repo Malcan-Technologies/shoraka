@@ -22,6 +22,7 @@ import { MoneyInput } from "@/app/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/applications/components/money";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 import { FinancialStatementsSkeleton } from "@/app/applications/components/financial-statements-skeleton";
+import { calculateFinancialMetrics } from "@cashsouk/types";
 
 /**
  * FINANCIAL STATEMENTS STEP
@@ -72,29 +73,6 @@ function toNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
-}
-
-function computeFromInput(input: FinancialStatementsInput) {
-  const fa = toNum(input.fixed_assets);
-  const oa = toNum(input.other_assets);
-  const ca = toNum(input.current_assets);
-  const nca = toNum(input.non_current_assets);
-  const cl = toNum(input.current_liability);
-  const ltl = toNum(input.long_term_liability);
-  const ncl = toNum(input.non_current_liability);
-  const paidUp = toNum(input.paid_up);
-  const turnover = toNum(input.turnover);
-  const pat = toNum(input.profit_after_tax);
-
-  return {
-    total_assets: fa + oa + ca + nca,
-    total_liability: cl + ltl + ncl,
-    turnover_growth: null as number | null,
-    profit_margin: turnover !== 0 ? pat / turnover : null,
-    return_of_equity: paidUp !== 0 ? pat / paidUp : null,
-    current_ratio: cl !== 0 ? ca / cl : null,
-    working_capital: ca - cl,
-  };
 }
 
 function fromSaved(saved: unknown): FinancialStatementsInput {
@@ -187,7 +165,22 @@ export function FinancialStatementsStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  const computed = React.useMemo(() => computeFromInput(input), [input]);
+  const computed = React.useMemo(
+    () =>
+      calculateFinancialMetrics({
+        fixed_assets: input.fixed_assets,
+        other_assets: input.other_assets,
+        current_assets: input.current_assets,
+        non_current_assets: input.non_current_assets,
+        current_liability: input.current_liability,
+        long_term_liability: input.long_term_liability,
+        non_current_liability: input.non_current_liability,
+        paid_up: input.paid_up,
+        turnover: input.turnover,
+        profit_after_tax: input.profit_after_tax,
+      }),
+    [input]
+  );
   const apiPayload = React.useMemo(() => toApiPayload(input), [input]);
 
   const hasPendingChanges = React.useMemo(() => {
