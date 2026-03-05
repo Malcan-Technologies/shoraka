@@ -265,18 +265,18 @@ export class ApplicationService {
   }
 
   async getApplicationLogs(id: string, userId: string) {
-  // Make sure user has access
-  await this.verifyApplicationAccess(id, userId);
+    // Make sure user has access
+    await this.verifyApplicationAccess(id, userId);
 
-  return prisma.applicationLog.findMany({
-    where: {
-      application_id: id,
-    },
-    orderBy: {
-      created_at: "desc",
-    },
-  });
-}
+    return prisma.applicationLog.findMany({
+      where: {
+        application_id: id,
+      },
+      orderBy: {
+        created_at: "desc",
+      },
+    });
+  }
 
   /**
    * Acknowledge a workflowId during amendment mode.
@@ -500,18 +500,18 @@ export class ApplicationService {
       updated_at: new Date(),
     };
 
-  // If financing_type is being updated, snapshot the product version atomically
-  if (fieldName === "financing_type") {
-    const financingData = input.data as any;
-    const newProductId = financingData?.product_id as string | undefined;
-    if (newProductId) {
-      const product = await this.productRepository.findById(newProductId);
-      if (!product) {
-        throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+    // If financing_type is being updated, snapshot the product version atomically
+    if (fieldName === "financing_type") {
+      const financingData = input.data as any;
+      const newProductId = financingData?.product_id as string | undefined;
+      if (newProductId) {
+        const product = await this.productRepository.findById(newProductId);
+        if (!product) {
+          throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+        }
+        (updateData as any).product_version = product.version;
       }
-      (updateData as any).product_version = product.version;
     }
-  }
 
     // Special handling for financing_structure: link existing contract if selected
     if (fieldName === "financing_structure") {

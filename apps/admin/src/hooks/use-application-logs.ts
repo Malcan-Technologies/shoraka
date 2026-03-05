@@ -3,6 +3,12 @@ import { useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+export const applicationLogsKeys = {
+  all: ["admin", "application-logs"] as const,
+  list: (applicationId: string | null) =>
+    [...applicationLogsKeys.all, applicationId] as const,
+};
+
 /**
  * useApplicationLogs
  *
@@ -18,7 +24,7 @@ export function useApplicationLogs(applicationId: string | null) {
   const { getAccessToken } = useAuthToken();
 
   const query = useQuery({
-    queryKey: ["admin", "application-logs", applicationId],
+    queryKey: applicationLogsKeys.list(applicationId),
     queryFn: async () => {
       if (!applicationId) throw new Error("Application ID is required");
       const token = await getAccessToken();
@@ -65,6 +71,8 @@ export function useApplicationLogs(applicationId: string | null) {
         metadata: (d.metadata ?? null) as Record<string, unknown> | null,
         ip_address: d.ip_address ?? null,
         created_at: d.created_at,
+        remark: d.remark ?? null,
+        entityId: d.entityId ?? d.entity_id ?? null,
       }));
 
       return {

@@ -1,6 +1,6 @@
  "use client";
 
-/** 
+/**
  * Imports
  *
  * What this section does:
@@ -12,7 +12,7 @@
  * Data shapes:
  * - Expects activity items with fields: id, event_type, metadata?, created_at, activity?, ip_address?
  */
- 
+
 /**
  * CHANGE SUMMARY
  *
@@ -50,8 +50,11 @@ import {
   ComputerDesktopIcon,
   ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
+import { formatRemarkAsBullets } from "@/lib/utils";
+import { getReviewTabLabel } from "@/components/application-review/review-registry";
 
 type ActivityMetadata = {
+  scope_key?: string;
   entityId?: string;
   remark?: string;
   portal?: string;
@@ -59,6 +62,39 @@ type ActivityMetadata = {
   device_type?: string;
   device_info?: string;
 };
+
+function formatItemLabelFromScopeKey(scopeKey: string): string {
+  if (!scopeKey) return "Item";
+
+  const parts = scopeKey.split(":");
+  const lastPart = parts[parts.length - 1] ?? "";
+
+  if (
+    scopeKey.startsWith("invoice_details:") ||
+    scopeKey.startsWith("invoice:")
+  ) {
+    return lastPart ? `Invoice ${lastPart}` : "Invoice";
+  }
+
+  if (
+    scopeKey.startsWith("supporting_documents:") ||
+    scopeKey.startsWith("document:")
+  ) {
+    if (!lastPart) return "Document";
+    return lastPart
+      .replace(/_/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((word) =>
+        word.length > 1 && word === word.toUpperCase()
+          ? word
+          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      )
+      .join(" ");
+  }
+
+  return "Item";
+}
 
 /**
  * Component props
@@ -83,9 +119,23 @@ function getEventIcon(eventType: string) {
     case "ISSUER_SUBMITTED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "APPROVED":
+    case "SECTION_REVIEWED_APPROVED":
+    case "ITEM_REVIEWED_APPROVED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "REJECTED":
+    case "SECTION_REVIEWED_REJECTED":
+    case "ITEM_REVIEWED_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
+    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
+    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+      return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "SECTION_REVIEWED_PENDING":
+    case "ITEM_REVIEWED_PENDING":
+      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "APPLICATION_RESET_TO_UNDER_REVIEW":
+      return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
+    case "AMENDMENTS_SUBMITTED":
+      return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "SOPHISTICATED_STATUS_UPDATED":
       return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
     case "FORM_FILLED":
@@ -95,22 +145,53 @@ function getEventIcon(eventType: string) {
   }
 }
 
-function getEventLabel(eventType: string): string {
-  const labels: Record<string, string> = {
+const ACTION_LABELS: Record<string, string> = {
+  SECTION_REVIEWED_APPROVED: "Section Approved",
+  SECTION_REVIEWED_REJECTED: "Section Rejected",
+  SECTION_REVIEWED_AMENDMENT_REQUESTED: "Section Amendment Requested",
+  SECTION_REVIEWED_PENDING: "Section Reset to Pending",
+  ITEM_REVIEWED_APPROVED: "Approved",
+  ITEM_REVIEWED_REJECTED: "Rejected",
+  ITEM_REVIEWED_AMENDMENT_REQUESTED: "Amendment Requested",
+  ITEM_REVIEWED_PENDING: "Reset to Pending",
+};
+
+function getEventLabel(
+  eventType: string,
+  metadata?: Record<string, unknown> | null,
+  entityId?: string | null
+): string {
+  const baseLabels: Record<string, string> = {
     ISSUER_CREATED: "Issuer Created",
     ISSUER_SUBMITTED: "Issuer Submitted",
     APPROVED: "Approved",
     REJECTED: "Rejected",
     FORM_FILLED: "Form Submitted",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
+    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
-  return (
-    labels[eventType] ||
-    eventType
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ")
-  );
+  if (baseLabels[eventType]) return baseLabels[eventType];
+
+  const actionLabel = ACTION_LABELS[eventType];
+  if (actionLabel) {
+    if (eventType.startsWith("SECTION_REVIEWED_")) {
+      const scopeKey = metadata?.scope_key;
+      const sectionLabel = scopeKey ? getReviewTabLabel(String(scopeKey)) : "";
+      return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
+    }
+    if (eventType.startsWith("ITEM_REVIEWED_")) {
+      const scopeKey = (entityId ?? metadata?.scope_key) as string | undefined;
+      const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
+      return itemName ? `${itemName} ${actionLabel}` : actionLabel;
+    }
+    return actionLabel;
+  }
+
+  return eventType
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function getEventDotColor(eventType: string): string {
@@ -120,9 +201,23 @@ function getEventDotColor(eventType: string): string {
     case "FORM_FILLED":
       return "bg-blue-500";
     case "APPROVED":
+    case "SECTION_REVIEWED_APPROVED":
+    case "ITEM_REVIEWED_APPROVED":
       return "bg-emerald-500";
     case "REJECTED":
+    case "SECTION_REVIEWED_REJECTED":
+    case "ITEM_REVIEWED_REJECTED":
       return "bg-destructive";
+    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
+    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+      return "bg-amber-500";
+    case "SECTION_REVIEWED_PENDING":
+    case "ITEM_REVIEWED_PENDING":
+      return "bg-muted-foreground";
+    case "APPLICATION_RESET_TO_UNDER_REVIEW":
+      return "bg-blue-500";
+    case "AMENDMENTS_SUBMITTED":
+      return "bg-amber-500";
     case "SOPHISTICATED_STATUS_UPDATED":
       return "bg-violet-500";
     default:
@@ -258,7 +353,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                             <div className="flex items-center gap-1.5">
                               {getEventIcon(eventType)}
                               <span className="text-sm font-medium leading-tight">
-                                {getEventLabel(eventType)}
+                                {getEventLabel(eventType, metadata, entityId)}
                               </span>
                             </div>
 
@@ -307,7 +402,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 })}
                               </p>
 
-                              {(remark || entityId) && (
+                              {remark && (
                                 <button
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
@@ -317,42 +412,36 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                               )}
                             </div>
 
-{expanded[log.id] && (
-  <div className="mt-3 rounded-xl border p-3 text-sm space-y-3">
-    
-    {/* Entity context (invoice/doc only) */}
-    {entityId && (
-      <div>
-        <p className="text-xs font-semibold mb-1 text-foreground">
-          {log.event_type.startsWith("INVOICE_")
-            ? "Invoice"
-            : log.event_type.startsWith("DOCUMENT_")
-            ? "Document"
-            : "Entity"}
-        </p>
-        <div className="text-xs text-muted-foreground">
-          {String(entityId)}
-        </div>
-      </div>
-    )}
+                          {expanded[log.id] && remark && (
+                            <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">
 
-    {/* Remark */}
-    {remark && (
-      <div>
-        <p className="text-xs font-semibold mb-1 text-foreground">
-          Remark
-        </p>
-        <div
-          className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${getRemarkVariant(
-            log.event_type
-          )}`}
-        >
-          {String(remark)}
-        </div>
-      </div>
-    )}
-  </div>
-)}
+                              {/* Remark */}
+                              <div className="space-y-2">
+                                <p className="text-[11px] font-semibold text-foreground">
+                                  Remark
+                                </p>
+                                <div
+                                  className={`rounded-lg border px-4 py-3 leading-relaxed ${getRemarkVariant(
+                                    log.event_type
+                                  )}`}
+                                >
+                                  {(() => {
+                                    const lines = formatRemarkAsBullets(String(remark));
+                                    if (lines.length === 0) return null;
+                                    return (
+                                      <ul className="list-disc pl-5 space-y-1.5 text-[11px]">
+                                        {lines.map((line, i) => (
+                                          <li key={i} className="pl-0.5 text-[11px]">
+                                            {line}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           </div>
                         </div>
                       );

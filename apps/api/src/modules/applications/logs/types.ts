@@ -19,6 +19,7 @@ export enum ActivityAction {
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   REQUESTED_AMENDMENT = "REQUESTED_AMENDMENT",
+  RESET = "RESET",
 }
 
 export enum ActivityPortal {
@@ -39,5 +40,9 @@ export type CreateApplicationLogParams = {
   userAgent?: string
   deviceInfo?: string
   portal?: ActivityPortal
+  /** Override event_type when level/target/action don't fit (e.g. SECTION_REVIEWED) */
+  eventType?: string
+  /** Extra fields for review audit (scope, scope_key, old_status, new_status) */
+  metadata?: Record<string, unknown>
 }
 
