@@ -172,6 +172,13 @@ export default function DynamicApplicationDetailPage() {
     [currentProduct?.workflow]
   );
 
+  const isExistingContract = React.useMemo(
+    () =>
+      (app?.financing_structure as { structure_type?: string } | undefined)?.structure_type ===
+      "existing_contract",
+    [app?.financing_structure]
+  );
+
   const reviewSections = React.useMemo(() => {
     const reviewItems =
       (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -187,10 +194,13 @@ export default function DynamicApplicationDetailPage() {
         orderedSections.push(review.section);
       }
     }
-    const baseSections = orderedSections.map((section) => ({
-      section,
-      status: reviewSectionStatusMap.get(section) ?? "PENDING",
-    }));
+    const baseSections = orderedSections.map((section) => {
+      let status = reviewSectionStatusMap.get(section) ?? "PENDING";
+      if (section === "contract_details" && isExistingContract) {
+        status = "APPROVED";
+      }
+      return { section, status };
+    });
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {
@@ -203,7 +213,6 @@ export default function DynamicApplicationDetailPage() {
 
     return baseSections.map((s) => {
       const fromItems = sectionWithAmendmentFromItems.has(s.section);
-      // Section-level APPROVED/REJECTED takes precedence over item-level amendment
       const status =
         s.status === "APPROVED" || s.status === "REJECTED"
           ? s.status
@@ -212,7 +221,7 @@ export default function DynamicApplicationDetailPage() {
             : s.status;
       return { section: s.section, status };
     });
-  }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
+  }, [app?.application_reviews, app?.application_review_items, tabDescriptors, isExistingContract]);
 
   const sectionStatusMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -613,17 +622,23 @@ export default function DynamicApplicationDetailPage() {
                   defaultTabId={tabDescriptors[0]?.id}
                 >
                   {tabDescriptors.map((descriptor) => {
-                    const actionLocked = !isTabUnlocked(
-                      descriptor.reviewSection,
-                      sectionStatusMap,
-                      availableReviewSections
-                    );
-                    const actionLockTooltip = actionLocked
-                      ? getTabUnlockTooltip(
+                    const isContractExistingContract =
+                      descriptor.reviewSection === "contract_details" && isExistingContract;
+                    const actionLocked = isContractExistingContract
+                      ? true
+                      : !isTabUnlocked(
                           descriptor.reviewSection,
                           sectionStatusMap,
                           availableReviewSections
-                        )
+                        );
+                    const actionLockTooltip = actionLocked
+                      ? isContractExistingContract
+                        ? "Contract was approved in a prior application"
+                        : getTabUnlockTooltip(
+                            descriptor.reviewSection,
+                            sectionStatusMap,
+                            availableReviewSections
+                          )
                       : undefined;
                     const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                     return (
