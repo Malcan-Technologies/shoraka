@@ -285,12 +285,82 @@ export function createApplicationRouter(): Router {
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
   router.patch("/:id/status", requireAuth, updateApplicationStatus);
+router.get("/:id/amendment-context", requireAuth, async function getAmendmentContext(req, res, next) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const result = await applicationService.getAmendmentContext(id, userId);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/", requireAuth, async function listApplications(req, res, next) {
+  try {
+    const organizationId = req.query.organizationId as string | undefined;
+    if (!organizationId) {
+      throw new AppError(400, "BAD_REQUEST", "organizationId query parameter is required");
+    }
+    const userId = getUserId(req);
+    const result = await applicationService.listByOrganization(organizationId, userId);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
   router.post("/:id/archive", requireAuth, archiveApplication);
 
   // Parameterized route comes last
   
   router.get("/:id/logs", requireAuth, getApplicationLogsHandler);
 router.get("/:id", requireAuth, getApplication);
+  router.post(
+    "/:id/acknowledge-workflow",
+    requireAuth,
+    async function acknowledgeWorkflowHandler(req, res, next) {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const body = z.object({ workflowId: z.string().min(1) }).parse(req.body);
+        const userId = getUserId(req);
+        const result = await applicationService.acknowledgeWorkflow(id, userId, body.workflowId);
+        res.json({
+          success: true,
+          data: result,
+          correlationId: res.locals.correlationId || "unknown",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:id/resubmit",
+    requireAuth,
+    async function resubmitHandler(req, res, next) {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const result = await applicationService.resubmitApplication(id, userId);
+        res.json({
+          success: true,
+          data: result,
+          correlationId: res.locals.correlationId || "unknown",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   return router;
 }

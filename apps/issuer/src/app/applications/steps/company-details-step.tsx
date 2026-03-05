@@ -43,6 +43,7 @@ import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
+  formInputDisabledClassName,
   formLabelClassName,
   formSelectTriggerClassName,
   withFieldError,
@@ -53,6 +54,7 @@ import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleto
 interface CompanyDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -141,7 +143,7 @@ function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-const inputClassName = cn(formInputClassName, "bg-muted");
+const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
@@ -150,6 +152,7 @@ const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
+  readOnly = false,
 }: CompanyDetailsStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
@@ -189,7 +192,7 @@ export function CompanyDetailsStep({
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
-  const effectiveCanEdit = devViewAsMember ? false : canEditOrganization;
+  const effectiveCanEdit = readOnly ? false : (devViewAsMember ? false : canEditOrganization);
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -853,10 +856,14 @@ export function CompanyDetailsStep({
                     contactPersonName: e.target.value,
                   }))
                 }
+                disabled={!effectiveCanEdit}
                 placeholder="eg. John Doe"
-                className={withFieldError(
-                  inputClassNameEditable,
-                  Boolean(fieldErrors.contactPersonName)
+                className={cn(
+                  withFieldError(
+                    inputClassNameEditable,
+                    Boolean(fieldErrors.contactPersonName)
+                  ),
+                  !effectiveCanEdit && formInputDisabledClassName
                 )}
               />
               {fieldErrors.contactPersonName && (
@@ -876,10 +883,14 @@ export function CompanyDetailsStep({
                     contactPersonPosition: e.target.value,
                   }))
                 }
+                disabled={!effectiveCanEdit}
                 placeholder="eg. CEO"
-                className={withFieldError(
-                  inputClassNameEditable,
-                  Boolean(fieldErrors.contactPersonPosition)
+                className={cn(
+                  withFieldError(
+                    inputClassNameEditable,
+                    Boolean(fieldErrors.contactPersonPosition)
+                  ),
+                  !effectiveCanEdit && formInputDisabledClassName
                 )}
               />
               {fieldErrors.contactPersonPosition && (
@@ -899,10 +910,14 @@ export function CompanyDetailsStep({
                     contactPersonIc: restrictIcNumber(e.target.value),
                   }))
                 }
+                disabled={!effectiveCanEdit}
                 placeholder="eg. 1234567890"
-                className={withFieldError(
-                  inputClassNameEditable,
-                  Boolean(fieldErrors.contactPersonIc)
+                className={cn(
+                  withFieldError(
+                    inputClassNameEditable,
+                    Boolean(fieldErrors.contactPersonIc)
+                  ),
+                  !effectiveCanEdit && formInputDisabledClassName
                 )}
               />
               {fieldErrors.contactPersonIc && (
@@ -924,9 +939,11 @@ export function CompanyDetailsStep({
                     contactPersonContact: v ?? "",
                   }))
                 }
+                disabled={!effectiveCanEdit}
                 className={cn(
                   withFieldError(formInputClassName, Boolean(fieldErrors.contactPersonContact)),
-                  "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                  "px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm",
+                  !effectiveCanEdit && formInputDisabledClassName
                 )}
               />
               {fieldErrors.contactPersonContact && (

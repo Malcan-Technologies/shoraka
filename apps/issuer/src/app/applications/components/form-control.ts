@@ -26,6 +26,15 @@ export const formTextareaClassName =
 export const formSelectTriggerClassName =
   "h-11 w-full rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-0 focus:border-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
 
+/** Read-only / disabled field styling
+ *
+ * What: Grey background, readable text, no opacity fade.
+ * Why: Locked amendment steps must show fields as locked without washing out the page.
+ * Use: Add to Input/Textarea/Select className when disabled={true}.
+ */
+export const formInputDisabledClassName =
+  "bg-muted text-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border";
+
 /** Helpers
  *
  * What: Apply error styling consistently (thin red border, thick when focused).

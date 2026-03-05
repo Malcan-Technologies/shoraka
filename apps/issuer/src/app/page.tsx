@@ -14,6 +14,9 @@ import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { useHeader } from "@cashsouk/ui";
+import { FinancingRequestsList } from "@/components/dashboard/financing-requests-list";
+import { FinancingSection } from "@/components/dashboard/financing-section";
+import { FinancingCard } from "@/components/dashboard/financing-card";
 
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();
@@ -248,6 +251,14 @@ function IssuerDashboardContent() {
 
               <AccountOverviewCard isDisabled={!isAccountEnabled} />
               <RepaymentPerformanceCard isDisabled={!isAccountEnabled} />
+
+
+              {/* NEW DASHBOARD LIST */}
+              {/* <FinancingRequestsList /> */}
+              {/* <FinancingSection /> */}
+              <FinancingCard>
+                <FinancingSection />
+              </FinancingCard>
             </>
           )}
         </div>

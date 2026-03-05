@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/applications/components/supporting-documents-skeleton";
@@ -16,10 +17,20 @@ export function SupportingDocumentsStep({
   applicationId,
   stepConfig,
   onDataChange,
+  readOnly = false,
+  amendmentRemarks = [],
+  isAmendmentMode = false,
+  flaggedSections: _flaggedSections,
+  flaggedItems,
 }: {
   applicationId: string;
   stepConfig?: any;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
+  amendmentRemarks?: { scope?: string; scope_key?: string; remark?: string }[];
+  isAmendmentMode?: boolean;
+  flaggedSections?: Set<string>;
+  flaggedItems?: Map<string, Set<string>>;
 }) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -98,6 +109,27 @@ export function SupportingDocumentsStep({
    * - Keep UI unchanged
    * - Safely support future workflow changes
    */
+  /** Item set for supporting_documents tab only (scope_key starts with supporting_documents:). STRICT mode uses this. */
+  const supportingDocItemSet = React.useMemo(() => {
+    return flaggedItems?.get("supporting_documents") ?? new Set<string>();
+  }, [flaggedItems]);
+
+  /** If tab has ANY item-level amendment remark → STRICT single-item editing mode. */
+  const hasItemLevelAmendment =
+    isAmendmentMode && supportingDocItemSet.size > 0;
+
+  /** Map scope_key -> remark for item-level amendment text. Supports both rawKey and rawKeyWithDoc formats. */
+  const flaggedDocRemarks = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of amendmentRemarks) {
+      const rem = r as { scope?: string; scope_key?: string; remark?: string };
+      if (rem.scope !== "item" || !rem.scope_key?.startsWith("supporting_documents:")) continue;
+      const text = (rem.remark || "").trim();
+      if (text) map.set(rem.scope_key, text);
+    }
+    return map;
+  }, [amendmentRemarks]);
+
   const categories = React.useMemo(() => {
     const config = stepConfig?.config;
 
@@ -111,14 +143,14 @@ export function SupportingDocumentsStep({
 
       // Convert each group into a UI category
       .map(([groupKey, docs]) => ({
-        // "financial_docs" → "Financial Docs"
+        groupKey,
         name: groupKey
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
         // Convert documents into UI-friendly shape
         documents: (docs as any[]).map((doc) => ({
-          title: doc?.name ?? "—", // if no document name
+          title: doc?.name ?? "—",
           template: doc?.template,
         })),
       }));
@@ -472,7 +504,9 @@ export function SupportingDocumentsStep({
           <SupportingDocumentsSkeleton />
           <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
         </>
-      ) : (categories.map((category: any, categoryIndex: number) => {
+      ) : (
+        <>
+          {categories.map((category: any, categoryIndex: number) => {
         const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
@@ -524,23 +558,54 @@ export function SupportingDocumentsStep({
                     const fileIsUploading = uploadingKeys.has(key);
                     const file = uploadedFiles[key];
                     const templateS3Key = document.template?.s3_key;
+                    const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
+                    const slug = String(document.title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+                    const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
+                    const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
+                    const isItemFlagged =
+                      supportingDocItemSet.has(rawKey) ||
+                      supportingDocItemSet.has(rawKeyWithDoc);
+                    const itemRemark =
+                      flaggedDocRemarks.get(rawKey) ||
+                      flaggedDocRemarks.get(rawKeyWithDoc);
+                    let isEditable = true;
+                    if (isAmendmentMode) {
+                      if (hasItemLevelAmendment) {
+                        isEditable = isItemFlagged;
+                      } else {
+                        isEditable = true;
+                      }
+                    }
+                    isEditable = isEditable && !readOnly;
+
+                    if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
+                      console.debug("[AMENDMENT][SUPPORTING_DOCS][ROW]", rawKey, "isItemFlagged:", isItemFlagged, "isEditable:", isEditable);
+                    }
 
                     return (
-                      <React.Fragment key={documentIndex}>
+                      <div
+                        key={documentIndex}
+                        className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start"
+                      >
                         {/* Document title */}
                         <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
                         </div>
 
-                        {/* FIXED ACTION COLUMN */}
-                        <div className="flex justify-end">
-                          <div className="flex justify-end items-start">
-                            <div className="flex items-center gap-3">
-                              {/* Download template */}
+                        {/* Action column: template, uploaded file. Lock when !isEditable. */}
+                        <div
+                          className={cn(
+                            "flex justify-end",
+                            !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
+                          )}
+                        >
+                          <div className="flex justify-end items-start flex-wrap gap-3">
+                            {/* Download template */}
                               {templateS3Key && (
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6"
+                                  disabled={!isEditable}
+                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={async () => {
                                     const token = await getAccessToken();
                                     const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
@@ -562,45 +627,58 @@ export function SupportingDocumentsStep({
                                 </button>
                               )}
 
-                              {/* Separator */}
-                              <div className="w-px h-4 bg-border/60" />
+                            {/* Separator */}
+                            <div className="w-px h-4 bg-border/60" />
 
-                              {/* FIXED upload slot */}
-                              <div className="w-[160px]">
+                            {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isItemFlagged && itemRemark ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs text-red-600 shrink-0 max-w-[180px]" title={itemRemark}>
+                                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
+                                  {itemRemark.split("\n")[0]}
+                                </span>
+                              ) : null}
+                              <div className="w-[160px] min-w-0 shrink-0">
                                 {isUploaded && file && !fileIsUploading ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-6">
-                                    {/* check */}
-                                    <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                      <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                    </div>
-
-                                    {/* filename (truncate) */}
+                                  <div
+                                    className={cn(
+                                      "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] w-full h-6 min-h-6",
+                                      isItemFlagged ? "border-destructive" : "border-border"
+                                    )}
+                                  >
+                                    {isItemFlagged ? (
+                                      <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                                      </div>
+                                    )}
                                     <span className="text-[14px] font-medium truncate flex-1">
                                       {file.name}
                                     </span>
-
-                                    {/* remove */}
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRemoveFile(categoryIndex, documentIndex)
-                                      }
-                                      className="text-muted-foreground hover:text-foreground shrink-0"
-                                    >
-                                      <XMarkIcon className="h-3.5 w-3.5" />
-                                    </button>
+                                    {isEditable && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveFile(categoryIndex, documentIndex)
+                                        }
+                                        className="text-muted-foreground hover:text-foreground shrink-0"
+                                      >
+                                        <XMarkIcon className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
                                   </div>
+                                ) : !isEditable ? (
+                                  <span className="text-[14px] text-muted-foreground">—</span>
                                 ) : (
                                   <label
-                                    htmlFor={`file-${key}`}
-                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
+                                    htmlFor={isEditable ? `file-${key}` : undefined}
+                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-
                                     <span className="truncate">
                                       {fileIsUploading ? "Uploading…" : "Upload file"}
                                     </span>
-
                                     <Input
                                       id={`file-${key}`}
                                       type="file"
@@ -609,19 +687,15 @@ export function SupportingDocumentsStep({
                                         handleFileChange(categoryIndex, documentIndex, e)
                                       }
                                       className="hidden"
-                                      disabled={fileIsUploading}
+                                      disabled={fileIsUploading || !isEditable}
                                     />
                                   </label>
-
                                 )}
                               </div>
                             </div>
                           </div>
-
-
-
                         </div>
-                      </React.Fragment>
+                      </div>
                     );
                   }
                 )}
@@ -629,7 +703,9 @@ export function SupportingDocumentsStep({
             )}
           </section>
         );
-      }))}
+      })}
+        </>
+      )}
     </div>
     <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

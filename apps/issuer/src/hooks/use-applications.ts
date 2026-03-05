@@ -96,6 +96,38 @@ export function useUpdateApplicationStatus() {
   });
 }
 
+export function useResubmitApplication() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_URL}/v1/applications/${id}/resubmit`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await response.json();
+      if (!json.success) {
+        throw new Error(json.error?.message ?? "Failed to resubmit");
+      }
+      return json.data;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to resubmit", {
+        description: error.message,
+      });
+    },
+  });
+}
+
 export function useArchiveApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -117,5 +149,23 @@ export function useArchiveApplication() {
         description: error.message,
       });
     },
+  });
+}
+
+export function useOrganizationApplications(organizationId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["applications", organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const response = await apiClient.get(`/v1/applications?organizationId=${encodeURIComponent(organizationId)}`);
+      if (!response.success) {
+        throw new Error((response as any).error?.message || "Failed to list applications");
+      }
+      return response.data as any[];
+    },
+    enabled: !!organizationId,
   });
 }

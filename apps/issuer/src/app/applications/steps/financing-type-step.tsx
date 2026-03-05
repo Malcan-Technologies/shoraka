@@ -25,11 +25,13 @@ import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleto
 interface FinancingTypeStepProps {
   initialProductId?: string;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 export function FinancingTypeStep({
   initialProductId,
   onDataChange,
+  readOnly = false,
 }: FinancingTypeStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -153,8 +155,9 @@ export function FinancingTypeStep({
         <ProductList
           products={products.products}
           selectedProductId={selectedProductId}
-          onProductSelect={handleProductSelect}
+          onProductSelect={readOnly ? () => {} : handleProductSelect}
           isLoading={isLoadingProducts}
+          disabled={readOnly}
         />
       )}
     </div>
