@@ -2240,7 +2240,9 @@ export class AdminRepository {
           },
         },
         invoices: true,
-        contract: true,
+        contract: {
+          include: { invoices: true },
+        },
         application_reviews: true,
         application_review_items: true,
         application_review_remarks: {

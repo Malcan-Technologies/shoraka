@@ -8,6 +8,7 @@ import { ContractSection } from "./sections/contract-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
+import { unstable_isUnrecognizedActionError } from "next/dist/client/components/navigation.react-server";
 
 export interface SectionCommentRecord {
   id: string;
@@ -213,10 +214,48 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
-    case "invoice_details":
+    case "invoice_details": {
+      const appInvoices = app.invoices ?? [];
+      const contract = app.contract as {
+        contract_details?: {
+          approved_facility?: number;
+          utilized_facility?: number;
+          available_facility?: number;
+          financing?: number;
+          value?: number;
+        };
+        invoices?: { id: string; application_id: string; details?: unknown; status?: string }[];
+      } | null;
+      const contractInvoices = contract?.invoices ?? [];
+      const applicationId = (app as { id?: string }).id;
+      const otherContractInvoices =
+        applicationId && app.contract && contractInvoices.length > 0
+          ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
+          : [];
+      const mergedInvoices = [...appInvoices, ...otherContractInvoices];
+      const readOnlyInvoiceIds = new Set(otherContractInvoices.map((inv) => inv.id));
+      const cd = contract?.contract_details;
+      const approvedFacility =
+        (typeof cd?.approved_facility === "number" && cd.approved_facility > 0
+          ? cd.approved_facility
+          : typeof cd?.financing === "number"
+            ? cd.financing
+            : typeof cd?.value === "number"
+              ? cd.value
+              : 0) as number;
+      const availableFacility =
+        typeof cd?.available_facility === "number" ? cd.available_facility : approvedFacility;
+      const utilizedFacility =
+        typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
+      const contractFacility =
+        app.contract && approvedFacility > 0
+          ? { contractFacility: approvedFacility, availableFacility, utilizedFacility }
+          : undefined;
       return (
         <InvoiceSection
-          invoices={app.invoices ?? []}
+          invoices={mergedInvoices}
+          readOnlyInvoiceIds={readOnlyInvoiceIds}
+          contractFacility={contractFacility}
           reviewItems={reviewItems}
           section={section}
           isReviewable={isReviewable}
@@ -239,6 +278,7 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
+    }
     default:
       return null;
   }

@@ -4,11 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { SectionActionDropdown } from "../section-action-dropdown";
 import { InvoiceList } from "@/components/invoice-review-list";
+import { ContractFacilitySummary } from "../contract-facility-summary";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 
 export interface InvoiceSectionProps {
-  invoices: { id: string; details?: unknown }[];
+  invoices: { id: string; details?: unknown; status?: string }[];
+  /** Invoice IDs that are from other applications (same contract) - read-only, actions locked */
+  readOnlyInvoiceIds?: Set<string>;
+  /** When set, shows Contract Facility, Available Facility and Utilized Facility above the invoice list (contract applications only) */
+  contractFacility?: { contractFacility: number; availableFacility: number; utilizedFacility: number };
   reviewItems: { item_type: string; item_id: string; status: string }[];
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -33,6 +38,8 @@ export interface InvoiceSectionProps {
 
 export function InvoiceSection({
   invoices,
+  readOnlyInvoiceIds,
+  contractFacility,
   reviewItems,
   section,
   isReviewable,
@@ -77,9 +84,17 @@ export function InvoiceSection({
         </div>
       </CardHeader>
       <CardContent>
+        {contractFacility && (
+          <ContractFacilitySummary
+            contractFacility={contractFacility.contractFacility}
+            availableFacility={contractFacility.availableFacility}
+            utilizedFacility={contractFacility.utilizedFacility}
+          />
+        )}
         {invoices?.length ? (
           <InvoiceList
             invoices={invoices}
+            readOnlyInvoiceIds={readOnlyInvoiceIds}
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
             onViewDocument={onViewDocument}

@@ -32,6 +32,8 @@ const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 interface InvoiceReviewListProps {
   invoices: { id: string; details?: unknown; status?: string }[];
+  /** Invoice IDs from other applications (same contract) - read-only, actions locked */
+  readOnlyInvoiceIds?: Set<string>;
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument: (s3Key: string) => void;
@@ -91,6 +93,7 @@ type OfferedState = { ratio: number; profitRate: number };
 
 export function InvoiceList({
   invoices,
+  readOnlyInvoiceIds,
   reviewItems,
   isReviewable,
   onViewDocument,
@@ -105,6 +108,20 @@ export function InvoiceList({
   isItemActionPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    setExpandedById((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      invoices.forEach((inv) => {
+        if (!(inv.id in next)) {
+          next[inv.id] = !(readOnlyInvoiceIds?.has(inv.id) ?? false);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [invoices, readOnlyInvoiceIds]);
   const [offeredByInvoice, setOfferedByInvoice] = React.useState<Record<string, OfferedState>>({});
 
   const toggleExpanded = React.useCallback((invoiceId: string) => {
@@ -150,6 +167,7 @@ export function InvoiceList({
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
             const status = getItemStatus(inv, reviewItems, scopeKey);
+            const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -162,7 +180,13 @@ export function InvoiceList({
 
             return (
               <React.Fragment key={inv.id}>
-                <TableRow className="odd:bg-muted/30 hover:bg-muted/50">
+                <TableRow
+                  className={
+                    isRowReadOnly
+                      ? "bg-muted/20 text-muted-foreground hover:bg-muted/30"
+                      : "odd:bg-muted/30 hover:bg-muted/50"
+                  }
+                >
                   <TableCell>
                     <button
                       type="button"
@@ -188,8 +212,14 @@ export function InvoiceList({
                   <TableCell className="text-center">
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
-                  <TableCell className="text-center">
-                    {isReviewable ? (
+                  <TableCell
+                    className={
+                      isRowReadOnly
+                        ? "bg-muted/40 text-center text-muted-foreground"
+                        : "text-center"
+                    }
+                  >
+                    {isReviewable && !isRowReadOnly ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
                         status={status}
@@ -213,7 +243,12 @@ export function InvoiceList({
                       <div className="space-y-4 py-2">
                         <div className="rounded-lg bg-card p-4">
                           <div className="grid gap-4 md:grid-cols-3">
-                            <div className="md:pr-3 md:border-r">
+                            <div
+                              className={
+                                isRowReadOnly
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }>
                             <p className="text-sm font-semibold text-foreground">
                               Invoice details
                             </p>
@@ -251,7 +286,12 @@ export function InvoiceList({
                             </div>
                             </div>
 
-                            <div className="md:px-3 md:border-r">
+                            <div
+                              className={
+                                isRowReadOnly
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }>
                               <p className="text-sm font-semibold text-foreground">
                                 Requested by Issuer
                               </p>
@@ -271,7 +311,13 @@ export function InvoiceList({
                               </div>
                             </div>
 
-                            <div className="md:pl-3 space-y-3">
+                            <div
+                              className={
+                                isRowReadOnly
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }
+                            >
                               <p className="text-sm font-semibold text-foreground">
                                 Offered by CashSouk
                               </p>
@@ -299,7 +345,7 @@ export function InvoiceList({
                                           step={1}
                                           value={[offered.ratio]}
                                           onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                          disabled={!isReviewable}
+                                          disabled={!isReviewable || isRowReadOnly}
                                           className="flex-1 max-w-[140px]
                                             [&_[data-orientation=horizontal]]:h-1.5
                                             [&_[data-orientation=horizontal]>span]:bg-primary
@@ -321,7 +367,7 @@ export function InvoiceList({
                                       <Select
                                         value={String(offered.profitRate)}
                                         onValueChange={(v) => setOffered(inv.id, { profitRate: parseInt(v, 10) })}
-                                        disabled={!isReviewable}
+                                        disabled={!isReviewable || isRowReadOnly}
                                       >
                                         <SelectTrigger className="h-8 w-full max-w-[100px]">
                                           <SelectValue />
