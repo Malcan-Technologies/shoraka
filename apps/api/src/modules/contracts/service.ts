@@ -2,7 +2,8 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { Contract, Prisma } from "@prisma/client";
+import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
   generateContractDocumentKeyWithVersion,
@@ -125,7 +126,7 @@ export class ContractService {
           where: { application_id: applicationId, action_type: "REQUEST_AMENDMENT" } as any,
         });
         const { parseScopeKey } = require("@cashsouk/types");
-        const hasContractRemark = remarks.some((r) => {
+        const hasContractRemark = remarks.some((r: ApplicationReviewRemark) => {
           try {
             const p = parseScopeKey(r.scope_key);
             return (p.kind === "TAB" && p.tab === "contract_details") || (p.kind === "FIELD" && p.tab === "contract_details");
