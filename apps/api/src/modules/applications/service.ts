@@ -6,6 +6,7 @@ import {
   CreateApplicationInput,
   UpdateApplicationStepInput,
   businessDetailsDataSchema,
+  financialStatementsInputSchema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
@@ -44,6 +45,7 @@ export class ApplicationService {
       "company_details_1": "company_details",
       "verify_company_info_1": "company_details",
       "business_details_1": "business_details",
+      "financial_statements_1": "financial_statements",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
@@ -59,6 +61,7 @@ export class ApplicationService {
       company_details: "company_details",
       verify_company_info: "company_details",
       business_details: "business_details",
+      financial_statements: "financial_statements",
       supporting_documents: "supporting_documents",
       declarations: "declarations",
       review_and_submit: "review_and_submit",
@@ -394,6 +397,7 @@ export class ApplicationService {
             financing_structure: appFullCurrent.financing_structure,
             company_details: appFullCurrent.company_details,
             business_details: appFullCurrent.business_details,
+            financial_statements: appFullCurrent.financial_statements,
             supporting_documents: appFullCurrent.supporting_documents,
             declarations: appFullCurrent.declarations,
             review_and_submit: appFullCurrent.review_and_submit,
@@ -495,8 +499,66 @@ export class ApplicationService {
       }
     }
 
+    let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
+
+    if (fieldName === "financial_statements") {
+      const result = financialStatementsInputSchema.safeParse(input.data);
+      if (!result.success) {
+        const message = result.error.errors.map((e) => e.message).join("; ");
+        throw new AppError(400, "VALIDATION_ERROR", message);
+      }
+      const raw = result.data;
+      const toNum = (v: unknown) => {
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        const n = Number(String(v).replace(/,/g, ""));
+        return Number.isNaN(n) ? 0 : n;
+      };
+      const fa = toNum(raw.fixed_assets);
+      const oa = toNum(raw.other_assets);
+      const ca = toNum(raw.current_assets);
+      const nca = toNum(raw.non_current_assets);
+      const cl = toNum(raw.current_liability);
+      const ltl = toNum(raw.long_term_liability);
+      const ncl = toNum(raw.non_current_liability);
+      const paidUp = toNum(raw.paid_up);
+      const turnover = toNum(raw.turnover);
+      const pat = toNum(raw.profit_after_tax);
+
+      const inputNormalized = {
+        financing_year_end: String(raw.financing_year_end ?? ""),
+        balance_sheet_financial_year: String(raw.balance_sheet_financial_year ?? ""),
+        fixed_assets: fa,
+        other_assets: oa,
+        current_assets: ca,
+        non_current_assets: nca,
+        current_liability: cl,
+        long_term_liability: ltl,
+        non_current_liability: ncl,
+        paid_up: paidUp,
+        turnover,
+        profit_before_tax: toNum(raw.profit_before_tax),
+        profit_after_tax: pat,
+        minority_interest: toNum(raw.minority_interest),
+        net_dividend: toNum(raw.net_dividend),
+        profit_and_loss_year: toNum(raw.profit_and_loss_year),
+      };
+
+      dataToStore = {
+        input: inputNormalized,
+        computed: {
+          total_assets: fa + oa + ca + nca,
+          total_liability: cl + ltl + ncl,
+          turnover_growth: null,
+          profit_margin: turnover !== 0 ? pat / turnover : null,
+          return_of_equity: paidUp !== 0 ? pat / paidUp : null,
+          current_ratio: cl !== 0 ? ca / cl : null,
+          working_capital: ca - cl,
+        },
+      };
+    }
+
     const updateData: Prisma.ApplicationUpdateInput = {
-      [fieldName]: input.data as Prisma.InputJsonValue,
+      [fieldName]: dataToStore,
       updated_at: new Date(),
     };
 
@@ -731,6 +793,7 @@ export class ApplicationService {
             financing_structure: appFull.financing_structure,
             company_details: appFull.company_details,
             business_details: appFull.business_details,
+            financial_statements: appFull.financial_statements,
             supporting_documents: appFull.supporting_documents,
             declarations: appFull.declarations,
             review_and_submit: appFull.review_and_submit,
@@ -779,6 +842,7 @@ export class ApplicationService {
             "financing_structure",
             "company_details",
             "business_details",
+            "financial_statements",
             "supporting_documents",
             "declarations",
             "review_and_submit",

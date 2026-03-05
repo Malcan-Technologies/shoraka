@@ -56,6 +56,28 @@ export const businessDetailsDataSchema = z.object({
   declaration_confirmed: z.boolean(),
 });
 
+/** Validates only INPUT fields for financial_statements step. Computed fields are derived by backend. */
+export const financialStatementsInputSchema = z.object({
+  financing_year_end: z.string().optional().default(""),
+  balance_sheet_financial_year: z.string().optional().default(""),
+  fixed_assets: z.union([z.string(), z.number()]).optional().default(0),
+  other_assets: z.union([z.string(), z.number()]).optional().default(0),
+  current_assets: z.union([z.string(), z.number()]).optional().default(0),
+  non_current_assets: z.union([z.string(), z.number()]).optional().default(0),
+  current_liability: z.union([z.string(), z.number()]).optional().default(0),
+  long_term_liability: z.union([z.string(), z.number()]).optional().default(0),
+  non_current_liability: z.union([z.string(), z.number()]).optional().default(0),
+  paid_up: z.union([z.string(), z.number()]).optional().default(0),
+  turnover: z.union([z.string(), z.number()]).optional().default(0),
+  profit_before_tax: z.union([z.string(), z.number()]).optional().default(0),
+  profit_after_tax: z.union([z.string(), z.number()]).optional().default(0),
+  minority_interest: z.union([z.string(), z.number()]).optional().default(0),
+  net_dividend: z.union([z.string(), z.number()]).optional().default(0),
+  profit_and_loss_year: z.union([z.string(), z.number()]).optional().default(0),
+});
+
+export type FinancialStatementsInput = z.infer<typeof financialStatementsInputSchema>;
+
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;
 export type BusinessDetailsData = z.infer<typeof businessDetailsDataSchema>;
