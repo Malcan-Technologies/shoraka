@@ -2243,7 +2243,17 @@ export class AdminRepository {
         contract: true,
         application_reviews: true,
         application_review_items: true,
-        application_review_remarks: { orderBy: { created_at: "desc" } },
+        application_review_remarks: {
+          orderBy: { created_at: "desc" },
+          include: {
+            author: {
+              select: {
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
       },
     });
   }

@@ -4382,6 +4382,29 @@ export class AdminService {
     return repository.getApplicationById(applicationId);
   }
 
+  async addSectionComment(
+    applicationId: string,
+    section: ReviewSection,
+    comment: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const commentId = `${Date.now()}-${reviewerUserId}`;
+    await repository.createReviewRemark(
+      applicationId,
+      "comment",
+      `${section}:${commentId}`,
+      "COMMENT",
+      comment.trim(),
+      reviewerUserId
+    );
+
+    logger.info({ applicationId, section, reviewerUserId }, "Section comment added");
+    return repository.getApplicationById(applicationId);
+  }
+
   /**
    * Approve a review item (invoice or document)
    */

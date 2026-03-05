@@ -18,6 +18,7 @@ import {
   useResetItemReviewToPending,
   useApproveReviewItem,
   useRejectReviewItem,
+  useAddSectionComment,
   useAddPendingAmendment,
   useListPendingAmendments,
   useRemovePendingAmendment,
@@ -120,6 +121,7 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
+  const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
@@ -179,7 +181,7 @@ export default function DynamicApplicationDetailPage() {
     for (const review of reviewSectionStatuses) {
       reviewSectionStatusMap.set(review.section, review.status);
     }
-    const orderedSections = tabDescriptors.map((d) => d.reviewSection);
+    const orderedSections: string[] = tabDescriptors.map((d) => d.reviewSection);
     for (const review of reviewSectionStatuses) {
       if (!orderedSections.includes(review.section)) {
         orderedSections.push(review.section);
@@ -679,6 +681,14 @@ export default function DynamicApplicationDetailPage() {
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Failed to reset item");
                           }
+                        }}
+                        onAddSectionComment={async (section, comment) => {
+                          await addSectionComment.mutateAsync({
+                            applicationId,
+                            section,
+                            comment,
+                          });
+                          toast.success("Comment posted");
                         }}
                         invoiceRatioLimits={invoiceRatioLimits}
                       />

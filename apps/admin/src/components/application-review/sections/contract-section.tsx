@@ -6,6 +6,7 @@ import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24
 import { formatCurrency } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
   reviewValueClass,
@@ -38,6 +39,8 @@ export interface ContractSectionProps {
   onRequestAmendment: (section: ReviewSectionId) => void;
   onViewDocument?: (s3Key: string) => void;
   viewDocumentPending?: boolean;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 export function ContractSection({
@@ -55,6 +58,8 @@ export function ContractSection({
   onRequestAmendment,
   onViewDocument,
   viewDocumentPending,
+  comments,
+  onAddComment,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const cust = customerDetails as Record<string, unknown> | null | undefined;
@@ -207,10 +212,7 @@ export function ContractSection({
       ) : (
         <p className="text-sm text-muted-foreground">No contract details submitted.</p>
       )}
-      <div>
-        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-      </div>
+      <SectionComments comments={comments} onSubmitComment={onAddComment} />
     </ReviewSectionCard>
   );
 }

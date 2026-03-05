@@ -290,7 +290,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ClipboardDocumentCheckIcon className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-base font-semibold">Application Activity</CardTitle>
+            <CardTitle className="text-base font-semibold">Activity Timeline</CardTitle>
           </div>
           {totalCount > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">

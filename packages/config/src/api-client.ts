@@ -394,6 +394,17 @@ export class ApiClient {
     );
   }
 
+  async addSectionComment(
+    applicationId: string,
+    section: string,
+    comment: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/comments`,
+      { comment }
+    );
+  }
+
   async resetSectionReviewToPending(
     applicationId: string,
     section: string

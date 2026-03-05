@@ -7,6 +7,7 @@ import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ReviewValue } from "../review-value";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
   reviewValueClass,
@@ -27,6 +28,8 @@ export interface BusinessSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 const DECLARATION_TEXT =
@@ -113,6 +116,8 @@ export function BusinessSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  comments,
+  onAddComment,
 }: BusinessSectionProps) {
   const view = parseBusinessDetails(businessDetails);
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
@@ -227,10 +232,7 @@ export function BusinessSection({
       ) : (
         <p className="text-sm text-muted-foreground">No business details submitted.</p>
       )}
-      <div>
-        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-      </div>
+      <SectionComments comments={comments} onSubmitComment={onAddComment} />
     </ReviewSectionCard>
   );
 }

@@ -9,6 +9,16 @@ import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
 
+export interface SectionCommentRecord {
+  id: string;
+  scope: string;
+  scope_key: string;
+  remark: string;
+  created_at: string;
+  author_user_id?: string;
+  author?: { first_name?: string | null; last_name?: string | null } | null;
+}
+
 export interface PendingAmendmentItem {
   id: string;
   scope: string;
@@ -30,6 +40,7 @@ export interface SectionContentProps {
     contract?: { contract_details?: unknown; customer_details?: unknown } | null;
     invoices?: { id: string; details?: unknown }[];
     application_review_items?: unknown;
+    application_review_remarks?: unknown;
     issuer_organization?: {
       name?: string | null;
       corporate_entities?: unknown;
@@ -61,6 +72,7 @@ export interface SectionContentProps {
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
   onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
+  onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
   /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
   invoiceRatioLimits?: { min: number; max: number };
 }
@@ -85,12 +97,20 @@ export function SectionContent({
   onRejectItem,
   onRequestAmendmentItem,
   onResetItemToPending,
+  onAddSectionComment,
   invoiceRatioLimits,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
+  const reviewComments = (app.application_review_remarks as SectionCommentRecord[] | undefined) ?? [];
 
   const section = descriptor.reviewSection;
+  const sectionComments = reviewComments
+    .filter((entry) => entry.scope === "comment" && entry.scope_key?.startsWith(`${section}:`))
+    .map((entry) => ({
+      ...entry,
+      comment: entry.remark,
+    }));
 
   switch (descriptor.kind) {
     case "financial":
@@ -107,6 +127,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "business_details":
@@ -123,6 +145,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "company_details":
@@ -139,6 +163,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "supporting_documents":
@@ -162,6 +188,8 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "contract_details":
@@ -181,6 +209,8 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "invoice_details":
@@ -205,6 +235,8 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "invoice") : undefined}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     default:

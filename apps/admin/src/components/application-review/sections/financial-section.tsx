@@ -1,11 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { ApplicationFinancialReviewContent } from "@/components/application-financial-review-content";
 import { SectionActionDropdown } from "../section-action-dropdown";
 import type { ReviewSectionId } from "../section-types";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 
 export interface FinancialSectionProps {
   app: {
@@ -25,6 +25,8 @@ export interface FinancialSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 export function FinancialSection({
@@ -39,6 +41,8 @@ export function FinancialSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  comments,
+  onAddComment,
 }: FinancialSectionProps) {
   return (
     <Card className="rounded-2xl">
@@ -64,10 +68,7 @@ export function FinancialSection({
       </CardHeader>
       <CardContent className="space-y-6">
         <ApplicationFinancialReviewContent app={app} />
-        <div>
-          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-        </div>
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
       </CardContent>
     </Card>
   );

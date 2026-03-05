@@ -269,6 +269,9 @@ export const reviewSectionRejectSchema = z.object({
 export const reviewSectionRequestAmendmentSchema = z.object({
   remark: z.string().min(1, "Remark is required for amendment request"),
 });
+export const sectionCommentSchema = z.object({
+  comment: z.string().min(1, "Comment is required"),
+});
 
 export const reviewItemActionSchema = z.object({
   itemType: z.enum(["invoice", "document"]),

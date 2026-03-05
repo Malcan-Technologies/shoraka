@@ -113,6 +113,34 @@ export function useRequestAmendmentReviewSection() {
   });
 }
 
+export function useAddSectionComment() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      section,
+      comment,
+    }: {
+      applicationId: string;
+      section: string;
+      comment: string;
+    }) => {
+      const response = await apiClient.addSectionComment(applicationId, section, comment);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to add section comment");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+    },
+  });
+}
+
 export function useResetSectionReviewToPending() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();

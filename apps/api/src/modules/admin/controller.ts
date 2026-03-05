@@ -30,6 +30,7 @@ import {
   reviewSectionApproveSchema,
   reviewSectionRejectSchema,
   reviewSectionRequestAmendmentSchema,
+  sectionCommentSchema,
   reviewItemActionSchema,
   reviewItemApproveSchema,
   reviewItemRejectSchema,
@@ -2010,6 +2011,31 @@ router.post(
         data: result,
         correlationId: res.locals.correlationId,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/reviews/sections/:section/comments",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, section } = req.params;
+      const validatedSection = reviewSectionSchema.parse(section);
+      const validated = sectionCommentSchema.parse(req.body);
+      const reviewerUserId = req.user?.user_id;
+      if (!reviewerUserId) {
+        throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      }
+      const result = await adminService.addSectionComment(
+        id,
+        validatedSection,
+        validated.comment,
+        reviewerUserId
+      );
+      res.json({ success: true, data: result, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
     }
