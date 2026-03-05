@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { FunnelIcon } from "@heroicons/react/24/outline";
 import { FileText, MoreVertical } from "lucide-react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useContract } from "@/hooks/use-contracts";
 import { useInvoicesByContract } from "@/hooks/use-invoices";
 import { FilterButton } from "@/components/dashboard/financing-section";
@@ -16,11 +15,10 @@ import { FilterButton } from "@/components/dashboard/financing-section";
 ============================================================ */
 
 export default function ContractDetailsPage() {
-  const router = useRouter();
   const params = useParams();
   const contractId = params.id as string;
 
-  const { data: contract, isLoading: isLoadingContract } = useContract(contractId);
+  const { data: contract } = useContract(contractId);
   const { data: invoices = [] } = useInvoicesByContract(contractId);
 
   const contractDetails: any = (contract as any)?.contract_details ?? {};

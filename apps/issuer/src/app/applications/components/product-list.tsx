@@ -86,7 +86,7 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect, 
       title={name}
       description={description}
       isSelected={isSelected}
-      onClick={disabled ? undefined : () => onSelect(id)}
+      onClick={disabled ? () => {} : () => onSelect(id)}
       disabled={disabled}
       leading={<ProductImagePreview s3Key={imageS3Key} alt={name} />}
       className="space-y-0"

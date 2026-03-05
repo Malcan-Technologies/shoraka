@@ -528,7 +528,6 @@ export function BusinessDetailsStep({
             className={textareaClassName}
             countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
             disabled={readOnly}
-            className={textareaClassName}
           />
 
           <Label htmlFor="main-customers" className={labelClassName}>
