@@ -31,7 +31,7 @@ import {
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 interface InvoiceReviewListProps {
-  invoices: { id: string; details?: unknown }[];
+  invoices: { id: string; details?: unknown; status?: string }[];
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument: (s3Key: string) => void;
@@ -66,9 +66,13 @@ function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
 }
 
 function getItemStatus(
+  inv: { status?: string },
   reviewItems: { item_type: string; item_id: string; status: string }[],
   scopeKey: string
 ): string {
+  if (inv.status === "APPROVED" || inv.status === "REJECTED") {
+    return inv.status;
+  }
   return reviewItems.find((r) => r.item_id === scopeKey)?.status ?? "PENDING";
 }
 
@@ -145,7 +149,7 @@ export function InvoiceList({
             const details = inv.details as InvoiceDetails | undefined;
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
-            const status = getItemStatus(reviewItems, scopeKey);
+            const status = getItemStatus(inv, reviewItems, scopeKey);
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);

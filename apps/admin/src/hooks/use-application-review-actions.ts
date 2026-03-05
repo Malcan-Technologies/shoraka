@@ -201,7 +201,7 @@ export function useApproveReviewItem() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
@@ -209,6 +209,9 @@ export function useApproveReviewItem() {
       });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["admin", "applications", variables.applicationId],
       });
     },
   });
@@ -237,7 +240,7 @@ export function useRejectReviewItem() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
@@ -245,6 +248,9 @@ export function useRejectReviewItem() {
       });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["admin", "applications", variables.applicationId],
       });
     },
   });

@@ -83,6 +83,48 @@ export class AdminService {
   }
 
   /**
+   * Recompute and update contract facility values (approved_facility, utilized_facility, available_facility).
+   * Used when contract is approved or when an invoice is approved/rejected.
+   */
+  private async refreshContractFacilityValues(contractId: string): Promise<void> {
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { invoices: true },
+    });
+    if (!contract) return;
+    const cd = contract.contract_details as Record<string, unknown> | null;
+    const financing = typeof cd?.financing === "number" ? cd.financing : 0;
+    const approvedFacility = financing;
+    const utilizedFacility = contract.invoices
+      .filter((inv) => inv.status === "APPROVED")
+      .reduce((sum, inv) => {
+        const d = inv.details as { value?: number; financing_ratio_percent?: number } | null;
+        const value = typeof d?.value === "number" ? d.value : 0;
+        const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
+        return sum + value * (ratio / 100);
+      }, 0);
+    const submittedAmount = contract.invoices
+      .filter((inv) => inv.status === "SUBMITTED")
+      .reduce((sum, inv) => {
+        const d = inv.details as { value?: number; financing_ratio_percent?: number } | null;
+        const value = typeof d?.value === "number" ? d.value : 0;
+        const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
+        return sum + value * (ratio / 100);
+      }, 0);
+    const availableFacility = approvedFacility - utilizedFacility - submittedAmount;
+    const mergedDetails = {
+      ...(cd && typeof cd === "object" ? cd : {}),
+      approved_facility: approvedFacility,
+      utilized_facility: utilizedFacility,
+      available_facility: availableFacility,
+    };
+    await prisma.contract.update({
+      where: { id: contractId },
+      data: { contract_details: mergedDetails },
+    });
+  }
+
+  /**
    * Derive required review sections from the product workflow referenced by the application.
    * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
    */
@@ -3923,6 +3965,28 @@ export class AdminService {
   }
 
   /**
+   * Resolve scope_key (e.g. invoice_details:0:INV-001) to the actual invoice database id.
+   * Returns null if invalid.
+   */
+  private resolveInvoiceIdFromScopeKey(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    itemId: string
+  ): string | null {
+    if (!itemId.startsWith("invoice_details:")) return null;
+    const parts = itemId.split(":");
+    if (parts.length < 3) return null;
+    const idx = parseInt(parts[1], 10);
+    if (!Number.isFinite(idx) || idx < 0) return null;
+    const invoices = application.invoices ?? [];
+    if (idx >= invoices.length) return null;
+    const inv = invoices[idx];
+    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const keyNum = parts.slice(2).join(":").replace(/:/g, "_");
+    if (expectedNum !== keyNum) return null;
+    return inv?.id ?? null;
+  }
+
+  /**
    * Validate that an invoice item exists in the application.
    * Expects format invoice_details:<index>:<invoice_number>
    */
@@ -3930,25 +3994,7 @@ export class AdminService {
     application: { invoices?: { id: string; details?: { number?: string | number } }[] },
     itemId: string
   ): void {
-    if (!itemId.startsWith("invoice_details:")) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
-    }
-    const parts = itemId.split(":");
-    if (parts.length < 3) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
-    }
-    const idx = parseInt(parts[1], 10);
-    if (!Number.isFinite(idx) || idx < 0) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice index: ${itemId}`);
-    }
-    const invoices = application.invoices ?? [];
-    if (idx >= invoices.length) {
-      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
-    }
-    const inv = invoices[idx];
-    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
-    const keyNum = parts.slice(2).join(":");
-    if (expectedNum !== keyNum) {
+    if (!this.resolveInvoiceIdFromScopeKey(application, itemId)) {
       throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
     }
   }
@@ -4169,6 +4215,7 @@ export class AdminService {
         where: { id: application.contract_id },
         data: { status: "APPROVED" },
       });
+      await this.refreshContractFacilityValues(application.contract_id);
     }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
@@ -4214,9 +4261,19 @@ export class AdminService {
 
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: application.contract_id },
+      });
+      const cd = contract?.contract_details as Record<string, unknown> | null;
+      const mergedDetails = {
+        ...(cd && typeof cd === "object" ? cd : {}),
+        approved_facility: 0,
+        utilized_facility: 0,
+        available_facility: 0,
+      };
       await prisma.contract.update({
         where: { id: application.contract_id },
-        data: { status: "SUBMITTED" },
+        data: { status: "SUBMITTED", contract_details: mergedDetails },
       });
     }
     await this.logReviewActivity(
@@ -4254,6 +4311,21 @@ export class AdminService {
     const oldStatus = existing?.status ?? "PENDING";
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "SUBMITTED" },
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
     await this.logReviewActivity(
       applicationId,
       "item",
@@ -4454,6 +4526,22 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "APPROVED" },
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -4502,6 +4590,22 @@ export class AdminService {
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "REJECTED" },
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
 
     return repository.getApplicationById(applicationId);
   }

@@ -117,6 +117,18 @@ export function ContractSection({
                     <div className={reviewValueClass}>
                       {formatCurrency(cd.approved_facility as number)}
                     </div>
+                    <Label className={reviewLabelClass}>Utilized facility</Label>
+                    <div className={reviewValueClass}>
+                      {formatCurrency(
+                        typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0
+                      )}
+                    </div>
+                    <Label className={reviewLabelClass}>Available facility</Label>
+                    <div className={reviewValueClass}>
+                      {formatCurrency(
+                        typeof cd.available_facility === "number" ? cd.available_facility : 0
+                      )}
+                    </div>
                   </>
                 )}
               </div>
