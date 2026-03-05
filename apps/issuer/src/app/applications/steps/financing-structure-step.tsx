@@ -238,7 +238,7 @@ export function FinancingStructureStep({
           title="Submit a new contract"
           description="My invoice is under a contract that hasn't been approved by Cashsouk"
           isSelected={selectedStructure === "new_contract"}
-          onClick={readOnly ? undefined : () => handleStructureSelect("new_contract")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
           disabled={readOnly}
         />
 
@@ -247,7 +247,7 @@ export function FinancingStructureStep({
           title="Use an existing contract"
           description="My invoice is under a contract already approved by Cashsouk"
           isSelected={selectedStructure === "existing_contract"}
-          onClick={readOnly ? undefined : () => handleStructureSelect("existing_contract")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
           disabled={readOnly}
           trailing={
             hasApprovedContracts ? (
@@ -289,7 +289,7 @@ export function FinancingStructureStep({
           title="Invoice-only financing"
           description="I want to finance my invoice(s) without a contract"
           isSelected={selectedStructure === "invoice_only"}
-          onClick={readOnly ? undefined : () => handleStructureSelect("invoice_only")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
           disabled={readOnly}
         />
       </div>

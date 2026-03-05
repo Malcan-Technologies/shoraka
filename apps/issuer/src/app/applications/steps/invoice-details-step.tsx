@@ -159,9 +159,9 @@ export default function InvoiceDetailsStep({
   applicationId,
   onDataChange,
   readOnly = false,
-  isAmendmentMode = false,
-  flaggedSections,
-  flaggedItems,
+  isAmendmentMode: _isAmendmentMode = false,
+  flaggedSections: _flaggedSections,
+  flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
   // DEBUG: Toggle skeleton mode

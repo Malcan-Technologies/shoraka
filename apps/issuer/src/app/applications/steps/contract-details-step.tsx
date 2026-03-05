@@ -407,7 +407,7 @@ export function ContractDetailsStep({
   isAmendmentMode,
   flaggedSections,
   flaggedItems,
-  remarks,
+  remarks: _remarks,
   readOnly = false,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();

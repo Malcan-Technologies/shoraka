@@ -77,7 +77,7 @@ const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
   onDataChange,
-  readOnly = false,
+  readOnly: _readOnly = false,
 }: ReviewAndSubmitStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
