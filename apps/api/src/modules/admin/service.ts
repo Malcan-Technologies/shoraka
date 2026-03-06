@@ -103,15 +103,7 @@ export class AdminService {
         const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
         return sum + value * (ratio / 100);
       }, 0);
-    const submittedAmount = contract.invoices
-      .filter((inv) => inv.status === "SUBMITTED")
-      .reduce((sum, inv) => {
-        const d = inv.details as { value?: number; financing_ratio_percent?: number } | null;
-        const value = typeof d?.value === "number" ? d.value : 0;
-        const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
-        return sum + value * (ratio / 100);
-      }, 0);
-    const availableFacility = approvedFacility - utilizedFacility - submittedAmount;
+    const availableFacility = approvedFacility - utilizedFacility;
     const mergedDetails = {
       ...(cd && typeof cd === "object" ? cd : {}),
       approved_facility: approvedFacility,
