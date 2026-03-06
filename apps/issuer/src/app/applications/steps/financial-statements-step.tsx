@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * Imports
+ * FINANCIAL STATEMENTS STEP
  *
- * What: Financial statements step UI. Flat storage; only input fields shown.
- * Why: Issuers enter raw data; computed metrics calculated on-demand in admin/analytics.
- * Data: Loads from application.financial_statements (flat); sends flat payload to API.
+ * Form for financial statement data. Only input fields; no computed metrics in issuer UI.
+ * Backend stores flat JSON; computed metrics calculated on-demand via shared utility.
+ *
+ * Data Flow:
+ * 1. Load saved data from application.financial_statements
+ * 2. User edits; on change pass payload + hasPendingChanges to parent
+ * 3. Parent saves to DB when user clicks "Save and Continue"
  */
+
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateInput } from "@/app/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
@@ -24,73 +28,51 @@ import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleto
 import { FinancialStatementsSkeleton } from "@/app/applications/components/financial-statements-skeleton";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 
-/**
- * FINANCIAL STATEMENTS STEP
- *
- * Form for financial statement data. Only input fields; no computed metrics in issuer UI.
- * Backend stores flat JSON; computed metrics calculated on-demand via shared utility.
- */
+/* ================================================================
+   TYPES & CONSTANTS
+   ================================================================ */
 
-const INPUT_KEYS = [
-  "pldd",
-  "bsdd",
-  "bsfatot",
-  "othass",
-  "bscatot",
-  "bsclbank",
-  "curlib",
-  "bsslltd",
-  "bsclstd",
-  "bsqpuc",
-  "turnover",
-  "plnpbt",
-  "plnpat",
-  "plminin",
-  "plnetdiv",
-  "plyear",
-] as const;
-
-type FinancialStatementsInputKey = (typeof INPUT_KEYS)[number];
-
-interface FinancialStatementsInput {
+/** API/DB shape: flat canonical keys */
+interface FinancialStatementsPayload {
   pldd: string;
   bsdd: string;
-  bsfatot: number;
-  othass: number;
-  bscatot: number;
-  bsclbank: number;
-  curlib: number;
-  bsslltd: number;
-  bsclstd: number;
-  bsqpuc: number;
-  turnover: number;
-  plnpbt: number;
-  plnpat: number;
-  plminin: number;
-  plnetdiv: number;
+  bsfatot: string;
+  othass: string;
+  bscatot: string;
+  bsclbank: string;
+  curlib: string;
+  bsslltd: string;
+  bsclstd: string;
+  bsqpuc: string;
+  turnover: string;
+  plnpbt: string;
+  plnpat: string;
+  plminin: string;
+  plnetdiv: string;
   plyear: number;
 }
 
-const defaultInput: FinancialStatementsInput = {
+const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   pldd: "",
   bsdd: "",
-  bsfatot: 0,
-  othass: 0,
-  bscatot: 0,
-  bsclbank: 0,
-  curlib: 0,
-  bsslltd: 0,
-  bsclstd: 0,
-  bsqpuc: 0,
-  turnover: 0,
-  plnpbt: 0,
-  plnpat: 0,
-  plminin: 0,
-  plnetdiv: 0,
+  bsfatot: "",
+  othass: "",
+  bscatot: "",
+  bsclbank: "",
+  curlib: "",
+  bsslltd: "",
+  bsclstd: "",
+  bsqpuc: "",
+  turnover: "",
+  plnpbt: "",
+  plnpat: "",
+  plminin: "",
+  plnetdiv: "",
   plyear: 0,
 };
 
-const OLD_TO_NEW: Record<string, FinancialStatementsInputKey> = {
+/** Legacy key mapping for backward compatibility */
+const LEGACY_KEY_MAP: Record<string, keyof FinancialStatementsPayload> = {
   financing_year_end: "pldd",
   balance_sheet_financial_year: "bsdd",
   fixed_assets: "bsfatot",
@@ -108,54 +90,65 @@ const OLD_TO_NEW: Record<string, FinancialStatementsInputKey> = {
   profit_and_loss_year: "plyear",
 };
 
+/* ================================================================
+   HELPERS
+   ================================================================ */
+
 function toNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
 }
 
-function fromSaved(saved: unknown): FinancialStatementsInput {
+function fromSaved(saved: unknown): FinancialStatementsPayload {
   const raw = saved as { input?: Record<string, unknown> } | Record<string, unknown> | null | undefined;
   const data = (raw && typeof raw === "object" && "input" in raw ? raw.input : raw) as Record<string, unknown> | null | undefined;
-  if (!data || typeof data !== "object") return { ...defaultInput };
+  if (!data || typeof data !== "object") return { ...DEFAULT_PAYLOAD };
 
-  const out = { ...defaultInput };
-  for (const newKey of INPUT_KEYS) {
-    const val = data[newKey];
-    if (val !== undefined && val !== null) {
-      if (newKey === "pldd" || newKey === "bsdd") {
-        (out as Record<string, unknown>)[newKey] = String(val);
-      } else {
-        (out as Record<string, unknown>)[newKey] = toNum(val);
-      }
+  const out = { ...DEFAULT_PAYLOAD };
+
+  const setVal = (key: keyof FinancialStatementsPayload, val: unknown) => {
+    if (val === undefined || val === null) return;
+    if (key === "pldd" || key === "bsdd") {
+      (out as unknown as Record<string, unknown>)[key] = String(val);
+    } else if (key === "plyear") {
+      (out as unknown as Record<string, unknown>)[key] = toNum(val);
+    } else {
+      const n = toNum(val);
+      (out as unknown as Record<string, unknown>)[key] = n === 0 ? "" : formatMoney(n);
+    }
+  };
+
+  for (const key of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
+    setVal(key, data[key]);
+  }
+  for (const [legacyKey, canonicalKey] of Object.entries(LEGACY_KEY_MAP)) {
+    if (out[canonicalKey] === DEFAULT_PAYLOAD[canonicalKey]) {
+      setVal(canonicalKey, data[legacyKey]);
     }
   }
-  for (const [oldKey, newKey] of Object.entries(OLD_TO_NEW)) {
-    const val = data[oldKey];
-    if (val !== undefined && val !== null && out[newKey] === defaultInput[newKey]) {
-      if (newKey === "pldd" || newKey === "bsdd") {
-        (out as Record<string, unknown>)[newKey] = String(val);
-      } else {
-        (out as Record<string, unknown>)[newKey] = toNum(val);
-      }
-    }
-  }
+
   return out;
 }
 
-function toApiPayload(input: FinancialStatementsInput): Record<string, unknown> {
+function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of INPUT_KEYS) {
-    out[k] = input[k];
+  for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
+    if (k === "pldd" || k === "bsdd") {
+      out[k] = form[k];
+    } else if (k === "plyear") {
+      out[k] = form.plyear;
+    } else {
+      const val = (form as unknown as Record<string, unknown>)[k];
+      out[k] = parseMoney(String(val ?? ""));
+    }
   }
   return out;
 }
 
-interface FinancialStatementsStepProps {
-  applicationId: string;
-  onDataChange?: (data: Record<string, unknown>) => void;
-  readOnly?: boolean;
-}
+/* ================================================================
+   LAYOUT & STYLING
+   ================================================================ */
 
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const labelClassName = cn(formLabelClassName, "font-normal");
@@ -165,6 +158,157 @@ const rowGridClassName =
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
+const radioSelectedLabel = formLabelClassName;
+const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
+
+/* ================================================================
+   CUSTOM RADIO
+   ================================================================ */
+
+function CustomRadio({
+  name,
+  value,
+  checked,
+  onChange,
+  label,
+  selectedLabelClass,
+  unselectedLabelClass,
+  disabled,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  selectedLabelClass: string;
+  unselectedLabelClass: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
+      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="sr-only"
+          aria-hidden
+        />
+        <span
+          className={cn(
+            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
+            checked
+              ? disabled
+                ? "bg-muted border-2 border-muted-foreground/50"
+                : "bg-primary"
+              : "border-2 border-muted-foreground/50 bg-muted/30"
+          )}
+          aria-hidden
+        >
+          {checked && (
+            <span
+              className={cn(
+                "absolute inset-1 rounded-full",
+                disabled ? "bg-muted-foreground/60" : "bg-white"
+              )}
+              aria-hidden
+            />
+          )}
+          {!checked && (
+            <span
+              className="absolute inset-1.5 rounded-full bg-muted-foreground/40"
+              aria-hidden
+            />
+          )}
+        </span>
+      </span>
+      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
+    </label>
+  );
+}
+
+function ProfitLossRadioGroup({
+  value,
+  onValueChange,
+  disabled,
+}: {
+  value: "profit" | "loss" | "";
+  onValueChange: (v: "profit" | "loss") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex gap-6 items-center">
+      <CustomRadio
+        name="plyear-type"
+        value="profit"
+        checked={value === "profit"}
+        onChange={() => !disabled && onValueChange("profit")}
+        label="Profit"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
+      />
+      <CustomRadio
+        name="plyear-type"
+        value="loss"
+        checked={value === "loss"}
+        onChange={() => !disabled && onValueChange("loss")}
+        label="Loss"
+        selectedLabelClass={radioSelectedLabel}
+        unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+/* ================================================================
+   MONEY FIELD ROW
+   ================================================================ */
+
+function MoneyFieldRow({
+  id,
+  label,
+  value,
+  onValueChange,
+  readOnly,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <>
+      <Label htmlFor={id} className={labelClassName}>
+        {label}
+      </Label>
+      <MoneyInput
+        value={value}
+        onValueChange={onValueChange}
+        placeholder="0.00"
+        prefix="RM"
+        inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
+        disabled={readOnly}
+      />
+    </>
+  );
+}
+
+/* ================================================================
+   COMPONENT
+   ================================================================ */
+
+interface FinancialStatementsStepProps {
+  applicationId: string;
+  onDataChange?: (data: Record<string, unknown>) => void;
+  readOnly?: boolean;
+}
+
 export function FinancialStatementsStep({
   applicationId,
   onDataChange,
@@ -172,9 +316,9 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  const [input, setInput] = React.useState<FinancialStatementsInput>(defaultInput);
+  const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
   const [profitLossType, setProfitLossType] = React.useState<"profit" | "loss" | "">("");
-  const [profitLossAmount, setProfitLossAmount] = React.useState<number>(0);
+  const [profitLossAmount, setProfitLossAmount] = React.useState<string>("");
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
 
@@ -187,22 +331,46 @@ export function FinancialStatementsStep({
     if (application === undefined || isInitialized) return;
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
     const initial = fromSaved(saved);
-    setInput(initial);
+    setForm(initial);
     if (initial.plyear === 0) {
       setProfitLossType("");
-      setProfitLossAmount(0);
+      setProfitLossAmount("");
     } else if (initial.plyear < 0) {
       setProfitLossType("loss");
-      setProfitLossAmount(Math.abs(initial.plyear));
+      setProfitLossAmount(formatMoney(Math.abs(initial.plyear)));
     } else {
       setProfitLossType("profit");
-      setProfitLossAmount(initial.plyear);
+      setProfitLossAmount(formatMoney(initial.plyear));
     }
     initialPayloadRef.current = JSON.stringify(toApiPayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  const apiPayload = React.useMemo(() => toApiPayload(input), [input]);
+  const handleFieldChange = React.useCallback(
+    (field: keyof FinancialStatementsPayload, value: string) => {
+      setForm((prev) => ({ ...prev, [field]: value }));
+    },
+    []
+  );
+
+  const handlePlyearTypeChange = React.useCallback((type: "profit" | "loss") => {
+    setProfitLossType(type);
+  }, []);
+
+  const handlePlyearAmountChange = React.useCallback((v: string) => {
+    setProfitLossAmount(v);
+  }, []);
+
+  React.useEffect(() => {
+    if (profitLossType === "profit" || profitLossType === "loss") {
+      const amount = parseMoney(profitLossAmount);
+      setForm((prev) => ({ ...prev, plyear: profitLossType === "loss" ? -amount : amount }));
+    } else {
+      setForm((prev) => ({ ...prev, plyear: 0 }));
+    }
+  }, [profitLossType, profitLossAmount]);
+
+  const apiPayload = React.useMemo(() => toApiPayload(form), [form]);
 
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
@@ -218,34 +386,7 @@ export function FinancialStatementsStep({
     });
   }, [apiPayload, hasPendingChanges, isInitialized]);
 
-  const update = (updates: Partial<FinancialStatementsInput>) => {
-    setInput((prev) => ({ ...prev, ...updates }));
-  };
-
-  const moneyValue = (n: number) => (n === 0 ? "" : formatMoney(n));
-  const setMoney = (key: FinancialStatementsInputKey) => (v: string) => {
-    update({ [key]: v === "" ? 0 : parseMoney(v) });
-  };
-
-  const setProfitLossTypeAndUpdate = (type: "profit" | "loss" | "") => {
-    setProfitLossType(type);
-    if (type === "") {
-      update({ plyear: 0 });
-    } else {
-      const amount = profitLossAmount;
-      update({ plyear: type === "loss" ? -amount : amount });
-    }
-  };
-
-  const setProfitLossAmountAndUpdate = (v: string) => {
-    const amount = v === "" ? 0 : parseMoney(v);
-    setProfitLossAmount(amount);
-    if (profitLossType === "profit" || profitLossType === "loss") {
-      update({ plyear: profitLossType === "loss" ? -amount : amount });
-    }
-  };
-
-  const label = (key: FinancialStatementsInputKey) => FINANCIAL_FIELD_LABELS[key] ?? key;
+  const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
   if (isLoadingApp || !isInitialized || debugSkeletonMode) {
     return (
@@ -259,7 +400,7 @@ export function FinancialStatementsStep({
   return (
     <>
       <div className={formOuterClassName}>
-        {/* Financial Year */}
+        {/* ===================== FINANCIAL YEAR ===================== */}
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
             <h3 className={sectionHeaderClassName}>Financial Year</h3>
@@ -267,21 +408,21 @@ export function FinancialStatementsStep({
           </div>
           <div className={rowGridClassName}>
             <Label htmlFor="pldd" className={labelClassName}>
-              {label("pldd")}
+              {getLabel("pldd")}
             </Label>
             <DateInput
-              value={input.pldd}
-              onChange={(v) => update({ pldd: v })}
+              value={form.pldd}
+              onChange={(v) => handleFieldChange("pldd", v)}
               disabled={readOnly}
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
             />
             <Label htmlFor="bsdd" className={labelClassName}>
-              {label("bsdd")}
+              {getLabel("bsdd")}
             </Label>
             <DateInput
-              value={input.bsdd}
-              onChange={(v) => update({ bsdd: v })}
+              value={form.bsdd}
+              onChange={(v) => handleFieldChange("bsdd", v)}
               disabled={readOnly}
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
@@ -289,7 +430,7 @@ export function FinancialStatementsStep({
           </div>
         </section>
 
-        {/* Assets */}
+        {/* ===================== ASSETS ===================== */}
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
             <h3 className={sectionHeaderClassName}>Assets</h3>
@@ -297,24 +438,19 @@ export function FinancialStatementsStep({
           </div>
           <div className={rowGridClassName}>
             {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
-              <React.Fragment key={key}>
-                <Label htmlFor={key} className={labelClassName}>
-                  {label(key)}
-                </Label>
-                <MoneyInput
-                  value={moneyValue(input[key])}
-                  onValueChange={(v) => setMoney(key)(v)}
-                  placeholder="0.00"
-                  prefix="RM"
-                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-                  disabled={readOnly}
-                />
-              </React.Fragment>
+              <MoneyFieldRow
+                key={key}
+                id={key}
+                label={getLabel(key)}
+                value={form[key] ?? ""}
+                onValueChange={(v) => handleFieldChange(key, v)}
+                readOnly={readOnly}
+              />
             ))}
           </div>
         </section>
 
-        {/* Liabilities */}
+        {/* ===================== LIABILITIES ===================== */}
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
             <h3 className={sectionHeaderClassName}>Liabilities</h3>
@@ -322,137 +458,96 @@ export function FinancialStatementsStep({
           </div>
           <div className={rowGridClassName}>
             {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
-              <React.Fragment key={key}>
-                <Label htmlFor={key} className={labelClassName}>
-                  {label(key)}
-                </Label>
-                <MoneyInput
-                  value={moneyValue(input[key])}
-                  onValueChange={(v) => setMoney(key)(v)}
-                  placeholder="0.00"
-                  prefix="RM"
-                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-                  disabled={readOnly}
-                />
-              </React.Fragment>
+              <MoneyFieldRow
+                key={key}
+                id={key}
+                label={getLabel(key)}
+                value={form[key] ?? ""}
+                onValueChange={(v) => handleFieldChange(key, v)}
+                readOnly={readOnly}
+              />
             ))}
           </div>
         </section>
 
-        {/* Equity */}
+        {/* ===================== EQUITY ===================== */}
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
             <h3 className={sectionHeaderClassName}>Equity</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="bsqpuc" className={labelClassName}>
-              {label("bsqpuc")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.bsqpuc)}
-              onValueChange={(v) => setMoney("bsqpuc")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="bsqpuc"
+              label={getLabel("bsqpuc")}
+              value={form.bsqpuc ?? ""}
+              onValueChange={(v) => handleFieldChange("bsqpuc", v)}
+              readOnly={readOnly}
             />
           </div>
         </section>
 
-        {/* Profit and Loss */}
+        {/* ===================== PROFIT AND LOSS ===================== */}
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
             <h3 className={sectionHeaderClassName}>Profit and Loss</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="turnover" className={labelClassName}>
-              {label("turnover")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.turnover)}
-              onValueChange={(v) => setMoney("turnover")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="turnover"
+              label={getLabel("turnover")}
+              value={form.turnover ?? ""}
+              onValueChange={(v) => handleFieldChange("turnover", v)}
+              readOnly={readOnly}
             />
-            <Label htmlFor="plnpbt" className={labelClassName}>
-              {label("plnpbt")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.plnpbt)}
-              onValueChange={(v) => setMoney("plnpbt")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="plnpbt"
+              label={getLabel("plnpbt")}
+              value={form.plnpbt ?? ""}
+              onValueChange={(v) => handleFieldChange("plnpbt", v)}
+              readOnly={readOnly}
             />
-            <Label htmlFor="plnpat" className={labelClassName}>
-              {label("plnpat")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.plnpat)}
-              onValueChange={(v) => setMoney("plnpat")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="plnpat"
+              label={getLabel("plnpat")}
+              value={form.plnpat ?? ""}
+              onValueChange={(v) => handleFieldChange("plnpat", v)}
+              readOnly={readOnly}
             />
-            <Label htmlFor="plminin" className={labelClassName}>
-              {label("plminin")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.plminin)}
-              onValueChange={(v) => setMoney("plminin")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="plminin"
+              label={getLabel("plminin")}
+              value={form.plminin ?? ""}
+              onValueChange={(v) => handleFieldChange("plminin", v)}
+              readOnly={readOnly}
             />
-            <Label htmlFor="plnetdiv" className={labelClassName}>
-              {label("plnetdiv")}
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.plnetdiv)}
-              onValueChange={(v) => setMoney("plnetdiv")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
+            <MoneyFieldRow
+              id="plnetdiv"
+              label={getLabel("plnetdiv")}
+              value={form.plnetdiv ?? ""}
+              onValueChange={(v) => handleFieldChange("plnetdiv", v)}
+              readOnly={readOnly}
             />
             <Label className={labelClassName}>Profit / Loss of the Year</Label>
             <div className="space-y-4">
               <div>
                 <span className="text-sm text-muted-foreground">Type</span>
-                <RadioGroup
-                  value={profitLossType}
-                  onValueChange={(v) => !readOnly && setProfitLossTypeAndUpdate(v as "profit" | "loss")}
-                  className="flex gap-6 mt-2"
-                  disabled={readOnly}
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="profit" id="plyear-profit" />
-                    <Label htmlFor="plyear-profit" className={cn("cursor-pointer font-normal", profitLossType === "profit" ? "text-foreground" : "text-muted-foreground")}>
-                      Profit
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="loss" id="plyear-loss" />
-                    <Label htmlFor="plyear-loss" className={cn("cursor-pointer font-normal", profitLossType === "loss" ? "text-foreground" : "text-muted-foreground")}>
-                      Loss
-                    </Label>
-                  </div>
-                </RadioGroup>
+                <div className="mt-2">
+                  <ProfitLossRadioGroup
+                    value={profitLossType}
+                    onValueChange={handlePlyearTypeChange}
+                    disabled={readOnly}
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="plyear-amount" className={cn(labelClassName, "block mb-2")}>
                   Amount
                 </Label>
                 <MoneyInput
-                  value={moneyValue(profitLossAmount)}
-                  onValueChange={(v) => setProfitLossAmountAndUpdate(v)}
+                  value={profitLossAmount}
+                  onValueChange={handlePlyearAmountChange}
                   placeholder="0.00"
                   prefix="RM"
                   inputClassName={cn(inputClassName, "pl-12", (readOnly || profitLossType === "") && formInputDisabledClassName)}
