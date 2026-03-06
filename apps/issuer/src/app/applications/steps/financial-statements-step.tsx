@@ -173,7 +173,7 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [input, setInput] = React.useState<FinancialStatementsInput>(defaultInput);
-  const [profitLossType, setProfitLossType] = React.useState<"profit" | "loss">("profit");
+  const [profitLossType, setProfitLossType] = React.useState<"profit" | "loss" | "">("");
   const [profitLossAmount, setProfitLossAmount] = React.useState<number>(0);
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
@@ -188,7 +188,10 @@ export function FinancialStatementsStep({
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
     const initial = fromSaved(saved);
     setInput(initial);
-    if (initial.plyear < 0) {
+    if (initial.plyear === 0) {
+      setProfitLossType("");
+      setProfitLossAmount(0);
+    } else if (initial.plyear < 0) {
       setProfitLossType("loss");
       setProfitLossAmount(Math.abs(initial.plyear));
     } else {
@@ -224,16 +227,22 @@ export function FinancialStatementsStep({
     update({ [key]: v === "" ? 0 : parseMoney(v) });
   };
 
-  const setProfitLossTypeAndUpdate = (type: "profit" | "loss") => {
+  const setProfitLossTypeAndUpdate = (type: "profit" | "loss" | "") => {
     setProfitLossType(type);
-    const amount = profitLossAmount;
-    update({ plyear: type === "loss" ? -amount : amount });
+    if (type === "") {
+      update({ plyear: 0 });
+    } else {
+      const amount = profitLossAmount;
+      update({ plyear: type === "loss" ? -amount : amount });
+    }
   };
 
   const setProfitLossAmountAndUpdate = (v: string) => {
     const amount = v === "" ? 0 : parseMoney(v);
     setProfitLossAmount(amount);
-    update({ plyear: profitLossType === "loss" ? -amount : amount });
+    if (profitLossType === "profit" || profitLossType === "loss") {
+      update({ plyear: profitLossType === "loss" ? -amount : amount });
+    }
   };
 
   const label = (key: FinancialStatementsInputKey) => FINANCIAL_FIELD_LABELS[key] ?? key;
@@ -446,8 +455,8 @@ export function FinancialStatementsStep({
                   onValueChange={(v) => setProfitLossAmountAndUpdate(v)}
                   placeholder="0.00"
                   prefix="RM"
-                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-                  disabled={readOnly}
+                  inputClassName={cn(inputClassName, "pl-12", (readOnly || profitLossType === "") && formInputDisabledClassName)}
+                  disabled={readOnly || profitLossType === ""}
                 />
               </div>
             </div>
