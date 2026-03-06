@@ -77,7 +77,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveTriggered, setSaveTriggered] = useState(false);
-  const [offerExpiryDays, setOfferExpiryDays] = useState<string>("");
+  const [offerExpiryDays, setOfferExpiryDays] = useState<string>("7");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
 
@@ -154,12 +154,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         buildPayloadFromSteps(stepsToSet)
       );
       const days = (product as { offer_expiry_days?: number | null }).offer_expiry_days;
-      setOfferExpiryDays(days != null ? String(days) : "");
+      setOfferExpiryDays(days != null ? String(days) : "7");
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
       initialWorkflowRef.current = [];
-      setOfferExpiryDays("");
+      setOfferExpiryDays("7");
     }
   }, [open, isEdit, product]);
 
@@ -370,7 +370,8 @@ const offerExpiryError = (() => {
   const v = offerExpiryDays.trim();
   if (v === "") return "Offer expiry is required";
   const num = Number(v);
-  if (Number.isNaN(num) || num <= 0) return "Offer expiry is required";
+  if (Number.isNaN(num)) return "Offer expiry is required";
+  if (num <= 0) return "Offer expiry cannot be 0";
   return null;
 })();
 
@@ -584,11 +585,14 @@ const hasChanges = !isEdit
                 </div>
               </div>
 
-              {/* Offer settings — below workflow steps */}
-              <div className="grid gap-2 shrink-0 min-w-0">
-                <Label className="text-sm font-medium">Offer settings</Label>
+              {/* Offer settings — below workflow steps, card layout to match workflow container */}
+              <div className="rounded-xl border border-border bg-card p-4 shrink-0 min-w-0">
+                {/* <div className="space-y-1 mb-4">
+                  <h3 className="text-sm font-semibold text-foreground">Offer settings</h3>
+                  <div className="border-b border-border" />
+                </div> */}
                 <div className="grid gap-2 min-w-0">
-                  <Label htmlFor="offer-expiry-days" className="text-sm font-normal text-muted-foreground">
+                  <Label htmlFor="offer-expiry-days" className="text-sm font-medium">
                     Offer expiry (days)
                   </Label>
                   <Input
@@ -597,7 +601,8 @@ const hasChanges = !isEdit
                     min={1}
                     value={offerExpiryDays}
                     onChange={(e) => setOfferExpiryDays(e.target.value)}
-                    placeholder="3"
+                    placeholder="7"
+                    className={offerExpiryError ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}
                   />
                   <p className="text-xs text-muted-foreground">
                     This defines how long an issuer has to accept the offer after it is generated.
